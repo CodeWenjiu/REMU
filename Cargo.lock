@@ -5,3 +5,10 @@ version = 4
 [[package]]
 name = "core"
 version = "0.1.0"
+dependencies = [
+ "remu_macro",
+]
+
+[[package]]
+name = "remu_macro"
+version = "0.1.0"
