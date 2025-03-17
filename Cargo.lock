@@ -3,5 +3,5 @@
 version = 4
 
 [[package]]
-name = "remu"
+name = "core"
 version = "0.1.0"
