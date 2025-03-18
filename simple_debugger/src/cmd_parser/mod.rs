@@ -1,1 +1,1 @@
-remu_macro::mod_flat!(readline);
+remu_macro::mod_flat!(readline, server);
