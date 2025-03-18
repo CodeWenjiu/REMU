@@ -7,3 +7,9 @@ codegen-units = 1
 lto           = true
 panic         = "abort"
 strip         = true
+
+[workspace.dependencies]
+owo-colors = "4.2.0"
+snafu = "0.8.5"
+enum_dispatch = "0.3.13"
+clap = { version = "4.5.32", features = [ "derive" ] }
