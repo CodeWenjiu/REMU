@@ -1,0 +1,5 @@
+menu "YYY of XXX"
+    menuconfig XXX_YYY_ZZZ
+        bool "ZZZ of YYY"
+        default y
+endmenu

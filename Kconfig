@@ -1,8 +1,0 @@
-config EFI
-	bool "UEFI runtime support"
-	depends on MMU
-	default y
-	select EFI_STUB
-	help
-	  This option provides support for runtime services provided
-	  by UEFI firmware.
