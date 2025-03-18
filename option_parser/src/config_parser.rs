@@ -1,22 +1,13 @@
-use std::{collections::HashMap, path::PathBuf};
+use std::collections::HashMap;
 
 use config::Config;
-use owo_colors::OwoColorize;
 use snafu::ResultExt;
 
-#[derive(Debug, snafu::Snafu)]
-enum PanicError {
-    #[snafu(display("{} {}: {}", "Unable to parse config file from".red(), path.display(), source))]
-    ConfigParse { source: config::ConfigError, path: PathBuf },
+use crate::{ConfigDeserializeSnafu, ConfigParseSnafu};
 
-    #[snafu(display("{}: {}", "Unable to deserilalize file from".red(), source))]
-    ConfigDeserialize { source: config::ConfigError }
-}
+type Result = crate::Result<()>;
 
-type Result<T, E = PanicError> = std::result::Result<T, E>;
-
-#[snafu::report]
-fn main() -> Result<()> {
+pub fn config_parser() -> Result {
     let path = "config/config";
 
     let settings = Config::builder()
@@ -25,11 +16,11 @@ fn main() -> Result<()> {
         .add_source(config::Environment::with_prefix(""))
         .build()
         .context(ConfigParseSnafu { path })?;
-
+    
     let map = settings.try_deserialize::<HashMap<String, String>>().context(ConfigDeserializeSnafu)?;
     for (key, value) in map.iter().filter(|(k, _)| k.as_str() != "") {
         println!("{}: {}", key, value);
     }
-
+    
     Ok(())
 }

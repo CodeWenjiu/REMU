@@ -1,10 +1,9 @@
 [package]
-name = "option_parser"
+name = "core"
 version = "0.1.0"
 edition = "2024"
 
 [dependencies]
+option_parser = { path = "../option_parser" }
 remu_macro = { path = "../remu_macro" }
-owo-colors = {workspace = true}
 snafu = {workspace = true}
-config = "0.15.11"
