@@ -1,6 +1,6 @@
 [workspace]
 resolver = "2"
-members = [ "core","option_parser", "remu_macro"]
+members = [ "core","option_parser", "remu_macro", "simple_debugger"]
 
 [profile.release]
 codegen-units = 1

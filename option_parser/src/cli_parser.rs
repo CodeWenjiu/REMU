@@ -7,6 +7,14 @@ use clap::{builder::styling, Parser};
 .literal(styling::AnsiColor::Blue.on_default().bold())
 .placeholder(styling::AnsiColor::Cyan.on_default()))]
 pub struct CLI {
+    /// bin file path
+    #[arg(long)]
+    pub bin: Option<String>,
+
+    /// Platform
+    #[arg(short, long, default_value("rv32e-emu"))]
+    pub platform: String,
+
     /// Enable Batch mode
     #[arg(short, long)]
     pub batch: bool,
@@ -14,8 +22,4 @@ pub struct CLI {
     /// differtest file path (Will Enable if provided)
     #[arg(short, long)]
     pub differtest: Option<String>,
-
-    /// bin file path
-    #[arg(long)]
-    pub bin: Option<String>,
 }

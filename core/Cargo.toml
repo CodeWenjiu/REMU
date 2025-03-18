@@ -6,4 +6,5 @@ edition = "2024"
 [dependencies]
 option_parser = { path = "../option_parser" }
 remu_macro = { path = "../remu_macro" }
+simple_debugger = { path = "../simple_debugger" }
 snafu = {workspace = true}

@@ -1,0 +1,12 @@
+[package]
+name = "simple_debugger"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+remu_macro = { path = "../remu_macro" }
+option_parser = { path = "../option_parser" }
+owo-colors = {workspace = true}
+snafu = {workspace = true}
+clap = {workspace = true}
+rustyline = { version = "15.0.0", features = ["derive"] }
