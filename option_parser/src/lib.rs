@@ -12,4 +12,12 @@ pub enum PanicError {
 
 pub type Result<T, E = PanicError> = std::result::Result<T, E>;
 
-remu_macro::mod_flat!(config_parser);
+remu_macro::mod_flat!(config_parser, welcome);
+
+pub fn parser() -> Result<()> {
+    config_parser()?;
+
+    welcome();
+
+    Ok(())
+}

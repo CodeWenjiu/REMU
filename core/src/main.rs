@@ -1,8 +1,10 @@
-use option_parser::config_parser;
+use option_parser::parser;
 
 type Result = option_parser::Result<()>;
 
 #[snafu::report]
 fn main() -> Result {
-    config_parser()
+    parser()?;
+
+    Ok(())
 }
