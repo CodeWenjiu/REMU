@@ -98,16 +98,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "core"
-version = "0.1.0"
-dependencies = [
- "config",
- "owo-colors",
- "remu_macro",
- "snafu",
-]
-
-[[package]]
 name = "cpufeatures"
 version = "0.2.17"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -267,6 +257,16 @@ name = "once_cell"
 version = "1.21.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "d75b0bedcc4fe52caa0e03d9f1151a323e4aa5e2d78ba3580400cd3c9e2bc4bc"
+
+[[package]]
+name = "option_parser"
+version = "0.1.0"
+dependencies = [
+ "config",
+ "owo-colors",
+ "remu_macro",
+ "snafu",
+]
 
 [[package]]
 name = "ordered-multimap"
