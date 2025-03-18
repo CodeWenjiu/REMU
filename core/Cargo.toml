@@ -4,4 +4,5 @@ version = "0.1.0"
 edition = "2024"
 
 [dependencies]
+config = "0.15.11"
 remu_macro = { path = "../remu_macro" }

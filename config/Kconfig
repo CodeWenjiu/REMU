@@ -1,5 +1,11 @@
-menu "YYY of XXX"
-    menuconfig XXX_YYY_ZZZ
-        bool "ZZZ of YYY"
-        default y
+menu "Memory Configuration"
+
+config SRAM_BASE
+  hex "SRAM base address"
+  default 0x0f000000
+
+config SRAM_SIZE
+  hex "SRAM size"
+  default 0x2000
+
 endmenu

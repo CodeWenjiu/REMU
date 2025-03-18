@@ -1,4 +1,4 @@
-import json
+import toml
 from kconfiglib import Kconfig
 
 def main():
@@ -10,8 +10,8 @@ def main():
         if sym.str_value:
             config_dict[sym.name] = sym.str_value
 
-    with open("config.json", "w") as f:
-        json.dump(config_dict, f, indent=2)
+    with open("config.toml", "w") as f:
+        toml.dump(config_dict, f)
 
 if __name__ == "__main__":
     main()
