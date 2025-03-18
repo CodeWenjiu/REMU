@@ -1,10 +1,7 @@
-use option_parser::parser;
+use option_parser::parse;
 
-type Result = option_parser::Result<()>;
-
-#[snafu::report]
-fn main() -> Result {
-    parser()?;
+fn main() -> Result<(), ()> {
+    parse()?;
 
     Ok(())
 }

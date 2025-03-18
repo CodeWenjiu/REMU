@@ -7,4 +7,5 @@ edition = "2024"
 remu_macro = { path = "../remu_macro" }
 owo-colors = {workspace = true}
 snafu = {workspace = true}
+clap = {workspace = true}
 config = "0.15.11"

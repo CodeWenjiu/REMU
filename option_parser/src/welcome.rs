@@ -22,9 +22,9 @@ const RV32E_EMU: &str = r#"
 "#;
 
 pub fn welcome() {
-    println!("\n\n\n\n\n{}", REMU.fg_rgb::<0x2E, 0x31, 0x92>().bold());
+    println!("\n{}", REMU.fg_rgb::<0x2E, 0x31, 0x92>().bold());
 
     println!("{}", RV32E_EMU);
 
-    println!("\n\n\n\n\n\n");
+    println!("\n\n");
 }

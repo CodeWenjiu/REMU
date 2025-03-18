@@ -1,21 +1,15 @@
-use std::path::PathBuf;
-use owo_colors::OwoColorize;
+use clap::Parser;
 
-#[derive(Debug, snafu::Snafu)]
-pub enum PanicError {
-    #[snafu(display("{} {}: {}", "Unable to parse config file from".red(), path.display(), source))]
-    ConfigParse { source: config::ConfigError, path: PathBuf },
+remu_macro::mod_flat!(config_parser, cli_parser, welcome);
 
-    #[snafu(display("{}: {}", "Unable to deserilalize file from".red(), source))]
-    ConfigDeserialize { source: config::ConfigError }
-}
+pub fn parse() -> Result<(), ()> {
+    config_parser().map_err(|e| {
+        eprintln!("{}", e);
+    })?;
 
-pub type Result<T, E = PanicError> = std::result::Result<T, E>;
-
-remu_macro::mod_flat!(config_parser, welcome);
-
-pub fn parser() -> Result<()> {
-    config_parser()?;
+    CLI::try_parse().map_err(|e| {
+        let _ = e.print();
+    })?;
 
     welcome();
 

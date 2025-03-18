@@ -2,12 +2,21 @@ use std::collections::HashMap;
 
 use config::Config;
 use snafu::ResultExt;
+use std::path::PathBuf;
+use owo_colors::OwoColorize;
 
-use crate::{ConfigDeserializeSnafu, ConfigParseSnafu};
+#[derive(Debug, snafu::Snafu)]
+pub enum ConfigError {
+    #[snafu(display("{} {}: {}", "Unable to parse config file from".red(), path.display(), source))]
+    ConfigParse { source: config::ConfigError, path: PathBuf },
 
-type Result = crate::Result<()>;
+    #[snafu(display("{}: {}", "Unable to deserilalize file from".red(), source))]
+    ConfigDeserialize { source: config::ConfigError }
+}
 
-pub fn config_parser() -> Result {
+pub type ConfigResult<T, E = ConfigError> = std::result::Result<T, E>;
+
+pub fn config_parser() -> ConfigResult<()> {
     let path = "config/config";
 
     let settings = Config::builder()

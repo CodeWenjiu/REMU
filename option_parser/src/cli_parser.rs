@@ -1,0 +1,21 @@
+use clap::{builder::styling, Parser};
+
+#[derive(Parser, Debug)]
+#[command(version, about, long_about = None, styles = styling::Styles::styled()
+.header(styling::AnsiColor::Green.on_default().bold())
+.usage(styling::AnsiColor::Green.on_default().bold())
+.literal(styling::AnsiColor::Blue.on_default().bold())
+.placeholder(styling::AnsiColor::Cyan.on_default()))]
+pub struct CLI {
+    /// Enable Batch mode
+    #[arg(short, long)]
+    pub batch: bool,
+
+    /// differtest file path (Will Enable if provided)
+    #[arg(short, long)]
+    pub differtest: Option<String>,
+
+    /// bin file path
+    #[arg(long)]
+    pub bin: Option<String>,
+}
