@@ -1,7 +1,7 @@
 use option_parser::parse;
 
 fn main() -> Result<(), ()> {
-    parse()?;
+    let _ = parse()?;
 
     Ok(())
 }

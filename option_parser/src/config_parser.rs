@@ -16,7 +16,7 @@ pub enum ConfigError {
 
 pub type ConfigResult<T, E = ConfigError> = std::result::Result<T, E>;
 
-pub fn config_parser() -> ConfigResult<()> {
+pub fn config_parser() -> ConfigResult<HashMap<String, String>> {
     let path = "config/config";
 
     let settings = Config::builder()
@@ -27,9 +27,6 @@ pub fn config_parser() -> ConfigResult<()> {
         .context(ConfigParseSnafu { path })?;
     
     let map = settings.try_deserialize::<HashMap<String, String>>().context(ConfigDeserializeSnafu)?;
-    for (key, value) in map.iter().filter(|(k, _)| k.as_str() != "") {
-        println!("{}: {}", key, value);
-    }
     
-    Ok(())
+    Ok(map.into_iter().filter(|(k, _)| k.as_str() != "").collect())
 }
