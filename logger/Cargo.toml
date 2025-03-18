@@ -1,13 +1,10 @@
 [package]
-name = "core"
+name = "logger"
 version = "0.1.0"
 edition = "2024"
 
 [dependencies]
-option_parser = { path = "../option_parser" }
 remu_macro = { path = "../remu_macro" }
-simple_debugger = { path = "../simple_debugger" }
-logger = { path = "../logger" }
 snafu = {workspace = true}
 log = {workspace = true}
 tracing = {workspace = true}

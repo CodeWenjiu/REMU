@@ -19,6 +19,10 @@ pub struct CLI {
     #[arg(short, long)]
     pub batch: bool,
 
+    /// Enable Log
+    #[arg(short, long)]
+    pub log: bool,
+
     /// differtest file path (Will Enable if provided)
     #[arg(short, long)]
     pub differtest: Option<String>,
