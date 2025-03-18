@@ -1,11 +1,25 @@
-menu "Memory Configuration"
+menu "Memory Regions"
+    menu "NPC Platform"
+        config NPC_SRAM_BASE
+            hex "NPC SRAM Base Address"
+            default 0x0F000000
+            help
+                Base address for NPC platform's SRAM.
 
-config SRAM_BASE
-  hex "SRAM base address"
-  default 0x0f000000
+        config NPC_SRAM_SIZE
+            hex "NPC SRAM Size"
+            default 0x00002000
+            help
+                Size of SRAM for NPC platform (hex).
+    endmenu
 
-config SRAM_SIZE
-  hex "SRAM size"
-  default 0x2000
+    menu "SoC Platform"
+        config SOC_SRAM_BASE
+            hex "SoC SRAM Base Address"
+            default 0x10000000
 
+        config SOC_SRAM_SIZE
+            hex "SoC SRAM Size"
+            default 0x00004000
+    endmenu
 endmenu
