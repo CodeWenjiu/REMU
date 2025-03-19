@@ -5,7 +5,9 @@ use simple_debugger::SimpleDebugger;
 fn main() -> Result<(), ()> {
     let cli_result = parse()?;
 
-    Logger::new()?;
+    if cli_result.cli.log {
+        Logger::new()?;
+    }
 
     let debugger = SimpleDebugger::new(cli_result);
     debugger.mainloop()?;
