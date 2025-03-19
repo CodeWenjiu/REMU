@@ -18,7 +18,7 @@ pub fn parse() -> Result<OptionParser, ()> {
         let _ = e.print();
     })?;
 
-    welcome();
+    welcome(&cli.platform);
 
     Ok(OptionParser { config, cli })
 }

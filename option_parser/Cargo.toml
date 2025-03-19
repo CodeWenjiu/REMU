@@ -10,3 +10,6 @@ owo-colors = {workspace = true}
 snafu = {workspace = true}
 clap = {workspace = true}
 config = "0.15.11"
+cargo = "0.86.0"
+install = "0.0.0"
+text-to-ascii-art = "0.1.10"

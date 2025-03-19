@@ -8,6 +8,7 @@ fn main() -> Result<(), ()> {
     if cli_result.cli.log {
         Logger::new()?;
     }
+    Logger::function("Log", cli_result.cli.log);
 
     let debugger = SimpleDebugger::new(cli_result);
     debugger.mainloop()?;

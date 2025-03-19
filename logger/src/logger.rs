@@ -47,21 +47,19 @@ impl Logger {
 
         color_eyre::install().map_err(|e| error!("Unable to install color_eyre: {}", e))?;
 
-        Logger::function("Log", true);
-
         Ok(())
     }
 
     pub fn format(message: &str, level: Logger) -> String {
         match level {
-            Logger::TRACE           => format!("⏭️   {}", message.white()),
-            Logger::INFO            => format!("ℹ️   {}", message.blue()),
-            Logger::DEBUG           => format!("🐞  {}", message.magenta()),
-            Logger::WARN            => format!("⚠️  {}", message.yellow()),
-            Logger::ERROR           => format!("❌  {}", message.red()),
-            Logger::SUCCESS         => format!("✅  {}", message.green()),
-            Logger::IMPORTANT       => format!("✨  {}", message.purple()),
-            Logger::CONGRATULATIONS => format!("🎉  {}", message.purple()),
+            Logger::TRACE           => format!("⏭️  {}", message.white()),
+            Logger::INFO            => format!("ℹ️  {}", message.blue()),
+            Logger::DEBUG           => format!("🐞 {}", message.magenta()),
+            Logger::WARN            => format!("⚠️ {}", message.yellow()),
+            Logger::ERROR           => format!("❌ {}", message.red()),
+            Logger::SUCCESS         => format!("✅ {}", message.green()),
+            Logger::IMPORTANT       => format!("✨ {}", message.purple()),
+            Logger::CONGRATULATIONS => format!("🎉 {}", message.purple()),
         }
     }
 
@@ -74,7 +72,7 @@ impl Logger {
     pub fn function(function_name: &str, on: bool) {
         let onooff = if on { format!("[{}]", "ON".green()) } else { format!("[{}]", "OFF".red()) };
 
-        println!("🔧  {}{}{}", "function ".blue(), function_name.magenta(), onooff);
+        println!("🔧 {}{}{}", "function ".blue(), function_name.magenta(), onooff);
     }
 
     pub fn log(message: &str, level: tracing::Level) {
