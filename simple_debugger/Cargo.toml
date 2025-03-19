@@ -5,6 +5,7 @@ edition = "2024"
 
 [dependencies]
 remu_macro = { path = "../remu_macro" }
+logger = { path = "../logger" }
 option_parser = { path = "../option_parser" }
 owo-colors = {workspace = true}
 snafu = {workspace = true}

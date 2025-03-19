@@ -1,11 +1,12 @@
-use owo_colors::OwoColorize;
+use logger::Logger;
 use rustyline::{error::ReadlineError, highlight::MatchingBracketHighlighter, hint::HistoryHinter, history::FileHistory, validate::MatchingBracketValidator, Cmd, CompletionType, Config, EditMode, Editor, KeyEvent};
 
 use super::{CmdCompleter, MyHelper};
 
 pub struct Server {
-    name: String,
-    rl: Editor<MyHelper, FileHistory>
+    prompt: String,
+
+    rl: Editor<MyHelper, FileHistory>,
 }
 
 pub enum ProcessResult {
@@ -35,21 +36,23 @@ impl Server {
         rl.bind_sequence(KeyEvent::alt('n'), Cmd::HistorySearchForward);
         rl.bind_sequence(KeyEvent::alt('p'), Cmd::HistorySearchBackward);
         if rl.load_history("./target/.rlhistory").is_err() {
-            println!("No previous history.");
+            Logger::show("[readline] No previous history.", Logger::INFO);
         }
+
+        let p = Logger::format(&("(".to_string() + name + ") -> "), Logger::IMPORTANT);
+
+        rl.helper_mut().expect("No helper").colored_prompt = p.clone();
 
         Ok(
             Self {
-                name: name.to_string(),
-                rl
+                prompt: p,
+                rl,
             }
         )
     }
 
     pub fn readline(&mut self) -> ProcessResult {
-        let p = format!("✨{} -> ", self.name);
-        self.rl.helper_mut().expect("No helper").colored_prompt = p.purple().to_string();
-        let readline = self.rl.readline(&p);
+        let readline = self.rl.readline(&self.prompt);
 
         match readline {
             Ok(line) => {

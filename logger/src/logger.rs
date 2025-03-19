@@ -16,8 +16,9 @@ pub enum Logger{
     INFO ,
     WARN ,
     ERROR,
-    IMPORTANT,
     SUCCESS,
+    IMPORTANT,
+    CONGRATULATIONS,
 }
 
 impl From<tracing::Level> for Logger {
@@ -51,16 +52,23 @@ impl Logger {
         Ok(())
     }
 
-    pub fn show(message: &str, level: Logger) {
+    pub fn format(message: &str, level: Logger) -> String {
         match level {
-            Logger::TRACE       => println!("⏭️  {}", message.white()),
-            Logger::DEBUG       => println!("🐞  {}", message.magenta()),
-            Logger::INFO        => println!("ℹ️  {}", message.blue()),
-            Logger::WARN        => println!("⚠️  {}", message.yellow()),
-            Logger::ERROR       => println!("❌  {}", message.green()),
-            Logger::IMPORTANT   => println!("✨  {}", message.red()),
-            Logger::SUCCESS     => println!("🎉  {}", message.green()),
+            Logger::TRACE           => format!("⏭️  {}", message.white()),
+            Logger::DEBUG           => format!("🐞  {}", message.magenta()),
+            Logger::INFO            => format!("ℹ️  {}", message.blue()),
+            Logger::WARN            => format!("⚠️  {}", message.yellow()),
+            Logger::ERROR           => format!("❌  {}", message.red()),
+            Logger::SUCCESS         => format!("✅  {}", message.green()),
+            Logger::IMPORTANT       => format!("✨  {}", message.purple()),
+            Logger::CONGRATULATIONS => format!("🎉  {}", message.purple()),
         }
+    }
+
+    pub fn show(message: &str, level: Logger) {
+        let formatted = Logger::format(message, level);
+
+        println!("{}", formatted);
     }
 
     pub fn function(function_name: &str, on: bool) {

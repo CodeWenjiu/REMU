@@ -1,3 +1,4 @@
+use logger::Logger;
 use owo_colors::OwoColorize;
 
 const REMU: &str = r#"
@@ -22,6 +23,8 @@ const RV32E_EMU: &str = r#"
 "#;
 
 pub fn welcome() {
+    Logger::show("Welcome to REMU - A RISC-V RV32E Emulator", Logger::CONGRATULATIONS);
+    
     println!("{}", REMU.fg_rgb::<0x2E, 0x31, 0x92>().bold());
 
     println!("{}", RV32E_EMU);

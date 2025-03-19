@@ -639,6 +639,7 @@ version = "0.1.0"
 dependencies = [
  "clap",
  "config",
+ "logger",
  "owo-colors 4.2.0",
  "remu_macro",
  "snafu",
@@ -921,6 +922,7 @@ name = "simple_debugger"
 version = "0.1.0"
 dependencies = [
  "clap",
+ "logger",
  "option_parser",
  "owo-colors 4.2.0",
  "remu_macro",
