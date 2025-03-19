@@ -1,3 +1,4 @@
+use logger::Logger;
 use option_parser::OptionParser;
 use crate::cmd_parser::{ProcessResult, Server};
 
@@ -17,11 +18,14 @@ impl SimpleDebugger {
     pub fn mainloop(mut self) -> Result<(), ()> {
         loop {
             let line = self.server.readline();
-            match line {
+
+            let line = match line {
                 ProcessResult::Halt => return Ok(()),
                 ProcessResult::Error => return Err(()),
-                ProcessResult::Continue(line) => println!("{}", line),
+                ProcessResult::Continue(line) => line,
             };
+
+            Logger::show(&line, Logger::TRACE);
         }
     }
 }

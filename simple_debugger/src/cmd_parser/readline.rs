@@ -1,4 +1,5 @@
 use std::borrow::Cow::{self, Borrowed, Owned};
+use std::vec;
 
 use rustyline::completion::{Completer, Pair};
 use rustyline::error::ReadlineError;
@@ -13,9 +14,9 @@ pub struct CmdCompleter {
 }
 
 impl CmdCompleter {
-    pub fn new() -> CmdCompleter {
+    pub fn new(cmds: Vec<String>) -> CmdCompleter {
         CmdCompleter {
-            commands: vec!["ls".to_string(), "echo".to_string(), "cat".to_string()],
+            commands: cmds,
         }
     }
 
