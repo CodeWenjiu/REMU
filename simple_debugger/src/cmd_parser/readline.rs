@@ -1,5 +1,6 @@
 use std::borrow::Cow::{self, Borrowed, Owned};
 
+use owo_colors::OwoColorize;
 use petgraph::graph::NodeIndex;
 use petgraph::Graph;
 use rustyline::completion::{Completer, Pair};
@@ -122,7 +123,7 @@ impl Highlighter for MyHelper {
     }
 
     fn highlight_hint<'h>(&self, hint: &'h str) -> Cow<'h, str> {
-        Owned("\x1b[1m".to_owned() + hint + "\x1b[m")
+        Owned(hint.bright_black().to_string())
     }
 
     fn highlight<'l>(&self, line: &'l str, pos: usize) -> Cow<'l, str> {
