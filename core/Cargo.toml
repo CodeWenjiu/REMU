@@ -8,6 +8,7 @@ option_parser = { path = "../option_parser" }
 remu_macro = { path = "../remu_macro" }
 simple_debugger = { path = "../simple_debugger" }
 logger = { path = "../logger" }
+state = { path = "../state" }
 snafu = {workspace = true}
 log = {workspace = true}
 tracing = {workspace = true}
@@ -15,3 +16,4 @@ tracing-subscriber = {workspace = true}
 tracing-appender = {workspace = true}
 tracing-error = {workspace = true}
 color-eyre = {workspace = true}
+bitflags = {workspace = true}

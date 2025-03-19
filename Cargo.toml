@@ -19,3 +19,4 @@ tracing-appender = "0.2"
 tracing-error = "0.1"
 color-eyre = "0.6"
 clap = { version = "4.5.32", features = [ "derive", "color" ] }
+bitflags = "2.9.0"
