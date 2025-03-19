@@ -1,6 +1,7 @@
 use std::borrow::Cow::{self, Borrowed, Owned};
-use std::vec;
 
+use petgraph::graph::NodeIndex;
+use petgraph::Graph;
 use rustyline::completion::{Completer, Pair};
 use rustyline::error::ReadlineError;
 use rustyline::highlight::{CmdKind, Highlighter, MatchingBracketHighlighter};
@@ -10,29 +11,80 @@ use rustyline::Context;
 use rustyline::{Completer, Helper, Hinter, Validator};
 
 pub struct CmdCompleter {
-    commands: Vec<String>,
+    cmds_tree: Graph<String, ()>,
 }
 
 impl CmdCompleter {
-    pub fn new(cmds: Vec<String>) -> CmdCompleter {
-        CmdCompleter {
-            commands: cmds,
+    pub fn new(cmds_tree: Graph<String, ()>) -> CmdCompleter {
+        CmdCompleter { cmds_tree }
+    }
+
+    fn get_subcommands(&self, node_idx: NodeIndex) -> Vec<Pair> {
+        self.cmds_tree
+            .neighbors_directed(node_idx, petgraph::Direction::Outgoing)
+            .map(|idx| {
+                let cmd = &self.cmds_tree[idx];
+                Pair {
+                    display: cmd.clone(),
+                    replacement: cmd.clone(),
+                }
+            })
+            .collect()
+    }
+
+    fn find_node_for_path(&self, parts: &[&str]) -> NodeIndex {
+        let mut current_node = 0.into(); // Start at root
+        
+        for &part in parts {
+            let found_neighbor = self.cmds_tree
+                .neighbors_directed(current_node, petgraph::Direction::Outgoing)
+                .find(|&neighbor| self.cmds_tree[neighbor] == part);
+                
+            match found_neighbor {
+                Some(neighbor) => current_node = neighbor,
+                None => break,
+            }
         }
+        
+        current_node
     }
 
     fn complete_path(&self, line: &str, pos: usize) -> Result<(usize, Vec<Pair>), ReadlineError> {
-        let mut completions = vec![];
-        let start = line[..pos].rfind(' ').map_or(0, |i| i + 1);
-        let word = &line[start..pos];
-        for cmd in &self.commands {
-            if cmd.starts_with(word) {
-                completions.push(Pair {
-                    display: cmd.clone(),
-                    replacement: cmd.clone(),
-                });
-            }
+        let parts: Vec<&str> = line[..pos].split_whitespace().collect();
+        
+        if parts.is_empty() {
+            return Ok((0, self.get_subcommands(0.into())));
         }
-        Ok((start, completions))
+        
+        let ends_with_space = line[..pos].ends_with(' ');
+        
+        if ends_with_space {
+            // All commands at the current path level
+            let current_node = self.find_node_for_path(&parts);
+            return Ok((pos, self.get_subcommands(current_node)));
+        } else {
+            // Filter commands that match partial input
+            let last_part = parts.last().unwrap();
+            let start = line[..pos].rfind(last_part).unwrap_or(0);
+            let current_node = self.find_node_for_path(&parts[..parts.len()-1]);
+            
+            let completions = self.cmds_tree
+                .neighbors_directed(current_node, petgraph::Direction::Outgoing)
+                .filter_map(|idx| {
+                    let cmd = &self.cmds_tree[idx];
+                    if cmd.starts_with(last_part) {
+                        Some(Pair {
+                            display: cmd.clone(),
+                            replacement: cmd.clone(),
+                        })
+                    } else {
+                        None
+                    }
+                })
+                .collect();
+            
+            return Ok((start, completions));
+        }
     }
 }
 

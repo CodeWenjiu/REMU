@@ -1,8 +1,9 @@
-use clap::CommandFactory;
 use logger::Logger;
 use rustyline::{error::ReadlineError, highlight::MatchingBracketHighlighter, hint::HistoryHinter, history::FileHistory, validate::MatchingBracketValidator, Cmd, CompletionType, Config, EditMode, Editor, KeyEvent};
 
-use super::{CmdCompleter, CmdParser, MyHelper};
+use crate::cmd_parser::get_cmd_tree;
+
+use super::{CmdCompleter, MyHelper};
 
 pub struct Server {
     prompt: String,
@@ -18,11 +19,6 @@ pub enum ProcessResult {
 
 impl Server {
     pub fn new(name: &str) -> Result<Self, ()> {
-        let cmds_vec: Vec<String> = CmdParser::command()
-            .get_subcommands()
-            .map(|subcmd| subcmd.get_name().to_string())
-            .collect();
-
         let config = Config::builder()
             .history_ignore_space(true)
             .completion_type(CompletionType::List)
@@ -30,7 +26,7 @@ impl Server {
             .build();
         
         let h = MyHelper {
-            completer: CmdCompleter::new(cmds_vec),
+            completer: CmdCompleter::new( get_cmd_tree()),
             highlighter: MatchingBracketHighlighter::new(),
             hinter: HistoryHinter::new(),
             colored_prompt: "".to_owned(),
@@ -70,8 +66,7 @@ impl Server {
                 ProcessResult::Continue(line)
             }
             Err(ReadlineError::Interrupted) => {
-                Logger::show("Interrupt", Logger::INFO);
-                ProcessResult::Halt
+                ProcessResult::Continue("".to_string())
             }
             Err(ReadlineError::Eof) => {
                 Logger::show("Quiting...", Logger::INFO);
