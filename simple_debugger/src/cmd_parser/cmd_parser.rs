@@ -24,10 +24,10 @@ fn parse_hex(src: &str) -> Result<u32, ParseIntError> {
 
 #[derive(Debug, Subcommand)]
 pub enum Cmds {
-    /// run single instrcution in the emulator
-    SingleInstrcution {
-        #[arg(default_value("1"))]
-        count: u64,
+    /// step the emulator
+    Step {
+        #[command(subcommand)]
+        subcmd: StepCmds,
     },
 
     /// continue the emulator
@@ -40,6 +40,23 @@ pub enum Cmds {
     Info {
         #[command(subcommand)]
         subcmd: InfoCmds,
+    },
+}
+
+#[derive(Debug, Subcommand)]
+pub enum StepCmds {
+    /// Step n Cycles
+    Cycles {
+        /// The target cycle count
+        #[arg(default_value("1"))]
+        count: u64,
+    },
+
+    /// Step n instructions
+    Instructions {
+        /// The target instruction count
+        #[arg(default_value("1"))]
+        count: u64,
     },
 }
 

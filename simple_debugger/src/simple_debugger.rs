@@ -3,7 +3,7 @@ use std::{cell::RefCell, rc::Rc};
 use logger::Logger;
 use option_parser::{DebugConfiguration, OptionParser};
 use state::mmu::MMU;
-use crate::cmd_parser::{ProcessResult, Server};
+use crate::{cmd_parser::Server, ProcessError};
 
 pub struct SimpleDebugger {
     server: Server,
@@ -43,12 +43,18 @@ impl SimpleDebugger {
             let cmd = self.server.get_parse();
 
             let cmd = match cmd {
-                ProcessResult::Halt => return Ok(()),
-                ProcessResult::Error => return Err(()),
-                ProcessResult::Continue(cmd) => cmd,
+                Err(ProcessError::Recoverable) => continue,
+                Err(ProcessError::GracefulExit) => return Ok(()),
+                Err(ProcessError::Fatal) => return Err(()),
+                Ok(cmd) => cmd,
             };
 
-            self.execute(cmd.command)?;
+            match self.execute(cmd.command) {
+                Err(ProcessError::Recoverable) => continue,
+                Err(ProcessError::GracefulExit) => return Ok(()),
+                Err(ProcessError::Fatal) => return Err(()),
+                Ok(_) => {}
+            }
         }
     }
 }

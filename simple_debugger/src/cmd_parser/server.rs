@@ -2,7 +2,7 @@ use clap::Parser;
 use logger::Logger;
 use rustyline::{error::ReadlineError, highlight::MatchingBracketHighlighter, hint::HistoryHinter, history::{FileHistory, History}, validate::MatchingBracketValidator, Cmd, CompletionType, Config, EditMode, Editor, KeyEvent};
 
-use crate::cmd_parser::get_cmd_tree;
+use crate::{cmd_parser::get_cmd_tree, ProcessResult, ProcessError};
 
 use super::{CmdCompleter, CmdParser, MyHelper};
 
@@ -12,12 +12,6 @@ pub struct Server {
     rl: Editor<MyHelper, FileHistory>,
 
     rl_history_length: u32,
-}
-
-pub enum ProcessResult<T> {
-    Continue(T),
-    Halt,
-    Error,
 }
 
 impl Server {
@@ -59,13 +53,7 @@ impl Server {
 
     pub fn get_parse(&mut self) -> ProcessResult<CmdParser> {
         loop {
-            let line = self.readline();
-
-            let line = match line {
-                ProcessResult::Halt => return ProcessResult::Halt,
-                ProcessResult::Error => return ProcessResult::Error,
-                ProcessResult::Continue(line) => line,
-            };
+            let line = self.readline()?;
 
             let mut line = line.trim().split_whitespace().collect::<Vec<&str>>();
             if line.is_empty() {
@@ -77,7 +65,7 @@ impl Server {
             let cmd = CmdParser::try_parse_from(line);
 
             match cmd {
-                Ok(cmd) => return ProcessResult::Continue(cmd),
+                Ok(cmd) => return Ok(cmd),
                 Err(e) if (e.kind() == clap::error::ErrorKind::DisplayHelp || e.kind() == clap::error::ErrorKind::DisplayVersion) => {
                     let _ = e.print();
                     continue;
@@ -97,21 +85,21 @@ impl Server {
             Ok(line) => {
                 if let Err(e) = self.rl.add_history_entry(line.as_str()) {
                     eprintln!("{}", e);
-                    return ProcessResult::Error;
+                    return Err(ProcessError::Fatal);
                 }
 
-                ProcessResult::Continue(line)
+                Ok(line)
             }
             Err(ReadlineError::Interrupted) => {
-                ProcessResult::Continue("".to_string())
+                Ok("".to_string())
             }
             Err(ReadlineError::Eof) => {
                 Logger::show("Quiting...", Logger::INFO);
-                ProcessResult::Halt
+                Err(ProcessError::GracefulExit)
             }
             Err(err) => {
                 eprintln!("Error: {:?}", err);
-                ProcessResult::Error
+                Err(ProcessError::Fatal)
             }
         }
     }
