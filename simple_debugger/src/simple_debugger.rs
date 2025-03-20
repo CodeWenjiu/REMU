@@ -3,7 +3,7 @@ use std::{cell::RefCell, rc::Rc};
 use logger::Logger;
 use option_parser::OptionParser;
 use state::mmu::MMU;
-use crate::cmd_parser::{ProcessResult, Server};
+use crate::cmd_parser::{Cmds, InfoCmds, MemoryCmds, ProcessResult, Server};
 
 pub struct SimpleDebugger {
     server: Server,
@@ -30,20 +30,39 @@ impl SimpleDebugger {
 
     pub fn mainloop(mut self) -> Result<(), ()> {
         loop {
-            let line = self.server.readline();
+            let cmd = self.server.get_parse();
 
-            let line = match line {
+            let cmd = match cmd {
                 ProcessResult::Halt => return Ok(()),
                 ProcessResult::Error => return Err(()),
-                ProcessResult::Continue(line) => line,
+                ProcessResult::Continue(cmd) => cmd,
             };
 
-            let line = line.trim().split_whitespace().collect::<Vec<&str>>();
-            if line.len() == 0 {
-                continue;
-            }
+            match cmd.command {
+                Cmds::Info { subcmd } => {
+                    match subcmd {
+                        InfoCmds::Memory { subcmd } => {
+                            match subcmd {
+                                MemoryCmds::ShowMemoryMap {} => {
+                                    self.mmu.borrow().show_memory_map();
+                                }
 
-            Logger::show(&line[0], Logger::TRACE);
+                                _ => {
+                                    Logger::todo();
+                                }
+                            }
+                        }
+
+                        _ => {
+                            Logger::todo();
+                        }
+                    }
+                }
+
+                _ => {
+                    Logger::todo();
+                }
+            }
         }
     }
 }

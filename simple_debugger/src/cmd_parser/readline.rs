@@ -76,7 +76,7 @@ impl CmdCompleter {
                     if cmd.starts_with(last_part) {
                         Some(Pair {
                             display: cmd.clone(),
-                            replacement: cmd.clone(),
+                            replacement: cmd.clone() + " ", // easier to compelete next part
                         })
                     } else {
                         None

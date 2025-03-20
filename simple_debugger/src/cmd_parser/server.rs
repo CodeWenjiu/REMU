@@ -1,9 +1,10 @@
+use clap::Parser;
 use logger::Logger;
 use rustyline::{error::ReadlineError, highlight::MatchingBracketHighlighter, hint::HistoryHinter, history::FileHistory, validate::MatchingBracketValidator, Cmd, CompletionType, Config, EditMode, Editor, KeyEvent};
 
 use crate::cmd_parser::get_cmd_tree;
 
-use super::{CmdCompleter, Cmds, MyHelper};
+use super::{CmdCompleter, CmdParser, MyHelper};
 
 pub struct Server {
     prompt: String,
@@ -11,8 +12,8 @@ pub struct Server {
     rl: Editor<MyHelper, FileHistory>,
 }
 
-pub enum ProcessResult {
-    Continue(String),
+pub enum ProcessResult<T> {
+    Continue(T),
     Halt,
     Error,
 }
@@ -53,7 +54,40 @@ impl Server {
         )
     }
 
-    pub fn readline(&mut self) -> ProcessResult {
+    pub fn get_parse(&mut self) -> ProcessResult<CmdParser> {
+        loop {
+            let line = self.readline();
+
+            let line = match line {
+                ProcessResult::Halt => return ProcessResult::Halt,
+                ProcessResult::Error => return ProcessResult::Error,
+                ProcessResult::Continue(line) => line,
+            };
+
+            let mut line = line.trim().split_whitespace().collect::<Vec<&str>>();
+            if line.is_empty() {
+                continue;
+            }
+
+            line.insert(0, "");
+
+            let cmd = CmdParser::try_parse_from(line);
+
+            match cmd {
+                Ok(cmd) => return ProcessResult::Continue(cmd),
+                Err(e) if e.kind() == clap::error::ErrorKind::DisplayHelp => {
+                    let _ = e.print();
+                    continue;
+                }
+                Err(_) => {
+                    Logger::show("Invalid command", Logger::ERROR);
+                    continue;
+                }
+            }
+        }
+    }
+
+    fn readline(&mut self) -> ProcessResult<String> {
         let readline = self.rl.readline(&self.prompt);
 
         match readline {

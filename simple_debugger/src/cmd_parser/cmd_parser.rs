@@ -1,11 +1,15 @@
-use clap::{command, CommandFactory, Parser, Subcommand};
+use clap::{command, CommandFactory, Parser, Subcommand, builder::styling};
 use petgraph::Graph;
 
 #[derive(Parser, Debug)]
-#[command(author, version, about)]
+#[command(author, version, about, styles = styling::Styles::styled()
+.header(styling::AnsiColor::Green.on_default().bold())
+.usage(styling::AnsiColor::Green.on_default().bold())
+.literal(styling::AnsiColor::Blue.on_default().bold())
+.placeholder(styling::AnsiColor::Cyan.on_default()))]
 pub struct CmdParser {
     #[command(subcommand)]
-    command: Cmds,
+    pub command: Cmds,
 }
 
 use std::num::ParseIntError;
@@ -76,12 +80,18 @@ pub enum MemoryCmds {
 pub fn get_cmd_tree() -> Graph<String, ()> {
     let mut graph = Graph::<String, ()>::new();
     let root = graph.add_node("cmds".to_string());
-    
-    let help_node = graph.add_node("help".to_string());
-    graph.add_edge(root, help_node, ());
 
     fn add_subcommands(graph: &mut Graph<String, ()>, parent: petgraph::graph::NodeIndex, cmd: &clap::Command) {
-        for subcmd in cmd.get_subcommands() {
+        let subcommands: Vec<_> = cmd.get_subcommands().collect();
+        if subcommands.is_empty() {
+            return;
+        }
+
+        // every command with subcommand should also have a help command
+        let help_node = graph.add_node("help".to_string());
+        graph.add_edge(parent, help_node, ());
+
+        for subcmd in subcommands {
             let cmd_node = graph.add_node(subcmd.get_name().to_string());
             graph.add_edge(parent, cmd_node, ());
             

@@ -86,4 +86,12 @@ impl Logger {
 
         Logger::show(message, level.into());
     }
+
+    pub fn debug() {
+        Logger::show("debug", Logger::DEBUG);
+    }
+
+    pub fn todo() {
+        Logger::show("TODO!", Logger::ERROR);
+    }
 }
