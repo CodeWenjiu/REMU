@@ -1,6 +1,6 @@
 use clap::Parser;
 use logger::Logger;
-use rustyline::{error::ReadlineError, highlight::MatchingBracketHighlighter, hint::HistoryHinter, history::FileHistory, validate::MatchingBracketValidator, Cmd, CompletionType, Config, EditMode, Editor, KeyEvent};
+use rustyline::{error::ReadlineError, highlight::MatchingBracketHighlighter, hint::HistoryHinter, history::{FileHistory, History}, validate::MatchingBracketValidator, Cmd, CompletionType, Config, EditMode, Editor, KeyEvent};
 
 use crate::cmd_parser::get_cmd_tree;
 
@@ -10,6 +10,8 @@ pub struct Server {
     prompt: String,
     
     rl: Editor<MyHelper, FileHistory>,
+
+    rl_history_length: u32,
 }
 
 pub enum ProcessResult<T> {
@@ -19,7 +21,7 @@ pub enum ProcessResult<T> {
 }
 
 impl Server {
-    pub fn new(name: &str) -> Result<Self, ()> {
+    pub fn new(name: &str, rl_history_length: u32) -> Result<Self, ()> {
         let config = Config::builder()
             .history_ignore_space(true)
             .completion_type(CompletionType::List)
@@ -50,6 +52,7 @@ impl Server {
             Self {
                 prompt: p,
                 rl,
+                rl_history_length,
             }
         )
     }
@@ -116,6 +119,23 @@ impl Server {
 
 impl Drop for Server {
     fn drop(&mut self) {
+        // remove previous history until the length is satisfied
+        let history_len = self.rl.history().len();
+        if history_len > self.rl_history_length as usize {
+            // Get a copy of the current history
+            let history: Vec<String> = self.rl.history().iter().map(|entry| entry.to_string()).collect();
+            
+            // Clear the entire history
+            if let Err(e) = self.rl.clear_history() {
+                eprintln!("Error clearing history: {}", e);
+            } else {
+                // Re-add only the most recent entries
+                for entry in history.iter().skip(history_len - self.rl_history_length as usize) {
+                    let _ = self.rl.add_history_entry(entry);
+                }
+            }
+        }
+
         self.rl.save_history("./target/.rlhistory").unwrap();
     }
 }

@@ -1,5 +1,5 @@
 menu "Debugging"
-    config RL_HISTORY_SIZE
+    config DEBUG_RL_HISTORY_SIZE
         int "Readline History Size"
         default 1000
         help

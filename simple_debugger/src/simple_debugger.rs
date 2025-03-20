@@ -1,7 +1,7 @@
 use std::{cell::RefCell, rc::Rc};
 
 use logger::Logger;
-use option_parser::OptionParser;
+use option_parser::{DebugConfiguration, OptionParser};
 use state::mmu::MMU;
 use crate::cmd_parser::{Cmds, InfoCmds, MemoryCmds, ProcessResult, Server};
 
@@ -16,14 +16,24 @@ impl SimpleDebugger {
         let (_isa, name) = cli_result.cli.platform.split_once('-').unwrap();
 
         let mmu = Rc::new(RefCell::new(MMU::new()));
-        for (_isa, name, base, length, flag) in &cli_result.config {
+        for (_isa, name, base, length, flag) in &cli_result.memory_config {
             mmu.borrow_mut().add_memory(*base, *length, name, flag.clone()).map_err(|e| {
                 Logger::show(&e.to_string(), Logger::ERROR);
             })?;
         }
 
+        let mut rl_history_length = 100;
+
+        for debug_config in &cli_result.debug_config {
+            match debug_config {
+                DebugConfiguration::Readline { history } => {
+                    rl_history_length = *history;
+                }
+            }
+        }
+
         Ok(Self {
-            server: Server::new(name).expect("Unable to create server"),
+            server: Server::new(name, rl_history_length).expect("Unable to create server"),
             mmu,
         })
     }
