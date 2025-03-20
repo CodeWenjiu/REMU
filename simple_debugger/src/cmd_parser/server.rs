@@ -82,8 +82,8 @@ impl Server {
                     let _ = e.print();
                     continue;
                 }
-                Err(_) => {
-                    Logger::show("Invalid command", Logger::ERROR);
+                Err(e) => {
+                    let _ = e.print();
                     continue;
                 }
             }

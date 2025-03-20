@@ -2,5 +2,7 @@
 name = "remu_macro"
 version = "0.1.0"
 edition = "2024"
+license = "MIT"
+authors = [ "wenjiu <27843087979@qq.com>" ]
 
 [dependencies]

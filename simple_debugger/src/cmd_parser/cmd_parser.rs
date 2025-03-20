@@ -85,6 +85,8 @@ pub fn get_cmd_tree() -> Graph<String, ()> {
     fn add_subcommands(graph: &mut Graph<String, ()>, parent: petgraph::graph::NodeIndex, cmd: &clap::Command) {
         let subcommands: Vec<_> = cmd.get_subcommands().collect();
         if subcommands.is_empty() {
+            let help_node = graph.add_node("--help".to_string());
+            graph.add_edge(parent, help_node, ());
             return;
         }
 
