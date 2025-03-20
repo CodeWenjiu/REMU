@@ -3,12 +3,12 @@ use std::{cell::RefCell, rc::Rc};
 use logger::Logger;
 use option_parser::{DebugConfiguration, OptionParser};
 use state::mmu::MMU;
-use crate::cmd_parser::{Cmds, InfoCmds, MemoryCmds, ProcessResult, Server};
+use crate::cmd_parser::{ProcessResult, Server};
 
 pub struct SimpleDebugger {
     server: Server,
 
-    mmu: Rc<RefCell<MMU>>,
+    pub mmu: Rc<RefCell<MMU>>,
 }
 
 impl SimpleDebugger {
@@ -48,31 +48,7 @@ impl SimpleDebugger {
                 ProcessResult::Continue(cmd) => cmd,
             };
 
-            match cmd.command {
-                Cmds::Info { subcmd } => {
-                    match subcmd {
-                        InfoCmds::Memory { subcmd } => {
-                            match subcmd {
-                                MemoryCmds::ShowMemoryMap {} => {
-                                    self.mmu.borrow().show_memory_map();
-                                }
-
-                                _ => {
-                                    Logger::todo();
-                                }
-                            }
-                        }
-
-                        _ => {
-                            Logger::todo();
-                        }
-                    }
-                }
-
-                _ => {
-                    Logger::todo();
-                }
-            }
+            self.execute(cmd.command)?;
         }
     }
 }
