@@ -2706,6 +2706,7 @@ dependencies = [
  "owo-colors 4.2.0",
  "remu_macro",
  "snafu",
+ "state",
  "text-to-ascii-art",
 ]
 

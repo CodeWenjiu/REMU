@@ -1,4 +1,102 @@
 menu "Memory Regions"
+    menu "EMU Platform"
+        config EMU_MEM_SRAM_BASE
+            hex "EMU SRAM Base Address"
+            default 0x0f000000
+            help
+                Base address for EMU platform's SRAM.
+
+        config EMU_MEM_SRAM_SIZE
+            hex "EMU SRAM Size"
+            default 0x00002000
+            help
+                Size of SRAM for EMU platform (hex).
+                
+        config EMU_MEM_SRAM_FLAG
+            string "EMU SRAM Flag"
+            default 0b00000111
+
+        config EMU_MEM_MROM_BASE
+            hex "EMU MROM Base Address"
+            default 0x20000000
+            help
+                Base address for EMU platform's MROM.
+
+        config EMU_MEM_MROM_SIZE
+            hex "EMU MROM Size"
+            default 0x00001000
+            help
+                Size of MROM for EMU platform (hex).
+                
+        config EMU_MEM_MROM_FLAG
+            string "EMU MROM Flag"
+            default 0b00000101
+
+        config EMU_MEM_FLASH_BASE
+            hex "EMU FLASH Base Address"
+            default 0x30000000
+            help
+                Base address for EMU platform's FLASH.
+
+        config EMU_MEM_FLASH_SIZE
+            hex "EMU FLASH Size"
+            default 0x10000000
+            help
+                Size of FLASH for EMU platform (hex).
+                
+        config EMU_MEM_FLASH_FLAG
+            string "EMU FLASH Flag"
+            default 0b00000111
+
+        config EMU_MEM_PSRAM_BASE
+            hex "EMU PSRAM Base Address"
+            default 0x80000000
+            help
+                Base address for EMU platform's PSRAM.
+
+        config EMU_MEM_PSRAM_SIZE
+            hex "EMU PSRAM Size"
+            default 0x08000000
+            help
+                Size of PSRAM for EMU platform (hex).
+                
+        config EMU_MEM_PSRAM_FLAG
+            string "EMU PSRAM Flag"
+            default 0b00000111
+
+        config EMU_MEM_SDRAM_BASE
+            hex "EMU SDRAM Base Address"
+            default 0xa0000000
+            help
+                Base address for EMU platform's SDRAM.
+
+        config EMU_MEM_SDRAM_SIZE
+            hex "EMU SDRAM Size"
+            default 0x02000000
+            help
+                Size of SDRAM for EMU platform (hex).
+                
+        config EMU_MEM_SDRAM_FLAG
+            string "EMU SDRAM Flag"
+            default 0b00000111
+
+        config EMU_MEM_Chip_BASE
+            hex "EMU Chip Base Address"
+            default 0xc0000000
+            help
+                Base address for EMU platform's Chip.
+
+        config EMU_MEM_Chip_SIZE
+            hex "EMU Chip Size"
+            default 0x00020000
+            help
+                Size of Chip for EMU platform (hex).
+                
+        config EMU_MEM_Chip_FLAG
+            string "EMU Chip Flag"
+            default 0b00000011
+    endmenu
+
     menu "NPC Platform"
         config NPC_MEM_SRAM_BASE
             hex "NPC SRAM Base Address"

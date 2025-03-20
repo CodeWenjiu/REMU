@@ -43,8 +43,8 @@ impl MMU {
 
     pub fn show_memory_map(&self) {
         for (name, base, length, flag, _) in &self.memory_map {
-            println!("{}: range: [{:#x} : {:#x}] [{}]", 
-                name.purple(), base.green(), length.red(), format!("{}", flag.blue())
+            println!("{}\t [{:#010x} : {:#010x}] [{}]", 
+                name.purple(), base.green(), (base + length).red(), format!("{}", flag.blue())
             );
         }
     }

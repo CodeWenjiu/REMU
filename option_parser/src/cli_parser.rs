@@ -12,7 +12,7 @@ pub struct CLI {
     pub bin: Option<String>,
 
     /// Platform
-    #[arg(short, long, default_value("RV32E-NPC"))]
+    #[arg(short, long, default_value("rv32e-emu"))]
     pub platform: String,
 
     /// Enable Batch mode

@@ -25,6 +25,7 @@ impl Mask {
 
 use bitflags::bitflags;
 bitflags! {
+    #[derive(Clone)]
     pub struct MemoryFlags: u8 {
         const Read = 0b00000001;
         const Write = 0b00000010;

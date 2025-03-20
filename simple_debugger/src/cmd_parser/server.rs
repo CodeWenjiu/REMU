@@ -3,7 +3,7 @@ use rustyline::{error::ReadlineError, highlight::MatchingBracketHighlighter, hin
 
 use crate::cmd_parser::get_cmd_tree;
 
-use super::{CmdCompleter, MyHelper};
+use super::{CmdCompleter, Cmds, MyHelper};
 
 pub struct Server {
     prompt: String,

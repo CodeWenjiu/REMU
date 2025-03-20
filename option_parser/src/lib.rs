@@ -2,17 +2,12 @@ use std::collections::HashMap;
 
 use clap::Parser;
 use logger::Logger;
+use state::mmu::MemoryFlags;
 
 remu_macro::mod_flat!(config_parser, cli_parser, welcome);
 
-// #[derive(Debug, snafu::Snafu)]
-// pub enum ConfigError {
-//     #[snafu(display("{} {}: {}", "Unable to parse config file from".red(), path.display(), source))]
-//     PlatformSyntax { source: config::ConfigError, path: PathBuf },
-// }
-
 pub struct OptionParser {
-    pub config: HashMap<String, String>,
+    pub config: Vec<(String, String, u32, u32, MemoryFlags)>,
     pub cli: cli_parser::CLI,
 }
 
@@ -26,20 +21,25 @@ pub fn parse() -> Result<OptionParser, ()> {
     })?;
 
     let (arch, emu_platorm) = cli.platform.split_once("-").unwrap();
+    let arch = arch.to_uppercase();
+    let emu_platorm = emu_platorm.to_uppercase();
 
     config = config
         .iter()
-        .filter(|s| s.0.starts_with(emu_platorm))
-        .map(|(k, v)| (k.replace(emu_platorm, arch), v.clone()))
+        .filter(|s| s.0.starts_with(&emu_platorm))
+        .map(|(k, v)| (k.replace(&emu_platorm, &arch), v.clone()))
         .collect();
 
-    println!("{:?}", config);
-
-    let mut regions: HashMap<(String, String), (Option<u32>, Option<u32>)> = HashMap::new();
+    let mut regions: HashMap<(String, String), (Option<u32>, Option<u32>, Option<MemoryFlags>)> = HashMap::new();
 
     fn parse_hex(s: &str) -> Result<u32, ()> {
         let s = s.trim_start_matches("0x");
         u32::from_str_radix(s, 16).map_err(|_| ())
+    }
+
+    fn parse_bin(s: &str) -> Result<u32, ()> {
+        let s = s.trim_start_matches("0b");
+        u32::from_str_radix(s, 2).map_err(|_| ())
     }
 
     for (key, value) in config.iter() {
@@ -53,39 +53,37 @@ pub fn parse() -> Result<OptionParser, ()> {
         let name = parts[2];
         let attr = parts[3];
 
-        if attr != "BASE" && attr != "SIZE" {
+        if attr != "BASE" && attr != "SIZE" && attr != "FLAG" {
             Logger::show(&format!("Invalid platform syntax: {}", key), Logger::ERROR);
             return Err(());
         }
 
-        let value = parse_hex(value)?;
-
         let entry = regions
             .entry((isa.to_string(), name.to_string()))
-            .or_insert((None, None));
+            .or_insert((None, None, None));
         match attr {
-            "BASE" => entry.0 = Some(value),
-            "SIZE" => entry.1 = Some(value),
+            "BASE" => entry.0 = Some(parse_hex(value)?),
+            "SIZE" => entry.1 = Some(parse_hex(value)?),
+            "FLAG" => entry.2 = Some(MemoryFlags::from_bits(parse_bin(value)?.try_into().unwrap()).unwrap()),
             _ => unreachable!(),
         }
     }
 
     // unwarp regions
-    let regions = regions
+    let regions: Vec<(String, String, u32, u32, MemoryFlags)> = regions
         .iter()
-        .map(|((isa, name), (base, size))| {
+        .map(|((isa, name), (base, size, flag))| {
             (
-                isa,
-                name,
-                base.unwrap_or_default(),
-                size.unwrap_or_default(),
+                isa.clone(),
+                name.clone(),
+                base.unwrap(),
+                size.unwrap(),
+                flag.clone().unwrap(),
             )
         })
         .collect::<Vec<_>>();
 
-    println!("{:?}", regions);
-
     welcome(&cli.platform);
 
-    Ok(OptionParser { config, cli })
+    Ok(OptionParser { config: regions, cli })
 }

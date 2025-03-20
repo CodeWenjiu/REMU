@@ -37,14 +37,6 @@ pub enum Cmds {
     Info {
         #[command(subcommand)]
         subcmd: InfoCmds,
-
-        // /// The target address(hex) and length
-        // #[arg(value_parser = parse_hex)]
-        // addr: u32,
-
-        // /// Exam length in bitwidth, default as 1
-        // #[arg(default_value("1"))]
-        // length: u64,
     },
 }
 
@@ -59,6 +51,18 @@ pub enum InfoCmds {
 
     /// Get the state of the memory
     Memory {
+        #[command(subcommand)]
+        subcmd: MemoryCmds,
+    },
+}
+
+#[derive(Debug, Subcommand)]
+pub enum MemoryCmds {
+    /// show memory map
+    ShowMemoryMap {},
+
+    /// Examine memory
+    Examine {
         /// The target address(hex) and length
         #[arg(value_parser = parse_hex)]
         addr: u32,
