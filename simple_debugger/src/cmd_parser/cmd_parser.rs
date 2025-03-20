@@ -23,7 +23,6 @@ fn parse_hex(src: &str) -> Result<u32, ParseIntError> {
 }
 
 #[derive(Debug, Subcommand)]
-#[command(author, version, about)]
 pub enum Cmds {
     /// run single instrcution in the emulator
     SingleInstrcution {
@@ -45,7 +44,6 @@ pub enum Cmds {
 }
 
 #[derive(Debug, Subcommand)]
-#[command(author, version, about)]
 pub enum InfoCmds {
     /// Get the state of the register
     Register {
@@ -80,6 +78,9 @@ pub enum MemoryCmds {
 pub fn get_cmd_tree() -> Graph<String, ()> {
     let mut graph = Graph::<String, ()>::new();
     let root = graph.add_node("cmds".to_string());
+
+    let help_node = graph.add_node("--version".to_string());
+    graph.add_edge(root, help_node, ());
 
     fn add_subcommands(graph: &mut Graph<String, ()>, parent: petgraph::graph::NodeIndex, cmd: &clap::Command) {
         let subcommands: Vec<_> = cmd.get_subcommands().collect();

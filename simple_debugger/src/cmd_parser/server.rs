@@ -78,7 +78,7 @@ impl Server {
 
             match cmd {
                 Ok(cmd) => return ProcessResult::Continue(cmd),
-                Err(e) if e.kind() == clap::error::ErrorKind::DisplayHelp => {
+                Err(e) if (e.kind() == clap::error::ErrorKind::DisplayHelp || e.kind() == clap::error::ErrorKind::DisplayVersion) => {
                     let _ = e.print();
                     continue;
                 }
