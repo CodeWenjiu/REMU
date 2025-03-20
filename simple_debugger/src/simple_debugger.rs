@@ -3,10 +3,12 @@ use std::{cell::RefCell, rc::Rc};
 use logger::Logger;
 use option_parser::{DebugConfiguration, OptionParser};
 use state::mmu::MMU;
-use crate::{cmd_parser::Server, ProcessError};
+use crate::{cmd_parser::Server, debug::Disassembler, ProcessError};
 
 pub struct SimpleDebugger {
     server: Server,
+
+    pub disassembler: Disassembler,
 
     pub mmu: Rc<RefCell<MMU>>,
 }
@@ -34,27 +36,26 @@ impl SimpleDebugger {
 
         Ok(Self {
             server: Server::new(name, rl_history_length).expect("Unable to create server"),
+            disassembler: Disassembler::new("riscv64-unknown-linux-gnu")?,
             mmu,
         })
     }
 
     pub fn mainloop(mut self) -> Result<(), ()> {
         loop {
-            let cmd = self.server.get_parse();
-
-            let cmd = match cmd {
-                Err(ProcessError::Recoverable) => continue,
-                Err(ProcessError::GracefulExit) => return Ok(()),
-                Err(ProcessError::Fatal) => return Err(()),
-                Ok(cmd) => cmd,
-            };
-
-            match self.execute(cmd.command) {
-                Err(ProcessError::Recoverable) => continue,
-                Err(ProcessError::GracefulExit) => return Ok(()),
-                Err(ProcessError::Fatal) => return Err(()),
-                Ok(_) => {}
+            macro_rules! handle_result {
+                ($result:expr) => {
+                    match $result {
+                        Err(ProcessError::Recoverable) => continue,
+                        Err(ProcessError::GracefulExit) => return Ok(()),
+                        Err(ProcessError::Fatal) => return Err(()),
+                        Ok(value) => value,
+                    }
+                };
             }
+
+            let cmd = handle_result!(self.server.get_parse());
+            handle_result!(self.execute(cmd.command));
         }
     }
 }

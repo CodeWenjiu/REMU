@@ -32,7 +32,12 @@ impl SimpleDebugger {
                             Logger::show(&e.to_string(), Logger::ERROR);
                             ProcessError::Recoverable
                         })?;
-                    Logger::show(&format!("{:#010x}: {:#010x}", addr + (i * 4), data), Logger::INFO);
+                    
+                    Logger::show(
+                        &format!("{:#010x}: {:#010x} {}", 
+                        addr + (i * 4), data, self.disasm(data, (addr + i * 4).into())), 
+                        Logger::INFO
+                    );
                 }
             }
         }
