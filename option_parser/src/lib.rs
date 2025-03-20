@@ -24,7 +24,7 @@ pub fn parse() -> Result<OptionParser, ()> {
     let cli = CLI::try_parse().map_err(|e| {
         let _ = e.print();
     })?;
-    
+
     let (arch, emu_platorm) = cli.platform.split_once("-").unwrap();
 
     config = config
@@ -33,23 +33,59 @@ pub fn parse() -> Result<OptionParser, ()> {
         .map(|(k, v)| (k.replace(emu_platorm, arch), v.clone()))
         .collect();
 
-    // let mut mmu = MMU::new();
-    // // mmu.add_memory(0x80000000, 0x80000, "SRAM", MemoryFlags::Read.union(MemoryFlags::Write))
-    // //     .map_err(|e| {
-    // //         Logger::log(&e.to_string(), tracing::Level::ERROR);
-    // //     })?;
-    // for each_mem in cli_result
-    //     .config
-    //     .iter()
-    //     .filter(|s| s.0.contains("MEM"))
-    //     .collect() {
-    //         let mems = each_mem.0.split("_").collect::<Vec<&str>>();
-    //     }
-    // mmu.show_memory_map();
+    println!("{:?}", config);
+
+    let mut regions: HashMap<(String, String), (Option<u32>, Option<u32>)> = HashMap::new();
+
+    fn parse_hex(s: &str) -> Result<u32, ()> {
+        let s = s.trim_start_matches("0x");
+        u32::from_str_radix(s, 16).map_err(|_| ())
+    }
+
+    for (key, value) in config.iter() {
+        let parts: Vec<&str> = key.split('_').collect();
+        if parts.len() != 4 {
+            Logger::show(&format!("Invalid platform syntax: {}", key), Logger::ERROR);
+            return Err(());
+        }
+
+        let isa = parts[0];
+        let name = parts[2];
+        let attr = parts[3];
+
+        if attr != "BASE" && attr != "SIZE" {
+            Logger::show(&format!("Invalid platform syntax: {}", key), Logger::ERROR);
+            return Err(());
+        }
+
+        let value = parse_hex(value)?;
+
+        let entry = regions
+            .entry((isa.to_string(), name.to_string()))
+            .or_insert((None, None));
+        match attr {
+            "BASE" => entry.0 = Some(value),
+            "SIZE" => entry.1 = Some(value),
+            _ => unreachable!(),
+        }
+    }
+
+    // unwarp regions
+    let regions = regions
+        .iter()
+        .map(|((isa, name), (base, size))| {
+            (
+                isa,
+                name,
+                base.unwrap_or_default(),
+                size.unwrap_or_default(),
+            )
+        })
+        .collect::<Vec<_>>();
+
+    println!("{:?}", regions);
 
     welcome(&cli.platform);
-
-    println!("{:?}", config);
 
     Ok(OptionParser { config, cli })
 }
