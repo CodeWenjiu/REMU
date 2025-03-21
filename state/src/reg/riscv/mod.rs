@@ -1,1 +1,1 @@
-remu_macro::mod_flat!(csr, rv32e);
+remu_macro::mod_flat!(csr, rv32i, rv32e);
