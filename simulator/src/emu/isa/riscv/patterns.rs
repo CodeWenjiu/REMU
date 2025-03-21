@@ -1,6 +1,6 @@
 use super::{ImmType, Priv, Zicsr, RV32I, RV32M};
 
-const RV32_I_PATTERN_ITER: &[(RV32I, ImmType, (u32, u32))] = &[
+pub const RV32_I_PATTERN_ITER: &[(RV32I, ImmType, (u32, u32))] = &[
     (RV32I::Lui,     ImmType::U, remu_macro::mask_and_value!("??????? ????? ????? ??? ????? 01101 11")),
     (RV32I::Auipc,   ImmType::U, remu_macro::mask_and_value!("??????? ????? ????? ??? ????? 00101 11")),
 
@@ -56,7 +56,8 @@ const RV32_I_PATTERN_ITER: &[(RV32I, ImmType, (u32, u32))] = &[
     (RV32I::Ebreak,  ImmType::N, remu_macro::mask_and_value!("0000000 00001 00000 000 00000 11100 11")),
 ];
 
-const RV32_M_PATTERN_ITER: &[(RV32M, ImmType, (u32, u32))] = &[
+
+pub const RV32_M_PATTERN_ITER: &[(RV32M, ImmType, (u32, u32))] = &[
     (RV32M::Mul,     ImmType::R, remu_macro::mask_and_value!("0000001 ????? ????? 000 ????? 01100 11")),
 
     (RV32M::Mulh,    ImmType::R, remu_macro::mask_and_value!("0000001 ????? ????? 001 ????? 01100 11")),
@@ -70,7 +71,7 @@ const RV32_M_PATTERN_ITER: &[(RV32M, ImmType, (u32, u32))] = &[
     (RV32M::Remu,    ImmType::R, remu_macro::mask_and_value!("0000001 ????? ????? 111 ????? 01100 11")),
 ];
 
-const RV_ZICSR_PATTERN_ITER: &[(Zicsr, ImmType, (u32, u32))] = &[
+pub const RV_ZICSR_PATTERN_ITER: &[(Zicsr, ImmType, (u32, u32))] = &[
     (Zicsr::Csrrw,   ImmType::I, remu_macro::mask_and_value!("??????? ????? ????? 001 ????? 11100 11")),
     (Zicsr::Csrrs,   ImmType::I, remu_macro::mask_and_value!("??????? ????? ????? 010 ????? 11100 11")),
     (Zicsr::Csrrc,   ImmType::I, remu_macro::mask_and_value!("??????? ????? ????? 011 ????? 11100 11")),
@@ -80,6 +81,6 @@ const RV_ZICSR_PATTERN_ITER: &[(Zicsr, ImmType, (u32, u32))] = &[
     (Zicsr::Csrrci,  ImmType::U, remu_macro::mask_and_value!("??????? ????? ????? 111 ????? 11100 11")),
 ];
 
-const RV_PRIV_PATTERN_ITER: &[(Priv, ImmType, (u32, u32))] = &[
+pub const RV_PRIV_PATTERN_ITER: &[(Priv, ImmType, (u32, u32))] = &[
     (Priv::Mret,     ImmType::N, remu_macro::mask_and_value!("0011000 00010 00000 000 00000 11100 11")),
 ];

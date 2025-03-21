@@ -3,3 +3,5 @@ mainmenu "REMU Configuratuion Menu"
 source "memory/Kconfig"
 
 source "debug/Kconfig"
+
+source "reset_vector/Kconfig"
