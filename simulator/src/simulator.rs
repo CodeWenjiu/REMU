@@ -2,7 +2,7 @@ use logger::Logger;
 use remu_utils::ProcessResult;
 use enum_dispatch::enum_dispatch;
 
-use crate::nemu::Nemu;
+use crate::emu::Emu;
 
 #[enum_dispatch]
 pub trait Simulator {
@@ -14,5 +14,5 @@ pub trait Simulator {
 
 #[enum_dispatch(Simulator)]
 pub enum SimulatorImpl {
-    NEMU(Nemu),
+    NEMU(Emu),
 }

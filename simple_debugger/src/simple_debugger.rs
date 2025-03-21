@@ -2,7 +2,7 @@ use std::{cell::RefCell, rc::Rc};
 
 use logger::Logger;
 use option_parser::{DebugConfiguration, OptionParser};
-use simulator::{nemu::Nemu, Simulator};
+use simulator::{emu::Emu, Simulator};
 use state::{mmu::MMU, reg::{regfile_io_factory, RegfileIo}};
 use crate::{cmd_parser::Server, debug::Disassembler};
 
@@ -66,7 +66,7 @@ impl SimpleDebugger {
             disassembler,
             regfile,
             mmu,
-            simulator: Box::new(Nemu::new()),
+            simulator: Box::new(Emu::new()),
         })
     }
 

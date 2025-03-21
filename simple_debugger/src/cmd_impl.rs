@@ -3,7 +3,7 @@ use owo_colors::OwoColorize;
 use remu_utils::{ProcessError, ProcessResult};
 use state::mmu::Mask;
 
-use crate::{cmd_parser::{Cmds, InfoCmds, MemoryCmds, RegisterCmds}, SimpleDebugger};
+use crate::{cmd_parser::{Cmds, InfoCmds, MemoryCmds, RegisterCmds, StepCmds}, SimpleDebugger};
 
 impl SimpleDebugger {
     fn cmd_info (&mut self, subcmd: InfoCmds) -> ProcessResult<()> {
@@ -70,8 +70,29 @@ impl SimpleDebugger {
         Ok(())
     }
 
+    fn cmd_step (&mut self, subcmd: StepCmds) -> ProcessResult<()> {
+        match subcmd {
+            StepCmds::Cycles { count } => {
+                for _ in 0..count {
+                    self.simulator.as_mut().step_cycle()?
+                }
+                Ok(())
+            }
+
+            StepCmds::Instructions { count } => {
+                Logger::todo();
+                let _ = count;
+                Ok(())
+            }
+        }
+    }
+
     pub fn execute(&mut self, cmd: Cmds) -> ProcessResult<()> {
         match cmd {
+            Cmds::Step { subcmd } => {
+                self.cmd_step(subcmd)?;
+            }
+
             Cmds::Info { subcmd } => {
                 self.cmd_info(subcmd)?;
             }

@@ -1,14 +1,14 @@
 use crate::Simulator;
 
-pub struct Nemu {
+pub struct Emu {
     
 }
 
-impl Simulator for Nemu {
+impl Simulator for Emu {
 
 }
 
-impl Nemu {
+impl Emu {
     pub fn new() -> Self {
         Self {
             

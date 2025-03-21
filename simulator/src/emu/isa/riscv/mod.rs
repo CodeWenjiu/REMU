@@ -1,0 +1,1 @@
+remu_macro::mod_flat!(inst_enum, patterns, parser);

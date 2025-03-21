@@ -14,25 +14,22 @@ pub struct OptionParser {
 
 fn parse_hex(s: &str) -> Result<u32, ()> {
     let s = s.trim_start_matches("0x");
-    u32::from_str_radix(s, 16).map_err(|e| 
-        Logger::show(&e.to_string(), Logger::ERROR)
-    )
+    u32::from_str_radix(s, 16).map_err(|e| Logger::show(&e.to_string(), Logger::ERROR))
 }
 
 fn parse_bin(s: &str) -> Result<u32, ()> {
     let s = s.trim_start_matches("0b");
-    u32::from_str_radix(s, 2).map_err(|e| 
-        Logger::show(&e.to_string(), Logger::ERROR)
-    )
+    u32::from_str_radix(s, 2).map_err(|e| Logger::show(&e.to_string(), Logger::ERROR))
 }
 
 fn parse_dec(s: &str) -> Result<u32, ()> {
-    u32::from_str_radix(s, 10).map_err(|e| 
-        Logger::show(&e.to_string(), Logger::ERROR)
-    )
+    u32::from_str_radix(s, 10).map_err(|e| Logger::show(&e.to_string(), Logger::ERROR))
 }
 
-fn parse_memory_region(config: &HashMap<String, String>, platform: &str) -> Result<Vec<(String, String, u32, u32, MemoryFlags)>, ()> {
+fn parse_memory_region(
+    config: &HashMap<String, String>,
+    platform: &str,
+) -> Result<Vec<(String, String, u32, u32, MemoryFlags)>, ()> {
     let (arch, emu_platorm) = platform.split_once("-").unwrap();
     let arch = arch.to_uppercase();
     let emu_platorm = emu_platorm.to_uppercase();
@@ -43,7 +40,8 @@ fn parse_memory_region(config: &HashMap<String, String>, platform: &str) -> Resu
         .map(|(k, v)| (k.replace(&emu_platorm, &arch), v.clone()))
         .collect();
 
-    let mut regions: HashMap<(String, String), (Option<u32>, Option<u32>, Option<MemoryFlags>)> = HashMap::new();
+    let mut regions: HashMap<(String, String), (Option<u32>, Option<u32>, Option<MemoryFlags>)> =
+        HashMap::new();
 
     for (key, value) in mem_config.iter() {
         let parts: Vec<&str> = key.split('_').collect();
@@ -67,7 +65,10 @@ fn parse_memory_region(config: &HashMap<String, String>, platform: &str) -> Resu
         match attr {
             "BASE" => entry.0 = Some(parse_hex(value)?),
             "SIZE" => entry.1 = Some(parse_hex(value)?),
-            "FLAG" => entry.2 = Some(MemoryFlags::from_bits(parse_bin(value)?.try_into().unwrap()).unwrap()),
+            "FLAG" => {
+                entry.2 =
+                    Some(MemoryFlags::from_bits(parse_bin(value)?.try_into().unwrap()).unwrap())
+            }
             _ => unreachable!(),
         }
     }
@@ -91,12 +92,12 @@ fn parse_memory_region(config: &HashMap<String, String>, platform: &str) -> Resu
 
 #[derive(Debug)]
 pub enum DebugConfiguration {
-    Readline {
-        history: u32,
-    }
+    Readline { history: u32 },
 }
 
-fn parse_debug_configuration(config: &HashMap<String, String>) -> Result<Vec<DebugConfiguration>, ()> {
+fn parse_debug_configuration(
+    config: &HashMap<String, String>,
+) -> Result<Vec<DebugConfiguration>, ()> {
     let debug_config: Vec<(String, String)> = config
         .iter()
         .filter(|s| s.0.starts_with("DEBUG"))
@@ -137,5 +138,9 @@ pub fn parse() -> Result<OptionParser, ()> {
 
     welcome(&cli.platform);
 
-    Ok(OptionParser { memory_config: regions, debug_config, cli })
+    Ok(OptionParser {
+        memory_config: regions,
+        debug_config,
+        cli,
+    })
 }
