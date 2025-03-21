@@ -65,8 +65,28 @@ impl TryFrom <String> for RvCsrEnum {
     }
 }
 
+impl Into<u32> for RvCsrEnum {
+    fn into(self) -> u32 {
+        self as u32
+    }
+}
+
 impl Into<String> for RvCsrEnum {
     fn into(self) -> String {
         format!("{:?}", self).to_lowercase()
+    }
+}
+
+impl Into<&str> for RvCsrEnum {
+    fn into(self) -> &'static str {
+        match self {
+            RvCsrEnum::MSTATUS   => "mstatus",
+            RvCsrEnum::MTVEC     => "mtvec",
+            RvCsrEnum::MSCRATCH  => "mscratch",
+            RvCsrEnum::MEPC      => "mepc",
+            RvCsrEnum::MCAUSE    => "mcause",
+            RvCsrEnum::MVENDORID => "mvendorid",
+            RvCsrEnum::MARCHID   => "marchid",
+        }
     }
 }

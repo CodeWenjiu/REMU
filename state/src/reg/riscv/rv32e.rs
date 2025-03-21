@@ -1,9 +1,8 @@
 use std::str::FromStr;
 
 use logger::Logger;
-use owo_colors::OwoColorize;
 
-use crate::reg::{RegError, RegIoResult, RegResult, RegfileIo};
+use crate::reg::{RegError, RegIdentifier, RegIoResult, RegResult, RegfileIo};
 
 use super::RvCsrEnum;
 
@@ -105,6 +104,29 @@ impl Into<String> for Rv32eGprEnum {
     }
 }
 
+impl Into<&str> for Rv32eGprEnum {
+    fn into(self) -> &'static str {
+        match self {
+            Rv32eGprEnum::X0 => "x0",
+            Rv32eGprEnum::RA => "ra",
+            Rv32eGprEnum::SP => "sp",
+            Rv32eGprEnum::GP => "gp",
+            Rv32eGprEnum::TP => "tp",
+            Rv32eGprEnum::T0 => "t0",
+            Rv32eGprEnum::T1 => "t1",
+            Rv32eGprEnum::T2 => "t2",
+            Rv32eGprEnum::S0 => "s0",
+            Rv32eGprEnum::S1 => "s1",
+            Rv32eGprEnum::A0 => "a0",
+            Rv32eGprEnum::A1 => "a1",
+            Rv32eGprEnum::A2 => "a2",
+            Rv32eGprEnum::A3 => "a3",
+            Rv32eGprEnum::A4 => "a4",
+            Rv32eGprEnum::A5 => "a5",
+        }
+    }
+} 
+
 pub struct Rv32eRegFile {
     pc: u32,
     regs: [u32; 16],
@@ -146,39 +168,71 @@ impl RegfileIo for Rv32eRegFile {
         self.pc = value;
     }
 
-    fn read_gpr(&self,index:u32) -> RegIoResult<u32> {
+    fn read_gpr(&self,index : u32) -> RegIoResult<u32> {
         let index = Rv32eRegFile::validate_gpr_index(index)?;
         Ok(self.regs[index as usize])
     }
 
-    fn write_gpr(&mut self,index:u32,value:u32) -> RegIoResult<()> {
+    fn write_gpr(&mut self,index : u32, value : u32) -> RegIoResult<()> {
         let index = Rv32eRegFile::validate_gpr_index(index)?;
         self.regs[index as usize] = value;
         Ok(())
     }
 
-    fn read_csr(&self,index:u32) -> RegIoResult<u32> {
+    fn read_csr(&self,index : u32) -> RegIoResult<u32> {
         let index = Rv32eRegFile::validate_csr_index(index)?;
         Ok(self.csrs[index as usize])
     }
 
-    fn write_csr(&mut self,index:u32,value:u32) -> RegIoResult<()> {
+    fn write_csr(&mut self,index : u32, value : u32) -> RegIoResult<()> {
         let index = Rv32eRegFile::validate_csr_index(index)?;
         self.csrs[index as usize] = value;
         Ok(())
     }
 
-    fn print_gpr(&self) {
-        for i in 0..16 {
-            let name: String = Rv32eGprEnum::try_from(i).unwrap().into();
-            println!("{}: \t{:#010x}", name.purple(), self.regs[i as usize].blue());
+    fn print_gpr(&self, index: Option<RegIdentifier>) {
+        match index {
+            Some(RegIdentifier::Index(index)) => {
+                let index = Rv32eRegFile::validate_gpr_index(index).unwrap();
+                let name: String = Rv32eGprEnum::try_from(index).unwrap().into();
+                self.print_format(&name, self.regs[index as usize]);
+            },
+
+            Some(RegIdentifier::Name(name)) => {
+                let name = Rv32eGprEnum::from_str(&name).unwrap();
+                let index: u32 = name.into();
+                self.print_format(name.into(), self.regs[index as usize]);
+            },
+            
+            None => {
+                for i in 0..16 {
+                    let name: String = Rv32eGprEnum::try_from(i).unwrap().into();
+                    self.print_format(&name, self.regs[i as usize]);
+                }
+            }
         }
     }
 
-    fn print_csr(&self) {
-        for csr in RvCsrEnum::iter() {
-            let name: String = csr.into();
-            println!("{}: \t{:#010x}", name.purple(), self.csrs[csr as u32 as usize].blue());
+    fn print_csr(&self, index: Option<RegIdentifier>) {
+        match index {
+            Some(RegIdentifier::Index(index)) => {
+                let index = Rv32eRegFile::validate_csr_index(index).unwrap();
+                let name: String = RvCsrEnum::try_from(index).unwrap().into();
+                self.print_format(&name, self.csrs[index as usize]);
+            },
+
+            Some(RegIdentifier::Name(name)) => {
+                let name = RvCsrEnum::from_str(&name).unwrap();
+                let index: u32 = name.into();
+                self.print_format(name.into(), self.csrs[index as usize]);
+            },
+            
+            None => {
+                for csr in RvCsrEnum::iter() {
+                    let name: String = csr.into();
+                    self.print_format(&name, self.csrs[csr as u32 as usize]);
+                }
+            }
         }
     }
 }

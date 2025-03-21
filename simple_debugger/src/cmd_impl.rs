@@ -19,14 +19,24 @@ impl SimpleDebugger {
         Ok(())
     }
 
-    fn cmd_register (&mut self, subcmd: RegisterCmds) -> ProcessResult<()> {
+    fn cmd_register (&mut self, subcmd: Option<RegisterCmds>) -> ProcessResult<()> {
         match subcmd {
-            RegisterCmds::ShowGpr {} => {
-                self.regfile.borrow().print_gpr();
+            Some(RegisterCmds::CSR { index }) => {
+                self.regfile.borrow().print_csr(index);
             }
 
-            _ => {
-                Logger::todo();
+            Some(RegisterCmds::GPR { index }) => {
+                self.regfile.borrow().print_gpr(index);
+            }
+
+            Some(RegisterCmds::PC {}) => {
+                self.regfile.borrow().print_pc();
+            }
+
+            None => {
+                self.regfile.borrow().print_pc();
+                self.regfile.borrow().print_gpr(None);
+                self.regfile.borrow().print_csr(None);
             }
         }
 

@@ -5,8 +5,18 @@ use riscv::Rv32eRegFile;
 
 remu_macro::mod_pub!(riscv);
 
+#[derive(Clone, Debug)]
+pub enum RegIdentifier {
+    Index(u32),
+    Name(String),
+}
+
 #[enum_dispatch]
 pub trait RegfileIo {
+    fn print_format(&self, name: &str, data: u32) {
+        println!("{}: \t{:#010x}", name.purple(), data.blue());
+    }
+
     fn read_pc(&self) -> u32 {
         Logger::todo();
         0
@@ -37,14 +47,14 @@ pub trait RegfileIo {
     }
 
     fn print_pc(&self) {
-        println!("{}: \t{:#010x}", "PC".purple(), self.read_pc().blue());
+        self.print_format("PC", self.read_pc());
     }
 
-    fn print_gpr(&self) {
+    fn print_gpr(&self, _index: Option<RegIdentifier>) {
         Logger::todo();
     }
 
-    fn print_csr(&self) {
+    fn print_csr(&self, _index: Option<RegIdentifier>) {
         Logger::todo();
     }
 }

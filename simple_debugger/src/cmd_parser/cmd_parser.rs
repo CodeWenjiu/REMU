@@ -1,5 +1,6 @@
 use clap::{command, CommandFactory, Parser, Subcommand, builder::styling};
 use petgraph::Graph;
+use state::reg::RegIdentifier;
 
 #[derive(Parser, Debug)]
 #[command(author, version, about, styles = styling::Styles::styled()
@@ -22,6 +23,15 @@ fn parse_hex(src: &str) -> Result<u32, ParseIntError> {
     }
 }
 
+// reg identifier parser
+fn parse_reg(src: &str) -> Result<RegIdentifier, ParseIntError> {
+    if let Ok(index) = src.parse::<u32>() {
+        Ok(RegIdentifier::Index(index))
+    } else {
+        Ok(RegIdentifier::Name(src.to_string()))
+    }
+}
+
 #[derive(Debug, Subcommand)]
 pub enum Cmds {
     /// step the emulator
@@ -31,10 +41,10 @@ pub enum Cmds {
     },
 
     /// continue the emulator
-    Continue {},
+    Continue,
 
     /// Times printf
-    Times {},
+    Times,
 
     /// Get state info
     Info {
@@ -66,7 +76,7 @@ pub enum InfoCmds {
     Register {
         /// The target register
         #[command(subcommand)]
-        subcmd: RegisterCmds,
+        subcmd: Option<RegisterCmds>,
     },
 
     /// Get the state of the memory
@@ -79,22 +89,27 @@ pub enum InfoCmds {
 #[derive(Debug, Subcommand)]
 pub enum RegisterCmds {
     /// Show the state of the general purpose register
-    ShowGpr {
+    GPR {
+        /// The target register index
+        #[arg(value_parser = parse_reg)]
+        index: Option<RegIdentifier>,
     },
     
     /// Show the state of the control and status register
-    ShowCsr {
+    CSR {
+        /// The target register index
+        #[arg(value_parser = parse_reg)]
+        index: Option<RegIdentifier>,
     },
     
     /// Show the state of the Program Counter
-    ShowPc {
-    },
+    PC,
 }
 
 #[derive(Debug, Subcommand)]
 pub enum MemoryCmds {
     /// show memory map
-    ShowMemoryMap {},
+    ShowMemoryMap,
 
     /// Examine memory
     Examine {
