@@ -2,8 +2,11 @@ use std::{cell::RefCell, rc::Rc};
 
 use logger::Logger;
 use option_parser::{DebugConfiguration, OptionParser};
+use simulator::{nemu::Nemu, Simulator};
 use state::{mmu::MMU, reg::{regfile_io_factory, RegfileIo}};
-use crate::{cmd_parser::Server, debug::Disassembler, ProcessError};
+use crate::{cmd_parser::Server, debug::Disassembler};
+
+use remu_utils::ProcessError;
 
 pub struct SimpleDebugger {
     server: Server,
@@ -12,6 +15,8 @@ pub struct SimpleDebugger {
 
     pub regfile: Rc<RefCell<Box<dyn RegfileIo>>>,
     pub mmu: Rc<RefCell<MMU>>,
+
+    pub simulator: Box<dyn Simulator>,
 }
 
 impl SimpleDebugger {
@@ -61,6 +66,7 @@ impl SimpleDebugger {
             disassembler,
             regfile,
             mmu,
+            simulator: Box::new(Nemu::new()),
         })
     }
 

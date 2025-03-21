@@ -7,9 +7,11 @@ authors = [ "wenjiu <27843087979@qq.com>" ]
 
 [dependencies]
 remu_macro = { path = "../remu_macro" }
+remu_utils = { path = "../remu_utils" }
 logger = { path = "../logger" }
 option_parser = { path = "../option_parser" }
 state = { path = "../state" }
+simulator = { path = "../simulator" }
 owo-colors = {workspace = true}
 snafu = {workspace = true}
 clap = {workspace = true}

@@ -1,8 +1,9 @@
 use logger::Logger;
 use owo_colors::OwoColorize;
+use remu_utils::{ProcessError, ProcessResult};
 use state::mmu::Mask;
 
-use crate::{cmd_parser::{Cmds, InfoCmds, MemoryCmds, RegisterCmds}, ProcessError, ProcessResult, SimpleDebugger};
+use crate::{cmd_parser::{Cmds, InfoCmds, MemoryCmds, RegisterCmds}, SimpleDebugger};
 
 impl SimpleDebugger {
     fn cmd_info (&mut self, subcmd: InfoCmds) -> ProcessResult<()> {

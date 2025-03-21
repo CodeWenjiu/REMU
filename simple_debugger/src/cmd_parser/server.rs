@@ -2,7 +2,8 @@ use clap::Parser;
 use logger::Logger;
 use rustyline::{error::ReadlineError, highlight::MatchingBracketHighlighter, hint::HistoryHinter, history::{FileHistory, History}, validate::MatchingBracketValidator, Cmd, CompletionType, Config, EditMode, Editor, KeyEvent};
 
-use crate::{cmd_parser::get_cmd_tree, ProcessResult, ProcessError};
+use remu_utils::{ProcessError, ProcessResult};
+use crate::cmd_parser::get_cmd_tree;
 
 use super::{CmdCompleter, CmdParser, MyHelper};
 

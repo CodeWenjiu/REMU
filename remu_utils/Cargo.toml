@@ -1,5 +1,5 @@
 [package]
-name = "simulator"
+name = "remu_utils"
 version = "0.1.0"
 edition = "2024"
 license = "MIT"
@@ -7,9 +7,6 @@ authors = [ "wenjiu <27843087979@qq.com>" ]
 
 [dependencies]
 remu_macro = { path = "../remu_macro" }
-remu_utils = { path = "../remu_utils" }
 logger = { path = "../logger" }
-state = { path = "../state" }
-enum_dispatch = {workspace = true}
-snafu = {workspace = true}
 owo-colors = {workspace = true}
+snafu = {workspace = true}

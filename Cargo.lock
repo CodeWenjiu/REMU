@@ -3122,6 +3122,16 @@ name = "remu_macro"
 version = "0.1.0"
 
 [[package]]
+name = "remu_utils"
+version = "0.1.0"
+dependencies = [
+ "logger",
+ "owo-colors 4.2.0",
+ "remu_macro",
+ "snafu",
+]
+
+[[package]]
 name = "rfc6979"
 version = "0.4.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -3481,7 +3491,9 @@ dependencies = [
  "owo-colors 4.2.0",
  "petgraph",
  "remu_macro",
+ "remu_utils",
  "rustyline",
+ "simulator",
  "snafu",
  "state",
 ]
@@ -3494,6 +3506,7 @@ dependencies = [
  "logger",
  "owo-colors 4.2.0",
  "remu_macro",
+ "remu_utils",
  "snafu",
  "state",
 ]
