@@ -63,6 +63,7 @@ impl Disassembler {
 impl SimpleDebugger {
     pub fn disasm(&self, code: u32, addr: u64) -> String {
         self.disassembler
+            .borrow()
             .disasm(&code.to_le_bytes(), addr)
             .replace("\0", "")
             .trim()

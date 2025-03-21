@@ -3487,6 +3487,18 @@ dependencies = [
 ]
 
 [[package]]
+name = "simulator"
+version = "0.1.0"
+dependencies = [
+ "enum_dispatch",
+ "logger",
+ "owo-colors 4.2.0",
+ "remu_macro",
+ "snafu",
+ "state",
+]
+
+[[package]]
 name = "sized-chunks"
 version = "0.6.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"

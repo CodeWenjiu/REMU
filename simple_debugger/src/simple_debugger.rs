@@ -8,7 +8,7 @@ use crate::{cmd_parser::Server, debug::Disassembler, ProcessError};
 pub struct SimpleDebugger {
     server: Server,
 
-    pub disassembler: Disassembler,
+    pub disassembler: Rc<RefCell<Disassembler>>,
 
     pub regfile: Rc<RefCell<Box<dyn RegfileIo>>>,
     pub mmu: Rc<RefCell<MMU>>,
@@ -19,6 +19,7 @@ impl SimpleDebugger {
         match isa {
             "rv32e" => Ok("riscv64-unknown-linux-gnu"),
             "rv32i" => Ok("riscv64-unknown-linux-gnu"),
+            "rv32im" => Ok("riscv64-unknown-linux-gnu"),
 
             _ => {
                 Logger::show(&format!("Unknown ISA: {}", isa), Logger::ERROR);
@@ -29,6 +30,9 @@ impl SimpleDebugger {
 
     pub fn new(cli_result: OptionParser) -> Result<Self, ()> {
         let (isa, name) = cli_result.cli.platform.split_once('-').unwrap();
+
+        let disassembler = Disassembler::new(Self::isa2triple(isa)?)?;
+        let disassembler = Rc::new(RefCell::new(disassembler));
 
         let regfile_io = regfile_io_factory(isa).map_err(|_| {
             Logger::show(&format!("Unknown ISA: {}", isa), Logger::ERROR);
@@ -52,11 +56,9 @@ impl SimpleDebugger {
             }
         }
 
-        let triple = Self::isa2triple(isa)?;
-
         Ok(Self {
             server: Server::new(name, rl_history_length).expect("Unable to create server"),
-            disassembler: Disassembler::new(triple)?,
+            disassembler,
             regfile,
             mmu,
         })
