@@ -1,7 +1,8 @@
 use logger::Logger;
+use owo_colors::OwoColorize;
 use state::mmu::Mask;
 
-use crate::{cmd_parser::{Cmds, InfoCmds, MemoryCmds}, ProcessError, ProcessResult, SimpleDebugger};
+use crate::{cmd_parser::{Cmds, InfoCmds, MemoryCmds, RegisterCmds}, ProcessError, ProcessResult, SimpleDebugger};
 
 impl SimpleDebugger {
     fn cmd_info (&mut self, subcmd: InfoCmds) -> ProcessResult<()> {
@@ -9,7 +10,21 @@ impl SimpleDebugger {
             InfoCmds::Memory { subcmd } => {
                 self.cmd_memory(subcmd)?;
             }
-            
+
+            InfoCmds::Register { subcmd } => {
+                self.cmd_register(subcmd)?;
+            }
+        }
+
+        Ok(())
+    }
+
+    fn cmd_register (&mut self, subcmd: RegisterCmds) -> ProcessResult<()> {
+        match subcmd {
+            RegisterCmds::ShowGpr {} => {
+                self.regfile.borrow().print_gpr();
+            }
+
             _ => {
                 Logger::todo();
             }
@@ -32,12 +47,11 @@ impl SimpleDebugger {
                             Logger::show(&e.to_string(), Logger::ERROR);
                             ProcessError::Recoverable
                         })?;
+
+                    let try_parse_string: String = data.to_string();
                     
-                    Logger::show(
-                        &format!("{:#010x}: {:#010x} {}", 
-                        addr + (i * 4), data, self.disasm(data, (addr + i * 4).into())), 
-                        Logger::INFO
-                    );
+                    println!("{:#010x}: {:#010x}\t {}\t {}", 
+                        (addr + (i * 4)).blue(), data.green(), self.disasm(data, (addr + i * 4).into()).magenta(), try_parse_string.red());
                 }
             }
         }

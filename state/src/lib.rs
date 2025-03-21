@@ -1,1 +1,1 @@
-remu_macro::mod_pub!(mmu);
+remu_macro::mod_pub!(mmu, reg);

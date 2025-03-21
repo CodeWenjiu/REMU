@@ -64,14 +64,30 @@ pub enum StepCmds {
 pub enum InfoCmds {
     /// Get the state of the register
     Register {
-        /// The target index and length
-        index: u32,
+        /// The target register
+        #[command(subcommand)]
+        subcmd: RegisterCmds,
     },
 
     /// Get the state of the memory
     Memory {
         #[command(subcommand)]
         subcmd: MemoryCmds,
+    },
+}
+
+#[derive(Debug, Subcommand)]
+pub enum RegisterCmds {
+    /// Show the state of the general purpose register
+    ShowGpr {
+    },
+    
+    /// Show the state of the control and status register
+    ShowCsr {
+    },
+    
+    /// Show the state of the Program Counter
+    ShowPc {
     },
 }
 

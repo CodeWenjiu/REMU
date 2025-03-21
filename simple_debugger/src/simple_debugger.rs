@@ -2,7 +2,7 @@ use std::{cell::RefCell, rc::Rc};
 
 use logger::Logger;
 use option_parser::{DebugConfiguration, OptionParser};
-use state::mmu::MMU;
+use state::{mmu::MMU, reg::{regfile_io_factory, RegfileIo}};
 use crate::{cmd_parser::Server, debug::Disassembler, ProcessError};
 
 pub struct SimpleDebugger {
@@ -10,12 +10,30 @@ pub struct SimpleDebugger {
 
     pub disassembler: Disassembler,
 
+    pub regfile: Rc<RefCell<Box<dyn RegfileIo>>>,
     pub mmu: Rc<RefCell<MMU>>,
 }
 
 impl SimpleDebugger {
+    fn isa2triple(isa: &str) -> Result<&str, ()> {
+        match isa {
+            "rv32e" => Ok("riscv64-unknown-linux-gnu"),
+            "rv32i" => Ok("riscv64-unknown-linux-gnu"),
+
+            _ => {
+                Logger::show(&format!("Unknown ISA: {}", isa), Logger::ERROR);
+                Err(())
+            }
+        }
+    }
+
     pub fn new(cli_result: OptionParser) -> Result<Self, ()> {
-        let (_isa, name) = cli_result.cli.platform.split_once('-').unwrap();
+        let (isa, name) = cli_result.cli.platform.split_once('-').unwrap();
+
+        let regfile_io = regfile_io_factory(isa).map_err(|_| {
+            Logger::show(&format!("Unknown ISA: {}", isa), Logger::ERROR);
+        })?;
+        let regfile = Rc::new(RefCell::new(regfile_io));
 
         let mmu = Rc::new(RefCell::new(MMU::new()));
         for (_isa, name, base, length, flag) in &cli_result.memory_config {
@@ -34,9 +52,12 @@ impl SimpleDebugger {
             }
         }
 
+        let triple = Self::isa2triple(isa)?;
+
         Ok(Self {
             server: Server::new(name, rl_history_length).expect("Unable to create server"),
-            disassembler: Disassembler::new("riscv64-unknown-linux-gnu")?,
+            disassembler: Disassembler::new(triple)?,
+            regfile,
             mmu,
         })
     }
