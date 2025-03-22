@@ -2719,6 +2719,7 @@ dependencies = [
  "logger",
  "owo-colors 4.2.0",
  "remu_macro",
+ "remu_utils",
  "snafu",
  "state",
  "text-to-ascii-art",
@@ -3583,6 +3584,7 @@ dependencies = [
  "logger",
  "owo-colors 4.2.0",
  "remu_macro",
+ "remu_utils",
  "snafu",
 ]
 

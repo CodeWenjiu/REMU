@@ -1,4 +1,7 @@
-use clap::{builder::styling, Parser};
+use std::str::FromStr;
+
+use clap::{builder::styling, Parser, value_parser};
+use remu_utils::Platform;
 
 #[derive(Parser, Debug)]
 #[command(version, about, long_about = None, styles = styling::Styles::styled()
@@ -12,8 +15,8 @@ pub struct CLI {
     pub bin: Option<String>,
 
     /// Platform
-    #[arg(short, long, default_value("rv32i-emu"))]
-    pub platform: String,
+    #[arg(short, long, default_value("rv32i-emu"), value_parser = value_parser!(Platform))]
+    pub platform: Platform,
 
     /// Enable Batch mode
     #[arg(short, long)]

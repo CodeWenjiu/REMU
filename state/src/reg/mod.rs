@@ -1,6 +1,7 @@
 use enum_dispatch::enum_dispatch;
 use logger::Logger;
 use owo_colors::OwoColorize;
+use remu_utils::ISA;
 use riscv::{Rv32eRegFile, Rv32iRegFile};
 
 remu_macro::mod_pub!(riscv);
@@ -77,11 +78,12 @@ pub enum RegError {
 type RegResult<T> = Result<T, RegError>;
 type RegIoResult<T> = Result<T, ()>;
 
-pub fn regfile_io_factory(isa: &str) -> Result<Box<dyn RegfileIo>, ()> {
+pub fn regfile_io_factory(isa: ISA) -> Result<Box<dyn RegfileIo>, ()> {
     match isa {
-        "rv32e" => Ok(Box::new(Rv32eRegFile::new())),
-        "rv32i" => Ok(Box::new(Rv32iRegFile::new())),
+        ISA::RV32E => Ok(Box::new(Rv32eRegFile::new())),
+        ISA::RV32I => Ok(Box::new(Rv32iRegFile::new())),
         _ => {
+            let isa: &str = From::from(isa);
             Logger::show(&format!("Unknown ISA: {}", isa), Logger::ERROR);
             Err(())
         }

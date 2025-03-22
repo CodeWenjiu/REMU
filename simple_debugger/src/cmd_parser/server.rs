@@ -2,7 +2,7 @@ use clap::Parser;
 use logger::Logger;
 use rustyline::{error::ReadlineError, highlight::MatchingBracketHighlighter, hint::HistoryHinter, history::{FileHistory, History}, validate::MatchingBracketValidator, Cmd, CompletionType, Config, EditMode, Editor, KeyEvent};
 
-use remu_utils::{ProcessError, ProcessResult};
+use remu_utils::{ProcessError, ProcessResult, Simulators};
 use crate::cmd_parser::get_cmd_tree;
 
 use super::{CmdCompleter, CmdParser, MyHelper};
@@ -16,7 +16,7 @@ pub struct Server {
 }
 
 impl Server {
-    pub fn new(name: &str, rl_history_length: u32) -> Result<Self, ()> {
+    pub fn new(sim: Simulators, rl_history_length: u32) -> Result<Self, ()> {
         let config = Config::builder()
             .history_ignore_space(true)
             .completion_type(CompletionType::List)
@@ -39,7 +39,7 @@ impl Server {
             Logger::show("[readline] No previous history.", Logger::INFO);
         }
 
-        let p = Logger::format(&("(".to_string() + name + ") -> "), Logger::IMPORTANT);
+        let p = Logger::format(&("(".to_string() + sim.into() + ") -> "), Logger::IMPORTANT);
 
         rl.helper_mut().expect("No helper").colored_prompt = p.clone();
 

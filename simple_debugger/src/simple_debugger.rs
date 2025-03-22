@@ -6,7 +6,7 @@ use simulator::{emu::Emu, Simulator};
 use state::{mmu::MMU, reg::{regfile_io_factory, RegfileIo}};
 use crate::{cmd_parser::Server, debug::Disassembler};
 
-use remu_utils::ProcessError;
+use remu_utils::{ProcessError, ISA};
 
 pub struct SimpleDebugger {
     server: Server,
@@ -20,28 +20,21 @@ pub struct SimpleDebugger {
 }
 
 impl SimpleDebugger {
-    fn isa2triple(isa: &str) -> Result<&str, ()> {
+    fn isa2triple(isa: ISA) -> &'static str {
         match isa {
-            "rv32e" => Ok("riscv64-unknown-linux-gnu"),
-            "rv32i" => Ok("riscv64-unknown-linux-gnu"),
-            "rv32im" => Ok("riscv64-unknown-linux-gnu"),
-
-            _ => {
-                Logger::show(&format!("Unknown ISA: {}", isa), Logger::ERROR);
-                Err(())
-            }
+            ISA::RV32E => "riscv64-unknown-linux-gnu",
+            ISA::RV32I => "riscv64-unknown-linux-gnu",
+            ISA::RV32IM => "riscv64-unknown-linux-gnu",
         }
     }
 
     pub fn new(cli_result: OptionParser) -> Result<Self, ()> {
-        let (isa, name) = cli_result.cli.platform.split_once('-').unwrap();
+        let isa = cli_result.cli.platform.isa;
 
-        let disassembler = Disassembler::new(Self::isa2triple(isa)?)?;
+        let disassembler = Disassembler::new(Self::isa2triple(isa))?;
         let disassembler = Rc::new(RefCell::new(disassembler));
 
-        let regfile_io = regfile_io_factory(isa).map_err(|_| {
-            Logger::show(&format!("Unknown ISA: {}", isa), Logger::ERROR);
-        })?;
+        let regfile_io = regfile_io_factory(isa)?;
         let regfile = Rc::new(RefCell::new(regfile_io));
 
         let mmu = Rc::new(RefCell::new(MMU::new()));
@@ -62,7 +55,7 @@ impl SimpleDebugger {
         }
 
         Ok(Self {
-            server: Server::new(name, rl_history_length).expect("Unable to create server"),
+            server: Server::new(cli_result.cli.platform.simulator, rl_history_length).expect("Unable to create server"),
             disassembler,
             regfile,
             mmu,

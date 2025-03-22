@@ -132,23 +132,9 @@ impl TryFrom <u32> for Rv32iGprEnum {
     }
 }
 
-impl TryFrom<String> for Rv32iGprEnum {
-    type Error = ();
-
-    fn try_from(value: String) -> Result<Self, Self::Error> {
-        Self::from_str(&value)
-    }
-}
-
-impl Into<u32> for Rv32iGprEnum {
-    fn into(self) -> u32 {
-        self as u32
-    }
-}
-
-impl Into<String> for Rv32iGprEnum {
-    fn into(self) -> String {
-        format!("{:?}", self).to_lowercase()
+impl Into<usize> for Rv32iGprEnum {
+    fn into(self) -> usize {
+        self as usize
     }
 }
 
@@ -262,20 +248,20 @@ impl RegfileIo for Rv32iRegFile {
         match index {
             Some(RegIdentifier::Index(index)) => {
                 let index = Rv32iRegFile::validate_gpr_index(index).unwrap();
-                let name: String = Rv32iGprEnum::try_from(index).unwrap().into();
-                self.print_format(&name, self.regs[index as usize]);
+                let name = Rv32iGprEnum::try_from(index).unwrap().into();
+                self.print_format(name, self.regs[index as usize]);
             },
 
             Some(RegIdentifier::Name(name)) => {
-                let name = Rv32iGprEnum::try_from(name).unwrap();
-                let index = Rv32iGprEnum::try_from(name).unwrap() as u32;
-                self.print_format(name.into(), self.regs[index as usize]);
+                let name = Rv32iGprEnum::from_str(&name).unwrap();
+                let index: usize = Rv32iGprEnum::try_from(name).unwrap().into();
+                self.print_format(name.into(), self.regs[index]);
             },
 
             None => {
                 for i in 0..32 {
-                    let name: String = Rv32iGprEnum::try_from(i).unwrap().into();
-                    self.print_format(&name, self.regs[i as usize]);
+                    let name = Rv32iGprEnum::try_from(i).unwrap().into();
+                    self.print_format(name, self.regs[i as usize]);
                 }
             }
         }
@@ -285,8 +271,8 @@ impl RegfileIo for Rv32iRegFile {
         match index {
             Some(RegIdentifier::Index(index)) => {
                 let index = Rv32iRegFile::validate_csr_index(index).unwrap();
-                let name: String = RvCsrEnum::try_from(index).unwrap().into();
-                self.print_format(&name, self.csrs[index as usize]);
+                let name = RvCsrEnum::try_from(index).unwrap().into();
+                self.print_format(name, self.csrs[index as usize]);
             },
 
             Some(RegIdentifier::Name(name)) => {
@@ -297,8 +283,8 @@ impl RegfileIo for Rv32iRegFile {
 
             None => {
                 for csr in RvCsrEnum::iter() {
-                    let name: String = csr.into();
-                    self.print_format(&name, self.csrs[csr as usize]);
+                    let name = csr.into();
+                    self.print_format(name, self.csrs[csr as usize]);
                 }
             }
         }

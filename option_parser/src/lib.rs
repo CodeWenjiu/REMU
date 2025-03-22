@@ -2,6 +2,7 @@ use std::collections::HashMap;
 
 use clap::Parser;
 use logger::Logger;
+use remu_utils::Platform;
 use state::mmu::MemoryFlags;
 
 remu_macro::mod_flat!(config_parser, cli_parser, welcome);
@@ -28,16 +29,15 @@ fn parse_dec(s: &str) -> Result<u32, ()> {
 
 fn parse_memory_region(
     config: &HashMap<String, String>,
-    platform: &str,
+    platform: &Platform,
 ) -> Result<Vec<(String, String, u32, u32, MemoryFlags)>, ()> {
-    let (arch, emu_platorm) = platform.split_once("-").unwrap();
-    let arch = arch.to_uppercase();
-    let emu_platorm = emu_platorm.to_uppercase();
+    let isa = Into::<&str>::into(platform.isa).to_uppercase();
+    let simulator = Into::<&str>::into(platform.simulator).to_uppercase();
 
     let mem_config: Vec<(String, String)> = config
         .iter()
-        .filter(|s| s.0.starts_with(&emu_platorm))
-        .map(|(k, v)| (k.replace(&emu_platorm, &arch), v.clone()))
+        .filter(|s| s.0.starts_with(&simulator))
+        .map(|(k, v)| (k.replace(&simulator, &isa), v.clone()))
         .collect();
 
     let mut regions: HashMap<(String, String), (Option<u32>, Option<u32>, Option<MemoryFlags>)> =

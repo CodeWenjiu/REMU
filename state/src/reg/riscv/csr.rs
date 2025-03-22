@@ -71,12 +71,6 @@ impl Into<u32> for RvCsrEnum {
     }
 }
 
-impl Into<String> for RvCsrEnum {
-    fn into(self) -> String {
-        format!("{:?}", self).to_lowercase()
-    }
-}
-
 impl Into<&str> for RvCsrEnum {
     fn into(self) -> &'static str {
         match self {
