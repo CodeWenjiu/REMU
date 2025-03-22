@@ -3135,6 +3135,7 @@ version = "0.1.0"
 name = "remu_utils"
 version = "0.1.0"
 dependencies = [
+ "llvm-sys",
  "logger",
  "owo-colors 4.2.0",
  "remu_macro",
@@ -3495,7 +3496,6 @@ name = "simple_debugger"
 version = "0.1.0"
 dependencies = [
  "clap",
- "llvm-sys",
  "logger",
  "option_parser",
  "owo-colors 4.2.0",

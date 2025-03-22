@@ -60,11 +60,7 @@ impl SimpleDebugger {
                         })?;
 
                     println!("{:#010x}: {:#010x}\t {}",
-                        (addr + i).blue(), data.green(), (self.disasm(data, (addr + i).into()).map_or(
-                            // from ascii
-                            data.to_le_bytes().iter().map(|&x| { x as char }).collect(), 
-                            |f| f
-                        )).magenta());
+                        (addr + i).blue(), data.green(), self.disassembler.borrow().try_analize(data, (addr + i) as u64).magenta());
                 }
             }
         }

@@ -1,4 +1,4 @@
-#[derive(Debug, PartialEq, Clone)]
+#[derive(Debug, PartialEq, Copy, Clone)]
 pub enum ImmType {
     I,
     S,
@@ -9,7 +9,7 @@ pub enum ImmType {
     N,
 }
 
-#[derive(Debug, PartialEq, Clone)]
+#[derive(Debug, PartialEq, Copy, Clone)]
 pub enum RV32I {
     Lui,
     Auipc,
@@ -66,7 +66,7 @@ pub enum RV32I {
     Ebreak,
 }
 
-#[derive(Debug, PartialEq, Clone)]
+#[derive(Debug, PartialEq, Copy, Clone)]
 pub enum RV32M {
     Mul,
 
@@ -81,7 +81,7 @@ pub enum RV32M {
     Remu,
 }
 
-#[derive(Debug, PartialEq, Clone)]
+#[derive(Debug, PartialEq, Copy, Clone)]
 pub enum Zicsr {
     Csrrw,
     Csrrs,
@@ -92,12 +92,12 @@ pub enum Zicsr {
     Csrrci,
 }
 
-#[derive(Debug, PartialEq, Clone)]
+#[derive(Debug, PartialEq, Copy, Clone)]
 pub enum Priv {
     Mret,
 }
 
-#[derive(Debug, PartialEq, Clone)]
+#[derive(Debug, PartialEq, Copy, Clone)]
 pub enum RISCV {
     RV32I(RV32I),
     RV32M(RV32M),

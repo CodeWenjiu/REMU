@@ -2,9 +2,8 @@ use std::ffi::CString;
 
 use llvm_sys::disassembler::*;
 use llvm_sys::target::*;
-use remu_utils::ISA;
 
-use crate::SimpleDebugger;
+use crate::ISA;
 
 #[derive(Debug, Clone)]
 pub struct Disassembler {
@@ -76,12 +75,9 @@ impl Disassembler {
             String::from_utf8_lossy(&inst_str).to_string()
         }
     }
-}
 
-impl SimpleDebugger {
-    pub fn disasm(&self, code: u32, addr: u64) -> Option<String> {
-        let result = self.disassembler
-            .borrow()
+    pub fn disasm_suit(&self, code: u32, addr: u64) -> Option<String> {
+        let result = self
             .disasm(&code.to_le_bytes(), addr)
             .replace("\0", "")
             .trim()
@@ -94,5 +90,13 @@ impl SimpleDebugger {
         } else {
             Some(result)
         }
+    }
+
+    pub fn try_analize(&self, code: u32, addr: u64) -> String {
+        self.disasm_suit(code, addr.into()).map_or(
+            // from ascii
+            code.to_le_bytes().iter().map(|&x| { x as char }).collect(), 
+            |f| f
+        )
     }
 }

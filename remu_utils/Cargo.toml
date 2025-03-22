@@ -10,3 +10,4 @@ remu_macro = { path = "../remu_macro" }
 logger = { path = "../logger" }
 owo-colors = {workspace = true}
 snafu = {workspace = true}
+llvm-sys = {version = "181",features = ["prefer-dynamic"]}

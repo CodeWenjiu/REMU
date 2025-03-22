@@ -18,4 +18,3 @@ snafu = {workspace = true}
 clap = {workspace = true}
 rustyline = { version = "15.0.0", features = ["derive"] }
 petgraph = "0.7.1"
-llvm-sys = {version = "181",features = ["prefer-dynamic"]}

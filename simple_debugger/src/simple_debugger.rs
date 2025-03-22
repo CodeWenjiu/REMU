@@ -5,9 +5,9 @@ use option_parser::{BaseConfiguration, DebugConfiguration, MemoryConfiguration, 
 use remu_buildin::{get_buildin_img, get_reset_vector, READLINE_HISTORY_LENGTH};
 use simulator::{Simulator, SimulatorImpl};
 use state::States;
-use crate::{cmd_parser::Server, debug::Disassembler};
+use crate::cmd_parser::Server;
 
-use remu_utils::ProcessError;
+use remu_utils::{Disassembler, ProcessError};
 
 pub struct SimpleDebugger {
     server: Server,
