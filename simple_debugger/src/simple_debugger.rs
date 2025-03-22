@@ -51,10 +51,13 @@ impl SimpleDebugger {
             }
         }
 
-        mmu.borrow_mut().load(reset_vector, get_buildin_img(isa).as_slice()).map_err(|e| {
+        let buildin_img = get_buildin_img(isa);
+        let bytes: Vec<u8> = buildin_img.iter()
+            .flat_map(|&val| val.to_le_bytes().to_vec())
+            .collect();
+        mmu.borrow_mut().load(reset_vector, &bytes).map_err(|e| {
             Logger::show(&e.to_string(), Logger::ERROR);
         })?;
-        
         let mut rl_history_length = READLINE_HISTORY_LENGTH;
 
         for debug_config in &cli_result.cfg.debug_config {

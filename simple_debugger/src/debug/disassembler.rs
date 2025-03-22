@@ -14,9 +14,18 @@ pub struct Disassembler {
 impl Disassembler {
     fn isa2triple(isa: ISA) -> &'static str {
         match isa {
-            ISA::RV32E => "riscv64-unknown-linux-gnu",
-            ISA::RV32I => "riscv64-unknown-linux-gnu",
-            ISA::RV32IM => "riscv64-unknown-linux-gnu",
+            ISA::RV32E => "riscv32-unknown-linux-gnu",
+            ISA::RV32I => "riscv32-unknown-linux-gnu",
+            ISA::RV32IM => "riscv32-unknown-linux-gnu",
+        }
+    }
+
+    // looking at https://llvm.org/docs/RISCVUsage.html#riscv-i2p1-note
+    fn isa2feature(isa: ISA) -> &'static str {
+        match isa {
+            ISA::RV32E => "+e",
+            ISA::RV32I => "+i",
+            ISA::RV32IM => "+i,+m",
         }
     }
 
@@ -24,7 +33,7 @@ impl Disassembler {
         unsafe {
             let triple: CString = CString::new(Self::isa2triple(isa)).unwrap();
             let cpu: CString = CString::new("").unwrap();
-            let feature: CString = CString::new("+m,+a,+c,+f,+d").unwrap();
+            let feature: CString = CString::new(Self::isa2feature(isa)).unwrap();
 
             LLVM_InitializeAllAsmPrinters();
             LLVM_InitializeAllTargets();
