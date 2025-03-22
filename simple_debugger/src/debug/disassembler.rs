@@ -2,6 +2,7 @@ use std::ffi::CString;
 
 use llvm_sys::disassembler::*;
 use llvm_sys::target::*;
+use remu_utils::ISA;
 
 use crate::SimpleDebugger;
 
@@ -11,9 +12,17 @@ pub struct Disassembler {
 }
 
 impl Disassembler {
-    pub fn new(triple: &str) -> Result<Self, ()> {
+    fn isa2triple(isa: ISA) -> &'static str {
+        match isa {
+            ISA::RV32E => "riscv64-unknown-linux-gnu",
+            ISA::RV32I => "riscv64-unknown-linux-gnu",
+            ISA::RV32IM => "riscv64-unknown-linux-gnu",
+        }
+    }
+
+    pub fn new(isa: ISA) -> Result<Self, ()> {
         unsafe {
-            let triple: CString = CString::new(triple).unwrap();
+            let triple: CString = CString::new(Self::isa2triple(isa)).unwrap();
             let cpu: CString = CString::new("").unwrap();
             let feature: CString = CString::new("+m,+a,+c,+f,+d").unwrap();
 
@@ -61,14 +70,20 @@ impl Disassembler {
 }
 
 impl SimpleDebugger {
-    pub fn disasm(&self, code: u32, addr: u64) -> String {
-        self.disassembler
+    pub fn disasm(&self, code: u32, addr: u64) -> Option<String> {
+        let result = self.disassembler
             .borrow()
             .disasm(&code.to_le_bytes(), addr)
             .replace("\0", "")
             .trim()
             .split_ascii_whitespace()
             .map(|x| format!("{} ", x))
-            .collect::<String>()
+            .collect::<String>();
+
+        if result == "unimp " || result == "" {
+            None
+        } else {
+            Some(result)
+        }
     }
 }

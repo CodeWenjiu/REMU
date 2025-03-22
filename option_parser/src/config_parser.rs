@@ -45,7 +45,7 @@ pub enum MemoryConfiguration {
 
 #[derive(Debug)]
 pub enum DebugConfiguration {
-    Readline { history: u32 },
+    Readline { history: usize },
 }
 
 pub type ConfigResult<T, E = ConfigError> = std::result::Result<T, E>;
@@ -74,8 +74,8 @@ fn parse_bin(s: &str) -> Result<u32, ()> {
     u32::from_str_radix(s, 2).map_err(|e| Logger::show(&e.to_string(), Logger::ERROR))
 }
 
-fn parse_dec(s: &str) -> Result<u32, ()> {
-    u32::from_str_radix(s, 10).map_err(|e| Logger::show(&e.to_string(), Logger::ERROR))
+fn parse_dec(s: &str) -> Result<usize, ()> {
+    usize::from_str_radix(s, 10).map_err(|e| Logger::show(&e.to_string(), Logger::ERROR))
 }
 
 fn parse_base_config(

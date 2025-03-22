@@ -8,6 +8,7 @@ authors = [ "wenjiu <27843087979@qq.com>" ]
 [dependencies]
 remu_macro = { path = "../remu_macro" }
 remu_utils = { path = "../remu_utils" }
+remu_buildin = { path = "../remu_buildin" }
 logger = { path = "../logger" }
 option_parser = { path = "../option_parser" }
 state = { path = "../state" }

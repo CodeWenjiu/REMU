@@ -51,7 +51,7 @@ impl SimpleDebugger {
             }
 
             MemoryCmds::Examine { addr, length } => {
-                for i in 0..length {
+                for i in (0..(length * 4)).step_by(4) {
                     let i = i as u32;
                     let data = self.mmu.borrow_mut().read(addr + i, Mask::None)
                         .map_err(|e| {
@@ -59,10 +59,12 @@ impl SimpleDebugger {
                             ProcessError::Recoverable
                         })?;
 
-                    let try_parse_string: String = data.to_string();
-                    
-                    println!("{:#010x}: {:#010x}\t {}\t {}", 
-                        (addr + (i * 4)).blue(), data.green(), self.disasm(data, (addr + i * 4).into()).magenta(), try_parse_string.red());
+                    println!("{:#010x}: {:#010x}\t {}",
+                        (addr + i).blue(), data.green(), (self.disasm(data, (addr + i).into()).map_or(
+                            // from ascii
+                            data.to_le_bytes().iter().map(|&x| { x as char }).collect(), 
+                            |f| f
+                        )).magenta());
                 }
             }
         }

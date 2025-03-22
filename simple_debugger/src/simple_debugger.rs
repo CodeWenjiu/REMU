@@ -2,11 +2,12 @@ use std::{cell::RefCell, rc::Rc};
 
 use logger::Logger;
 use option_parser::{BaseConfiguration, DebugConfiguration, MemoryConfiguration, OptionParser};
+use remu_buildin::{get_buildin_img, get_reset_vector, READLINE_HISTORY_LENGTH};
 use simulator::{Simulator, SimulatorImpl};
 use state::{mmu::MMU, reg::{regfile_io_factory, RegfileIo}};
 use crate::{cmd_parser::Server, debug::Disassembler};
 
-use remu_utils::{ProcessError, ISA};
+use remu_utils::ProcessError;
 
 pub struct SimpleDebugger {
     server: Server,
@@ -20,18 +21,10 @@ pub struct SimpleDebugger {
 }
 
 impl SimpleDebugger {
-    fn isa2triple(isa: ISA) -> &'static str {
-        match isa {
-            ISA::RV32E => "riscv64-unknown-linux-gnu",
-            ISA::RV32I => "riscv64-unknown-linux-gnu",
-            ISA::RV32IM => "riscv64-unknown-linux-gnu",
-        }
-    }
-
     pub fn new(cli_result: OptionParser) -> Result<Self, ()> {
         let isa = cli_result.cli.platform.isa;
 
-        let mut reset_vector = 0x8000_0000;
+        let mut reset_vector = get_reset_vector(isa);
 
         for base_config in &cli_result.cfg.base_config {
             match base_config {
@@ -41,7 +34,7 @@ impl SimpleDebugger {
             }
         }
 
-        let disassembler = Disassembler::new(Self::isa2triple(isa))?;
+        let disassembler = Disassembler::new(isa)?;
         let disassembler = Rc::new(RefCell::new(disassembler));
 
         let regfile_io = regfile_io_factory(isa, reset_vector)?;
@@ -58,7 +51,11 @@ impl SimpleDebugger {
             }
         }
 
-        let mut rl_history_length = 100;
+        mmu.borrow_mut().load(reset_vector, get_buildin_img(isa).as_slice()).map_err(|e| {
+            Logger::show(&e.to_string(), Logger::ERROR);
+        })?;
+        
+        let mut rl_history_length = READLINE_HISTORY_LENGTH;
 
         for debug_config in &cli_result.cfg.debug_config {
             match debug_config {

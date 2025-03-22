@@ -12,11 +12,11 @@ pub struct Server {
     
     rl: Editor<MyHelper, FileHistory>,
 
-    rl_history_length: u32,
+    rl_history_length: usize,
 }
 
 impl Server {
-    pub fn new(sim: Simulators, rl_history_length: u32) -> Result<Self, ()> {
+    pub fn new(sim: Simulators, rl_history_length: usize) -> Result<Self, ()> {
         let config = Config::builder()
             .history_ignore_space(true)
             .completion_type(CompletionType::List)

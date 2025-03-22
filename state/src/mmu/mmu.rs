@@ -114,7 +114,7 @@ impl MMU {
     pub fn load(&mut self, addr: u32, data: &[u8]) -> MMUResult<()> {
         let (memory, offset, _) = self.find_memory_region(addr)?;
         
-        if (addr + data.len() as u32) > memory.get_length() {
+        if (offset + data.len() as u32) > memory.get_length() {
             return Err(MMUError::LoadOutOfRange { addr, len: data.len() as u32 });
         }
             
