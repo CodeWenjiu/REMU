@@ -67,7 +67,7 @@ impl SimpleDebugger {
             }
         }
 
-        let simulator = Box::new(SimulatorImpl::try_from(&cli_result.cli.platform).map_err(|e| {
+        let simulator = Box::new(SimulatorImpl::try_from((&cli_result.cli.platform, state.clone())).map_err(|e| {
             Logger::show(&e.to_string(), Logger::ERROR);
         })?);
 

@@ -1,4 +1,4 @@
-use super::{ImmType, Priv, Zicsr, RV32I, RV32M};
+use super::{ImmType, Priv, Zicsr, RISCV, RV32I, RV32M};
 
 pub const RV32_I_PATTERN_ITER: &[(RV32I, ImmType, (u32, u32))] = &[
     (RV32I::Lui,     ImmType::U, remu_macro::mask_and_value!("??????? ????? ????? ??? ????? 01101 11")),
@@ -84,3 +84,25 @@ pub const RV_ZICSR_PATTERN_ITER: &[(Zicsr, ImmType, (u32, u32))] = &[
 pub const RV_PRIV_PATTERN_ITER: &[(Priv, ImmType, (u32, u32))] = &[
     (Priv::Mret,     ImmType::N, remu_macro::mask_and_value!("0011000 00010 00000 000 00000 11100 11")),
 ];
+
+#[derive(Debug, PartialEq, Clone)]
+pub struct InstPattern {
+    pub name: RISCV,
+    pub rs1: u8,
+    pub rs2: u8,
+    pub rd: u8,
+    pub imm: u32,
+}
+
+impl InstPattern {
+    pub fn new(name: RISCV, rs1: u8, rs2: u8, rd: u8, imm: u32) -> Self {
+        Self {
+            name,
+            rs1,
+            rs2,
+            rd,
+            imm,
+        }
+    }
+}
+

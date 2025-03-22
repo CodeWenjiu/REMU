@@ -18,7 +18,7 @@ macro_rules! generate_mask_and_value {
                     mask |= 1;
                 }
                 '?' => {
-                    mask |= 1;
+                    mask |= 0;
                 }
                 _ => {
                     mask >>= 1;
@@ -38,4 +38,11 @@ macro_rules! mask_and_value {
         let (mask, value) = generate_mask_and_value!($bits);
         (mask, value)
     }};
+}
+
+#[test]
+fn test_generate_mask_and_value() {
+    let (mask, value) = generate_mask_and_value!("1?0");
+    assert_eq!(mask, 0b101);
+    assert_eq!(value, 0b100);
 }

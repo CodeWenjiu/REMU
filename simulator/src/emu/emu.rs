@@ -1,10 +1,14 @@
+use std::{cell::RefCell, rc::Rc};
+
 use crate::Simulator;
 
 use bitflags::bitflags;
-use remu_utils::ISA;
+use logger::Logger;
+use remu_utils::{ProcessError, ProcessResult, ISA};
+use state::States;
 bitflags! {
     #[derive(Clone, Copy, Debug)]
-    struct InstructionSetFlags: u8 {
+    pub struct InstructionSetFlags: u8 {
         const RV32I = 1 << 0;
         const RV32M = 1 << 1;
         const RV32E = 1 << 2;
@@ -24,16 +28,32 @@ impl From<ISA> for InstructionSetFlags {
 }
 
 pub struct Emu {
-    instruction_set: InstructionSetFlags,
+    pub instruction_set: InstructionSetFlags,
+    states: Rc<RefCell<States>>,
 }
 
 impl Simulator for Emu {
+    fn step_cycle(&mut self) -> ProcessResult<()> {
+        let pc = self.states.borrow().regfile.read_pc();
+
+        let inst = self.states.borrow_mut().mmu.read(pc, state::mmu::Mask::Word).map_err(|e| {
+            Logger::show(&e.to_string(), Logger::ERROR);
+            ProcessError::Recoverable
+        })?;
+
+        let inst = self.decode(inst)?;
+
+        println!("{:?}", inst);
+
+        Ok(())
+    }
 }
 
 impl Emu {
-    pub fn new(isa: ISA) -> Self {
+    pub fn new(isa: ISA, states: Rc<RefCell<States>>) -> Self {
         Self {
             instruction_set: InstructionSetFlags::from(isa),
+            states,
         }
     }
 
