@@ -2,7 +2,7 @@ use std::{cell::RefCell, rc::Rc};
 
 use logger::Logger;
 use option_parser::{DebugConfiguration, OptionParser};
-use simulator::{emu::Emu, Simulator};
+use simulator::{Simulator, SimulatorImpl};
 use state::{mmu::MMU, reg::{regfile_io_factory, RegfileIo}};
 use crate::{cmd_parser::Server, debug::Disassembler};
 
@@ -54,12 +54,14 @@ impl SimpleDebugger {
             }
         }
 
+        let simulator = Box::new(SimulatorImpl::from(&cli_result.cli.platform));
+
         Ok(Self {
             server: Server::new(cli_result.cli.platform.simulator, rl_history_length).expect("Unable to create server"),
             disassembler,
             regfile,
             mmu,
-            simulator: Box::new(Emu::new()),
+            simulator,
         })
     }
 

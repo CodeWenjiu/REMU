@@ -12,24 +12,13 @@ pub enum Mask{
     Word = 4,
 }
 
-impl Mask {
-    pub fn transform(&self, data: u32) -> u32 {
-        match self {
-            Mask::Byte => data & 0xFF,
-            Mask::Half => data & 0xFFFF,
-            Mask::Word => data,
-            Mask::None => data,
-        }
-    }
-}
-
 use bitflags::bitflags;
 bitflags! {
     #[derive(Clone)]
     pub struct MemoryFlags: u8 {
-        const Read = 0b00000001;
-        const Write = 0b00000010;
-        const Execute = 0b00000100;
+        const Read      = 1 << 0;
+        const Write     = 1 << 1;
+        const Execute   = 1 << 2;
     }
 }
 

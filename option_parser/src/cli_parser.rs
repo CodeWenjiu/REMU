@@ -1,5 +1,3 @@
-use std::str::FromStr;
-
 use clap::{builder::styling, Parser, value_parser};
 use remu_utils::Platform;
 
