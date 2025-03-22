@@ -8,9 +8,6 @@ use super::{ImmType, InstPattern, Priv, Zicsr, RISCV, RV32I, RV32M, RV32_I_PATTE
 impl Emu {
     fn rv32_i_decode(inst: u32) -> Option<(RV32I, ImmType)> {
         for (opcode, imm_type, (mask, value)) in RV32_I_PATTERN_ITER {
-            if *opcode == RV32I::Auipc {
-                println!("{:#b} {:#b}", inst & mask, *value);
-            }
             if (inst & mask) == *value {
                 return Some((*opcode, *imm_type));
             }
@@ -110,7 +107,7 @@ impl Emu {
         }
     }
 
-    pub fn decode(&self, inst: u32) -> ProcessResult<InstPattern> {
+    pub fn decode(&self, inst: u32, addr: u32) -> ProcessResult<InstPattern> {
         if let Some((opcode, imm_type)) = self.isa_decode(inst) {
             let rs1 = extract_bits(inst, 15..19) as u8;
             let rs2 = extract_bits(inst, 20..24) as u8;
@@ -119,7 +116,7 @@ impl Emu {
 
             Ok(InstPattern::new(opcode, rs1, rs2, rd, imm))
         } else {
-            Logger::show(format!("Decode failed :{:#034b}", inst).as_str(), Logger::ERROR);
+            Logger::show(format!("Decode failed :{:#034b} {}", inst, self.disaseembler.borrow().try_analize(inst, addr)).as_str(), Logger::ERROR);
             Err(ProcessError::Recoverable)
         }
     }

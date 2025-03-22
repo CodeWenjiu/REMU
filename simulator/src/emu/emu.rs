@@ -4,7 +4,7 @@ use crate::Simulator;
 
 use bitflags::bitflags;
 use logger::Logger;
-use remu_utils::{ProcessError, ProcessResult, ISA};
+use remu_utils::{Disassembler, ProcessError, ProcessResult, ISA};
 use state::States;
 bitflags! {
     #[derive(Clone, Copy, Debug)]
@@ -29,6 +29,7 @@ impl From<ISA> for InstructionSetFlags {
 
 pub struct Emu {
     pub instruction_set: InstructionSetFlags,
+    pub disaseembler: Rc<RefCell<Disassembler>>,
     states: Rc<RefCell<States>>,
 }
 
@@ -41,7 +42,7 @@ impl Simulator for Emu {
             ProcessError::Recoverable
         })?;
 
-        let inst = self.decode(inst)?;
+        let inst = self.decode(inst, pc)?;
 
         println!("{:?}", inst);
 
@@ -50,9 +51,10 @@ impl Simulator for Emu {
 }
 
 impl Emu {
-    pub fn new(isa: ISA, states: Rc<RefCell<States>>) -> Self {
+    pub fn new(isa: ISA, states: Rc<RefCell<States>>, disaseembler: Rc<RefCell<Disassembler>>) -> Self {
         Self {
             instruction_set: InstructionSetFlags::from(isa),
+            disaseembler,
             states,
         }
     }

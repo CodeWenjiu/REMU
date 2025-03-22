@@ -92,7 +92,7 @@ impl Disassembler {
         }
     }
 
-    pub fn try_analize(&self, code: u32, addr: u64) -> String {
+    pub fn try_analize(&self, code: u32, addr: u32) -> String {
         self.disasm_suit(code, addr.into()).map_or(
             // from ascii
             code.to_le_bytes().iter().map(|&x| { x as char }).collect(), 

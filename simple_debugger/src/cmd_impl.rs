@@ -60,7 +60,7 @@ impl SimpleDebugger {
                         })?;
 
                     println!("{:#010x}: {:#010x}\t {}",
-                        (addr + i).blue(), data.green(), self.disassembler.borrow().try_analize(data, (addr + i) as u64).magenta());
+                        (addr + i).blue(), data.green(), self.disassembler.borrow().try_analize(data, addr + i).magenta());
                 }
             }
         }
