@@ -4,4 +4,4 @@ source "memory/Kconfig"
 
 source "debug/Kconfig"
 
-source "reset_vector/Kconfig"
+source "base/Kconfig"

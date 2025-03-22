@@ -1,15 +1,19 @@
-menu "RESET_VECTOR"
+menu "BASE_CONFIG"
 
-    config EMU_RESET_VECTOR
+    menu "RESET_VECTOR"
+
+    config EMU_BASE_RESET_VECTOR
         hex "Set EMU Reset Vector"
         default 0x80000000
         help
             Set the reset vector for the EMU platform.
 
-    config NPC_RESET_VECTOR
+    config NPC_BASE_RESET_VECTOR
         hex "Set NPC Reset Vector"
         default 0x80000000
         help
             Set the reset vector for the NPC platform.
+
+    endmenu
 
 endmenu
