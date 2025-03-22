@@ -20,7 +20,7 @@ impl Disassembler {
         }
     }
 
-    // looking at https://llvm.org/docs/RISCVUsage.html#riscv-i2p1-note
+    // https://llvm.org/docs/RISCVUsage.html#riscv-i2p1-note
     fn isa2feature(isa: ISA) -> &'static str {
         match isa {
             ISA::RV32E => "+e",

@@ -16,9 +16,9 @@ bitflags! {
 impl From<ISA> for InstructionSetFlags {
     fn from(isa: ISA) -> Self {
         match isa {
-            ISA::RV32I => InstructionSetFlags::RV32I,
-            ISA::RV32IM => InstructionSetFlags::RV32I.union(InstructionSetFlags::RV32M),
-            ISA::RV32E => InstructionSetFlags::RV32E,
+            ISA::RV32I => InstructionSetFlags::RV32I.union(InstructionSetFlags::ZICSR).union(InstructionSetFlags::PRIV),
+            ISA::RV32IM => InstructionSetFlags::RV32I.union(InstructionSetFlags::ZICSR).union(InstructionSetFlags::PRIV).union(InstructionSetFlags::RV32M),
+            ISA::RV32E => InstructionSetFlags::RV32E.union(InstructionSetFlags::ZICSR).union(InstructionSetFlags::PRIV),
         }
     }
 }

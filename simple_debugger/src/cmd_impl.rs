@@ -23,21 +23,21 @@ impl SimpleDebugger {
     fn cmd_register (&mut self, subcmd: Option<RegisterCmds>) -> ProcessResult<()> {
         match subcmd {
             Some(RegisterCmds::CSR { index }) => {
-                self.regfile.borrow().print_csr(index);
+                self.state.borrow().regfile.print_csr(index);
             }
 
             Some(RegisterCmds::GPR { index }) => {
-                self.regfile.borrow().print_gpr(index);
+                self.state.borrow().regfile.print_gpr(index);
             }
 
             Some(RegisterCmds::PC {}) => {
-                self.regfile.borrow().print_pc();
+                self.state.borrow().regfile.print_pc();
             }
 
             None => {
-                self.regfile.borrow().print_pc();
-                self.regfile.borrow().print_gpr(None);
-                self.regfile.borrow().print_csr(None);
+                self.state.borrow().regfile.print_pc();
+                self.state.borrow().regfile.print_gpr(None);
+                self.state.borrow().regfile.print_csr(None);
             }
         }
 
@@ -47,13 +47,13 @@ impl SimpleDebugger {
     fn cmd_memory (&mut self, subcmd: MemoryCmds) -> ProcessResult<()> {
         match subcmd {
             MemoryCmds::ShowMemoryMap {} => {
-                self.mmu.borrow().show_memory_map();
+                self.state.borrow().mmu.show_memory_map();
             }
 
             MemoryCmds::Examine { addr, length } => {
                 for i in (0..(length * 4)).step_by(4) {
                     let i = i as u32;
-                    let data = self.mmu.borrow_mut().read(addr + i, Mask::None)
+                    let data = self.state.borrow_mut().mmu.read(addr + i, Mask::None)
                         .map_err(|e| {
                             Logger::show(&e.to_string(), Logger::ERROR);
                             ProcessError::Recoverable

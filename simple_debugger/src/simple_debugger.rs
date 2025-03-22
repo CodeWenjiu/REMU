@@ -4,7 +4,7 @@ use logger::Logger;
 use option_parser::{BaseConfiguration, DebugConfiguration, MemoryConfiguration, OptionParser};
 use remu_buildin::{get_buildin_img, get_reset_vector, READLINE_HISTORY_LENGTH};
 use simulator::{Simulator, SimulatorImpl};
-use state::{mmu::MMU, reg::{regfile_io_factory, RegfileIo}};
+use state::States;
 use crate::{cmd_parser::Server, debug::Disassembler};
 
 use remu_utils::ProcessError;
@@ -14,8 +14,7 @@ pub struct SimpleDebugger {
 
     pub disassembler: Rc<RefCell<Disassembler>>,
 
-    pub regfile: Rc<RefCell<Box<dyn RegfileIo>>>,
-    pub mmu: Rc<RefCell<MMU>>,
+    pub state: Rc<RefCell<States>>,
 
     pub simulator: Box<dyn Simulator>,
 }
@@ -37,14 +36,13 @@ impl SimpleDebugger {
         let disassembler = Disassembler::new(isa)?;
         let disassembler = Rc::new(RefCell::new(disassembler));
 
-        let regfile_io = regfile_io_factory(isa, reset_vector)?;
-        let regfile = Rc::new(RefCell::new(regfile_io));
+        let state = Rc::new(RefCell::new(States::new(isa, reset_vector)?));
 
-        let mmu = Rc::new(RefCell::new(MMU::new()));
         for mem in &cli_result.cfg.memory_config {
             match mem {
                 MemoryConfiguration::MemoryRegion { name, base, size, flag } => {
-                    mmu.borrow_mut().add_memory(*base, *size, name, flag.clone()).map_err(|e| {
+                    let mmu = &mut state.borrow_mut().mmu;
+                    mmu.add_memory(*base, *size, name, flag.clone()).map_err(|e| {
                         Logger::show(&e.to_string(), Logger::ERROR);
                     })?;
                 }
@@ -55,7 +53,8 @@ impl SimpleDebugger {
         let bytes: Vec<u8> = buildin_img.iter()
             .flat_map(|&val| val.to_le_bytes().to_vec())
             .collect();
-        mmu.borrow_mut().load(reset_vector, &bytes).map_err(|e| {
+
+        state.borrow_mut().mmu.load(reset_vector, &bytes).map_err(|e| {
             Logger::show(&e.to_string(), Logger::ERROR);
         })?;
         let mut rl_history_length = READLINE_HISTORY_LENGTH;
@@ -68,13 +67,14 @@ impl SimpleDebugger {
             }
         }
 
-        let simulator = Box::new(SimulatorImpl::from(&cli_result.cli.platform));
+        let simulator = Box::new(SimulatorImpl::try_from(&cli_result.cli.platform).map_err(|e| {
+            Logger::show(&e.to_string(), Logger::ERROR);
+        })?);
 
         Ok(Self {
             server: Server::new(cli_result.cli.platform.simulator, rl_history_length).expect("Unable to create server"),
             disassembler,
-            regfile,
-            mmu,
+            state,
             simulator,
         })
     }

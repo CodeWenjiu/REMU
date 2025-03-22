@@ -1,5 +1,5 @@
 use logger::Logger;
-use remu_utils::{Platform, ProcessResult, Simulators, ISA};
+use remu_utils::{Platform, ProcessResult, Simulators};
 use enum_dispatch::enum_dispatch;
 
 use crate::emu::Emu;
@@ -17,21 +17,24 @@ pub enum SimulatorImpl {
     NEMU(Emu),
 }
 
-impl From<(Simulators, ISA)> for SimulatorImpl {
-    fn from(sim_isa: (Simulators, ISA)) -> Self {
-        let (sim, isa) = sim_isa;
-        match sim {
-            Simulators::EMU => SimulatorImpl::NEMU(Emu::new(isa)),
-            Simulators::NPC => {
-                Logger::todo();
-                SimulatorImpl::NEMU(Emu::new(isa))
-            }
-        }
-    }
+#[derive(Debug, snafu::Snafu)]
+pub enum SimulatorError {
+    #[snafu(display("Unknown Simulator"))]
+    UnknownSimulator,
 }
 
-impl From<&Platform> for SimulatorImpl {
-    fn from(platform: &Platform) -> Self {
-        (platform.simulator, platform.isa).into()
+impl TryFrom<&Platform> for SimulatorImpl {
+    type Error = SimulatorError;
+
+    fn try_from(sim_isa: &Platform) -> Result<Self, Self::Error> {
+        let sim = sim_isa.simulator;
+        let isa = sim_isa.isa;
+        match sim {
+            Simulators::EMU => Ok(SimulatorImpl::NEMU(Emu::new(isa))),
+            Simulators::NPC => {
+                Logger::show("NPC is not implemented yet", Logger::ERROR);
+                Err(SimulatorError::UnknownSimulator)
+            }
+        }
     }
 }
