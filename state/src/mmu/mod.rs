@@ -13,7 +13,7 @@ pub enum Mask{
 use bitflags::bitflags;
 use logger::Logger;
 bitflags! {
-    #[derive(Clone)]
+    #[derive(Clone, Debug)]
     pub struct MemoryFlags: u8 {
         const Read      = 1 << 0;
         const Write     = 1 << 1;

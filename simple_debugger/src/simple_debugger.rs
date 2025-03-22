@@ -1,7 +1,7 @@
 use std::{cell::RefCell, rc::Rc};
 
 use logger::Logger;
-use option_parser::{BaseConfiguration, DebugConfiguration, OptionParser};
+use option_parser::{BaseConfiguration, DebugConfiguration, MemoryConfiguration, OptionParser};
 use simulator::{Simulator, SimulatorImpl};
 use state::{mmu::MMU, reg::{regfile_io_factory, RegfileIo}};
 use crate::{cmd_parser::Server, debug::Disassembler};
@@ -33,7 +33,7 @@ impl SimpleDebugger {
 
         let mut reset_vector = 0x8000_0000;
 
-        for base_config in &cli_result.base_config {
+        for base_config in &cli_result.cfg.base_config {
             match base_config {
                 BaseConfiguration::ResetVector { value } => {
                     reset_vector = *value;
@@ -48,15 +48,19 @@ impl SimpleDebugger {
         let regfile = Rc::new(RefCell::new(regfile_io));
 
         let mmu = Rc::new(RefCell::new(MMU::new()));
-        for (_isa, name, base, length, flag) in &cli_result.memory_config {
-            mmu.borrow_mut().add_memory(*base, *length, name, flag.clone()).map_err(|e| {
-                Logger::show(&e.to_string(), Logger::ERROR);
-            })?;
+        for mem in &cli_result.cfg.memory_config {
+            match mem {
+                MemoryConfiguration::MemoryRegion { name, base, size, flag } => {
+                    mmu.borrow_mut().add_memory(*base, *size, name, flag.clone()).map_err(|e| {
+                        Logger::show(&e.to_string(), Logger::ERROR);
+                    })?;
+                }
+            }
         }
 
         let mut rl_history_length = 100;
 
-        for debug_config in &cli_result.debug_config {
+        for debug_config in &cli_result.cfg.debug_config {
             match debug_config {
                 DebugConfiguration::Readline { history } => {
                     rl_history_length = *history;

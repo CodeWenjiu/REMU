@@ -2718,6 +2718,7 @@ dependencies = [
  "install",
  "logger",
  "owo-colors 4.2.0",
+ "regex",
  "remu_macro",
  "remu_utils",
  "snafu",
