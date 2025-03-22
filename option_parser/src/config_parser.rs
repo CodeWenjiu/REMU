@@ -20,7 +20,6 @@ pub fn config_parser() -> ConfigResult<HashMap<String, String>> {
     let path = "config/config";
 
     let settings = Config::builder()
-        // Add in `./Settings.toml`
         .add_source(config::File::with_name(path))
         .add_source(config::Environment::with_prefix(""))
         .build()

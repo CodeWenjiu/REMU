@@ -1,9 +1,9 @@
 use owo_colors::OwoColorize;
 
-use super::{Mask, Memory, MemoryFlags, MmtApi};
+use super::{MMUApi, Mask, Memory, MemoryFlags};
 
 pub struct MMU {
-    memory_map: Vec<(String, u32, u32, MemoryFlags, Box<dyn MmtApi>)>,
+    memory_map: Vec<(String, u32, u32, MemoryFlags, Box<dyn MMUApi>)>,
 }
 
 #[derive(Debug, snafu::Snafu)]
@@ -13,6 +13,9 @@ pub enum MMUError {
 
     #[snafu(display("memory unmapped: {:#010x}", addr))]
     MemoryUnmapped {addr: u32},
+
+    #[snafu(display("load out of range: {:#010x} : {:#010x}", addr, addr + len))]
+    LoadOutOfRange {addr: u32, len: u32},
 
     #[snafu(display("memory unreadable: {:#010x}", addr))]
     MemoryUnreadable {addr: u32},
@@ -46,7 +49,7 @@ impl MMU {
         }
         
         // Create the new memory region
-        let new_region = (name.to_string(), base, length, flag, Box::new(Memory::new(length)) as Box<dyn MmtApi>);
+        let new_region = (name.to_string(), base, length, flag, Box::new(Memory::new(length)) as Box<dyn MMUApi>);
         
         // Find the correct position to insert based on base address
         let position = self.memory_map.iter()
@@ -68,7 +71,7 @@ impl MMU {
     }
 
     fn find_memory_region(&mut self, addr: u32) 
-        -> MMUResult<(&mut Box<dyn MmtApi>, u32, &MemoryFlags)> {
+        -> MMUResult<(&mut Box<dyn MMUApi>, u32, &MemoryFlags)> {
         for (_, base, length, flag, memory) in &mut self.memory_map {
             if addr >= *base && addr < *base + *length {
                 return Ok((memory, addr - *base, flag));
@@ -106,5 +109,16 @@ impl MMU {
         }
         
         Ok(memory.read(offset, Mask::Word))
+    }
+
+    pub fn load(&mut self, addr: u32, data: &[u8]) -> MMUResult<()> {
+        let (memory, offset, _) = self.find_memory_region(addr)?;
+        
+        if (addr + data.len() as u32) > memory.get_length() {
+            return Err(MMUError::LoadOutOfRange { addr, len: data.len() as u32 });
+        }
+            
+        memory.load(offset, data);
+        Ok(())
     }
 }

@@ -1,7 +1,7 @@
 use std::{cell::RefCell, rc::Rc};
 
 use logger::Logger;
-use option_parser::{DebugConfiguration, OptionParser};
+use option_parser::{BaseConfiguration, DebugConfiguration, OptionParser};
 use simulator::{Simulator, SimulatorImpl};
 use state::{mmu::MMU, reg::{regfile_io_factory, RegfileIo}};
 use crate::{cmd_parser::Server, debug::Disassembler};
@@ -31,10 +31,20 @@ impl SimpleDebugger {
     pub fn new(cli_result: OptionParser) -> Result<Self, ()> {
         let isa = cli_result.cli.platform.isa;
 
+        let mut reset_vector = 0x8000_0000;
+
+        for base_config in &cli_result.base_config {
+            match base_config {
+                BaseConfiguration::ResetVector { value } => {
+                    reset_vector = *value;
+                }
+            }
+        }
+
         let disassembler = Disassembler::new(Self::isa2triple(isa))?;
         let disassembler = Rc::new(RefCell::new(disassembler));
 
-        let regfile_io = regfile_io_factory(isa)?;
+        let regfile_io = regfile_io_factory(isa, reset_vector)?;
         let regfile = Rc::new(RefCell::new(regfile_io));
 
         let mmu = Rc::new(RefCell::new(MMU::new()));

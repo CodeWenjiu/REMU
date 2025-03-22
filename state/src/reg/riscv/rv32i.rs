@@ -184,9 +184,9 @@ pub struct Rv32iRegFile {
 }
 
 impl Rv32iRegFile {
-    pub fn new() -> Self {
+    pub fn new(reset_vector: u32) -> Self {
         Rv32iRegFile {
-            pc: 0,
+            pc: reset_vector,
             regs: [0; 32],
             csrs: [0; 4096],
         }

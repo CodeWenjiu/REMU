@@ -1,18 +1,21 @@
-use super::{Mask, MmtApi};
+use super::{BaseApi, MMUApi, Mask, MemoryApi};
 
 pub struct Memory {
     memory: Box<[u8]>,
+
+    length: u32,
 }
 
 impl Memory {
     pub fn new(length: u32) -> Self {
         Memory {
             memory: vec![0; length as usize].into_boxed_slice(),
+            length,
         }
     }
 }
 
-impl MmtApi for Memory {
+impl BaseApi for Memory {
     fn read(&mut self, addr: u32, mask: Mask) -> u32 {
         let addr = addr as usize;
         match mask {
@@ -45,3 +48,16 @@ impl MmtApi for Memory {
         }
     }
 }
+
+impl MemoryApi for Memory {
+    fn load(&mut self, addr: u32, data: &[u8]) {
+        let addr = addr as usize;
+        self.memory[addr..addr+data.len()].copy_from_slice(data);
+    }
+
+    fn get_length(&self) -> u32 {
+        self.length
+    }
+}
+
+impl MMUApi for Memory {}

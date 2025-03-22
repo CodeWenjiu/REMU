@@ -1,7 +1,5 @@
 use core::fmt;
 
-use enum_dispatch::enum_dispatch;
-
 remu_macro::mod_flat!(memory, mmu);
 
 #[derive(Debug, PartialEq, Clone)]
@@ -13,6 +11,7 @@ pub enum Mask{
 }
 
 use bitflags::bitflags;
+use logger::Logger;
 bitflags! {
     #[derive(Clone)]
     pub struct MemoryFlags: u8 {
@@ -28,13 +27,25 @@ impl fmt::Display for MemoryFlags {
     }
 }
 
-#[enum_dispatch]
-pub trait MmtApi {
-    fn read(&mut self, addr: u32, mask: Mask) -> u32; // read device will change state
-    fn write(&mut self, addr: u32, data: u32, mask: Mask);
+pub trait BaseApi {
+    fn read(&mut self, _addr: u32, _mask: Mask) -> u32 {
+        Logger::todo();
+        0
+    }
+
+    fn write(&mut self, _addr: u32, _data: u32, _mask: Mask) {
+        Logger::todo();
+    }
 }
 
-#[enum_dispatch(MmtApi)]
-enum Mmts {
-    Memory,
+pub trait MemoryApi {
+    fn load(&mut self, _addr: u32, _data: &[u8]) {
+        Logger::todo();
+    }
+    fn get_length(&self) -> u32 {
+        Logger::todo();
+        0
+    }
 }
+
+pub trait MMUApi : BaseApi + MemoryApi{}

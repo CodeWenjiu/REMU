@@ -8,6 +8,7 @@ use state::mmu::MemoryFlags;
 remu_macro::mod_flat!(config_parser, cli_parser, welcome);
 
 pub struct OptionParser {
+    pub base_config: Vec<BaseConfiguration>,
     pub memory_config: Vec<(String, String, u32, u32, MemoryFlags)>,
     pub debug_config: Vec<DebugConfiguration>,
     pub cli: cli_parser::CLI,
@@ -91,6 +92,13 @@ fn parse_memory_region(
 }
 
 #[derive(Debug)]
+pub enum BaseConfiguration {
+    ResetVector {
+        value: u32,
+    },
+}
+
+#[derive(Debug)]
 pub enum DebugConfiguration {
     Readline { history: u32 },
 }
@@ -139,6 +147,7 @@ pub fn parse() -> Result<OptionParser, ()> {
     welcome(&cli.platform);
 
     Ok(OptionParser {
+        base_config: vec![],
         memory_config: regions,
         debug_config,
         cli,

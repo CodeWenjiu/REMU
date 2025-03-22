@@ -78,10 +78,10 @@ pub enum RegError {
 type RegResult<T> = Result<T, RegError>;
 type RegIoResult<T> = Result<T, ()>;
 
-pub fn regfile_io_factory(isa: ISA) -> Result<Box<dyn RegfileIo>, ()> {
+pub fn regfile_io_factory(isa: ISA, reset_vector: u32) -> Result<Box<dyn RegfileIo>, ()> {
     match isa {
-        ISA::RV32E => Ok(Box::new(Rv32eRegFile::new())),
-        ISA::RV32I => Ok(Box::new(Rv32iRegFile::new())),
+        ISA::RV32E => Ok(Box::new(Rv32eRegFile::new(reset_vector))),
+        ISA::RV32I => Ok(Box::new(Rv32iRegFile::new(reset_vector))),
         _ => {
             let isa: &str = From::from(isa);
             Logger::show(&format!("Unknown ISA: {}", isa), Logger::ERROR);
