@@ -3,6 +3,7 @@ use std::{cell::RefCell, rc::Rc};
 use logger::Logger;
 use option_parser::{BaseConfiguration, DebugConfiguration, MemoryConfiguration, OptionParser};
 use remu_buildin::{get_buildin_img, get_reset_vector, READLINE_HISTORY_LENGTH};
+use remu_macro::log_err;
 use simulator::{Simulator, SimulatorImpl};
 use state::States;
 use crate::cmd_parser::Server;
@@ -42,9 +43,7 @@ impl SimpleDebugger {
             match mem {
                 MemoryConfiguration::MemoryRegion { name, base, size, flag } => {
                     let mmu = &mut state.borrow_mut().mmu;
-                    mmu.add_memory(*base, *size, name, flag.clone()).map_err(|e| {
-                        Logger::show(&e.to_string(), Logger::ERROR);
-                    })?;
+                    log_err!(mmu.add_memory(*base, *size, name, flag.clone()))?;
                 }
             }
         }
@@ -53,15 +52,11 @@ impl SimpleDebugger {
 
         if cli_result.cli.bin.is_some() {
             let bin = cli_result.cli.bin.as_ref().unwrap();
-            let bytes = std::fs::read(bin).map_err(|e| {
-                Logger::show(&e.to_string(), Logger::ERROR);
-            })?;
+            let bytes = log_err!(std::fs::read(bin))?;
             
             Logger::show(&format!("Loading binary image size: {}", bytes.len() / 4).to_string(), Logger::INFO);
 
-            state.borrow_mut().mmu.load(reset_vector, &bytes).map_err(|e| {
-                Logger::show(&e.to_string(), Logger::ERROR);
-            })?;
+            log_err!(state.borrow_mut().mmu.load(reset_vector, &bytes))?;
         } else {
             let bytes: Vec<u8> = buildin_img.iter()
                 .flat_map(|&val| val.to_le_bytes().to_vec())
@@ -69,9 +64,7 @@ impl SimpleDebugger {
     
             Logger::show("No binary image specified, using buildin image.", Logger::WARN);
 
-            state.borrow_mut().mmu.load(reset_vector, &bytes).map_err(|e| {
-                Logger::show(&e.to_string(), Logger::ERROR);
-            })?;
+            log_err!(state.borrow_mut().mmu.load(reset_vector, &bytes))?;
         }
 
         let mut rl_history_length = READLINE_HISTORY_LENGTH;
@@ -87,9 +80,7 @@ impl SimpleDebugger {
             }
         }
 
-        let simulator = Box::new(SimulatorImpl::try_from((&cli_result, state.clone(), disassembler.clone())).map_err(|e| {
-            Logger::show(&e.to_string(), Logger::ERROR);
-        })?);
+        let simulator = Box::new(log_err!(SimulatorImpl::try_from((&cli_result, state.clone(), disassembler.clone())))?);
 
         Ok(Self {
             server: Server::new(cli_result.cli.platform.simulator, rl_history_length).expect("Unable to create server"),

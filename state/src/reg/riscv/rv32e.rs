@@ -1,6 +1,7 @@
 use std::str::FromStr;
 
 use logger::Logger;
+use remu_macro::log_err;
 
 use crate::reg::{RegError, RegIdentifier, RegIoResult, RegResult, RegfileIo};
 
@@ -128,20 +129,16 @@ impl Rv32eRegFile {
         }
     }
 
-    fn validate_gpr_index(index: u32) -> Result<u32, ()> {
-        let index = Rv32eGprEnum::validate(index).map_err(|e| 
-            Logger::show(&e.to_string(), Logger::ERROR)
-        )?;
+    fn validate_gpr_index(index: u32) -> Result<(), ()> {
+        log_err!(Rv32eGprEnum::validate(index))?;
 
-        Ok(index as u32)
+        Ok(())
     }
 
-    fn validate_csr_index(index: u32) -> Result<u32, ()>  {
-        let index = RvCsrEnum::validate(index).map_err(|e| 
-            Logger::show(&e.to_string(), Logger::ERROR)
-        )?;
+    fn validate_csr_index(index: u32) -> Result<(), ()>  {
+        log_err!(RvCsrEnum::validate(index))?;
 
-        Ok(index as u32)
+        Ok(())
     }
 }
 
@@ -155,23 +152,23 @@ impl RegfileIo for Rv32eRegFile {
     }
 
     fn read_gpr(&self,index : u32) -> RegIoResult<u32> {
-        let index = Rv32eRegFile::validate_gpr_index(index)?;
+        Rv32eRegFile::validate_gpr_index(index)?;
         Ok(self.regs[index as usize])
     }
 
     fn write_gpr(&mut self,index : u32, value : u32) -> RegIoResult<()> {
-        let index = Rv32eRegFile::validate_gpr_index(index)?;
+        Rv32eRegFile::validate_gpr_index(index)?;
         self.regs[index as usize] = value;
         Ok(())
     }
 
     fn read_csr(&self,index : u32) -> RegIoResult<u32> {
-        let index = Rv32eRegFile::validate_csr_index(index)?;
+        Rv32eRegFile::validate_csr_index(index)?;
         Ok(self.csrs[index as usize])
     }
 
     fn write_csr(&mut self,index : u32, value : u32) -> RegIoResult<()> {
-        let index = Rv32eRegFile::validate_csr_index(index)?;
+        Rv32eRegFile::validate_csr_index(index)?;
         self.csrs[index as usize] = value;
         Ok(())
     }
@@ -179,7 +176,7 @@ impl RegfileIo for Rv32eRegFile {
     fn print_gpr(&self, index: Option<RegIdentifier>) {
         match index {
             Some(RegIdentifier::Index(index)) => {
-                let index = Rv32eRegFile::validate_gpr_index(index).unwrap();
+                Rv32eRegFile::validate_gpr_index(index).unwrap();
                 let name = Rv32eGprEnum::try_from(index).unwrap().into();
                 self.print_format(name, self.regs[index as usize]);
             },
@@ -202,7 +199,7 @@ impl RegfileIo for Rv32eRegFile {
     fn print_csr(&self, index: Option<RegIdentifier>) {
         match index {
             Some(RegIdentifier::Index(index)) => {
-                let index = Rv32eRegFile::validate_csr_index(index).unwrap();
+                Rv32eRegFile::validate_csr_index(index).unwrap();
                 let name = RvCsrEnum::try_from(index).unwrap().into();
                 self.print_format(name, self.csrs[index as usize]);
             },

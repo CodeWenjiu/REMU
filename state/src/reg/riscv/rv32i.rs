@@ -1,6 +1,7 @@
 use std::str::FromStr;
 
 use logger::Logger;
+use remu_macro::log_err;
 
 use crate::reg::{RegError, RegIdentifier, RegIoResult, RegResult, RegfileIo};
 
@@ -193,17 +194,13 @@ impl Rv32iRegFile {
     }
 
     fn validate_gpr_index(index: u32) -> Result<u32, ()> {
-        let index = Rv32iGprEnum::validate(index).map_err(|e| 
-            Logger::show(&e.to_string(), Logger::ERROR)
-        )?;
+        let index = log_err!(Rv32iGprEnum::validate(index))?;
 
         Ok(index as u32)
     }
 
     fn validate_csr_index(index: u32) -> Result<u32, ()> {
-        let index = RvCsrEnum::validate(index).map_err(|e| 
-            Logger::show(&e.to_string(), Logger::ERROR)
-        )?;
+        let index = log_err!(RvCsrEnum::validate(index))?;
 
         Ok(index as u32)
     }

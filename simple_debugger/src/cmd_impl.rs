@@ -1,5 +1,6 @@
 use logger::Logger;
 use owo_colors::OwoColorize;
+use remu_macro::log_err;
 use remu_utils::{ProcessError, ProcessResult};
 use state::mmu::Mask;
 
@@ -53,11 +54,7 @@ impl SimpleDebugger {
             MemoryCmds::Examine { addr, length } => {
                 for i in (0..(length * 4)).step_by(4) {
                     let i = i as u32;
-                    let data = self.state.borrow_mut().mmu.read(addr + i, Mask::None)
-                        .map_err(|e| {
-                            Logger::show(&e.to_string(), Logger::ERROR);
-                            ProcessError::Recoverable
-                        })?;
+                    let data = log_err!(self.state.borrow_mut().mmu.read(addr + i, Mask::None), ProcessError::Recoverable)?;
 
                     println!("{:#010x}: {:#010x}\t {}",
                         (addr + i).blue(), data.green(), self.disassembler.borrow().try_analize(data, addr + i).magenta());

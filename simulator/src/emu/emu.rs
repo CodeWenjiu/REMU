@@ -5,6 +5,7 @@ use crate::{FunctionTarget, Simulator};
 use bitflags::bitflags;
 use logger::Logger;
 use option_parser::{DebugConfiguration, OptionParser};
+use remu_macro::log_err;
 use remu_utils::{Disassembler, ProcessError, ProcessResult, ISA};
 use state::States;
 bitflags! {
@@ -33,17 +34,14 @@ pub struct Emu {
 
     pub instruction_trace_enable: bool,
     pub disaseembler: Rc<RefCell<Disassembler>>,
-    states: Rc<RefCell<States>>,
+    pub states: Rc<RefCell<States>>,
 }
 
 impl Simulator for Emu {
     fn step_cycle(&mut self) -> ProcessResult<()> {
         let pc = self.states.borrow().regfile.read_pc();
 
-        let inst = self.states.borrow_mut().mmu.read(pc, state::mmu::Mask::Word).map_err(|e| {
-            Logger::show(&e.to_string(), Logger::ERROR);
-            ProcessError::Recoverable
-        })?;
+        let inst = log_err!(self.states.borrow_mut().mmu.read(pc, state::mmu::Mask::Word), ProcessError::Recoverable)?;
 
         let decode = self.decode(inst, pc)?;
 

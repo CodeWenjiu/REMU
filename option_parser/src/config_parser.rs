@@ -3,6 +3,7 @@ use std::{collections::HashMap, fmt::Debug};
 use config::Config;
 use logger::Logger;
 use regex::Regex;
+use remu_macro::log_err;
 use remu_utils::Platform;
 use snafu::ResultExt;
 use state::mmu::MemoryFlags;
@@ -67,16 +68,16 @@ pub fn config_parser() -> ConfigResult<HashMap<String, String>> {
 
 fn parse_hex(s: &str) -> Result<u32, ()> {
     let s = s.trim_start_matches("0x");
-    u32::from_str_radix(s, 16).map_err(|e| Logger::show(&e.to_string(), Logger::ERROR))
+    log_err!(u32::from_str_radix(s, 16))
 }
 
 fn parse_bin(s: &str) -> Result<u32, ()> {
     let s = s.trim_start_matches("0b");
-    u32::from_str_radix(s, 2).map_err(|e| Logger::show(&e.to_string(), Logger::ERROR))
+    log_err!(u32::from_str_radix(s, 2))
 }
 
 fn parse_dec(s: &str) -> Result<usize, ()> {
-    usize::from_str_radix(s, 10).map_err(|e| Logger::show(&e.to_string(), Logger::ERROR))
+    log_err!(usize::from_str_radix(s, 10))
 }
 
 fn parse_bool(s: &str) -> Result<bool, ()> {
@@ -195,9 +196,7 @@ fn parse_debug_configuration(
 }
 
 pub fn config_parse(cli: &CLI) -> Result<Cfg, ()> {
-    let config = config_parser().map_err(|e| {
-        Logger::show(&e.to_string(), Logger::ERROR);
-    })?;
+    let config = log_err!(config_parser())?;
 
     let base_config = parse_base_config(&config, &cli.platform)?;
 
