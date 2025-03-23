@@ -50,13 +50,30 @@ impl SimpleDebugger {
         }
 
         let buildin_img = get_buildin_img(isa);
-        let bytes: Vec<u8> = buildin_img.iter()
-            .flat_map(|&val| val.to_le_bytes().to_vec())
-            .collect();
 
-        state.borrow_mut().mmu.load(reset_vector, &bytes).map_err(|e| {
-            Logger::show(&e.to_string(), Logger::ERROR);
-        })?;
+        if cli_result.cli.bin.is_some() {
+            let bin = cli_result.cli.bin.as_ref().unwrap();
+            let bytes = std::fs::read(bin).map_err(|e| {
+                Logger::show(&e.to_string(), Logger::ERROR);
+            })?;
+            
+            Logger::show(&format!("Loading binary image size: {}", bytes.len() / 4).to_string(), Logger::INFO);
+
+            state.borrow_mut().mmu.load(reset_vector, &bytes).map_err(|e| {
+                Logger::show(&e.to_string(), Logger::ERROR);
+            })?;
+        } else {
+            let bytes: Vec<u8> = buildin_img.iter()
+                .flat_map(|&val| val.to_le_bytes().to_vec())
+                .collect();
+    
+            Logger::show("No binary image specified, using buildin image.", Logger::WARN);
+
+            state.borrow_mut().mmu.load(reset_vector, &bytes).map_err(|e| {
+                Logger::show(&e.to_string(), Logger::ERROR);
+            })?;
+        }
+
         let mut rl_history_length = READLINE_HISTORY_LENGTH;
 
         for debug_config in &cli_result.cfg.debug_config {

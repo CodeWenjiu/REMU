@@ -1,6 +1,6 @@
 use clap::Parser;
 use logger::Logger;
-use rustyline::{error::ReadlineError, highlight::MatchingBracketHighlighter, hint::HistoryHinter, history::{FileHistory, History}, validate::MatchingBracketValidator, Cmd, CompletionType, Config, EditMode, Editor, KeyEvent};
+use rustyline::{error::ReadlineError, highlight::MatchingBracketHighlighter, hint::HistoryHinter, history::{FileHistory, History}, validate::MatchingBracketValidator, CompletionType, Config, EditMode, Editor};
 
 use remu_utils::{ProcessError, ProcessResult, Simulators};
 use crate::cmd_parser::get_cmd_tree;
@@ -33,8 +33,6 @@ impl Server {
         
         let mut rl = Editor::with_config(config).map_err(|e| eprintln!("{}", e))?;
         rl.set_helper(Some(h));
-        rl.bind_sequence(KeyEvent::alt('n'), Cmd::HistorySearchForward);
-        rl.bind_sequence(KeyEvent::alt('p'), Cmd::HistorySearchBackward);
         if rl.load_history("./target/.rlhistory").is_err() {
             Logger::show("[readline] No previous history.", Logger::INFO);
         }
@@ -83,10 +81,17 @@ impl Server {
         let readline = self.rl.readline(&self.prompt);
 
         match readline {
-            Ok(line) => {
+            Ok(mut line) => {
                 if let Err(e) = self.rl.add_history_entry(line.as_str()) {
                     eprintln!("{}", e);
                     return Err(ProcessError::Fatal);
+                }
+
+                if line.is_empty() {
+                    line = self.rl.history()
+                        .iter()
+                        .last()
+                        .map_or("".to_owned(), |v| v.to_string());
                 }
 
                 Ok(line)
