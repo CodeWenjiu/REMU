@@ -1,5 +1,6 @@
 use clap::{command, CommandFactory, Parser, Subcommand, builder::styling};
 use petgraph::Graph;
+use simulator::FunctionTarget;
 use state::reg::RegIdentifier;
 
 #[derive(Parser, Debug)]
@@ -51,6 +52,12 @@ pub enum Cmds {
         #[command(subcommand)]
         subcmd: InfoCmds,
     },
+
+    /// Enable/Disable Simulator Function
+    Function {
+        #[command(subcommand)]
+        subcmd: FunctionCmds,
+    }
 }
 
 #[derive(Debug, Subcommand)]
@@ -120,6 +127,23 @@ pub enum MemoryCmds {
         /// Exam length in bitwidth, default as 1
         #[arg(default_value("1"))]
         length: u64,
+    },
+}
+
+#[derive(Debug, Subcommand)]
+pub enum FunctionCmds {
+    /// Enable a function
+    Enable {
+        /// The target function
+        #[command(subcommand)]
+        subcmd: FunctionTarget,
+    },
+
+    /// Disable a function
+    Disable {
+        /// The target function
+        #[command(subcommand)]
+        subcmd: FunctionTarget,
     },
 }
 

@@ -1,6 +1,7 @@
 use std::ops::Range;
 
-remu_macro::mod_flat!(emu, isa);
+remu_macro::mod_flat!(debug, emu);
+remu_macro::mod_pub!(isa);
 
 fn extract_bits(input: u32, range: Range<u8>) -> u32 {
     let mask = (1 << (range.end - range.start + 1)) - 1;

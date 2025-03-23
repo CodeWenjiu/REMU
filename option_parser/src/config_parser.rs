@@ -46,6 +46,7 @@ pub enum MemoryConfiguration {
 #[derive(Debug)]
 pub enum DebugConfiguration {
     Readline { history: usize },
+    Itrace { enable: bool },
 }
 
 pub type ConfigResult<T, E = ConfigError> = std::result::Result<T, E>;
@@ -76,6 +77,14 @@ fn parse_bin(s: &str) -> Result<u32, ()> {
 
 fn parse_dec(s: &str) -> Result<usize, ()> {
     usize::from_str_radix(s, 10).map_err(|e| Logger::show(&e.to_string(), Logger::ERROR))
+}
+
+fn parse_bool(s: &str) -> Result<bool, ()> {
+    match s {
+        "y" => Ok(true),
+        "n" => Ok(false),
+        _ => Err(()),
+    }
 }
 
 fn parse_base_config(
@@ -157,27 +166,32 @@ fn parse_memory_region(
 fn parse_debug_configuration(
     config: &HashMap<String, String>,
 ) -> Result<Vec<DebugConfiguration>, ()> {
-    let debug_config: Vec<(String, String)> = config
-        .iter()
-        .filter(|s| s.0.starts_with("DEBUG"))
-        .map(|(k, v)| (k.clone(), v.clone()))
-        .collect();
+    let re = Regex::new(r"DEBUG_(\w+)_(\w+)_(\w+)").unwrap();
 
-    for (key, value) in debug_config.iter() {
-        let parts: Vec<&str> = key.split('_').collect();
-        if parts.len() != 4 {
-            Logger::show(&format!("Invalid debug syntax: {}", key), Logger::ERROR);
-            return Err(());
-        }
+    let mut debug_config: Vec<DebugConfiguration> = vec![];
 
-        let attr = parts[1];
-        if attr == "RL" {
-            let history = parse_dec(value)?;
-            return Ok(vec![DebugConfiguration::Readline { history }]);
+    for (key, value) in config.iter() {
+        if let Some(caps) = re.captures(key) {
+            match (&caps[1], &caps[2], &caps[3]) {
+                ("RL", "HISTORY", "SIZE") => {
+                    debug_config.push(DebugConfiguration::Readline {
+                        history: parse_dec(value)?,
+                    });
+                }
+
+                ("DEFAULT", "ITRACE", "ENABLE") => {
+                    debug_config.push(DebugConfiguration::Itrace {
+                        enable: parse_bool(value)?,
+                    });
+                }
+
+                _ => {
+                }
+            }
         }
     }
 
-    Err(())
+    Ok(debug_config)
 }
 
 pub fn config_parse(cli: &CLI) -> Result<Cfg, ()> {

@@ -64,10 +64,13 @@ impl SimpleDebugger {
                 DebugConfiguration::Readline { history } => {
                     rl_history_length = *history;
                 }
+
+                _ => {
+                }
             }
         }
 
-        let simulator = Box::new(SimulatorImpl::try_from((&cli_result.cli.platform, state.clone(), disassembler.clone())).map_err(|e| {
+        let simulator = Box::new(SimulatorImpl::try_from((&cli_result, state.clone(), disassembler.clone())).map_err(|e| {
             Logger::show(&e.to_string(), Logger::ERROR);
         })?);
 

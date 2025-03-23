@@ -3514,8 +3514,10 @@ name = "simulator"
 version = "0.1.0"
 dependencies = [
  "bitflags",
+ "clap",
  "enum_dispatch",
  "logger",
+ "option_parser",
  "owo-colors 4.2.0",
  "remu_macro",
  "remu_utils",

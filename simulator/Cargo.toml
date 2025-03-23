@@ -10,7 +10,9 @@ remu_macro = { path = "../remu_macro" }
 remu_utils = { path = "../remu_utils" }
 logger = { path = "../logger" }
 state = { path = "../state" }
+option_parser = { path = "../option_parser" }
 enum_dispatch = {workspace = true}
 snafu = {workspace = true}
 owo-colors = {workspace = true}
 bitflags = {workspace = true}
+clap = {workspace = true}

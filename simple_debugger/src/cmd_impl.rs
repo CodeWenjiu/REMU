@@ -3,7 +3,7 @@ use owo_colors::OwoColorize;
 use remu_utils::{ProcessError, ProcessResult};
 use state::mmu::Mask;
 
-use crate::{cmd_parser::{Cmds, InfoCmds, MemoryCmds, RegisterCmds, StepCmds}, SimpleDebugger};
+use crate::{cmd_parser::{Cmds, FunctionCmds, InfoCmds, MemoryCmds, RegisterCmds, StepCmds}, SimpleDebugger};
 
 impl SimpleDebugger {
     fn cmd_info (&mut self, subcmd: InfoCmds) -> ProcessResult<()> {
@@ -85,6 +85,35 @@ impl SimpleDebugger {
         }
     }
 
+    fn cmd_function (&mut self, subcmd: FunctionCmds) -> ProcessResult<()> {
+        match subcmd {
+            FunctionCmds::Disable { subcmd } => {
+                self.simulator.cmd_function_mut(subcmd, false)?;
+            }
+
+            FunctionCmds::Enable { subcmd } => {
+                self.simulator.cmd_function_mut(subcmd, true)?;
+            }
+        }
+
+        Ok(())
+    }
+
+    // fn cmd_function_mut (&mut self, target: FunctionTarget, enable: bool) -> ProcessResult<()> {
+    //     match target {
+    //         FunctionTarget::InstructionTrace => {
+    //             self.instruction_trace(enable)?;
+    //         }
+    //     }
+
+    //     Ok(())
+    // }
+
+    // fn instruction_trace (&mut self, enable: bool) -> ProcessResult<()> {
+    //     Logger::todo();
+    //     Ok(())
+    // }
+
     pub fn execute(&mut self, cmd: Cmds) -> ProcessResult<()> {
         match cmd {
             Cmds::Step { subcmd } => {
@@ -93,6 +122,10 @@ impl SimpleDebugger {
 
             Cmds::Info { subcmd } => {
                 self.cmd_info(subcmd)?;
+            }
+
+            Cmds::Function { subcmd } => {
+                self.cmd_function(subcmd)?;
             }
 
             _ => {

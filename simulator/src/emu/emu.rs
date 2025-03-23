@@ -1,9 +1,10 @@
 use std::{cell::RefCell, rc::Rc};
 
-use crate::Simulator;
+use crate::{FunctionTarget, Simulator};
 
 use bitflags::bitflags;
 use logger::Logger;
+use option_parser::{DebugConfiguration, OptionParser};
 use remu_utils::{Disassembler, ProcessError, ProcessResult, ISA};
 use state::States;
 bitflags! {
@@ -29,6 +30,8 @@ impl From<ISA> for InstructionSetFlags {
 
 pub struct Emu {
     pub instruction_set: InstructionSetFlags,
+
+    pub instruction_trace_enable: bool,
     pub disaseembler: Rc<RefCell<Disassembler>>,
     states: Rc<RefCell<States>>,
 }
@@ -42,18 +45,50 @@ impl Simulator for Emu {
             ProcessError::Recoverable
         })?;
 
-        let inst = self.decode(inst, pc)?;
+        let decode = self.decode(inst, pc)?;
 
-        println!("{:?}", inst);
+        println!("{:?}", decode);
+
+        if self.instruction_trace_enable {
+            let disassembler = self.disaseembler.borrow();
+            Logger::show(&format!("{}", disassembler.try_analize(inst, pc)).to_string(), Logger::INFO);
+        }
+
+        Ok(())
+    }
+
+    fn cmd_function_mut(&mut self, target:crate::FunctionTarget, enable:bool) -> ProcessResult<()> {
+        match target {
+            FunctionTarget::InstructionTrace => {
+                self.instruction_trace(enable);
+            }
+        }
 
         Ok(())
     }
 }
 
 impl Emu {
-    pub fn new(isa: ISA, states: Rc<RefCell<States>>, disaseembler: Rc<RefCell<Disassembler>>) -> Self {
+    pub fn new(option: &OptionParser, states: Rc<RefCell<States>>, disaseembler: Rc<RefCell<Disassembler>>) -> Self {
+        let isa = option.cli.platform.isa;
+
+        let mut instruction_trace_enable = false;
+
+        for debug_config in &option.cfg.debug_config {
+            match debug_config {
+                DebugConfiguration::Itrace { enable } => {
+                    instruction_trace_enable = *enable;
+                }
+
+                _ => {
+                }
+            }
+        }
+
         Self {
             instruction_set: InstructionSetFlags::from(isa),
+
+            instruction_trace_enable,
             disaseembler,
             states,
         }

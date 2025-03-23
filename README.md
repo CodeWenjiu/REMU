@@ -16,6 +16,22 @@ pip install kconfiglib toml
 
 - run the following commands
 ```bash
+make menuconfig # do nothing and save&exit
 cargo clean # optional
 cargo run
 ```
+
+# Key map
+- `Ctrl + D`: Exit
+- `Ctrl + C`: Cancel input
+- `Ctrl + Backspace`: Delete the word before the cursor
+- `Ctrl + ←`: Move the cursor to the word before
+- `Ctrl + →`: Move the cursor to the word after
+- `Ctrl + A`: Move the cursor to the beginning of the line
+- `Ctrl + E`: Move the cursor to the end of the line
+- `↑`: Move the cursor to the previous command
+- `↓`: Move the cursor to the next command
+- `←`: Move the cursor to the left
+- `→`: Move the cursor to the right or complete the command by history
+- `Tab`: Complete the command; twice to list all possible completions
+- `Enter`: Execute the command
