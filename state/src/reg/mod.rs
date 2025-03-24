@@ -1,6 +1,7 @@
 use enum_dispatch::enum_dispatch;
 use logger::Logger;
 use owo_colors::OwoColorize;
+use remu_macro::log_todo;
 use remu_utils::ISA;
 use riscv::{Rv32eRegFile, Rv32iRegFile};
 
@@ -21,31 +22,31 @@ pub trait RegfileIo {
     }
 
     fn read_pc(&self) -> u32 {
-        Logger::todo();
+        log_todo!();
         0
     }
 
     fn write_pc(&mut self, _value: u32) {
-        Logger::todo();
+        log_todo!();
     }
 
     fn read_gpr(&self, _index: u32) -> RegIoResult<u32> {
-        Logger::todo();
+        log_todo!();
         Err(())
     }
 
     fn write_gpr(&mut self, _index: u32, _value: u32) -> RegIoResult<()> {
-        Logger::todo();
+        log_todo!();
         Err(())
     }
 
     fn read_csr(&self, _index: u32) -> RegIoResult<u32> {
-        Logger::todo();
+        log_todo!();
         Err(())
     }
 
     fn write_csr(&mut self, _index: u32, _value: u32) -> RegIoResult<()> {
-        Logger::todo();
+        log_todo!();
         Err(())
     }
 
@@ -54,15 +55,15 @@ pub trait RegfileIo {
     }
 
     fn print_gpr(&self, _index: Option<RegIdentifier>) {
-        Logger::todo();
+        log_todo!();
     }
 
     fn print_csr(&self, _index: Option<RegIdentifier>) {
-        Logger::todo();
+        log_todo!();
     }
 
     fn check(&self, _regfile: AnyRegfile, _flags: CheckFlags4reg) -> Result<(), ()> {
-        Logger::todo();
+        log_todo!();
         Ok(())
     }
 }

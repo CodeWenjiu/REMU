@@ -1,6 +1,6 @@
 use logger::Logger;
 use owo_colors::OwoColorize;
-use remu_macro::log_err;
+use remu_macro::{log_err, log_todo};
 use remu_utils::{ProcessError, ProcessResult};
 use state::{mmu::Mask, reg::RegfileIo};
 
@@ -75,7 +75,7 @@ impl SimpleDebugger {
             }
 
             StepCmds::Instructions { count } => {
-                Logger::todo();
+                log_todo!();
                 let _ = count;
                 Ok(())
             }
@@ -183,7 +183,7 @@ impl SimpleDebugger {
             }
 
             _ => {
-                Logger::todo();
+                log_todo!();
             }
         }
 

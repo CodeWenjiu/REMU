@@ -2,11 +2,12 @@ use std::{cell::RefCell, rc::Rc};
 
 use logger::Logger;
 use option_parser::{DebugConfiguration, OptionParser};
-use remu_utils::{Disassembler, ProcessResult, Simulators};
+use remu_macro::{log_debug, log_error, log_todo};
+use remu_utils::{Disassembler, ProcessError, ProcessResult, Simulators};
 use enum_dispatch::enum_dispatch;
 use state::States;
 
-use crate::emu::Emu;
+use crate::{difftest_ref::{DifftestRefBuildIn, DifftestRefBuildInEnum}, emu::Emu};
 use clap::Subcommand;
 
 #[derive(Debug, Subcommand)]
@@ -18,7 +19,7 @@ pub enum FunctionTarget {
 #[enum_dispatch(SimulatorEnum)]
 pub trait SimulatorItem {
     fn step_cycle(&mut self) -> ProcessResult<()> {
-        Logger::todo();
+        log_todo!();
         Ok(())
     }
 }
@@ -42,7 +43,7 @@ impl TryFrom<(&OptionParser, States, Box<dyn Fn(u32, u32)>)> for SimulatorEnum {
         match sim {
             Simulators::EMU => Ok(SimulatorEnum::NEMU(Emu::new(option, states, callback))),
             Simulators::NPC => {
-                Logger::show("NPC is not implemented yet", Logger::ERROR);
+                log_error!("NPC is not implemented yet");
                 Err(SimulatorError::UnknownSimulator)
             }
         }
@@ -51,13 +52,17 @@ impl TryFrom<(&OptionParser, States, Box<dyn Fn(u32, u32)>)> for SimulatorEnum {
 
 pub struct Simulator {
     pub dut: SimulatorEnum,
+    pub states_dut: States,
+
+    pub r#ref: DifftestRefBuildInEnum,
+    pub states_ref: States,
 
     pub instruction_trace_enable: Rc<RefCell<bool>>,
     pub disaseembler: Rc<RefCell<Disassembler>>,
 }
 
 impl Simulator {
-    pub fn new(option: &OptionParser, states_dut: States, _states_ref: States, disasm: Rc<RefCell<Disassembler>>) -> Result<Self, SimulatorError> {
+    pub fn new(option: &OptionParser, states_dut: States, states_ref: States, disasm: Rc<RefCell<Disassembler>>) -> Result<Self, SimulatorError> {
         let mut itrace = false;
         for debug_config in &option.cfg.debug_config {
             match debug_config {
@@ -79,24 +84,38 @@ impl Simulator {
 
         let callback: Box<dyn Fn(u32, u32)> = Box::new(move |pc: u32, inst: u32| {
             if *instruction_trace_enable_clone.borrow() == false {
-                Logger::debug();
+                log_debug!();
                 return;
             }
             let disassembler = disasm_clone.borrow();
             Logger::show(&format!("{}", disassembler.try_analize(inst, pc)).to_string(), Logger::INFO);
         });
+
+        let ref_callback : Box<dyn Fn(u32, u32)> = Box::new(|_: u32, _: u32| {});
         
-        let dut = SimulatorEnum::try_from((option, states_dut, callback)).unwrap();
+        let dut = SimulatorEnum::try_from((option, states_dut.clone(), callback)).unwrap();
+        let r#ref = DifftestRefBuildInEnum::try_from((option, states_ref.clone(), ref_callback)).unwrap();
 
         Ok(Self {
             dut,
+            states_dut,
+
+            r#ref,
+            states_ref,
+
             instruction_trace_enable,
             disaseembler: disasm
         })
     }
 
     pub fn step_cycle(&mut self) -> ProcessResult<()> {
-        self.dut.step_cycle()
+        self.dut.step_cycle()?;
+
+        if self.r#ref.test_reg(self.states_dut.regfile.clone()) == false {
+            Logger::show("Test failed", Logger::ERROR);
+            return Err(ProcessError::Fatal);
+        }
+        Ok(())
     }
 
     pub fn cmd_function_mut(&mut self, subcmd: FunctionTarget, enable: bool) -> ProcessResult<()> {

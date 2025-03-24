@@ -12,6 +12,7 @@ pub enum Mask{
 
 use bitflags::bitflags;
 use logger::Logger;
+use remu_macro::log_todo;
 bitflags! {
     #[derive(Clone, Debug)]
     pub struct MemoryFlags: u8 {
@@ -29,21 +30,21 @@ impl fmt::Display for MemoryFlags {
 
 pub trait BaseApi {
     fn read(&mut self, _addr: u32, _mask: Mask) -> u32 {
-        Logger::todo();
+        log_todo!();
         0
     }
 
     fn write(&mut self, _addr: u32, _data: u32, _mask: Mask) {
-        Logger::todo();
+        log_todo!();
     }
 }
 
 pub trait MemoryApi {
     fn load(&mut self, _addr: u32, _data: &[u8]) {
-        Logger::todo();
+        log_todo!();
     }
     fn get_length(&self) -> u32 {
-        Logger::todo();
+        log_todo!();
         0
     }
 }

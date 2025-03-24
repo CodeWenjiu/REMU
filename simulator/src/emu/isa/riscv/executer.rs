@@ -1,5 +1,5 @@
 use logger::Logger;
-use remu_macro::log_err;
+use remu_macro::{log_err, log_todo};
 use remu_utils::{ProcessError, ProcessResult};
 
 use crate::emu::Emu;
@@ -234,15 +234,15 @@ impl Emu {
             }
 
             RISCV::RV32M(_) => {
-                Logger::todo();
+                log_todo!();
             }
 
             RISCV::Priv(_) => {
-                Logger::todo();
+                log_todo!();
             }
 
             RISCV::Zicsr(_) => {
-                Logger::todo();
+                log_todo!();
             }
         }
 
