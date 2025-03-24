@@ -1,4 +1,3 @@
-use logger::Logger;
 use remu_utils::{ProcessError, ProcessResult};
 
 use crate::emu::{extract_bits, sig_extend, Emu, InstructionSetFlags};
@@ -107,7 +106,7 @@ impl Emu {
         }
     }
 
-    pub fn decode(&self, inst: u32, addr: u32) -> ProcessResult<InstPattern> {
+    pub fn decode(&self, inst: u32) -> ProcessResult<InstPattern> {
         if let Some((opcode, imm_type)) = self.isa_decode(inst) {
             let rs1 = extract_bits(inst, 15..19) as u8;
             let rs2 = extract_bits(inst, 20..24) as u8;
@@ -116,7 +115,6 @@ impl Emu {
 
             Ok(InstPattern::new(opcode, rs1, rs2, rd, imm))
         } else {
-            Logger::show(format!("Decode failed :{:#034b} {}", inst, self.disaseembler.borrow().try_analize(inst, addr)).as_str(), Logger::ERROR);
             Err(ProcessError::Recoverable)
         }
     }

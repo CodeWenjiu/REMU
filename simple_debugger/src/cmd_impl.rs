@@ -2,7 +2,6 @@ use logger::Logger;
 use owo_colors::OwoColorize;
 use remu_macro::log_err;
 use remu_utils::{ProcessError, ProcessResult};
-use simulator::Simulator;
 use state::{mmu::Mask, reg::RegfileIo};
 
 use crate::{cmd_parser::{Cmds, FunctionCmds, InfoCmds, MemoryCmds, RegisterCmds, StepCmds}, SimpleDebugger};

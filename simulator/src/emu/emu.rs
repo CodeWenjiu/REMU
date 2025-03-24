@@ -1,12 +1,10 @@
-use std::{cell::RefCell, rc::Rc};
-
-use crate::{FunctionTarget, Simulator};
+use crate::{FunctionTarget, SimulatorItem};
 
 use bitflags::bitflags;
 use logger::Logger;
-use option_parser::{DebugConfiguration, OptionParser};
+use option_parser::OptionParser;
 use remu_macro::log_err;
-use remu_utils::{Disassembler, ProcessError, ProcessResult, ISA};
+use remu_utils::{ProcessError, ProcessResult, ISA};
 use state::{reg::RegfileIo, States};
 
 use super::isa::riscv::RISCV;
@@ -45,63 +43,43 @@ impl InstructionSetFlags {
 pub struct Emu {
     pub instruction_set: InstructionSetFlags,
 
-    pub instruction_trace_enable: bool,
-    pub disaseembler: Rc<RefCell<Disassembler>>,
     pub states: States,
+
+    pub instruction_compelete_callback: Option<FunctionTarget>,
 }
 
-impl Simulator for Emu {
+impl SimulatorItem for Emu {
     fn step_cycle(&mut self) -> ProcessResult<()> {
         let pc = self.states.regfile.read_pc();
 
         let inst = log_err!(self.states.mmu.read(pc, state::mmu::Mask::Word), ProcessError::Recoverable)?;
 
-        let decode = self.decode(inst, pc)?;
+        let decode = self.decode(inst)?;
 
         self.execute(decode)?;
 
-        if self.instruction_trace_enable {
-            let disassembler = self.disaseembler.borrow();
-            Logger::show(&format!("{}", disassembler.try_analize(inst, pc)).to_string(), Logger::INFO);
-        }
+        // if self.instruction_trace_enable {
+        //     let disassembler = self.disaseembler.borrow();
+        //     Logger::show(&format!("{}", disassembler.try_analize(inst, pc)).to_string(), Logger::INFO);
+        // }
 
         Ok(())
     }
 
-    fn cmd_function_mut(&mut self, target:crate::FunctionTarget, enable:bool) -> ProcessResult<()> {
-        match target {
-            FunctionTarget::InstructionTrace => {
-                self.instruction_trace(enable);
-            }
-        }
-
+    fn add_inst_compelete_callback(&mut self, target:FunctionTarget) -> ProcessResult<()> {
+        self.instruction_compelete_callback = Some(target);
         Ok(())
     }
 }
 
 impl Emu {
-    pub fn new(option: &OptionParser, states: States, disaseembler: Rc<RefCell<Disassembler>>) -> Self {
+    pub fn new(option: &OptionParser, states: States) -> Self {
         let isa = option.cli.platform.isa;
-
-        let mut instruction_trace_enable = false;
-
-        for debug_config in &option.cfg.debug_config {
-            match debug_config {
-                DebugConfiguration::Itrace { enable } => {
-                    instruction_trace_enable = *enable;
-                }
-
-                _ => {
-                }
-            }
-        }
 
         Self {
             instruction_set: InstructionSetFlags::from(isa),
-
-            instruction_trace_enable,
-            disaseembler,
             states,
+            instruction_compelete_callback: None,
         }
     }
 

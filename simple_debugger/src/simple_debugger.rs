@@ -4,7 +4,7 @@ use logger::Logger;
 use option_parser::{BaseConfiguration, DebugConfiguration, MemoryConfiguration, OptionParser};
 use remu_buildin::{get_buildin_img, get_reset_vector, READLINE_HISTORY_LENGTH};
 use remu_macro::log_err;
-use simulator::SimulatorEnum;
+use simulator::Simulator;
 use state::States;
 use crate::cmd_parser::Server;
 
@@ -17,7 +17,7 @@ pub struct SimpleDebugger {
 
     pub state: States,
 
-    pub simulator: SimulatorEnum,
+    pub simulator: Simulator,
 }
 
 impl SimpleDebugger {
@@ -79,7 +79,7 @@ impl SimpleDebugger {
             }
         }
 
-        let simulator = log_err!(SimulatorEnum::try_from((&cli_result, state.clone(), disassembler.clone())))?;
+        let simulator = log_err!(Simulator::new(&cli_result, state.clone(), disassembler.clone()))?;
 
         Ok(Self {
             server: Server::new(cli_result.cli.platform.simulator, rl_history_length).expect("Unable to create server"),

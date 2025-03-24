@@ -54,8 +54,8 @@ impl Logger {
         match level {
             Logger::TRACE           => format!("⏭️  {}", message.white()),
             Logger::INFO            => format!("ℹ️  {}", message.blue()),
+            Logger::WARN            => format!("⚠️  {}", message.yellow()),
             Logger::DEBUG           => format!("🐞 {}", message.magenta()),
-            Logger::WARN            => format!("⚠️ {}", message.yellow()),
             Logger::ERROR           => format!("❌ {}", message.red()),
             Logger::SUCCESS         => format!("✅ {}", message.green()),
             Logger::IMPORTANT       => format!("✨ {}", message.purple()),
