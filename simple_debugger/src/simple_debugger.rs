@@ -16,6 +16,7 @@ pub struct SimpleDebugger {
     pub disassembler: Rc<RefCell<Disassembler>>,
 
     pub state: States,
+    pub state_ref: States,
 
     pub simulator: Simulator,
 }
@@ -39,10 +40,15 @@ impl SimpleDebugger {
 
         let mut state = States::new(isa, reset_vector)?;
 
+        let mut state_ref = States::new(isa, reset_vector)?;
+
         for mem in &cli_result.cfg.memory_config {
             match mem {
                 MemoryConfiguration::MemoryRegion { name, base, size, flag } => {
                     log_err!(state.mmu.add_memory(*base, *size, name, flag.clone()))?;
+                    if cli_result.cli.differtest.is_some() {
+                        log_err!(state_ref.mmu.add_memory(*base, *size, name, flag.clone()))?;
+                    }
                 }
             }
         }
@@ -56,6 +62,9 @@ impl SimpleDebugger {
             Logger::show(&format!("Loading binary image size: {}", bytes.len() / 4).to_string(), Logger::INFO);
 
             log_err!(state.mmu.load(reset_vector, &bytes))?;
+            if cli_result.cli.differtest.is_some() {
+                log_err!(state_ref.mmu.load(reset_vector, &bytes))?;
+            }
         } else {
             let bytes: Vec<u8> = buildin_img.iter()
                 .flat_map(|&val| val.to_le_bytes().to_vec())
@@ -64,7 +73,16 @@ impl SimpleDebugger {
             Logger::show("No binary image specified, using buildin image.", Logger::WARN);
 
             log_err!(state.mmu.load(reset_vector, &bytes))?;
+            if cli_result.cli.differtest.is_some() {
+                log_err!(state_ref.mmu.load(reset_vector, &bytes))?;
+            }
         }
+
+        if cli_result.cli.differtest.is_none() {
+            state_ref = state.clone();
+        }
+
+        Logger::function("differtest", cli_result.cli.differtest.is_some());
 
         let mut rl_history_length = READLINE_HISTORY_LENGTH;
 
@@ -79,12 +97,13 @@ impl SimpleDebugger {
             }
         }
 
-        let simulator = log_err!(Simulator::new(&cli_result, state.clone(), disassembler.clone()))?;
+        let simulator = log_err!(Simulator::new(&cli_result, state.clone(), state_ref.clone(), disassembler.clone()))?;
 
         Ok(Self {
             server: Server::new(cli_result.cli.platform.simulator, rl_history_length).expect("Unable to create server"),
             disassembler,
             state,
+            state_ref,
             simulator,
         })
     }

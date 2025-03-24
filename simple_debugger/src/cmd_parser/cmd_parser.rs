@@ -53,6 +53,12 @@ pub enum Cmds {
         subcmd: InfoCmds,
     },
 
+    /// Differtest Reference
+    Differtest {
+        #[command(subcommand)]
+        subcmd: DiffertestCmds,
+    },
+
     /// Enable/Disable Simulator Function
     Function {
         #[command(subcommand)]
@@ -127,6 +133,15 @@ pub enum MemoryCmds {
         /// Exam length in bitwidth, default as 1
         #[arg(default_value("1"))]
         length: u64,
+    },
+}
+
+#[derive(Debug, Subcommand)]
+pub enum DiffertestCmds {
+    /// Get state info
+    Info {
+        #[command(subcommand)]
+        subcmd: InfoCmds,
     },
 }
 

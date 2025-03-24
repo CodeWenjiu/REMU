@@ -1,5 +1,5 @@
 use clap::{builder::styling, Parser, value_parser};
-use remu_utils::Platform;
+use remu_utils::{Platform, Simulators};
 
 #[derive(Parser, Debug)]
 #[command(version, about, long_about = None, styles = styling::Styles::styled()
@@ -25,6 +25,6 @@ pub struct CLI {
     pub log: bool,
 
     /// differtest file path (Will Enable if provided)
-    #[arg(short, long)]
-    pub differtest: Option<String>,
+    #[arg(short, long, default_value("emu"), value_parser = value_parser!(Simulators))]
+    pub differtest: Option<Simulators>,
 }

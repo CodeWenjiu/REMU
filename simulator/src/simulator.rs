@@ -57,7 +57,7 @@ pub struct Simulator {
 }
 
 impl Simulator {
-    pub fn new(option: &OptionParser, states: States, disasm: Rc<RefCell<Disassembler>>) -> Result<Self, SimulatorError> {
+    pub fn new(option: &OptionParser, states_dut: States, _states_ref: States, disasm: Rc<RefCell<Disassembler>>) -> Result<Self, SimulatorError> {
         let mut itrace = false;
         for debug_config in &option.cfg.debug_config {
             match debug_config {
@@ -86,7 +86,7 @@ impl Simulator {
             Logger::show(&format!("{}", disassembler.try_analize(inst, pc)).to_string(), Logger::INFO);
         });
         
-        let dut = SimulatorEnum::try_from((option, states, callback)).unwrap();
+        let dut = SimulatorEnum::try_from((option, states_dut, callback)).unwrap();
 
         Ok(Self {
             dut,
