@@ -15,7 +15,7 @@ pub enum FunctionTarget {
     InstructionTrace,
 }
 
-#[enum_dispatch]
+#[enum_dispatch(SimulatorEnum)]
 pub trait Simulator {
     fn step_cycle(&mut self) -> ProcessResult<()> {
         Logger::todo();
@@ -28,8 +28,8 @@ pub trait Simulator {
     }
 }
 
-#[enum_dispatch(Simulator)]
-pub enum SimulatorImpl {
+#[enum_dispatch]
+pub enum SimulatorEnum {
     NEMU(Emu),
 }
 
@@ -39,14 +39,14 @@ pub enum SimulatorError {
     UnknownSimulator,
 }
 
-impl TryFrom<(&OptionParser, States, Rc<RefCell<Disassembler>>)> for SimulatorImpl {
+impl TryFrom<(&OptionParser, States, Rc<RefCell<Disassembler>>)> for SimulatorEnum {
     type Error = SimulatorError;
 
     fn try_from(sim_cfg: (&OptionParser, States, Rc<RefCell<Disassembler>>)) -> Result<Self, Self::Error> {
         let (option, states, disasm) = sim_cfg;
         let sim = option.cli.platform.simulator;
         match sim {
-            Simulators::EMU => Ok(SimulatorImpl::NEMU(Emu::new(option, states, disasm))),
+            Simulators::EMU => Ok(SimulatorEnum::NEMU(Emu::new(option, states, disasm))),
             Simulators::NPC => {
                 Logger::show("NPC is not implemented yet", Logger::ERROR);
                 Err(SimulatorError::UnknownSimulator)
