@@ -50,17 +50,7 @@ pub struct Emu {
 
 impl SimulatorItem for Emu {
     fn step_cycle(&mut self) -> ProcessResult<()> {
-        let pc = self.states.regfile.read_pc();
-
-        let inst = log_err!(self.states.mmu.read(pc, state::mmu::Mask::Word), ProcessError::Recoverable)?;
-
-        let decode = self.decode(inst)?;
-
-        self.execute(decode)?;
-
-        (self.instruction_compelete_callback)(pc, inst);
-
-        Ok(())
+        self.self_step_cycle()
     }
 }
 
@@ -94,6 +84,20 @@ impl Emu {
 
         self.instruction_set = self.instruction_set | set_flag;
         
+        Ok(())
+    }
+    
+    pub fn self_step_cycle(&mut self) -> ProcessResult<()> {
+        let pc = self.states.regfile.read_pc();
+
+        let inst = log_err!(self.states.mmu.read(pc, state::mmu::Mask::Word), ProcessError::Recoverable)?;
+
+        let decode = self.decode(inst)?;
+
+        self.execute(decode)?;
+
+        (self.instruction_compelete_callback)(pc, inst);
+
         Ok(())
     }
 }

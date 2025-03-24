@@ -1,7 +1,7 @@
 use std::path::PathBuf;
 
 use option_parser::OptionParser;
-use remu_utils::Simulators;
+use remu_utils::{ProcessResult, Simulators};
 use state::{reg::{AnyRegfile, RegfileIo}, CheckFlags4reg, States};
 
 use crate::emu::Emu;
@@ -15,6 +15,8 @@ pub enum DifftestRefType {
 
 #[enum_dispatch(DifftestRefBuildInEnum)]
 pub trait DifftestRefBuildIn {
+    fn step_cycle(&mut self) -> ProcessResult<()>;
+
     fn test_reg(&self, dut: AnyRegfile) -> bool;
 }
 
@@ -24,6 +26,10 @@ pub enum DifftestRefBuildInEnum {
 }
 
 impl DifftestRefBuildIn for Emu {
+    fn step_cycle(&mut self) -> ProcessResult<()> {
+        self.self_step_cycle()
+    }
+
     fn test_reg(&self,dut:AnyRegfile) -> bool {
         self.states.regfile.check(dut, CheckFlags4reg::pc.union(CheckFlags4reg::gpr)).is_ok()
     }

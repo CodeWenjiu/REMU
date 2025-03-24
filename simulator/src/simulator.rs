@@ -2,7 +2,7 @@ use std::{cell::RefCell, rc::Rc};
 
 use logger::Logger;
 use option_parser::{DebugConfiguration, OptionParser};
-use remu_macro::{log_debug, log_error, log_todo};
+use remu_macro::{log_error, log_todo};
 use remu_utils::{Disassembler, ProcessError, ProcessResult, Simulators};
 use enum_dispatch::enum_dispatch;
 use state::States;
@@ -84,7 +84,6 @@ impl Simulator {
 
         let callback: Box<dyn Fn(u32, u32)> = Box::new(move |pc: u32, inst: u32| {
             if *instruction_trace_enable_clone.borrow() == false {
-                log_debug!();
                 return;
             }
             let disassembler = disasm_clone.borrow();
@@ -110,7 +109,7 @@ impl Simulator {
 
     pub fn step_cycle(&mut self) -> ProcessResult<()> {
         self.dut.step_cycle()?;
-
+        self.r#ref.step_cycle()?;
         if self.r#ref.test_reg(self.states_dut.regfile.clone()) == false {
             Logger::show("Test failed", Logger::ERROR);
             return Err(ProcessError::Fatal);

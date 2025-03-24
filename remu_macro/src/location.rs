@@ -1,14 +1,17 @@
 #[macro_export]
 macro_rules! location {
     () => {
-        format!("File, Line: {}, {}", file!(), line!())
+        format!("{}, {}", file!(), line!())
     };
 }
 
 #[macro_export]
 macro_rules! log_trace {
-    ($msg:expr) => {
-        format!("{} at {}", $msg, $crate::location!())
+    ($fmt:expr) => {
+        format!("{} at {}", $fmt, $crate::location!())
+    };
+    ($fmt:expr, $($arg:expr),*) => {
+        format!("{} at {}", format!($fmt, $($arg),*), $crate::location!())
     };
 }
 
@@ -20,6 +23,9 @@ macro_rules! log_level {
     ($msg:expr, $level:expr) => {
         Logger::show(&$crate::log_trace!($msg), $level)
     };
+    ($fmt:expr, $($arg:expr),+, $level:expr) => {
+        Logger::show(&$crate::log_trace!($fmt, $($arg),+), $level)
+    };
 }
 
 #[macro_export]
@@ -30,6 +36,9 @@ macro_rules! log_debug {
     ($msg:expr) => {
         $crate::log_level!($msg, Logger::DEBUG)
     };
+    ($fmt:expr, $($arg:expr),+) => {
+        $crate::log_level!($fmt, $($arg),+, Logger::DEBUG)
+    };
 }
 
 #[macro_export]
@@ -39,6 +48,9 @@ macro_rules! log_error {
     };
     ($msg:expr) => {
         $crate::log_level!($msg, Logger::ERROR)
+    };
+    ($fmt:expr, $($arg:expr),+) => {
+        $crate::log_level!($fmt, $($arg),+, Logger::ERROR)
     };
 }
 
