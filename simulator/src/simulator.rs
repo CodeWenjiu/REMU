@@ -39,10 +39,10 @@ pub enum SimulatorError {
     UnknownSimulator,
 }
 
-impl TryFrom<(&OptionParser, Rc<RefCell<States>>, Rc<RefCell<Disassembler>>)> for SimulatorImpl {
+impl TryFrom<(&OptionParser, States, Rc<RefCell<Disassembler>>)> for SimulatorImpl {
     type Error = SimulatorError;
 
-    fn try_from(sim_cfg: (&OptionParser, Rc<RefCell<States>>, Rc<RefCell<Disassembler>>)) -> Result<Self, Self::Error> {
+    fn try_from(sim_cfg: (&OptionParser, States, Rc<RefCell<Disassembler>>)) -> Result<Self, Self::Error> {
         let (option, states, disasm) = sim_cfg;
         let sim = option.cli.platform.simulator;
         match sim {

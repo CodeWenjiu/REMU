@@ -15,7 +15,7 @@ pub struct SimpleDebugger {
 
     pub disassembler: Rc<RefCell<Disassembler>>,
 
-    pub state: Rc<RefCell<States>>,
+    pub state: States,
 
     pub simulator: Box<dyn Simulator>,
 }
@@ -37,13 +37,12 @@ impl SimpleDebugger {
         let disassembler = Disassembler::new(isa)?;
         let disassembler = Rc::new(RefCell::new(disassembler));
 
-        let state = Rc::new(RefCell::new(States::new(isa, reset_vector)?));
+        let mut state = States::new(isa, reset_vector)?;
 
         for mem in &cli_result.cfg.memory_config {
             match mem {
                 MemoryConfiguration::MemoryRegion { name, base, size, flag } => {
-                    let mmu = &mut state.borrow_mut().mmu;
-                    log_err!(mmu.add_memory(*base, *size, name, flag.clone()))?;
+                    log_err!(state.mmu.add_memory(*base, *size, name, flag.clone()))?;
                 }
             }
         }
@@ -56,7 +55,7 @@ impl SimpleDebugger {
             
             Logger::show(&format!("Loading binary image size: {}", bytes.len() / 4).to_string(), Logger::INFO);
 
-            log_err!(state.borrow_mut().mmu.load(reset_vector, &bytes))?;
+            log_err!(state.mmu.load(reset_vector, &bytes))?;
         } else {
             let bytes: Vec<u8> = buildin_img.iter()
                 .flat_map(|&val| val.to_le_bytes().to_vec())
@@ -64,7 +63,7 @@ impl SimpleDebugger {
     
             Logger::show("No binary image specified, using buildin image.", Logger::WARN);
 
-            log_err!(state.borrow_mut().mmu.load(reset_vector, &bytes))?;
+            log_err!(state.mmu.load(reset_vector, &bytes))?;
         }
 
         let mut rl_history_length = READLINE_HISTORY_LENGTH;

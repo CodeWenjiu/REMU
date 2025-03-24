@@ -1,11 +1,14 @@
+use std::{cell::RefCell, rc::Rc};
+
 use mmu::MMU;
 use reg::RegfileIo;
 use remu_utils::ISA;
 
 remu_macro::mod_pub!(mmu, reg);
 
+#[derive(Clone)]
 pub struct States {
-    pub regfile: Box<dyn RegfileIo>,
+    pub regfile: Rc<RefCell<Box<dyn RegfileIo>>>,
     pub mmu: MMU,
 }
 

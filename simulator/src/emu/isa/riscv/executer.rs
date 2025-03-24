@@ -4,13 +4,13 @@ use remu_utils::{ProcessError, ProcessResult};
 
 use crate::emu::Emu;
 
-use super::{InstMsg, RV32I};
+use super::{InstMsg, InstPattern, RISCV, RV32I};
 
 use state::{mmu::Mask, reg::riscv::RvCsrEnum};
 
 impl Emu {
     fn rv32_i_execute(&mut self, name: RV32I, msg: InstMsg) -> ProcessResult<()> {
-        let regfile = &mut self.states.borrow_mut().regfile;
+        let regfile = &mut self.states.regfile.borrow_mut();
         let rs1: u32 = regfile.read_gpr(msg.rs1.into()).map_err(|_| ProcessError::Recoverable)?;
         let rs2: u32 = regfile.read_gpr(msg.rs2.into()).map_err(|_| ProcessError::Recoverable)?;
         
@@ -21,7 +21,7 @@ impl Emu {
 
         let imm: u32 = msg.imm;
 
-        let mmu = &mut self.states.borrow_mut().mmu;
+        let mmu = &mut self.states.mmu;
 
         match name {
             RV32I::Lui => {
@@ -218,6 +218,33 @@ impl Emu {
         regfile.write_gpr(msg.rd.into(), rd_val).map_err(|_| ProcessError::Recoverable)?;
 
         regfile.write_pc(next_pc);
+
+        Ok(())
+    }
+
+    pub fn execute(&mut self, inst: InstPattern) -> ProcessResult<()> {
+        let belongs_to = inst.name;
+        if !self.instruction_set.enable(belongs_to) {
+            return Err(ProcessError::Recoverable)
+        }
+
+        match belongs_to {
+            RISCV::RV32I(name) => {
+                self.rv32_i_execute(name, inst.msg)?;
+            }
+
+            RISCV::RV32M(_) => {
+                Logger::todo();
+            }
+
+            RISCV::Priv(_) => {
+                Logger::todo();
+            }
+
+            RISCV::Zicsr(_) => {
+                Logger::todo();
+            }
+        }
 
         Ok(())
     }

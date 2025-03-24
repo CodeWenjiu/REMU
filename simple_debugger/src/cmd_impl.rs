@@ -24,21 +24,21 @@ impl SimpleDebugger {
     fn cmd_register (&mut self, subcmd: Option<RegisterCmds>) -> ProcessResult<()> {
         match subcmd {
             Some(RegisterCmds::CSR { index }) => {
-                self.state.borrow().regfile.print_csr(index);
+                self.state.regfile.borrow().print_csr(index);
             }
 
             Some(RegisterCmds::GPR { index }) => {
-                self.state.borrow().regfile.print_gpr(index);
+                self.state.regfile.borrow().print_gpr(index);
             }
 
             Some(RegisterCmds::PC {}) => {
-                self.state.borrow().regfile.print_pc();
+                self.state.regfile.borrow().print_pc();
             }
 
             None => {
-                self.state.borrow().regfile.print_pc();
-                self.state.borrow().regfile.print_gpr(None);
-                self.state.borrow().regfile.print_csr(None);
+                self.state.regfile.borrow().print_pc();
+                self.state.regfile.borrow().print_gpr(None);
+                self.state.regfile.borrow().print_csr(None);
             }
         }
 
@@ -48,13 +48,13 @@ impl SimpleDebugger {
     fn cmd_memory (&mut self, subcmd: MemoryCmds) -> ProcessResult<()> {
         match subcmd {
             MemoryCmds::ShowMemoryMap {} => {
-                self.state.borrow().mmu.show_memory_map();
+                self.state.mmu.show_memory_map();
             }
 
             MemoryCmds::Examine { addr, length } => {
                 for i in (0..(length * 4)).step_by(4) {
                     let i = i as u32;
-                    let data = log_err!(self.state.borrow_mut().mmu.read(addr + i, Mask::None), ProcessError::Recoverable)?;
+                    let data = log_err!(self.state.mmu.read(addr + i, Mask::None), ProcessError::Recoverable)?;
 
                     println!("{:#010x}: {:#010x}\t {}",
                         (addr + i).blue(), data.green(), self.disassembler.borrow().try_analize(data, addr + i).magenta());
@@ -95,21 +95,6 @@ impl SimpleDebugger {
 
         Ok(())
     }
-
-    // fn cmd_function_mut (&mut self, target: FunctionTarget, enable: bool) -> ProcessResult<()> {
-    //     match target {
-    //         FunctionTarget::InstructionTrace => {
-    //             self.instruction_trace(enable)?;
-    //         }
-    //     }
-
-    //     Ok(())
-    // }
-
-    // fn instruction_trace (&mut self, enable: bool) -> ProcessResult<()> {
-    //     Logger::todo();
-    //     Ok(())
-    // }
 
     pub fn execute(&mut self, cmd: Cmds) -> ProcessResult<()> {
         match cmd {

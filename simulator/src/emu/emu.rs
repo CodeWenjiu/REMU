@@ -8,6 +8,8 @@ use option_parser::{DebugConfiguration, OptionParser};
 use remu_macro::log_err;
 use remu_utils::{Disassembler, ProcessError, ProcessResult, ISA};
 use state::States;
+
+use super::isa::riscv::RISCV;
 bitflags! {
     #[derive(Clone, Copy, Debug)]
     pub struct InstructionSetFlags: u8 {
@@ -29,23 +31,34 @@ impl From<ISA> for InstructionSetFlags {
     }
 }
 
+impl InstructionSetFlags {
+    pub fn enable(&self, isa:RISCV) -> bool {
+        match isa {
+            RISCV::RV32I(_) => self.contains(InstructionSetFlags::RV32I) || self.contains(InstructionSetFlags::RV32E),
+            RISCV::RV32M(_) => self.contains(InstructionSetFlags::RV32M),
+            RISCV::Priv(_) => self.contains(InstructionSetFlags::PRIV),
+            RISCV::Zicsr(_) => self.contains(InstructionSetFlags::ZICSR),
+        }
+    }
+}
+
 pub struct Emu {
     pub instruction_set: InstructionSetFlags,
 
     pub instruction_trace_enable: bool,
     pub disaseembler: Rc<RefCell<Disassembler>>,
-    pub states: Rc<RefCell<States>>,
+    pub states: States,
 }
 
 impl Simulator for Emu {
     fn step_cycle(&mut self) -> ProcessResult<()> {
-        let pc = self.states.borrow().regfile.read_pc();
+        let pc = self.states.regfile.borrow().read_pc();
 
-        let inst = log_err!(self.states.borrow_mut().mmu.read(pc, state::mmu::Mask::Word), ProcessError::Recoverable)?;
+        let inst = log_err!(self.states.mmu.read(pc, state::mmu::Mask::Word), ProcessError::Recoverable)?;
 
         let decode = self.decode(inst, pc)?;
 
-        println!("{:?}", decode);
+        self.execute(decode)?;
 
         if self.instruction_trace_enable {
             let disassembler = self.disaseembler.borrow();
@@ -67,7 +80,7 @@ impl Simulator for Emu {
 }
 
 impl Emu {
-    pub fn new(option: &OptionParser, states: Rc<RefCell<States>>, disaseembler: Rc<RefCell<Disassembler>>) -> Self {
+    pub fn new(option: &OptionParser, states: States, disaseembler: Rc<RefCell<Disassembler>>) -> Self {
         let isa = option.cli.platform.isa;
 
         let mut instruction_trace_enable = false;

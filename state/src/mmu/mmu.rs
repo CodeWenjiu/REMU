@@ -1,9 +1,12 @@
+use std::{cell::{RefCell, RefMut}, rc::Rc};
+
 use owo_colors::OwoColorize;
 
 use super::{MMUApi, Mask, Memory, MemoryFlags};
 
+#[derive(Clone)]
 pub struct MMU {
-    memory_map: Vec<(String, u32, u32, MemoryFlags, Box<dyn MMUApi>)>,
+    memory_map: Vec<(String, u32, u32, MemoryFlags, Rc<RefCell<Box<dyn MMUApi>>>)>,
 }
 
 #[derive(Debug, snafu::Snafu)]
@@ -49,7 +52,7 @@ impl MMU {
         }
         
         // Create the new memory region
-        let new_region = (name.to_string(), base, length, flag, Box::new(Memory::new(length)) as Box<dyn MMUApi>);
+        let new_region = (name.to_string(), base, length, flag, Rc::new(RefCell::new(Box::new(Memory::new(length)) as Box<dyn MMUApi>)));
         
         // Find the correct position to insert based on base address
         let position = self.memory_map.iter()
@@ -71,17 +74,17 @@ impl MMU {
     }
 
     fn find_memory_region(&mut self, addr: u32) 
-        -> MMUResult<(&mut Box<dyn MMUApi>, u32, &MemoryFlags)> {
+        -> MMUResult<(RefMut<Box<dyn MMUApi>>, u32, &MemoryFlags)> {
         for (_, base, length, flag, memory) in &mut self.memory_map {
             if addr >= *base && addr < *base + *length {
-                return Ok((memory, addr - *base, flag));
+                return Ok((memory.borrow_mut(), addr - *base, flag));
             }
         }
         Err(MMUError::MemoryUnmapped { addr })
     }
 
     pub fn read(&mut self, addr: u32, mask: Mask) -> MMUResult<u32> {
-        let (memory, offset, flags) = self.find_memory_region(addr)?;
+        let (mut memory, offset, flags) = self.find_memory_region(addr)?;
         
         if !flags.contains(MemoryFlags::Read) {
             return Err(MMUError::MemoryUnreadable { addr });
@@ -91,7 +94,7 @@ impl MMU {
     }
 
     pub fn write(&mut self, addr: u32, data: u32, mask: Mask) -> MMUResult<()> {
-        let (memory, offset, flags) = self.find_memory_region(addr)?;
+        let (mut memory, offset, flags) = self.find_memory_region(addr)?;
         
         if !flags.contains(MemoryFlags::Write) {
             return Err(MMUError::MemoryUnwritable { addr });
@@ -102,7 +105,7 @@ impl MMU {
     }
 
     pub fn inst_fetch(&mut self, addr: u32) -> MMUResult<u32> {
-        let (memory, offset, flags) = self.find_memory_region(addr)?;
+        let (mut memory, offset, flags) = self.find_memory_region(addr)?;
         
         if !flags.contains(MemoryFlags::Execute) {
             return Err(MMUError::MemoryUnexecutable { addr });
@@ -112,7 +115,7 @@ impl MMU {
     }
 
     pub fn load(&mut self, addr: u32, data: &[u8]) -> MMUResult<()> {
-        let (memory, offset, _) = self.find_memory_region(addr)?;
+        let (mut memory, offset, _) = self.find_memory_region(addr)?;
         
         if (offset + data.len() as u32) > memory.get_length() {
             return Err(MMUError::LoadOutOfRange { addr, len: data.len() as u32 });
