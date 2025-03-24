@@ -1,7 +1,7 @@
 use std::{cell::RefCell, rc::Rc};
 
 use logger::Logger;
-use option_parser::OptionParser;
+use option_parser::{DebugConfiguration, OptionParser};
 use remu_utils::{Disassembler, ProcessResult, Simulators};
 use enum_dispatch::enum_dispatch;
 use state::States;
@@ -21,11 +21,6 @@ pub trait SimulatorItem {
         Logger::todo();
         Ok(())
     }
-
-    fn add_inst_compelete_callback(&mut self, _target: FunctionTarget) -> ProcessResult<()> {
-        Logger::todo();
-        Ok(())
-    }
 }
 
 #[enum_dispatch]
@@ -39,13 +34,13 @@ pub enum SimulatorError {
     UnknownSimulator,
 }
 
-impl TryFrom<(&OptionParser, States)> for SimulatorEnum {
+impl TryFrom<(&OptionParser, States, Box<dyn Fn(u32, u32)>)> for SimulatorEnum {
     type Error = SimulatorError;
 
-    fn try_from((option, states): (&OptionParser, States)) -> Result<Self, Self::Error> {
+    fn try_from((option, states, callback): (&OptionParser, States, Box<dyn Fn(u32, u32)>)) -> Result<Self, Self::Error> {
         let sim = option.cli.platform.simulator;
         match sim {
-            Simulators::EMU => Ok(SimulatorEnum::NEMU(Emu::new(option, states))),
+            Simulators::EMU => Ok(SimulatorEnum::NEMU(Emu::new(option, states, callback))),
             Simulators::NPC => {
                 Logger::show("NPC is not implemented yet", Logger::ERROR);
                 Err(SimulatorError::UnknownSimulator)
@@ -57,16 +52,45 @@ impl TryFrom<(&OptionParser, States)> for SimulatorEnum {
 pub struct Simulator {
     pub dut: SimulatorEnum,
 
-    pub instruction_trace_enable: bool,
+    pub instruction_trace_enable: Rc<RefCell<bool>>,
     pub disaseembler: Rc<RefCell<Disassembler>>,
 }
 
 impl Simulator {
     pub fn new(option: &OptionParser, states: States, disasm: Rc<RefCell<Disassembler>>) -> Result<Self, SimulatorError> {
-        let dut = SimulatorEnum::try_from((option, states))?;
-        Ok(Self { 
+        let mut itrace = false;
+        for debug_config in &option.cfg.debug_config {
+            match debug_config {
+                DebugConfiguration::Itrace { enable } => {
+                    Logger::function("ITrace", *enable);
+                    itrace = *enable;
+                }
+
+                DebugConfiguration::Readline { history } => {
+                    let _ = history;
+                }
+            }
+        }
+
+        let instruction_trace_enable = Rc::new(RefCell::new(itrace));
+
+        let disasm_clone = disasm.clone();
+        let instruction_trace_enable_clone = instruction_trace_enable.clone();
+
+        let callback: Box<dyn Fn(u32, u32)> = Box::new(move |pc: u32, inst: u32| {
+            if *instruction_trace_enable_clone.borrow() == false {
+                Logger::debug();
+                return;
+            }
+            let disassembler = disasm_clone.borrow();
+            Logger::show(&format!("{}", disassembler.try_analize(inst, pc)).to_string(), Logger::INFO);
+        });
+        
+        let dut = SimulatorEnum::try_from((option, states, callback)).unwrap();
+
+        Ok(Self {
             dut,
-            instruction_trace_enable: false,
+            instruction_trace_enable,
             disaseembler: disasm
         })
     }
@@ -78,10 +102,11 @@ impl Simulator {
     pub fn cmd_function_mut(&mut self, subcmd: FunctionTarget, enable: bool) -> ProcessResult<()> {
         match subcmd {
             FunctionTarget::InstructionTrace => {
-                self.instruction_trace_enable = enable;
+                self.instruction_trace_enable.replace(enable);
+                Logger::show(&format!("{}", enable).to_string(), Logger::DEBUG);
             }
         }
-        
+
         Ok(())
     }
 }
