@@ -2,7 +2,7 @@ use logger::Logger;
 use owo_colors::OwoColorize;
 use remu_macro::log_err;
 use remu_utils::{ProcessError, ProcessResult};
-use state::mmu::Mask;
+use state::{mmu::Mask, reg::RegfileIo};
 
 use crate::{cmd_parser::{Cmds, FunctionCmds, InfoCmds, MemoryCmds, RegisterCmds, StepCmds}, SimpleDebugger};
 
@@ -24,21 +24,21 @@ impl SimpleDebugger {
     fn cmd_register (&mut self, subcmd: Option<RegisterCmds>) -> ProcessResult<()> {
         match subcmd {
             Some(RegisterCmds::CSR { index }) => {
-                self.state.regfile.borrow().print_csr(index);
+                self.state.regfile.print_csr(index);
             }
 
             Some(RegisterCmds::GPR { index }) => {
-                self.state.regfile.borrow().print_gpr(index);
+                self.state.regfile.print_gpr(index);
             }
 
             Some(RegisterCmds::PC {}) => {
-                self.state.regfile.borrow().print_pc();
+                self.state.regfile.print_pc();
             }
 
             None => {
-                self.state.regfile.borrow().print_pc();
-                self.state.regfile.borrow().print_gpr(None);
-                self.state.regfile.borrow().print_csr(None);
+                self.state.regfile.print_pc();
+                self.state.regfile.print_gpr(None);
+                self.state.regfile.print_csr(None);
             }
         }
 

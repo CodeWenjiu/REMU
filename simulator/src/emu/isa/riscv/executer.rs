@@ -6,11 +6,11 @@ use crate::emu::Emu;
 
 use super::{InstMsg, InstPattern, RISCV, RV32I};
 
-use state::{mmu::Mask, reg::riscv::RvCsrEnum};
+use state::{mmu::Mask, reg::{riscv::RvCsrEnum, RegfileIo}};
 
 impl Emu {
     fn rv32_i_execute(&mut self, name: RV32I, msg: InstMsg) -> ProcessResult<()> {
-        let regfile = &mut self.states.regfile.borrow_mut();
+        let regfile = &mut self.states.regfile;
         let rs1: u32 = regfile.read_gpr(msg.rs1.into()).map_err(|_| ProcessError::Recoverable)?;
         let rs2: u32 = regfile.read_gpr(msg.rs2.into()).map_err(|_| ProcessError::Recoverable)?;
         

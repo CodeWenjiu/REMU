@@ -1,10 +1,10 @@
-use std::{cell::RefCell, rc::Rc};
-
 use enum_dispatch::enum_dispatch;
 use logger::Logger;
 use owo_colors::OwoColorize;
 use remu_utils::ISA;
 use riscv::{Rv32eRegFile, Rv32iRegFile};
+
+use crate::CheckFlags4reg;
 
 remu_macro::mod_pub!(riscv);
 
@@ -14,7 +14,7 @@ pub enum RegIdentifier {
     Name(String),
 }
 
-#[enum_dispatch]
+#[enum_dispatch(AnyRegfile)]
 pub trait RegfileIo {
     fn print_format(&self, name: &str, data: u32) {
         println!("{}: \t{:#010x}", name.purple(), data.blue());
@@ -60,9 +60,15 @@ pub trait RegfileIo {
     fn print_csr(&self, _index: Option<RegIdentifier>) {
         Logger::todo();
     }
+
+    fn check(&self, _regfile: AnyRegfile, _flags: CheckFlags4reg) -> Result<(), ()> {
+        Logger::todo();
+        Ok(())
+    }
 }
 
-#[enum_dispatch(RegfileIo)]
+#[enum_dispatch]
+#[derive(Clone)]
 pub enum AnyRegfile {
     Rv32e(Rv32eRegFile),
     Rv32i(Rv32iRegFile),
@@ -80,10 +86,10 @@ pub enum RegError {
 type RegResult<T> = Result<T, RegError>;
 type RegIoResult<T> = Result<T, ()>;
 
-pub fn regfile_io_factory(isa: ISA, reset_vector: u32) -> Result<Rc<RefCell<Box<dyn RegfileIo>>>, ()> {
+pub fn regfile_io_factory(isa: ISA, reset_vector: u32) -> Result<AnyRegfile, ()> {
     match isa {
-        ISA::RV32E => Ok(Rc::new(RefCell::new(Box::new(Rv32eRegFile::new(reset_vector))))),
-        ISA::RV32I => Ok(Rc::new(RefCell::new(Box::new(Rv32iRegFile::new(reset_vector))))),
+        ISA::RV32E => Ok(Rv32eRegFile::new(reset_vector).into()),
+        ISA::RV32I => Ok(Rv32iRegFile::new(reset_vector).into()),
         _ => {
             let isa: &str = From::from(isa);
             Logger::show(&format!("Unknown ISA: {}", isa), Logger::ERROR);

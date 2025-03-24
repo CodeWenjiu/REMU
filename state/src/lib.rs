@@ -1,15 +1,27 @@
-use std::{cell::RefCell, rc::Rc};
-
 use mmu::MMU;
-use reg::RegfileIo;
+use reg::{AnyRegfile, RegfileIo};
 use remu_utils::ISA;
 
 remu_macro::mod_pub!(mmu, reg);
 
 #[derive(Clone)]
 pub struct States {
-    pub regfile: Rc<RefCell<Box<dyn RegfileIo>>>,
+    pub regfile: AnyRegfile,
     pub mmu: MMU,
+}
+
+use bitflags::bitflags;
+bitflags! {
+    #[derive(Clone, Copy, Debug)]
+    pub struct CheckFlags4reg: u8 {
+        const pc = 1 << 0;
+        const gpr = 1 << 1;
+        const csr = 1 << 2;
+    }
+}
+
+pub struct CheckFlags {
+    pub reg_flag: CheckFlags4reg,
 }
 
 impl States {
@@ -19,5 +31,9 @@ impl States {
         let mmu = MMU::new();
 
         Ok(States { regfile, mmu })
+    }
+
+    pub fn check_states(&self, states: &States, flags: CheckFlags) -> Result<(), ()> {
+        self.regfile.check(states.regfile.clone(), flags.reg_flag)
     }
 }

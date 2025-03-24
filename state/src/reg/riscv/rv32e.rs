@@ -1,9 +1,9 @@
-use std::str::FromStr;
+use std::{cell::RefCell, rc::Rc, str::FromStr};
 
 use logger::Logger;
 use remu_macro::log_err;
 
-use crate::reg::{RegError, RegIdentifier, RegIoResult, RegResult, RegfileIo};
+use crate::{reg::{AnyRegfile, RegError, RegIdentifier, RegIoResult, RegResult, RegfileIo}, CheckFlags4reg};
 
 use super::RvCsrEnum;
 
@@ -114,18 +114,19 @@ impl Into<&str> for Rv32eGprEnum {
     }
 }
 
+#[derive(Clone)]
 pub struct Rv32eRegFile {
-    pc: u32,
-    regs: [u32; 16],
-    csrs: [u32; 4096],
+    pub pc: Rc<RefCell<u32>>,
+    pub regs: Rc<RefCell<[u32; 16]>>,
+    pub csrs: Rc<RefCell<[u32; 4096]>>,
 }
 
 impl Rv32eRegFile {
     pub fn new(reset_vector: u32) -> Self {
         Rv32eRegFile {
-            pc: reset_vector,
-            regs: [0; 16],
-            csrs: [0; 4096],
+            pc: Rc::new(RefCell::new(reset_vector)),
+            regs: Rc::new(RefCell::new([0; 16])),
+            csrs: Rc::new(RefCell::new([0; 4096])),
         }
     }
 
@@ -144,32 +145,32 @@ impl Rv32eRegFile {
 
 impl RegfileIo for Rv32eRegFile {
     fn read_pc(&self) -> u32 {
-        self.pc
+        *self.pc.borrow()
     }
 
     fn write_pc(&mut self, value: u32) {
-        self.pc = value;
+        *self.pc.borrow_mut() = value;
     }
 
     fn read_gpr(&self,index : u32) -> RegIoResult<u32> {
         Rv32eRegFile::validate_gpr_index(index)?;
-        Ok(self.regs[index as usize])
+        Ok(self.regs.borrow()[index as usize])
     }
 
     fn write_gpr(&mut self,index : u32, value : u32) -> RegIoResult<()> {
         Rv32eRegFile::validate_gpr_index(index)?;
-        self.regs[index as usize] = value;
+        self.regs.borrow_mut()[index as usize] = value;
         Ok(())
     }
 
     fn read_csr(&self,index : u32) -> RegIoResult<u32> {
         Rv32eRegFile::validate_csr_index(index)?;
-        Ok(self.csrs[index as usize])
+        Ok(self.csrs.borrow()[index as usize])
     }
 
     fn write_csr(&mut self,index : u32, value : u32) -> RegIoResult<()> {
         Rv32eRegFile::validate_csr_index(index)?;
-        self.csrs[index as usize] = value;
+        self.csrs.borrow_mut()[index as usize] = value;
         Ok(())
     }
 
@@ -178,19 +179,19 @@ impl RegfileIo for Rv32eRegFile {
             Some(RegIdentifier::Index(index)) => {
                 Rv32eRegFile::validate_gpr_index(index).unwrap();
                 let name = Rv32eGprEnum::try_from(index).unwrap().into();
-                self.print_format(name, self.regs[index as usize]);
+                self.print_format(name, self.regs.borrow()[index as usize]);
             },
 
             Some(RegIdentifier::Name(name)) => {
                 let name = Rv32eGprEnum::from_str(&name).unwrap();
                 let index: u32 = name.into();
-                self.print_format(name.into(), self.regs[index as usize]);
+                self.print_format(name.into(), self.regs.borrow()[index as usize]);
             },
             
             None => {
                 for i in 0..16 {
                     let name = Rv32eGprEnum::try_from(i).unwrap().into();
-                    self.print_format(name, self.regs[i as usize]);
+                    self.print_format(name, self.regs.borrow()[i as usize]);
                 }
             }
         }
@@ -201,21 +202,47 @@ impl RegfileIo for Rv32eRegFile {
             Some(RegIdentifier::Index(index)) => {
                 Rv32eRegFile::validate_csr_index(index).unwrap();
                 let name = RvCsrEnum::try_from(index).unwrap().into();
-                self.print_format(name, self.csrs[index as usize]);
+                self.print_format(name, self.csrs.borrow()[index as usize]);
             },
 
             Some(RegIdentifier::Name(name)) => {
                 let name = RvCsrEnum::from_str(&name).unwrap();
                 let index: u32 = name.into();
-                self.print_format(name.into(), self.csrs[index as usize]);
+                self.print_format(name.into(), self.csrs.borrow()[index as usize]);
             },
             
             None => {
                 for csr in RvCsrEnum::iter() {
                     let name = csr.into();
-                    self.print_format(name, self.csrs[csr as u32 as usize]);
+                    self.print_format(name, self.csrs.borrow()[csr as u32 as usize]);
                 }
             }
         }
+    }
+
+    fn check(&self, regfile: AnyRegfile, flags: CheckFlags4reg) -> Result<(), ()> {
+        if flags.contains(CheckFlags4reg::pc) {
+            if *self.pc.borrow() != regfile.read_pc() {
+                return Err(());
+            }
+        }
+        
+        if flags.contains(CheckFlags4reg::gpr) {
+            for i in 0..16 {
+                if self.regs.borrow()[i] != regfile.read_gpr(i as u32).unwrap() {
+                    return Err(());
+                }
+            }
+        }
+
+        if flags.contains(CheckFlags4reg::csr) {
+            for csr in RvCsrEnum::iter() {
+                if self.csrs.borrow()[csr as u32 as usize] != regfile.read_csr(csr as u32).unwrap() {
+                    return Err(());
+                }
+            }
+        }
+
+        Ok(())
     }
 }

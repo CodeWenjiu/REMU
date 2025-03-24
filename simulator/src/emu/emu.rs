@@ -7,7 +7,7 @@ use logger::Logger;
 use option_parser::{DebugConfiguration, OptionParser};
 use remu_macro::log_err;
 use remu_utils::{Disassembler, ProcessError, ProcessResult, ISA};
-use state::States;
+use state::{reg::RegfileIo, States};
 
 use super::isa::riscv::RISCV;
 bitflags! {
@@ -52,7 +52,7 @@ pub struct Emu {
 
 impl Simulator for Emu {
     fn step_cycle(&mut self) -> ProcessResult<()> {
-        let pc = self.states.regfile.borrow().read_pc();
+        let pc = self.states.regfile.read_pc();
 
         let inst = log_err!(self.states.mmu.read(pc, state::mmu::Mask::Word), ProcessError::Recoverable)?;
 
