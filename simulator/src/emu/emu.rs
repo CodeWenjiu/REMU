@@ -1,4 +1,4 @@
-use crate::SimulatorItem;
+use crate::{SimulatorCallback, SimulatorItem};
 
 use bitflags::bitflags;
 use logger::Logger;
@@ -45,7 +45,7 @@ pub struct Emu {
 
     pub states: States,
 
-    pub instruction_compelete_callback: Box<dyn Fn(u32, u32)>,
+    pub callback: SimulatorCallback,
 }
 
 impl SimulatorItem for Emu {
@@ -55,13 +55,13 @@ impl SimulatorItem for Emu {
 }
 
 impl Emu {
-    pub fn new(option: &OptionParser, states: States, callback: Box<dyn Fn(u32,u32)>) -> Self {
+    pub fn new(option: &OptionParser, states: States, callback: SimulatorCallback) -> Self {
         let isa = option.cli.platform.isa;
 
         Self {
             instruction_set: InstructionSetFlags::from(isa),
             states,
-            instruction_compelete_callback: callback,
+            callback,
         }
     }
 
@@ -96,7 +96,7 @@ impl Emu {
 
         self.execute(decode)?;
 
-        (self.instruction_compelete_callback)(pc, inst);
+        (self.callback.instruction_compelete)(pc, inst);
 
         Ok(())
     }

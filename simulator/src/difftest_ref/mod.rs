@@ -4,7 +4,7 @@ use option_parser::OptionParser;
 use remu_utils::{ProcessResult, Simulators};
 use state::{reg::{AnyRegfile, RegfileIo}, CheckFlags4reg, States};
 
-use crate::emu::Emu;
+use crate::{emu::Emu, SimulatorCallback};
 
 use enum_dispatch::enum_dispatch;
 
@@ -35,10 +35,10 @@ impl DifftestRefBuildIn for Emu {
     }
 }
 
-impl TryFrom<(&OptionParser, States, Box<dyn Fn(u32, u32)>)> for DifftestRefBuildInEnum {
+impl TryFrom<(&OptionParser, States, SimulatorCallback)> for DifftestRefBuildInEnum {
     type Error = ();
 
-    fn try_from((option, states, callback): (&OptionParser, States, Box<dyn Fn(u32, u32)>)) -> Result<Self, Self::Error> {
+    fn try_from((option, states, callback): (&OptionParser, States, SimulatorCallback)) -> Result<Self, Self::Error> {
         let sim = option.cli.differtest.unwrap();
         match sim {
             Simulators::EMU => Ok(DifftestRefBuildInEnum::EMU(Emu::new(option, states, callback))),

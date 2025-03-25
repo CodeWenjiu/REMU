@@ -25,6 +25,6 @@ pub struct CLI {
     pub log: bool,
 
     /// differtest file path (Will Enable if provided)
-    #[arg(short, long, default_value("emu"), value_parser = value_parser!(Simulators))]
+    #[arg(short, long, value_parser = value_parser!(Simulators))]
     pub differtest: Option<Simulators>,
 }

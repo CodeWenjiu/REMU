@@ -201,13 +201,8 @@ impl Emu {
 
             RV32I::Ebreak => {
                 let a0 = regfile.read_gpr(10).unwrap();
-                if a0 == 0 {
-                    Logger::show("Hit Good Trap", Logger::SUCCESS);
-                    return Err(ProcessError::GracefulExit)
-                } else {
-                    Logger::show("Hit Bad Trap", Logger::ERROR);
-                    return Err(ProcessError::Fatal)
-                }
+                (self.callback.trap)(a0 == 0);
+                return Err(ProcessError::Recoverable);
             }
 
             RV32I::Fence => {
