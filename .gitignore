@@ -2,4 +2,4 @@
 .test
 .vscode/**
 .vscode
-simulator/ffi
+simulator/bindings.rs

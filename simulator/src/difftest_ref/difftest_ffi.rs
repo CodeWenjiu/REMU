@@ -2,7 +2,7 @@
 #![allow(non_camel_case_types)]
 #![allow(non_snake_case)]
 
-include!(concat!("../../ffi/bindings.rs"));
+include!(concat!("../../bindings.rs"));
 
 #[allow(dead_code)]
 const DIFFTEST_TO_DUT: bool = false;
