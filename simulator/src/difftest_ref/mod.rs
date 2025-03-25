@@ -8,6 +8,8 @@ use crate::{emu::Emu, SimulatorCallback};
 
 use enum_dispatch::enum_dispatch;
 
+remu_macro::mod_flat!(difftest_ffi);
+
 pub enum DifftestRefType {
     FFI {name: PathBuf},
     BuildIn {name: Simulators},
@@ -46,3 +48,4 @@ impl TryFrom<(&OptionParser, States, SimulatorCallback)> for DifftestRefBuildInE
         }
     }
 }
+

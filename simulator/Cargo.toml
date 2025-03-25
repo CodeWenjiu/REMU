@@ -4,6 +4,7 @@ version = "0.1.0"
 edition = "2024"
 license = "MIT"
 authors = [ "wenjiu <27843087979@qq.com>" ]
+build = "build.rs"
 
 [dependencies]
 remu_macro = { path = "../remu_macro" }
@@ -16,3 +17,6 @@ snafu = {workspace = true}
 owo-colors = {workspace = true}
 bitflags = {workspace = true}
 clap = {workspace = true}
+
+[build-dependencies]
+bindgen = "0.71.1"
