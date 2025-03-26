@@ -1,7 +1,7 @@
 use enum_dispatch::enum_dispatch;
 use logger::Logger;
 use owo_colors::OwoColorize;
-use remu_macro::log_todo;
+use remu_macro::{log_error, log_todo};
 use remu_utils::ISA;
 use riscv::{Rv32eRegFile, Rv32iRegFile};
 
@@ -40,6 +40,11 @@ pub trait RegfileIo {
         Err(())
     }
 
+    fn get_gprs(&self) -> Vec<u32> {
+        log_todo!();
+        Vec::new()
+    }
+
     fn read_csr(&self, _index: u32) -> RegIoResult<u32> {
         log_todo!();
         Err(())
@@ -62,8 +67,34 @@ pub trait RegfileIo {
         log_todo!();
     }
 
-    fn check(&self, _regfile: AnyRegfile, _flags: CheckFlags4reg) -> Result<(), ()> {
-        log_todo!();
+    fn check(&self, regfile: AnyRegfile, flags: CheckFlags4reg) -> Result<(), ()> {
+        if flags.contains(CheckFlags4reg::pc) {
+            if self.read_pc() != regfile.read_pc() {
+                log_error!(format!(
+                    "Dut PC: {:#010x}, Ref PC: {:#010x}",
+                    self.read_pc(),
+                    regfile.read_pc()
+                ));
+                return Err(());
+            }
+        }
+        if flags.contains(CheckFlags4reg::gpr) {
+            let gprs = self.get_gprs();
+            let ref_gprs = regfile.get_gprs();
+
+            for (i, (a, b)) in gprs.iter().zip(ref_gprs.iter()).enumerate() {
+                if a != b {
+                    log_error!(format!(
+                        "Dut GPR[{}]: {:#010x}, Ref GPR[{}]: {:#010x}",
+                        i, a, i, b
+                    ));
+                    return Err(());
+                }
+            }
+        }
+        if flags.contains(CheckFlags4reg::csr) {
+            log_todo!();
+        }
         Ok(())
     }
 }

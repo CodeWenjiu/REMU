@@ -3,7 +3,7 @@ use std::{cell::RefCell, rc::Rc, str::FromStr};
 use logger::Logger;
 use remu_macro::log_err;
 
-use crate::{reg::{AnyRegfile, RegError, RegIdentifier, RegIoResult, RegResult, RegfileIo}, CheckFlags4reg};
+use crate::reg::{RegError, RegIdentifier, RegIoResult, RegResult, RegfileIo};
 
 use super::RvCsrEnum;
 
@@ -163,6 +163,10 @@ impl RegfileIo for Rv32eRegFile {
         Ok(())
     }
 
+    fn get_gprs(&self) -> Vec<u32> {
+        self.regs.borrow().to_vec()
+    }
+
     fn read_csr(&self,index : u32) -> RegIoResult<u32> {
         Rv32eRegFile::validate_csr_index(index)?;
         Ok(self.csrs.borrow()[index as usize])
@@ -218,31 +222,5 @@ impl RegfileIo for Rv32eRegFile {
                 }
             }
         }
-    }
-
-    fn check(&self, regfile: AnyRegfile, flags: CheckFlags4reg) -> Result<(), ()> {
-        if flags.contains(CheckFlags4reg::pc) {
-            if *self.pc.borrow() != regfile.read_pc() {
-                return Err(());
-            }
-        }
-        
-        if flags.contains(CheckFlags4reg::gpr) {
-            for i in 0..16 {
-                if self.regs.borrow()[i] != regfile.read_gpr(i as u32).unwrap() {
-                    return Err(());
-                }
-            }
-        }
-
-        if flags.contains(CheckFlags4reg::csr) {
-            for csr in RvCsrEnum::iter() {
-                if self.csrs.borrow()[csr as u32 as usize] != regfile.read_csr(csr as u32).unwrap() {
-                    return Err(());
-                }
-            }
-        }
-
-        Ok(())
     }
 }

@@ -1,7 +1,7 @@
 use std::{cell::RefCell, rc::Rc, str::FromStr};
 
 use logger::Logger;
-use remu_macro::{log_err, log_error};
+use remu_macro::log_err;
 
 use crate::reg::{RegError, RegIdentifier, RegIoResult, RegResult, RegfileIo};
 
@@ -227,6 +227,10 @@ impl RegfileIo for Rv32iRegFile {
         Ok(())
     }
 
+    fn get_gprs(&self) -> Vec<u32> {
+        self.regs.borrow().to_vec()
+    }
+
     fn read_csr(&self, index: u32) -> RegIoResult<u32> {
         let index = Rv32iRegFile::validate_csr_index(index)?;
         Ok(self.csrs.borrow()[index as usize])
@@ -286,34 +290,5 @@ impl RegfileIo for Rv32iRegFile {
                 }
             }
         }
-    }
-
-    fn check(&self, regfile:crate::reg::AnyRegfile, flags:crate::CheckFlags4reg) -> Result<(),()> {
-        if flags.contains(crate::CheckFlags4reg::pc) {
-            if *self.pc.borrow() != regfile.read_pc() {
-                log_error!(format!("Dut PC: {:#010x}, Ref PC: {:#010x}", *self.pc.borrow(), regfile.read_pc()));
-                return Err(());
-            }
-        }
-
-        if flags.contains(crate::CheckFlags4reg::gpr) {
-            for i in 0..32 {
-                if self.regs.borrow()[i] != regfile.read_gpr(i as u32).unwrap() {
-                    log_error!(format!("Dut GPR[{}]: {:#010x}, Ref GPR[{}]: {:#010x}", i, self.regs.borrow()[i], i, regfile.read_gpr(i as u32).unwrap()));
-                    return Err(());
-                }
-            }
-        }
-
-        if flags.contains(crate::CheckFlags4reg::csr) {
-            for i in 0..4096 {
-                if self.csrs.borrow()[i] != regfile.read_csr(i as u32).unwrap() {
-                    log_error!(format!("Dut CSR[{}]: {:#010x}, Ref CSR[{}]: {:#010x}", i, self.csrs.borrow()[i], i, regfile.read_csr(i as u32).unwrap()));
-                    return Err(());
-                }
-            }
-        }
-
-        Ok(())
     }
 }

@@ -7,7 +7,7 @@ use remu_utils::{Disassembler, ProcessError, ProcessResult, Simulators};
 use enum_dispatch::enum_dispatch;
 use state::States;
 
-use crate::{difftest_ref::{DifftestRefBuildIn, DifftestRefBuildInEnum}, emu::Emu};
+use crate::{difftest_ref::{DifftestRef, DifftestRefEnum}, emu::Emu};
 use clap::Subcommand;
 
 #[derive(Debug, Subcommand)]
@@ -76,7 +76,7 @@ pub struct Simulator {
     pub dut: SimulatorEnum,
     pub states_dut: States,
 
-    pub r#ref: Option<DifftestRefBuildInEnum>,
+    pub r#ref: Option<DifftestRefEnum>,
     pub states_ref: States,
 
     pub instruction_trace_enable: Rc<RefCell<bool>>,
@@ -128,7 +128,7 @@ impl Simulator {
 
         let dut = SimulatorEnum::try_from((option, states_dut.clone(), dut_callback)).unwrap();
         let r#ref = if option.cli.differtest.is_some() {
-            Some(DifftestRefBuildInEnum::try_from((option, states_ref.clone(), ref_callback)).unwrap())
+            Some(DifftestRefEnum::try_from((option, states_ref.clone(), ref_callback)).unwrap())
         } else {
             None
         };

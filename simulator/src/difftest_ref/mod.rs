@@ -15,19 +15,19 @@ pub enum DifftestRefType {
     BuildIn {name: Simulators},
 }
 
-#[enum_dispatch(DifftestRefBuildInEnum)]
-pub trait DifftestRefBuildIn {
+#[enum_dispatch(DifftestRefEnum)]
+pub trait DifftestRef {
     fn step_cycle(&mut self) -> ProcessResult<()>;
 
     fn test_reg(&self, dut: AnyRegfile) -> bool;
 }
 
 #[enum_dispatch]
-pub enum DifftestRefBuildInEnum {
+pub enum DifftestRefEnum {
     EMU(Emu),
 }
 
-impl DifftestRefBuildIn for Emu {
+impl DifftestRef for Emu {
     fn step_cycle(&mut self) -> ProcessResult<()> {
         self.self_step_cycle()
     }
@@ -37,13 +37,13 @@ impl DifftestRefBuildIn for Emu {
     }
 }
 
-impl TryFrom<(&OptionParser, States, SimulatorCallback)> for DifftestRefBuildInEnum {
+impl TryFrom<(&OptionParser, States, SimulatorCallback)> for DifftestRefEnum {
     type Error = ();
 
     fn try_from((option, states, callback): (&OptionParser, States, SimulatorCallback)) -> Result<Self, Self::Error> {
         let sim = option.cli.differtest.unwrap();
         match sim {
-            Simulators::EMU => Ok(DifftestRefBuildInEnum::EMU(Emu::new(option, states, callback))),
+            Simulators::EMU => Ok(DifftestRefEnum::EMU(Emu::new(option, states, callback))),
             _ => Err(()),
         }
     }
