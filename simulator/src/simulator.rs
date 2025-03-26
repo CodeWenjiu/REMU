@@ -176,8 +176,8 @@ impl Simulator {
         if let Some(r#ref) = &mut self.r#ref {
             r#ref.step_cycle()?;
             if r#ref.test_reg(&self.states_dut.regfile) == false {
-                Logger::show("Test failed", Logger::ERROR);
-                return Err(ProcessError::Fatal);
+                *self.state.borrow_mut() = SimulatorState::TRAPED(false);
+                return Err(ProcessError::Recoverable);
             }
         }
         Ok(())

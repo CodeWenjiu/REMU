@@ -3,7 +3,7 @@
 #![allow(non_snake_case)]
 
 use logger::Logger;
-use remu_macro::{log_error, log_todo};
+use remu_macro::log_error;
 use remu_utils::ProcessResult;
 use state::reg::{AnyRegfile, RegfileIo};
 
@@ -67,11 +67,21 @@ impl DifftestRefApi for Spike {
         unsafe {
             let mut regfile: riscv32_CPU_state = riscv32_CPU_state { gpr: [0; 32], pc: 0x80000000 };
             difftest_regcpy(&mut regfile as *mut _ as *mut std::os::raw::c_void, DIFFTEST_TO_DUT);
+            if regfile.pc != dut.read_pc() {
+                log_error!(format!(
+                    "Dut PC: {:#010x}, Ref PC: {:#010x}",
+                    dut.read_pc(),
+                    regfile.pc
+                ));
+                return false;
+            }
+
             for (i, (a, b)) in regfile.gpr.iter().zip(dut.get_gprs().iter()).enumerate() {
                 if a != b {
+                    let name = dut.gpr_into_str(i as u32);
                     log_error!(format!(
-                        "Dut GPR[{}]: {:#010x}, Ref GPR[{}]: {:#010x}",
-                        i, a, i, b
+                        "Dut {}: [{:#010x}], Ref {}: [{:#010x}]",
+                        &name, b, &name, a
                     ));
                     return false;
                 }

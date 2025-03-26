@@ -91,9 +91,9 @@ impl Into<u32> for Rv32eGprEnum {
     }
 }
 
-impl Into<&str> for Rv32eGprEnum {
-    fn into(self) -> &'static str {
-        match self {
+impl From<Rv32eGprEnum> for &str {
+    fn from(reg: Rv32eGprEnum) -> Self {
+        match reg {
             Rv32eGprEnum::X0 => "x0",
             Rv32eGprEnum::RA => "ra",
             Rv32eGprEnum::SP => "sp",

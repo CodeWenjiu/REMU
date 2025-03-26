@@ -139,9 +139,9 @@ impl Into<usize> for Rv32iGprEnum {
     }
 }
 
-impl Into<&str> for Rv32iGprEnum {
-    fn into(self) -> &'static str {
-        match self {
+impl From<Rv32iGprEnum> for &str {
+    fn from(reg: Rv32iGprEnum) -> Self {
+        match reg {
             Rv32iGprEnum::X0 => "x0",
             Rv32iGprEnum::RA => "ra",
             Rv32iGprEnum::SP => "sp",

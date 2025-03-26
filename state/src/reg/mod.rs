@@ -3,7 +3,7 @@ use logger::Logger;
 use owo_colors::OwoColorize;
 use remu_macro::{log_error, log_todo};
 use remu_utils::ISA;
-use riscv::{Rv32eRegFile, Rv32iRegFile};
+use riscv::{Rv32eGprEnum, Rv32eRegFile, Rv32iRegFile};
 
 use crate::CheckFlags4reg;
 
@@ -104,6 +104,19 @@ pub trait RegfileIo {
 pub enum AnyRegfile {
     Rv32e(Rv32eRegFile),
     Rv32i(Rv32iRegFile),
+}
+
+impl AnyRegfile {
+    pub fn gpr_into_str (&self, index: u32) -> &str {
+        match self {
+            AnyRegfile::Rv32e(_) => {
+                Rv32eGprEnum::try_from(index).unwrap().into()
+            },
+            AnyRegfile::Rv32i(_) => {
+                Rv32eGprEnum::try_from(index).unwrap().into()
+            }
+        }
+    }
 }
 
 #[derive(Debug, snafu::Snafu)]
