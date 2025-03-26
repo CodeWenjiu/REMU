@@ -67,7 +67,7 @@ pub trait RegfileIo {
         log_todo!();
     }
 
-    fn check(&self, regfile: AnyRegfile, flags: CheckFlags4reg) -> Result<(), ()> {
+    fn check(&self, regfile: &AnyRegfile, flags: CheckFlags4reg) -> Result<(), ()> {
         if flags.contains(CheckFlags4reg::pc) {
             if self.read_pc() != regfile.read_pc() {
                 log_error!(format!(

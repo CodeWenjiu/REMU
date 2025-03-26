@@ -34,6 +34,6 @@ impl States {
     }
 
     pub fn check_states(&self, states: &States, flags: CheckFlags) -> Result<(), ()> {
-        self.regfile.check(states.regfile.clone(), flags.reg_flag)
+        self.regfile.check(&states.regfile, flags.reg_flag)
     }
 }

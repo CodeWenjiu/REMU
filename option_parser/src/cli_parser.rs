@@ -1,5 +1,5 @@
 use clap::{builder::styling, Parser, value_parser};
-use remu_utils::{Platform, Simulators};
+use remu_utils::{Platform, DifftestRef};
 
 #[derive(Parser, Debug)]
 #[command(version, about, long_about = None, styles = styling::Styles::styled()
@@ -25,6 +25,6 @@ pub struct CLI {
     pub log: bool,
 
     /// differtest file path (Will Enable if provided)
-    #[arg(short, long, value_parser = value_parser!(Simulators))]
-    pub differtest: Option<Simulators>,
+    #[arg(short, long, value_parser = value_parser!(DifftestRef))]
+    pub differtest: Option<DifftestRef>,
 }

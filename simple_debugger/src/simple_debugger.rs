@@ -4,11 +4,11 @@ use logger::Logger;
 use option_parser::{BaseConfiguration, DebugConfiguration, MemoryConfiguration, OptionParser};
 use remu_buildin::{get_buildin_img, get_reset_vector, READLINE_HISTORY_LENGTH};
 use remu_macro::log_err;
-use simulator::Simulator;
+use simulator::{difftest_ref::difftestffi_init, Simulator};
 use state::States;
 use crate::cmd_parser::Server;
 
-use remu_utils::{Disassembler, ProcessError};
+use remu_utils::{DifftestRef, Disassembler, ProcessError};
 
 pub struct SimpleDebugger {
     server: Server,
@@ -23,6 +23,39 @@ pub struct SimpleDebugger {
 
 impl SimpleDebugger {
     pub fn new(cli_result: OptionParser) -> Result<Self, ()> {
+        let disassembler = Disassembler::new(cli_result.cli.platform.isa)?;
+        let disassembler = Rc::new(RefCell::new(disassembler));
+
+        if let Some(difftest_ref) = cli_result.cli.differtest {
+            Logger::function(&format!("differtest \"{}\"", difftest_ref).to_string(), true);
+        } else {
+            Logger::function("differtest", false);
+        }
+
+        let rl_history_length = cli_result.cfg.debug_config.iter()
+            .find_map(|config| {
+                if let DebugConfiguration::Readline { history } = config {
+                    Some(*history)
+                } else {
+                    None
+                }
+            })
+            .unwrap_or(READLINE_HISTORY_LENGTH);
+
+        let (state, state_ref) = Self::state_init(&cli_result);
+
+        let simulator = log_err!(Simulator::new(&cli_result, state.clone(), state_ref.clone(), disassembler.clone()))?;
+
+        Ok(Self {
+            server: Server::new(cli_result.cli.platform.simulator, rl_history_length).expect("Unable to create server"),
+            disassembler,
+            state,
+            state_ref,
+            simulator,
+        })
+    }
+
+    fn state_init(cli_result: &OptionParser) -> (States, States) {
         let isa = cli_result.cli.platform.isa;
 
         let mut reset_vector = get_reset_vector(isa);
@@ -35,19 +68,20 @@ impl SimpleDebugger {
             }
         }
 
-        let disassembler = Disassembler::new(isa)?;
-        let disassembler = Rc::new(RefCell::new(disassembler));
+        let mut state = States::new(isa, reset_vector).unwrap();
+        let mut state_ref = state.clone();
 
-        let mut state = States::new(isa, reset_vector)?;
-
-        let mut state_ref = States::new(isa, reset_vector)?;
+        if let Some(DifftestRef::BuildIn(_)) = cli_result.cli.differtest {
+            state_ref = States::new(isa, reset_vector).unwrap();
+        }
 
         for mem in &cli_result.cfg.memory_config {
             match mem {
                 MemoryConfiguration::MemoryRegion { name, base, size, flag } => {
-                    log_err!(state.mmu.add_memory(*base, *size, name, flag.clone()))?;
-                    if cli_result.cli.differtest.is_some() {
-                        log_err!(state_ref.mmu.add_memory(*base, *size, name, flag.clone()))?;
+                    log_err!(state.mmu.add_memory(*base, *size, name, flag.clone())).unwrap();
+                    
+                    if let Some(DifftestRef::BuildIn(_)) = cli_result.cli.differtest {
+                        log_err!(state_ref.mmu.add_memory(*base, *size, name, flag.clone())).unwrap();
                     }
                 }
             }
@@ -55,16 +89,13 @@ impl SimpleDebugger {
 
         let buildin_img = get_buildin_img(isa);
 
-        if cli_result.cli.bin.is_some() {
+        let bytes = if cli_result.cli.bin.is_some() {
             let bin = cli_result.cli.bin.as_ref().unwrap();
-            let bytes = log_err!(std::fs::read(bin))?;
+            let bytes = log_err!(std::fs::read(bin)).unwrap();
             
             Logger::show(&format!("Loading binary image size: {}", bytes.len() / 4).to_string(), Logger::INFO);
 
-            log_err!(state.mmu.load(reset_vector, &bytes))?;
-            if cli_result.cli.differtest.is_some() {
-                log_err!(state_ref.mmu.load(reset_vector, &bytes))?;
-            }
+            bytes
         } else {
             let bytes: Vec<u8> = buildin_img.iter()
                 .flat_map(|&val| val.to_le_bytes().to_vec())
@@ -72,40 +103,21 @@ impl SimpleDebugger {
     
             Logger::show("No binary image specified, using buildin image.", Logger::WARN);
 
-            log_err!(state.mmu.load(reset_vector, &bytes))?;
-            if cli_result.cli.differtest.is_some() {
-                log_err!(state_ref.mmu.load(reset_vector, &bytes))?;
-            }
+            bytes
+        };
+        
+        log_err!(state.mmu.load(reset_vector, &bytes)).unwrap();
+        if let Some(DifftestRef::BuildIn(_)) = cli_result.cli.differtest {
+            log_err!(state_ref.mmu.load(reset_vector, &bytes)).unwrap();
+        } else {
+            difftestffi_init(&state.regfile, bytes, reset_vector);
         }
 
         if cli_result.cli.differtest.is_none() {
             state_ref = state.clone();
         }
 
-        Logger::function("differtest", cli_result.cli.differtest.is_some());
-
-        let mut rl_history_length = READLINE_HISTORY_LENGTH;
-
-        for debug_config in &cli_result.cfg.debug_config {
-            match debug_config {
-                DebugConfiguration::Readline { history } => {
-                    rl_history_length = *history;
-                }
-
-                _ => {
-                }
-            }
-        }
-
-        let simulator = log_err!(Simulator::new(&cli_result, state.clone(), state_ref.clone(), disassembler.clone()))?;
-
-        Ok(Self {
-            server: Server::new(cli_result.cli.platform.simulator, rl_history_length).expect("Unable to create server"),
-            disassembler,
-            state,
-            state_ref,
-            simulator,
-        })
+        (state, state_ref)
     }
 
     pub fn mainloop(mut self) -> Result<(), ()> {

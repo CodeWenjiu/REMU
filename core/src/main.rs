@@ -1,16 +1,22 @@
 use logger::Logger;
-use option_parser::parse;
+use option_parser::{parse, OptionParser};
 use simple_debugger::SimpleDebugger;
 
-fn main() -> Result<(), ()> {
-    let cli_result = parse()?;
-
-    if cli_result.cli.log {
+fn init(option: &OptionParser) -> Result<(), ()> {
+    Logger::function("Log", option.cli.log);
+    if option.cli.log {
         Logger::new()?;
     }
-    Logger::function("Log", cli_result.cli.log);
+    Ok(())
+}
 
-    let debugger = SimpleDebugger::new(cli_result)?;
+fn main() -> Result<(), ()> {
+    let option = parse()?;
+
+    init(&option)?;
+
+    let debugger = SimpleDebugger::new(option)?;
+
     debugger.mainloop()?;
 
     Ok(())

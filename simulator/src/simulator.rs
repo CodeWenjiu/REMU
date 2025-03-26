@@ -2,12 +2,13 @@ use std::{cell::RefCell, rc::Rc};
 
 use logger::Logger;
 use option_parser::{DebugConfiguration, OptionParser};
+use owo_colors::OwoColorize;
 use remu_macro::{log_error, log_todo};
 use remu_utils::{Disassembler, ProcessError, ProcessResult, Simulators};
 use enum_dispatch::enum_dispatch;
 use state::States;
 
-use crate::{difftest_ref::{DifftestRef, DifftestRefEnum}, emu::Emu};
+use crate::{difftest_ref::{DifftestRefApi, AnyDifftestRef}, emu::Emu};
 use clap::Subcommand;
 
 #[derive(Debug, Subcommand)]
@@ -37,13 +38,15 @@ pub enum SimulatorError {
 
 pub struct SimulatorCallback {
     pub instruction_compelete: Box<dyn Fn(u32, u32)>,
+    pub decode_failed: Box<dyn Fn(u32, u32)>,
     pub trap: Box<dyn Fn(bool)>,
 }
 
 impl SimulatorCallback {
-    pub fn new(instruction_compelete: Box<dyn Fn(u32, u32)>, trap: Box<dyn Fn(bool)>) -> Self {
+    pub fn new(instruction_compelete: Box<dyn Fn(u32, u32)>, decode_failed: Box<dyn Fn(u32, u32)>, trap: Box<dyn Fn(bool)>) -> Self {
         Self {
             instruction_compelete,
+            decode_failed,
             trap,
         }
     }
@@ -76,7 +79,7 @@ pub struct Simulator {
     pub dut: SimulatorEnum,
     pub states_dut: States,
 
-    pub r#ref: Option<DifftestRefEnum>,
+    pub r#ref: Option<AnyDifftestRef>,
     pub states_ref: States,
 
     pub instruction_trace_enable: Rc<RefCell<bool>>,
@@ -106,15 +109,20 @@ impl Simulator {
         let instruction_trace_enable_clone = instruction_trace_enable.clone();
         let simulator_state_clone = simulator_state.clone();
 
-        let dut_callback = SimulatorCallback::new(
-        Box::new(move |pc: u32, inst: u32| {
+        let instruction_compelete_callback = Box::new(move |pc: u32, inst: u32| {
             if *instruction_trace_enable_clone.borrow() == false {
                 return;
             }
             let disassembler = disasm_clone.borrow();
-            Logger::show(&format!("{}", disassembler.try_analize(inst, pc)).to_string(), Logger::INFO);
-        }), 
-        Box::new(move |is_good: bool| {
+            println!("0x{:08x}: {}", pc.blue(), disassembler.try_analize(inst, pc).purple());
+        });
+        
+        let decode_failed_callback = Box::new(|pc: u32, inst: u32| {
+            Logger::show("Decode Failed", Logger::ERROR);
+            println!("0x{:08x}: 0x{:08x}", pc.blue(), inst.purple());
+        });
+
+        let trap_callback = Box::new(move |is_good: bool| {
             if is_good == false {
                 Logger::show("Hit Bad Trap", Logger::ERROR);
                 *simulator_state_clone.borrow_mut() = SimulatorState::TRAPED(false);
@@ -122,13 +130,24 @@ impl Simulator {
                 Logger::show("Hit Good Trap", Logger::SUCCESS);
                 *simulator_state_clone.borrow_mut() = SimulatorState::TRAPED(true);
             }
-        }));
+        });
+
+        let dut_callback = SimulatorCallback::new(
+            instruction_compelete_callback, 
+
+            decode_failed_callback,
+
+            trap_callback
+        );
         
-        let ref_callback = SimulatorCallback::new(Box::new(|_: u32, _: u32| {}), Box::new(|_: bool| {}));
+        let ref_callback = SimulatorCallback::new(
+            Box::new(|_: u32, _: u32| {}), 
+            Box::new(|_: u32, _: u32| {}), 
+            Box::new(|_: bool| {}));
 
         let dut = SimulatorEnum::try_from((option, states_dut.clone(), dut_callback)).unwrap();
         let r#ref = if option.cli.differtest.is_some() {
-            Some(DifftestRefEnum::try_from((option, states_ref.clone(), ref_callback)).unwrap())
+            Some(AnyDifftestRef::try_from((option, states_ref.clone(), ref_callback)).unwrap())
         } else {
             None
         };
@@ -153,9 +172,10 @@ impl Simulator {
         }
 
         self.dut.step_cycle()?;
-        self.r#ref.as_mut().map(|r| r.step_cycle());
-        if let Some(r#ref) = &self.r#ref {
-            if r#ref.test_reg(self.states_dut.regfile.clone()) == false {
+        
+        if let Some(r#ref) = &mut self.r#ref {
+            r#ref.step_cycle()?;
+            if r#ref.test_reg(&self.states_dut.regfile) == false {
                 Logger::show("Test failed", Logger::ERROR);
                 return Err(ProcessError::Fatal);
             }

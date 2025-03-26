@@ -7,12 +7,6 @@ pub enum ISA {
     RV32IM,
 }
 
-#[derive(Debug, Clone, Copy)]
-pub enum Simulators {
-    EMU,
-    NPC,
-}
-
 impl From<ISA> for &str {
     fn from(isa: ISA) -> Self {
         match isa {
@@ -36,6 +30,12 @@ impl FromStr for ISA {
     }
 }
 
+#[derive(Debug, Clone, Copy)]
+pub enum Simulators {
+    EMU,
+    NPC,
+}
+
 impl From<Simulators> for &str {
     fn from(sim: Simulators) -> Self {
         match sim {
@@ -53,6 +53,84 @@ impl FromStr for Simulators {
             "emu" => Ok(Simulators::EMU),
             "npc" => Ok(Simulators::NPC),
             _ => Err("Unknown Simulator".into()),
+        }
+    }
+}
+
+#[derive(Debug, Clone, Copy)]
+pub enum DifftestBuildIn {
+    EMU,
+}
+
+impl std::fmt::Display for DifftestBuildIn {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            DifftestBuildIn::EMU => write!(f, "emu"),
+        }
+    }
+}
+
+impl From<DifftestBuildIn> for &str {
+    fn from(sim: DifftestBuildIn) -> Self {
+        match sim {
+            DifftestBuildIn::EMU => "emu",
+        }
+    }
+}
+
+#[derive(Debug, Clone, Copy)]
+pub enum DifftestFFI {
+    SPIKE,
+}
+
+impl std::fmt::Display for DifftestFFI {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            DifftestFFI::SPIKE => write!(f, "spike"),
+        }
+    }
+}
+
+impl From<DifftestFFI> for &str {
+    fn from(sim: DifftestFFI) -> Self {
+        match sim {
+            DifftestFFI::SPIKE => "spike",
+        }
+    }
+}
+
+#[derive(Debug, Clone, Copy)]
+pub enum DifftestRef {
+    BuildIn(DifftestBuildIn),
+    FFI(DifftestFFI),
+}
+
+impl std::fmt::Display for DifftestRef {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            DifftestRef::BuildIn(sim) => write!(f, "{}", sim),
+            DifftestRef::FFI(sim) => write!(f, "{}", sim),
+        }
+    }
+}
+
+impl From<DifftestRef> for &str {
+    fn from(sim: DifftestRef) -> Self {
+        match sim {
+            DifftestRef::BuildIn(sim) => Into::<&str>::into(sim),
+            DifftestRef::FFI(sim) => Into::<&str>::into(sim),
+        }
+    }
+}
+
+impl FromStr for DifftestRef {
+    type Err = Box<dyn Error + Send + Sync>;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        match s {
+            "emu" => Ok(DifftestRef::BuildIn(DifftestBuildIn::EMU)),
+            "spike" => Ok(DifftestRef::FFI(DifftestFFI::SPIKE)),
+            _ => Err("Unknown DifftestRef".into()),
         }
     }
 }

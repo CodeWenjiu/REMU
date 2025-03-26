@@ -8,7 +8,6 @@ pub struct OptionParser {
 }
 
 pub fn parse() -> Result<OptionParser, ()> {
-
     let cli = CLI::try_parse().map_err(|e| {
         let _ = e.print();
     })?;

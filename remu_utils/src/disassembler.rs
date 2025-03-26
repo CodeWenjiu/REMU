@@ -5,7 +5,7 @@ use llvm_sys::target::*;
 
 use crate::ISA;
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Copy)]
 pub struct Disassembler {
     pub disasm: LLVMDisasmContextRef,
 }

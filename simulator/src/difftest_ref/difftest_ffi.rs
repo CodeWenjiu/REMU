@@ -3,11 +3,11 @@
 #![allow(non_snake_case)]
 
 use logger::Logger;
-use remu_macro::log_error;
+use remu_macro::{log_error, log_todo};
 use remu_utils::ProcessResult;
 use state::reg::{AnyRegfile, RegfileIo};
 
-use super::DifftestRef;
+use super::DifftestRefApi;
 
 include!(concat!("../../bindings.rs"));
 
@@ -15,6 +15,16 @@ include!(concat!("../../bindings.rs"));
 const DIFFTEST_TO_DUT: bool = false;
 #[allow(dead_code)]
 const DIFFTEST_TO_REF: bool = true;
+
+impl From<&AnyRegfile> for riscv32_CPU_state {
+    fn from(regfile: &AnyRegfile) -> Self {
+        let mut gpr = [0; 32];
+        for (i, a) in regfile.get_gprs().iter().enumerate() {
+            gpr[i] = *a;
+        }
+        riscv32_CPU_state { gpr, pc: regfile.read_pc() }
+    }
+}
 
 #[test]
 fn difftest_ffi_test() {
@@ -31,11 +41,21 @@ fn difftest_ffi_test() {
     }
 }
 
-pub struct Spike {
-    
+pub fn difftestffi_init(regfile: &AnyRegfile, bin: Vec<u8>, reset_vector: u32) {
+    unsafe {
+        difftest_init(0);
+        
+        let mut regfile = riscv32_CPU_state::from(regfile);
+        difftest_regcpy(&mut regfile as *mut _ as *mut std::os::raw::c_void, DIFFTEST_TO_REF);
+
+        difftest_memcpy(reset_vector, bin.as_ptr() as *mut std::os::raw::c_void, bin.len() as u64, DIFFTEST_TO_REF);
+    }
 }
 
-impl DifftestRef for Spike {
+pub struct Spike {
+}
+
+impl DifftestRefApi for Spike {
     fn step_cycle(&mut self) -> ProcessResult<()> {
         unsafe {
             difftest_exec(1);
@@ -43,7 +63,7 @@ impl DifftestRef for Spike {
         Ok(())
     }
 
-    fn test_reg(&self, dut: AnyRegfile) -> bool {
+    fn test_reg(&self, dut: &AnyRegfile) -> bool {
         unsafe {
             let mut regfile: riscv32_CPU_state = riscv32_CPU_state { gpr: [0; 32], pc: 0x80000000 };
             difftest_regcpy(&mut regfile as *mut _ as *mut std::os::raw::c_void, DIFFTEST_TO_DUT);
@@ -57,6 +77,19 @@ impl DifftestRef for Spike {
                 }
             }
             return true;
+        }
+    }
+
+    fn set_ref(&self, target: &AnyRegfile) {
+        unsafe {
+            let mut regfile = riscv32_CPU_state::from(target);
+            difftest_regcpy(&mut regfile as *mut _ as *mut std::os::raw::c_void, DIFFTEST_TO_REF);
+        }
+    }
+
+    fn set_mem(&self, addr:u32, data:Vec<u8>) {
+        unsafe {
+            difftest_memcpy(addr, data.as_ptr() as *mut std::os::raw::c_void, data.len() as u64, DIFFTEST_TO_REF);
         }
     }
 }

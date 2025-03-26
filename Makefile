@@ -3,7 +3,7 @@ Job = -j `nproc`
 Binfile = ./.test/microbench-riscv32-nemu.bin
 
 Mainargs = --bin $(Binfile)
-Debugargs = $(Mainargs) --log -d emu
+Debugargs = $(Mainargs) --log -d spike
 
 menuconfig:
 	@$(MAKE) -C ./config menuconfig

@@ -92,7 +92,7 @@ impl Emu {
 
         let inst = log_err!(self.states.mmu.read(pc, state::mmu::Mask::Word), ProcessError::Recoverable)?;
 
-        let decode = self.decode(inst)?;
+        let decode = self.decode(pc, inst)?;
 
         self.execute(decode)?;
 
