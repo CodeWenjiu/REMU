@@ -29,11 +29,12 @@ impl Emu {
             }
 
             RV32I::Auipc => {
-                rd_val = rs1.wrapping_add(pc);
+                rd_val = pc.wrapping_add(imm);
             }
 
             RV32I::Jal => {
                 rd_val = next_pc;
+                next_pc = pc.wrapping_add(imm);
             }
 
             RV32I::Jalr => {

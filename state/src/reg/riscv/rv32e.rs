@@ -158,6 +158,9 @@ impl RegfileIo for Rv32eRegFile {
     }
 
     fn write_gpr(&mut self,index : u32, value : u32) -> RegIoResult<()> {
+        if index == 0 {
+            return Ok(());
+        }
         Rv32eRegFile::validate_gpr_index(index)?;
         self.regs.borrow_mut()[index as usize] = value;
         Ok(())

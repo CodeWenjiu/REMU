@@ -1,7 +1,7 @@
 #[macro_export]
 macro_rules! location {
     () => {
-        format!("{}, {}", file!(), line!())
+        format!("File, Line: {}, {}", file!(), line!())
     };
 }
 
