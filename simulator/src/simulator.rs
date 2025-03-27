@@ -187,7 +187,7 @@ impl Simulator {
         match subcmd {
             FunctionTarget::InstructionTrace => {
                 self.instruction_trace_enable.replace(enable);
-                Logger::show(&format!("{}", enable).to_string(), Logger::DEBUG);
+                Logger::function("ITrace", enable);
             }
         }
 
