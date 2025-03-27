@@ -57,7 +57,6 @@ pub fn config_parser() -> ConfigResult<HashMap<String, String>> {
 
     let settings = Config::builder()
         .add_source(config::File::with_name(path).format(config::FileFormat::Toml))
-        .add_source(config::Environment::with_prefix("").separator("_"))
         .build()
         .context(ConfigParseSnafu { path })?;
     

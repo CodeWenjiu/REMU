@@ -1,7 +1,7 @@
 [package]
 name = "option_parser"
 version = "0.1.0"
-edition = "2024"
+edition = "2021"
 license = "MIT"
 authors = [ "wenjiu <27843087979@qq.com>" ]
 
