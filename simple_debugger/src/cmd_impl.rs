@@ -68,16 +68,11 @@ impl SimpleDebugger {
     fn cmd_step (&mut self, subcmd: StepCmds) -> ProcessResult<()> {
         match subcmd {
             StepCmds::Cycles { count } => {
-                for _ in 0..count {
-                    self.simulator.step_cycle()?
-                }
-                Ok(())
+                self.simulator.step_cycle(count)
             }
 
             StepCmds::Instructions { count } => {
-                log_todo!();
-                let _ = count;
-                Ok(())
+                self.simulator.step_instruction(count)
             }
         }
     }

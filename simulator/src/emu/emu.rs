@@ -96,7 +96,7 @@ impl Emu {
 
         self.execute(decode)?;
 
-        (self.callback.instruction_compelete)(pc, inst);
+        (self.callback.instruction_compelete)(pc, inst)?;
 
         Ok(())
     }
