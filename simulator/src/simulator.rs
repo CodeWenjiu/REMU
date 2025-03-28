@@ -111,15 +111,33 @@ pub struct Simulator {
     /// State of the reference simulator
     pub states_ref: States,
 
+    /// Disassembler for instruction tracing
+    pub disaseembler: Rc<RefCell<Disassembler>>,
+
+    /// Debug configuration for the simulator
+    pub debug_config: SimulatorDebugConfig,
+
+    /// Times for the simulator
+    pub times: SimulatorTimes,
+}
+
+pub struct SimulatorTimes {
+    pub cycle: u64,
+}
+
+impl SimulatorTimes {
+    pub fn show(&self) {
+        println!("Cycle: {}", self.cycle);
+    }
+}
+
+pub struct SimulatorDebugConfig {
     /// Flag to enable/disable instruction tracing
     pub instruction_trace_enable: Rc<RefCell<bool>>,
     /// Counter for remaining instructions to execute
     pub pending_instructions: Rc<RefCell<u64>>,
     /// Memory addresses to watch for changes
     pub memory_watch_points: Rc<RefCell<Vec<u32>>>,
-
-    /// Disassembler for instruction tracing
-    pub disaseembler: Rc<RefCell<Disassembler>>,
 }
 
 impl Simulator {
@@ -248,16 +266,23 @@ impl Simulator {
         );
         let dut = SimulatorEnum::try_from((option, states_dut.clone(), dut_callback)).unwrap();
 
+        let debug_config = SimulatorDebugConfig {
+            instruction_trace_enable,
+            pending_instructions,
+            memory_watch_points,
+        };
+
         Ok(Self {
             state: simulator_state,
             dut,
             states_dut,
             r#ref,
             states_ref,
-            instruction_trace_enable,
-            pending_instructions,
-            memory_watch_points,
             disaseembler: disasm,
+            debug_config,
+            times: SimulatorTimes {
+                cycle: 0,
+            },
         })
     }
 
@@ -271,6 +296,7 @@ impl Simulator {
 
         // Execute the specified number of cycles
         for _ in 0..count {
+            self.times.cycle += 1;
             self.dut.step_cycle()?;
         }
 
@@ -280,7 +306,7 @@ impl Simulator {
     /// Execute a specified number of instructions
     pub fn step_instruction(&mut self, count: u64) -> ProcessResult<()> {
         // Set the number of instructions to execute
-        self.pending_instructions.replace(count);
+        self.debug_config.pending_instructions.replace(count);
 
         // Run until all instructions are executed or an error occurs
         // Using u64::MAX as the cycle count ensures we run until the instruction count is reached
@@ -293,7 +319,7 @@ impl Simulator {
     pub fn cmd_function_mut(&mut self, subcmd: FunctionTarget, enable: bool) -> ProcessResult<()> {
         match subcmd {
             FunctionTarget::InstructionTrace => {
-                self.instruction_trace_enable.replace(enable);
+                self.debug_config.instruction_trace_enable.replace(enable);
                 Logger::function("ITrace", enable);
             }
         }

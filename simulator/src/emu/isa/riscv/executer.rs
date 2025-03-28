@@ -9,7 +9,7 @@ use super::{InstMsg, InstPattern, RISCV, RV32I};
 use state::{mmu::Mask, reg::{riscv::RvCsrEnum, RegfileIo}};
 
 impl Emu {
-    fn rv32_i_execute(&mut self, name: RV32I, msg: InstMsg) -> ProcessResult<()> {
+    fn rv32_i_execute(&mut self, name: RV32I, mut msg: InstMsg) -> ProcessResult<()> {
         let regfile = &mut self.states.regfile;
         let rs1: u32 = regfile.read_gpr(msg.rs1.into()).map_err(|_| ProcessError::Recoverable)?;
         let rs2: u32 = regfile.read_gpr(msg.rs2.into()).map_err(|_| ProcessError::Recoverable)?;
@@ -43,36 +43,42 @@ impl Emu {
             }
 
             RV32I::Beq => {
+                msg.rd = 0;
                 if rs1 == rs2 {
                     next_pc = pc.wrapping_add(imm);
                 }
             }
 
             RV32I::Bne => {
+                msg.rd = 0;
                 if rs1 != rs2 {
                     next_pc = pc.wrapping_add(imm);
                 }
             }
 
             RV32I::Blt => {
+                msg.rd = 0;
                 if (rs1 as i32) < (rs2 as i32) {
                     next_pc = pc.wrapping_add(imm);
                 }
             }
 
             RV32I::Bge => {
+                msg.rd = 0;
                 if (rs1 as i32) >= (rs2 as i32) {
                     next_pc = pc.wrapping_add(imm);
                 }
             }
 
             RV32I::Bltu => {
+                msg.rd = 0;
                 if rs1 < rs2 {
                     next_pc = pc.wrapping_add(imm);
                 }
             }
 
             RV32I::Bgeu => {
+                msg.rd = 0;
                 if rs1 >= rs2 {
                     next_pc = pc.wrapping_add(imm);
                 }
@@ -104,16 +110,19 @@ impl Emu {
             }
 
             RV32I::Sb => {
+                msg.rd = 0;
                 let addr = rs1.wrapping_add(imm);
                 log_err!(mmu.write(addr, rs2, Mask::Byte), ProcessError::Recoverable)?;
             }
 
             RV32I::Sh => {
+                msg.rd = 0;
                 let addr = rs1.wrapping_add(imm);
                 log_err!(mmu.write(addr, rs2, Mask::Half), ProcessError::Recoverable)?;
             }
 
             RV32I::Sw => {
+                msg.rd = 0;
                 let addr = rs1.wrapping_add(imm);
                 log_err!(mmu.write(addr, rs2, Mask::Word), ProcessError::Recoverable)?;
             }
@@ -195,6 +204,7 @@ impl Emu {
             }
 
             RV32I::Ecall => {
+                msg.rd = 0;
                 regfile.write_csr(RvCsrEnum::MEPC.into(), pc).map_err(|_| ProcessError::Recoverable)?;
                 regfile.write_csr(RvCsrEnum::MCAUSE.into(), 0x0000000b).map_err(|_| ProcessError::Recoverable)?;
                 next_pc = regfile.read_csr(RvCsrEnum::MTVEC.into()).map_err(|_| ProcessError::Recoverable)?;
@@ -207,6 +217,7 @@ impl Emu {
             }
 
             RV32I::Fence => {
+                msg.rd = 0;
                 // Do nothing
             }
         }

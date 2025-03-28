@@ -1,6 +1,6 @@
 use logger::Logger;
 use owo_colors::OwoColorize;
-use remu_macro::{log_err, log_todo};
+use remu_macro::log_err;
 use remu_utils::{ProcessError, ProcessResult};
 use state::{mmu::Mask, reg::RegfileIo};
 
@@ -100,12 +100,12 @@ impl SimpleDebugger {
             DiffertestCmds::MemWatchPoint { addr } => {
                 match addr {
                     Some(addr) => {
-                        self.simulator.memory_watch_points.borrow_mut().push(addr);
+                        self.simulator.debug_config.memory_watch_points.borrow_mut().push(addr);
                     }
 
                     None => {
                         println!("{}", "Memory watch points:".purple());
-                        for addr in self.simulator.memory_watch_points.borrow().iter() {
+                        for addr in self.simulator.debug_config.memory_watch_points.borrow().iter() {
                             println!("{:#010x}", addr.blue());
                         }
                     }
@@ -180,6 +180,10 @@ impl SimpleDebugger {
                 self.cmd_step(subcmd)?;
             }
 
+            Cmds::Continue => {
+                self.simulator.step_instruction(u64::MAX)?;
+            }
+
             Cmds::Info { subcmd } => {
                 self.cmd_info(subcmd)?;
             }
@@ -192,8 +196,8 @@ impl SimpleDebugger {
                 self.cmd_differtest(subcmd)?;
             }
 
-            _ => {
-                log_todo!();
+            Cmds::Times => {
+                self.simulator.times.show();
             }
         }
 
