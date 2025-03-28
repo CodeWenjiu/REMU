@@ -6,7 +6,7 @@ use regex::Regex;
 use remu_macro::log_err;
 use remu_utils::Platform;
 use snafu::ResultExt;
-use state::mmu::MemoryFlags;
+use state::mmu::{MMTargetType, MemoryFlags};
 use std::path::PathBuf;
 use owo_colors::OwoColorize;
 
@@ -23,7 +23,7 @@ pub enum ConfigError {
 
 pub struct Cfg {
     pub base_config: Vec<BaseConfiguration>,
-    pub memory_config: Vec<MemoryConfiguration>,
+    pub region_config: Vec<RegionConfiguration>,
     pub debug_config: Vec<DebugConfiguration>,
 }
 
@@ -35,13 +35,12 @@ pub enum BaseConfiguration {
 }
 
 #[derive(Debug)]
-pub enum MemoryConfiguration {
-    MemoryRegion {
-        name: String,
-        base: u32,
-        size: u32,
-        flag: MemoryFlags,
-    },
+pub struct RegionConfiguration {
+    pub name: String,
+    pub base: u32,
+    pub size: u32,
+    pub flag: MemoryFlags,
+    pub r#type: MMTargetType,
 }
 
 #[derive(Debug)]
@@ -123,13 +122,13 @@ fn parse_base_config(
     Ok(base_config)
 }
 
-fn parse_memory_region(
+fn parse_region(
     config: &HashMap<String, String>,
     platform: &Platform,
-) -> Result<Vec<MemoryConfiguration>, ()> {
+) -> Result<Vec<RegionConfiguration>, ()> {
     let simulator = Into::<&str>::into(platform.simulator).to_uppercase();
 
-    let mut regions: Vec<MemoryConfiguration> = vec![];
+    let mut regions: Vec<RegionConfiguration> = vec![];
 
     let re = Regex::new(r"(\w+)_MEM_(\w+)_BASE").unwrap();
 
@@ -150,11 +149,42 @@ fn parse_memory_region(
             let flag_value = config.get(&flag_key).map(|v| v);
 
             if let (Some(base_value), Some(size_value), Some(flag_value)) = (base_value, size_value, flag_value) {
-                regions.push(MemoryConfiguration::MemoryRegion {
+                regions.push(RegionConfiguration {
                     name: caps[2].to_string(),
                     base: parse_hex(base_value)?,
                     size: parse_hex(size_value)?,
                     flag: MemoryFlags::from_bits_truncate(parse_bin(flag_value)? as u8),
+                    r#type: MMTargetType::Memory,
+                });
+            }
+        }
+    }
+
+    let re = Regex::new(r"(\w+)_DEV_(\w+)_BASE").unwrap();
+
+    for (key, _value) in config.iter() {
+        if let Some(caps) = re.captures(key) {
+            let prefix = &caps[1];
+
+            if prefix != &simulator.to_uppercase() {
+                continue;
+            }
+
+            let base_key = format!("{}_DEV_{}_BASE", prefix, &caps[2]);
+            let size_key = format!("{}_DEV_{}_SIZE", prefix, &caps[2]);
+            let flag_key = format!("{}_DEV_{}_FLAG", prefix, &caps[2]);
+
+            let base_value = config.get(&base_key).map(|v| v);
+            let size_value = config.get(&size_key).map(|v| v);
+            let flag_value = config.get(&flag_key).map(|v| v);
+
+            if let (Some(base_value), Some(size_value), Some(flag_value)) = (base_value, size_value, flag_value) {
+                regions.push(RegionConfiguration {
+                    name: caps[2].to_string(),
+                    base: parse_hex(base_value)?,
+                    size: parse_hex(size_value)?,
+                    flag: MemoryFlags::from_bits_truncate(parse_bin(flag_value)? as u8),
+                    r#type: MMTargetType::Device,
                 });
             }
         }
@@ -199,7 +229,7 @@ pub fn config_parse(cli: &CLI) -> Result<Cfg, ()> {
 
     let base_config = parse_base_config(&config, &cli.platform)?;
 
-    let regions = parse_memory_region(&config, &cli.platform)?;
+    let regions = parse_region(&config, &cli.platform)?;
 
     let debug_config = parse_debug_configuration(&config).map_err(|_| {
         Logger::show("Invalid debug configuration", Logger::ERROR);
@@ -207,7 +237,7 @@ pub fn config_parse(cli: &CLI) -> Result<Cfg, ()> {
 
     Ok(Cfg {
         base_config,
-        memory_config: regions,
+        region_config: regions,
         debug_config,
     })
 }

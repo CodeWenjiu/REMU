@@ -1,7 +1,7 @@
 use std::{cell::RefCell, rc::Rc};
 
 use logger::Logger;
-use option_parser::{BaseConfiguration, DebugConfiguration, MemoryConfiguration, OptionParser};
+use option_parser::{BaseConfiguration, DebugConfiguration, OptionParser};
 use remu_buildin::{get_buildin_img, get_reset_vector, READLINE_HISTORY_LENGTH};
 use remu_macro::log_err;
 use simulator::{difftest_ref::difftestffi_init, Simulator};
@@ -78,15 +78,11 @@ impl SimpleDebugger {
             state_ref = States::new(isa, reset_vector).unwrap();
         }
 
-        for mem in &cli_result.cfg.memory_config {
-            match mem {
-                MemoryConfiguration::MemoryRegion { name, base, size, flag } => {
-                    log_err!(state.mmu.add_memory(*base, *size, name, flag.clone())).unwrap();
-                    
-                    if let Some(DifftestRef::BuildIn(_)) = cli_result.cli.differtest {
-                        log_err!(state_ref.mmu.add_memory(*base, *size, name, flag.clone())).unwrap();
-                    }
-                }
+        for region in &cli_result.cfg.region_config {
+            log_err!(state.mmu.add_memory(region.base, region.size, &region.name, region.flag.clone(), region.r#type.clone())).unwrap();
+            
+            if let Some(DifftestRef::BuildIn(_)) = cli_result.cli.differtest {
+                log_err!(state_ref.mmu.add_memory(region.base, region.size, &region.name, region.flag.clone(), region.r#type.clone())).unwrap();
             }
         }
 

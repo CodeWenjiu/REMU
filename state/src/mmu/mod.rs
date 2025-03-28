@@ -1,6 +1,6 @@
 use core::fmt;
 
-remu_macro::mod_flat!(memory, mmu);
+remu_macro::mod_flat!(memory, device, mmu);
 
 #[derive(Debug, PartialEq, Clone)]
 pub enum Mask{
@@ -25,6 +25,21 @@ bitflags! {
 impl fmt::Display for MemoryFlags {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         bitflags::parser::to_writer(self, f)
+    }
+}
+
+#[derive(Clone, Debug)]
+pub enum MMTargetType {
+    Memory,
+    Device,
+}
+
+impl fmt::Display for MMTargetType {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        match self {
+            MMTargetType::Memory => write!(f, "Memory"),
+            MMTargetType::Device => write!(f, "Device"),
+        }
     }
 }
 
