@@ -225,6 +225,7 @@ impl RegfileIo for Rv32iRegFile {
         if index == 0 {
             return Ok(());
         }
+
         let index = Rv32iRegFile::validate_gpr_index(index)?;
         self.regs.borrow_mut()[index as usize] = value;
         Ok(())
