@@ -1,7 +1,7 @@
 use option_parser::OptionParser;
 use logger::Logger;
-use remu_macro::log_todo;
-use remu_utils::{DifftestBuildIn, DifftestFFI, DifftestRef, ProcessResult};
+use remu_macro::{log_err, log_todo};
+use remu_utils::{DifftestBuildIn, DifftestFFI, DifftestRef, ProcessError, ProcessResult};
 use state::{reg::{AnyRegfile, RegfileIo}, CheckFlags4reg, States};
 
 use crate::{emu::Emu, SimulatorCallback};
@@ -14,7 +14,9 @@ remu_macro::mod_flat!(difftest_ffi);
 pub trait DifftestRefApi {
     fn step_cycle(&mut self) -> ProcessResult<()>;
 
-    fn test_reg(&self, dut: &AnyRegfile) -> bool;
+    fn test_reg(&self, dut: &AnyRegfile) -> ProcessResult<()>;
+
+    fn test_mem(&mut self, watchpoint: Vec<(u32, u32)>) -> ProcessResult<()>;
 
     fn set_ref(&self, _target: &AnyRegfile) {
         log_todo!();
@@ -36,8 +38,21 @@ impl DifftestRefApi for Emu {
         self.self_step_cycle()
     }
 
-    fn test_reg(&self, dut: &AnyRegfile) -> bool {
-        self.states.regfile.check(dut, CheckFlags4reg::pc.union(CheckFlags4reg::gpr)).is_ok()
+    fn test_reg(&self, dut: &AnyRegfile) -> ProcessResult<()> {
+        self.states.regfile.check(dut, CheckFlags4reg::pc.union(CheckFlags4reg::gpr)).map_err(
+            |_| {
+                ProcessError::Recoverable
+            }
+        )
+    }
+
+    fn test_mem(&mut self,watchpoint:Vec<(u32,u32)>) -> ProcessResult<()> {
+        for (addr, data) in watchpoint {
+            if log_err!(self.states.mmu.read(addr, state::mmu::Mask::Word), ProcessError::Recoverable)? != data {
+                return Err(ProcessError::Recoverable);
+            }
+        }
+        Ok(())
     }
 }
 

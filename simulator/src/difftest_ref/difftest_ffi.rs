@@ -63,7 +63,7 @@ impl DifftestRefApi for Spike {
         Ok(())
     }
 
-    fn test_reg(&self, dut: &AnyRegfile) -> bool {
+    fn test_reg(&self, dut: &AnyRegfile) -> ProcessResult<()> {
         unsafe {
             let mut regfile: riscv32_CPU_state = riscv32_CPU_state { gpr: [0; 32], pc: 0x80000000 };
             difftest_regcpy(&mut regfile as *mut _ as *mut std::os::raw::c_void, DIFFTEST_TO_DUT);
@@ -73,7 +73,7 @@ impl DifftestRefApi for Spike {
                     dut.read_pc(),
                     regfile.pc
                 ));
-                return false;
+                return Err(remu_utils::ProcessError::Recoverable);
             }
 
             for (i, (a, b)) in regfile.gpr.iter().zip(dut.get_gprs().iter()).enumerate() {
@@ -83,11 +83,31 @@ impl DifftestRefApi for Spike {
                         "Dut {}: [{:#010x}], Ref {}: [{:#010x}]",
                         &name, b, &name, a
                     ));
-                    return false;
+                    return Err(remu_utils::ProcessError::Recoverable);
                 }
             }
-            return true;
+
+            Ok(())
         }
+    }
+
+    fn test_mem(&mut self,watchpoint:Vec<(u32,u32)>) -> ProcessResult<()> {
+        for (addr, data) in watchpoint {
+            unsafe {
+                let mut buf = [0; 4];
+                difftest_memcpy(addr, buf.as_mut_ptr() as *mut std::os::raw::c_void, 4, DIFFTEST_TO_DUT);
+                let ref_data = u32::from_le_bytes(buf);
+                if ref_data != data {
+                    log_error!(format!(
+                        "Dut Memory: {:#010x} : {:#010x}, Ref Memory: {:#010x} : {:#010x}",
+                        addr, data,
+                        addr, ref_data
+                    ));
+                    return Err(remu_utils::ProcessError::Recoverable);
+                }
+            }
+        }
+        Ok(())
     }
 
     fn set_ref(&self, target: &AnyRegfile) {

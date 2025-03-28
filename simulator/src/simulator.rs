@@ -128,22 +128,20 @@ impl Simulator {
         let state_dut_clone = states_dut.clone();
         let pending_instructions_clone = pending_instructions.clone();
         let instruction_compelete_callback = Box::new(move |pc: u32, inst: u32| -> ProcessResult<()> {
+            if *instruction_trace_enable_clone.borrow() {
+                let disassembler = disasm_clone.borrow();
+                
+                println!("0x{:08x}: {}", pc.blue(), disassembler.try_analize(inst, pc).purple());
+            }
+
             if let Some(ref_cell) = &r#ref_clone {
                 let mut ref_mut = ref_cell.borrow_mut();
                 ref_mut.step_cycle()?;
-                if ref_mut.test_reg(&state_dut_clone.regfile) == false {
+                ref_mut.test_reg(&state_dut_clone.regfile).map_err(|e| {
                     *simulator_state_clone1.borrow_mut() = SimulatorState::TRAPED(false);
-                    return Err(ProcessError::Recoverable);
-                }
+                    e
+                })?;
             }
-
-            if *instruction_trace_enable_clone.borrow() == false {
-                return Ok(());
-            }
-
-            let disassembler = disasm_clone.borrow();
-            
-            println!("0x{:08x}: {}", pc.blue(), disassembler.try_analize(inst, pc).purple());
 
             let mut pending = pending_instructions_clone.borrow_mut();
             if *pending > 0 {
