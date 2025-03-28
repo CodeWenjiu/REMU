@@ -48,9 +48,12 @@ impl SimpleDebugger {
 
         Ok(Self {
             server: Server::new(cli_result.cli.platform.simulator, rl_history_length).expect("Unable to create server"),
+
             disassembler,
+
             state,
             state_ref,
+            
             simulator,
         })
     }

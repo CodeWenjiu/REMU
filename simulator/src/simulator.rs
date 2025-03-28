@@ -84,6 +84,7 @@ pub struct Simulator {
 
     pub instruction_trace_enable: Rc<RefCell<bool>>,
     pub pending_instructions: Rc<RefCell<u64>>,
+    pub memory_watch_points: Rc<RefCell<Vec<(u32, u32)>>>,
 
     pub disaseembler: Rc<RefCell<Disassembler>>,
 }
@@ -91,6 +92,7 @@ pub struct Simulator {
 impl Simulator {
     pub fn new(option: &OptionParser, states_dut: States, states_ref: States, disasm: Rc<RefCell<Disassembler>>) -> Result<Self, SimulatorError> {
         let pending_instructions = Rc::new(RefCell::new(0));
+        let memory_watch_points = Rc::new(RefCell::new(vec![]));
 
         let mut itrace = false;
         for debug_config in &option.cfg.debug_config {
@@ -188,6 +190,7 @@ impl Simulator {
 
             instruction_trace_enable,
             pending_instructions,
+            memory_watch_points,
 
             disaseembler: disasm
         })

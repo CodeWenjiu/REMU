@@ -143,6 +143,13 @@ pub enum DiffertestCmds {
         #[command(subcommand)]
         subcmd: InfoCmds,
     },
+
+    /// Set memory watch point
+    MemWatchPoint {
+        /// The target address(hex) and length
+        #[arg(value_parser = parse_hex)]
+        addr: u32,
+    },
 }
 
 #[derive(Debug, Subcommand)]

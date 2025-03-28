@@ -96,6 +96,10 @@ impl SimpleDebugger {
             DiffertestCmds::Info { subcmd } => {
                 self.cmd_differtest_info(subcmd)?;
             }
+
+            DiffertestCmds::MemWatchPoint { addr } => {
+                // self.simulator.set_mem_watchpoint(addr)?;
+            }
         }
 
         Ok(())
