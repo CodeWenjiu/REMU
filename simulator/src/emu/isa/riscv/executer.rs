@@ -4,7 +4,7 @@ use remu_utils::{ProcessError, ProcessResult};
 
 use crate::emu::Emu;
 
-use super::{InstMsg, InstPattern, RISCV, RV32I};
+use super::{InstMsg, InstPattern, RISCV, RV32I, RV32M};
 
 use state::{mmu::Mask, reg::{riscv::RvCsrEnum, RegfileIo}};
 
@@ -178,15 +178,15 @@ impl Emu {
             }
 
             RV32I::Slli => {
-                rd_val = rs1 << imm;
+                rd_val = rs1.wrapping_shl(imm);
             }
 
             RV32I::Srli => {
-                rd_val = rs1 >> imm;
+                rd_val = rs1.wrapping_shr(imm);
             }
 
             RV32I::Srai => {
-                rd_val = (rs1 as i32 >> imm) as u32;
+                rd_val = (rs1 as i32).wrapping_shr(imm) as u32;
             }
 
             RV32I::Add => {
@@ -218,15 +218,15 @@ impl Emu {
             }
 
             RV32I::Sll => {
-                rd_val = rs1 << (rs2 & 0x1F);
+                rd_val = rs1.wrapping_shl(rs2 & 0x1F);
             }
 
             RV32I::Srl => {
-                rd_val = rs1 >> (rs2 & 0x1F);
+                rd_val = rs1.wrapping_shr(rs2 & 0x1F);
             }
 
             RV32I::Sra => {
-                rd_val = (rs1 as i32 >> (rs2 & 0x1F)) as u32;
+                rd_val = (rs1 as i32).wrapping_shr(rs2 & 0x1F) as u32;
             }
 
             RV32I::Ecall => {
@@ -255,6 +255,73 @@ impl Emu {
         Ok(())
     }
 
+    fn rv32_m_execute(&mut self, _name: RV32M, msg: InstMsg) -> ProcessResult<()> {
+        let regfile = &mut self.states.regfile;
+        let rs1: u32 = regfile.read_gpr(msg.rs1.into()).map_err(|_| ProcessError::Recoverable)?;
+        let rs2: u32 = regfile.read_gpr(msg.rs2.into()).map_err(|_| ProcessError::Recoverable)?;
+        
+        let rd_val: u32;
+
+        let pc: u32 = regfile.read_pc();
+        let next_pc = pc.wrapping_add(4);
+
+        match _name {
+            RV32M::Mul => {
+                rd_val = rs1.wrapping_mul(rs2);
+            }
+
+            RV32M::Mulh => {
+                rd_val = (rs1 as i64).wrapping_mul(rs2 as i64).wrapping_shr(32) as u32;
+            }
+
+            RV32M::Mulhsu => {
+                rd_val = (rs1 as i32 as i64).wrapping_mul(rs2 as u32 as i64).wrapping_shr(32) as u32;
+            }
+
+            RV32M::Mulhu => {
+                rd_val = (rs1 as u64).wrapping_mul(rs2 as u64).wrapping_shr(32) as u32;
+            }
+
+            RV32M::Div => {
+                if rs2 == 0 {
+                    rd_val = 0xFFFFFFFF;
+                } else {
+                    rd_val = (rs1 as i32).wrapping_div(rs2 as i32) as u32;
+                }
+            }
+
+            RV32M::Divu => {
+                if rs2 == 0 {
+                    rd_val = 0xFFFFFFFF;
+                } else {
+                    rd_val = rs1.wrapping_div(rs2);
+                }
+            }
+
+            RV32M::Rem => {
+                if rs2 == 0 {
+                    rd_val = rs1;
+                } else {
+                    rd_val = (rs1 as i32).wrapping_rem(rs2 as i32) as u32;
+                }
+            }
+
+            RV32M::Remu => {
+                if rs2 == 0 {
+                    rd_val = rs1;
+                } else {
+                    rd_val = rs1.wrapping_rem(rs2);
+                }
+            }
+        }
+        
+        regfile.write_gpr(msg.rd.into(), rd_val).map_err(|_| ProcessError::Recoverable)?;
+
+        regfile.write_pc(next_pc);
+
+        Ok(())
+    }
+
     pub fn execute(&mut self, inst: InstPattern) -> ProcessResult<()> {
         let belongs_to = inst.name;
         if !self.instruction_set.enable(belongs_to) {
@@ -266,8 +333,8 @@ impl Emu {
                 self.rv32_i_execute(name, inst.msg)?;
             }
 
-            RISCV::RV32M(_) => {
-                log_todo!();
+            RISCV::RV32M(name) => {
+                self.rv32_m_execute(name, inst.msg)?;
             }
 
             RISCV::Priv(_) => {
