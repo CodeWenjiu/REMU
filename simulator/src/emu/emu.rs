@@ -133,13 +133,13 @@ impl Emu {
         )?;
 
         // 2. Decode: Decode the instruction
-        let decode = self.decode(pc, inst)?;
+        let decode = self.decode(pc, inst.1)?;
         
         // 3. Execute: Execute the instruction
         self.execute(decode)?;
 
         // 4. Notify completion and return
-        (self.callback.instruction_compelete)(pc, inst)?;
+        (self.callback.instruction_compelete)(pc, inst.1)?;
 
         Ok(())
     }

@@ -54,7 +54,7 @@ impl SimpleDebugger {
             MemoryCmds::Examine { addr, length } => {
                 for i in (0..(length * 4)).step_by(4) {
                     let i = i as u32;
-                    let data = log_err!(self.state.mmu.read(addr + i, Mask::None), ProcessError::Recoverable)?;
+                    let data = log_err!(self.state.mmu.read_memory(addr + i, Mask::None), ProcessError::Recoverable)?;
 
                     println!("{:#010x}: {:#010x}\t {}",
                         (addr + i).blue(), data.green(), self.disassembler.borrow().try_analize(data, addr + i).magenta());
@@ -139,7 +139,7 @@ impl SimpleDebugger {
             MemoryCmds::Examine { addr, length } => {
                 for i in (0..(length * 4)).step_by(4) {
                     let i = i as u32;
-                    let data = log_err!(self.state_ref.mmu.read(addr + i, Mask::None), ProcessError::Recoverable)?;
+                    let data = log_err!(self.state_ref.mmu.read_memory(addr + i, Mask::None), ProcessError::Recoverable)?;
 
                     println!("{:#010x}: {:#010x}\t {}",
                         (addr + i).blue(), data.green(), self.disassembler.borrow().try_analize(data, addr + i).magenta());

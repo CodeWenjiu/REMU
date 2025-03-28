@@ -49,6 +49,8 @@ pub enum SimulatorError {
 pub struct SimulatorCallback {
     /// Called when an instruction is successfully executed
     pub instruction_compelete: Box<dyn FnMut(u32, u32) -> ProcessResult<()>>,
+    /// Called when an need to skip difftest
+    pub difftest_skip: Box<dyn Fn()>,
     /// Called when instruction decoding fails
     pub decode_failed: Box<dyn Fn(u32, u32)>,
     /// Called when a trap is encountered (true = good trap, false = bad trap)
@@ -59,11 +61,13 @@ impl SimulatorCallback {
     /// Create a new SimulatorCallback with the specified handlers
     pub fn new(
         instruction_compelete: Box<dyn FnMut(u32, u32) -> ProcessResult<()>>,
+        difftest_skip: Box<dyn Fn()>,
         decode_failed: Box<dyn Fn(u32, u32)>,
         trap: Box<dyn Fn(bool)>,
     ) -> Self {
         Self {
             instruction_compelete,
+            difftest_skip,
             decode_failed,
             trap,
         }
@@ -168,6 +172,7 @@ impl Simulator {
         // Create a minimal callback for the reference simulator
         let ref_callback = SimulatorCallback::new(
             Box::new(|_: u32, _: u32| Ok(())),
+            Box::new(|| {}),
             Box::new(|_: u32, _: u32| {}),
             Box::new(|_: bool| {}),
         );
@@ -194,52 +199,75 @@ impl Simulator {
         let mut state_dut_clone = states_dut.clone();
         let pending_instructions_clone = pending_instructions.clone();
         let memory_watch_points_clone = memory_watch_points.clone();
+        let is_difftest_skip = Rc::new(RefCell::new(false));
+        let is_difftest_skip_clone = is_difftest_skip.clone();
 
         // Callback for instruction completion
-        let instruction_compelete_callback =
-            Box::new(move |pc: u32, inst: u32| -> ProcessResult<()> {
-                // Print instruction trace if enabled
-                if *instruction_trace_enable_clone.borrow() {
-                    let disassembler = disasm_clone.borrow();
-                    println!(
-                        "0x{:08x}: {}",
-                        pc.blue(),
-                        disassembler.try_analize(inst, pc).purple()
-                    );
+        let instruction_compelete_callback = Box::new(move |pc: u32, inst: u32| -> ProcessResult<()> {
+            // Print instruction trace if enabled
+            if *instruction_trace_enable_clone.borrow() {
+                let disassembler = disasm_clone.borrow();
+                println!(
+                    "0x{:08x}: {}",
+                    pc.blue(),
+                    disassembler.try_analize(inst, pc).purple()
+                );
+            }
+            
+            // create an clouser to difftest 
+            let mut difftest_step = || -> ProcessResult<()> {
+                // Execute the instruction in the reference simulator
+                if r#ref_clone.is_none() {
+                    return Ok(());
                 }
+                let mut ref_mut = r#ref_clone.as_ref().unwrap().borrow_mut();
+                ref_mut.step_cycle()?;
+                ref_mut.test_reg(&state_dut_clone.regfile).map_err(|e| {
+                    *simulator_state_clone1.borrow_mut() = SimulatorState::TRAPED(false);
+                    e
+                })?;
+        
 
-                // Run reference simulator and compare results if differtest is enabled
-                if let Some(ref_cell) = &r#ref_clone {
-                    let mut ref_mut = ref_cell.borrow_mut();
-                    ref_mut.step_cycle()?;
-                    ref_mut.test_reg(&state_dut_clone.regfile).map_err(|e| {
-                        *simulator_state_clone1.borrow_mut() = SimulatorState::TRAPED(false);
-                        e
-                    })?;
-
-                    // Check memory watchpoints
-                    let mut mem_diff_msg = vec![];
-                    for addr in memory_watch_points_clone.borrow().iter() {
-                        let dut_data = log_err!(
-                            state_dut_clone.mmu.read(*addr, state::mmu::Mask::Word),
-                            ProcessError::Recoverable
-                        )?;
-                        mem_diff_msg.push((*addr, dut_data));
-                    }
-                    ref_mut.test_mem(mem_diff_msg)?;
+                // Check memory watchpoints
+                let mut mem_diff_msg = vec![];
+                for addr in memory_watch_points_clone.borrow().iter() {
+                    let dut_data = log_err!(
+                        state_dut_clone.mmu.read(*addr, state::mmu::Mask::Word),
+                        ProcessError::Recoverable
+                    )?.1;
+                    mem_diff_msg.push((*addr, dut_data));
                 }
-
-                // Handle instruction counting for step_instruction
-                let mut pending = pending_instructions_clone.borrow_mut();
-                if *pending > 0 {
-                    *pending -= 1;
-                    if *pending == 0 {
-                        return Err(ProcessError::Recoverable);
-                    }
-                }
-
+                ref_mut.test_mem(mem_diff_msg)?;
+                
                 Ok(())
-            });
+            };
+
+            if *is_difftest_skip_clone.borrow() == true {
+                if let Some(r#ref) = &r#ref_clone {
+                    *is_difftest_skip_clone.borrow_mut() = false;
+                    r#ref.borrow_mut().set_ref(&state_dut_clone.regfile);
+                }
+            } else {
+                difftest_step()?;
+            }
+
+            // Handle instruction counting for step_instruction
+            let mut pending = pending_instructions_clone.borrow_mut();
+            if *pending > 0 {
+                *pending -= 1;
+                if *pending == 0 {
+                    return Err(ProcessError::Recoverable);
+                }
+            }
+
+            Ok(())
+        });
+
+        let is_difftest_skip_clone = is_difftest_skip.clone();
+        // Callback for difftest skip
+        let difftest_skip_callback = Box::new(move || {
+            *is_difftest_skip_clone.borrow_mut() = true;
+        });
 
         // Callback for decode failures
         let decode_failed_callback = Box::new(|pc: u32, inst: u32| {
@@ -261,6 +289,7 @@ impl Simulator {
         // Create the DUT callback and simulator
         let dut_callback = SimulatorCallback::new(
             instruction_compelete_callback,
+            difftest_skip_callback,
             decode_failed_callback,
             trap_callback,
         );

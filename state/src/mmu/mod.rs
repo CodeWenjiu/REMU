@@ -32,6 +32,21 @@ pub enum MMTarget {
     Device(Device),
 }
 
+impl MMTarget {
+    pub fn read(&mut self, addr: u32, mask: Mask) -> u32 {
+        match self {
+            MMTarget::Memory(memory) => memory.read(addr, mask),
+            MMTarget::Device(device) => device.read(addr, mask),
+        }
+    }
+    pub fn write(&mut self, addr: u32, data: u32, mask: Mask) {
+        match self {
+            MMTarget::Memory(memory) => memory.write(addr, data, mask),
+            MMTarget::Device(device) => device.write(addr, data, mask),
+        }
+    }
+}
+
 #[derive(Debug, Clone, Copy)]
 pub enum MMTargetType {
     Memory,

@@ -86,45 +86,71 @@ impl Emu {
 
             RV32I::Lb => {
                 let addr = rs1.wrapping_add(imm);
-                rd_val = log_err!(mmu.read(addr, Mask::Byte), ProcessError::Recoverable)? as i8 as u32;
+                let data = log_err!(mmu.read(addr, Mask::Byte), ProcessError::Recoverable)?;
+                rd_val = data.1 as i8 as u32;
+                if data.0 == true {
+                    (self.callback.difftest_skip)();
+                }
             }
 
             RV32I::Lh => {
                 let addr = rs1.wrapping_add(imm);
-                rd_val = log_err!(mmu.read(addr, Mask::Half), ProcessError::Recoverable)? as i16 as u32;
+                let data = log_err!(mmu.read(addr, Mask::Half), ProcessError::Recoverable)?;
+                rd_val = data.1 as i16 as u32;
+                if data.0 == true {
+                    (self.callback.difftest_skip)();
+                }
             }
 
             RV32I::Lw => {
                 let addr = rs1.wrapping_add(imm);
-                rd_val = log_err!(mmu.read(addr, Mask::Word), ProcessError::Recoverable)?;
+                let data = log_err!(mmu.read(addr, Mask::Word), ProcessError::Recoverable)?;
+                rd_val = data.1;
+                if data.0 == true {
+                    (self.callback.difftest_skip)();
+                }
             }
 
             RV32I::Lbu => {
                 let addr = rs1.wrapping_add(imm);
-                rd_val = log_err!(mmu.read(addr, Mask::Byte), ProcessError::Recoverable)?;
+                let data = log_err!(mmu.read(addr, Mask::Byte), ProcessError::Recoverable)?;
+                rd_val = data.1;
+                if data.0 == true {
+                    (self.callback.difftest_skip)();
+                }
             }
 
             RV32I::Lhu => {
                 let addr = rs1.wrapping_add(imm);
-                rd_val = log_err!(mmu.read(addr, Mask::Half), ProcessError::Recoverable)?;
+                let data = log_err!(mmu.read(addr, Mask::Half), ProcessError::Recoverable)?;
+                rd_val = data.1;
+                if data.0 == true {
+                    (self.callback.difftest_skip)();
+                }
             }
 
             RV32I::Sb => {
                 msg.rd = 0;
                 let addr = rs1.wrapping_add(imm);
-                log_err!(mmu.write(addr, rs2, Mask::Byte), ProcessError::Recoverable)?;
+                if log_err!(mmu.write(addr, rs2, Mask::Byte), ProcessError::Recoverable)? == true {
+                    (self.callback.difftest_skip)();
+                }
             }
 
             RV32I::Sh => {
                 msg.rd = 0;
                 let addr = rs1.wrapping_add(imm);
-                log_err!(mmu.write(addr, rs2, Mask::Half), ProcessError::Recoverable)?;
+                if log_err!(mmu.write(addr, rs2, Mask::Half), ProcessError::Recoverable)? == true {
+                    (self.callback.difftest_skip)();
+                }
             }
 
             RV32I::Sw => {
                 msg.rd = 0;
                 let addr = rs1.wrapping_add(imm);
-                log_err!(mmu.write(addr, rs2, Mask::Word), ProcessError::Recoverable)?;
+                if log_err!(mmu.write(addr, rs2, Mask::Word), ProcessError::Recoverable)? == true {
+                    (self.callback.difftest_skip)();
+                }
             }
 
             RV32I::Addi => {

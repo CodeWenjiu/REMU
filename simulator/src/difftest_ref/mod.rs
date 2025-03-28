@@ -48,7 +48,7 @@ impl DifftestRefApi for Emu {
 
     fn test_mem(&mut self,watchpoint:Vec<(u32,u32)>) -> ProcessResult<()> {
         for (addr, data) in watchpoint {
-            if log_err!(self.states.mmu.read(addr, state::mmu::Mask::Word), ProcessError::Recoverable)? != data {
+            if log_err!(self.states.mmu.read(addr, state::mmu::Mask::Word), ProcessError::Recoverable)?.1 != data {
                 return Err(ProcessError::Recoverable);
             }
         }

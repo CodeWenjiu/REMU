@@ -102,7 +102,31 @@ impl MMU {
         Err(MMUError::MemoryUnmapped { addr })
     }
 
-    pub fn read(&mut self, addr: u32, mask: Mask) -> MMUResult<u32> {
+    fn find_region(&self, addr: u32) -> MMUResult<(RefMut<'_, MMTarget>, u32, &MemoryFlags)> {
+        for (_, base, length, flag, memory) in &self.memory_map {
+            if addr >= *base && addr < *base + *length {
+                return Ok((memory.borrow_mut(), addr - *base, flag));
+            }
+        }
+        Err(MMUError::MemoryUnmapped { addr })
+    }
+
+    pub fn read(&mut self, addr: u32, mask: Mask) -> MMUResult<(bool, u32)> {
+        let (mut memory, offset, flags) = self.find_region(addr)?;
+        
+        if !flags.contains(MemoryFlags::Read) {
+            return Err(MMUError::MemoryUnreadable { addr });
+        }
+        
+        let is_device = match &*memory {
+            MMTarget::Device(_) => true,
+            _ => false
+        };
+        
+        Ok((is_device, memory.read(offset, mask)))
+    }
+
+    pub fn read_memory(&mut self, addr: u32, mask: Mask) -> MMUResult<u32> {
         let (mut memory, offset, flags) = self.find_memory_region(addr)?;
         
         if !flags.contains(MemoryFlags::Read) {
@@ -112,19 +136,24 @@ impl MMU {
         Ok(memory.read(offset, mask))
     }
 
-    pub fn write(&mut self, addr: u32, data: u32, mask: Mask) -> MMUResult<()> {
-        let (mut memory, offset, flags) = self.find_memory_region(addr)?;
+    pub fn write(&mut self, addr: u32, data: u32, mask: Mask) -> MMUResult<bool> {
+        let (mut memory, offset, flags) = self.find_region(addr)?;
         
         if !flags.contains(MemoryFlags::Write) {
             return Err(MMUError::MemoryUnwritable { addr });
         }
+
+        let is_device = match &*memory {
+            MMTarget::Device(_) => true,
+            _ => false
+        };
         
         memory.write(offset, data, mask);
-        Ok(())
+        Ok(is_device)
     }
 
     pub fn inst_fetch(&mut self, addr: u32) -> MMUResult<u32> {
-        let (mut memory, offset, flags) = self.find_memory_region(addr)?;
+        let (mut memory, offset, flags) = self.find_region(addr)?;
         
         if !flags.contains(MemoryFlags::Execute) {
             return Err(MMUError::MemoryUnexecutable { addr });
