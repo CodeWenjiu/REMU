@@ -116,6 +116,22 @@ menu "Regions"
                 string "EMU Serial Flag"
                 default "0b00000011"
 
+            config EMU_DEV_Timer_BASE
+                hex "EMU Timer Base Address"
+                default 0x10000048
+                help
+                    Base address for EMU platform's Timer.
+
+            config EMU_DEV_Timer_SIZE
+                hex "EMU Timer Size"
+                default 0x00000008
+                help
+                    Size of Timer for EMU platform (hex).
+                    
+            config EMU_DEV_Timer_FLAG
+                string "EMU Timer Flag"
+                default "0b00000001"
+
         endmenu
     endmenu
 

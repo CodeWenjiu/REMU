@@ -1,3 +1,5 @@
+use std::time::{SystemTime, UNIX_EPOCH};
+
 use remu_macro::{log_error, log_todo};
 use logger::Logger;
 
@@ -9,6 +11,7 @@ use enum_dispatch::enum_dispatch;
 #[derive(Debug)]
 pub enum Device {
     Serial(Serial),
+    Timer(Timer),
 }
 
 #[enum_dispatch(Device)]
@@ -21,6 +24,7 @@ impl Device {
     pub fn new(name: &str) -> Self {
         match name {
             "Serial" => Device::Serial(Serial::new()),
+            "Timer"  => Device::Timer(Timer::new()),
             _ => panic!("Invalid device type"),
         }
     }
@@ -53,5 +57,43 @@ impl DeviceIo for Serial {
                 log_error!("Serial write only supports byte access");
             }
         }
+    }
+}
+
+#[derive(Debug)]
+pub struct Timer {
+    pub base: u64,
+}
+
+impl Timer {
+    pub fn new() -> Self {
+        let start = SystemTime::now();
+        let since_the_epoch = start.duration_since(UNIX_EPOCH)
+            .expect("Time went backwards");
+        let timestamp_micros = since_the_epoch.as_micros();
+        let base = timestamp_micros as u64;
+        Timer {
+            base,
+        }
+    }
+}
+
+impl DeviceIo for Timer {
+    fn read(&mut self, addr: u32, _mask: Mask) -> u32 {
+        let start = SystemTime::now();
+        let since_the_epoch = start.duration_since(UNIX_EPOCH)
+            .expect("Time went backwards");
+        let timestamp_micros = since_the_epoch.as_micros();
+        let current = timestamp_micros as u64;
+        let elapsed = current - self.base;
+        match addr {
+            0 => (elapsed & 0xFFFFFFFF) as u32,
+            4 => ((elapsed >> 32) & 0xFFFFFFFF) as u32,
+            _ => panic!("Invalid timer read address"),
+        }
+    }
+
+    fn write(&mut self, _addr: u32, _data: u32, _mask: Mask) {
+        log_todo!();
     }
 }

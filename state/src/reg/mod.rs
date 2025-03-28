@@ -135,10 +135,11 @@ pub fn regfile_io_factory(isa: ISA, reset_vector: u32) -> Result<AnyRegfile, ()>
     match isa {
         ISA::RV32E => Ok(Rv32eRegFile::new(reset_vector).into()),
         ISA::RV32I => Ok(Rv32iRegFile::new(reset_vector).into()),
-        _ => {
-            let isa: &str = From::from(isa);
-            Logger::show(&format!("Unknown ISA: {}", isa), Logger::ERROR);
-            Err(())
-        }
+        ISA::RV32IM => Ok(Rv32iRegFile::new(reset_vector).into()),
+        // _ => {
+        //     let isa: &str = From::from(isa);
+        //     Logger::show(&format!("Unknown ISA: {}", isa), Logger::ERROR);
+        //     Err(())
+        // }
     }
 }

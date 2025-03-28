@@ -1,6 +1,6 @@
 mainmenu "REMU Configuratuion Menu"
 
-source "memory/Kconfig"
+source "region/Kconfig"
 
 source "debug/Kconfig"
 
