@@ -1,5 +1,6 @@
-use super::{BaseApi, MMUApi, Mask, MemoryApi};
+use super::Mask;
 
+#[derive(Debug)]
 pub struct Memory {
     memory: Box<[u8]>,
 
@@ -15,8 +16,8 @@ impl Memory {
     }
 }
 
-impl BaseApi for Memory {
-    fn read(&mut self, addr: u32, mask: Mask) -> u32 {
+impl Memory {
+    pub fn read(&mut self, addr: u32, mask: Mask) -> u32 {
         let addr = addr as usize;
         match mask {
             Mask::Byte => self.memory[addr] as u32,
@@ -33,7 +34,7 @@ impl BaseApi for Memory {
         }
     }
 
-    fn write(&mut self, addr: u32, data: u32, mask: Mask) {
+    pub fn write(&mut self, addr: u32, data: u32, mask: Mask) {
         let addr = addr as usize;
         match mask {
             Mask::Byte => self.memory[addr] = data as u8,
@@ -47,17 +48,13 @@ impl BaseApi for Memory {
             }
         }
     }
-}
 
-impl MemoryApi for Memory {
-    fn load(&mut self, addr: u32, data: &[u8]) {
+    pub fn load(&mut self, addr: u32, data: &[u8]) {
         let addr = addr as usize;
         self.memory[addr..addr+data.len()].copy_from_slice(data);
     }
 
-    fn get_length(&self) -> u32 {
+    pub fn get_length(&self) -> u32 {
         self.length
     }
 }
-
-impl MMUApi for Memory {}

@@ -1,26 +1,43 @@
 use remu_macro::{log_error, log_todo};
 use logger::Logger;
 
-use super::{BaseApi, Mask};
+use super::Mask;
 
+use enum_dispatch::enum_dispatch;
+
+#[enum_dispatch]
+#[derive(Debug)]
 pub enum Device {
-    Serial,
+    Serial(Serial),
 }
 
-impl From<&str> for Device {
-    fn from(s: &str) -> Self {
-        match s {
-            "serial" => Device::Serial,
+#[enum_dispatch(Device)]
+pub trait DeviceIo {
+    fn read(&mut self, addr: u32, mask: Mask) -> u32;
+    fn write(&mut self, addr: u32, data: u32, mask: Mask);
+}
+
+impl Device {
+    pub fn new(name: &str) -> Self {
+        match name {
+            "Serial" => Device::Serial(Serial::new()),
             _ => panic!("Invalid device type"),
         }
     }
 }
 
+#[derive(Debug)]
 pub struct Serial {
 
 }
 
-impl BaseApi for Serial {
+impl Serial {
+    pub fn new() -> Self {
+        Serial {}
+    }
+}
+
+impl DeviceIo for Serial {
     fn read(&mut self, _addr: u32, _mask: Mask) -> u32 {
         log_todo!();
         0

@@ -2,11 +2,11 @@ use std::{cell::{RefCell, RefMut}, rc::Rc};
 
 use owo_colors::OwoColorize;
 
-use super::{MMTargetType, MMUApi, Mask, Memory, MemoryFlags};
+use super::{MMTarget, MMTargetType, Mask, Memory, MemoryFlags, Device};
 
 #[derive(Clone)]
 pub struct MMU {
-    memory_map: Vec<(String, u32, u32, MemoryFlags, MMTargetType, Rc<RefCell<Box<dyn MMUApi>>>)>,
+    memory_map: Vec<(String, u32, u32, MemoryFlags, Rc<RefCell<MMTarget>>)>,
 }
 
 #[derive(Debug, snafu::Snafu)]
@@ -38,9 +38,9 @@ impl MMU {
         }
     }
 
-    pub fn add_memory(&mut self, base: u32, length: u32, name: &str, flag: MemoryFlags, r#type: MMTargetType) -> MMUResult<()> {
+    pub fn add_region(&mut self, base: u32, length: u32, name: &str, flag: MemoryFlags, r#type: MMTargetType) -> MMUResult<()> {
         // Check for conflicts with existing memory regions
-        for (name_, base_, length_, _, _, _) in &self.memory_map {
+        for (name_, base_, length_, _, _, ) in &self.memory_map {
             if !(base + length <= *base_ || base >= *base_ + *length_) {
                 return Err(MMUError::MMioRegionConflict { 
                     name_first: name.to_string(), 
@@ -52,11 +52,16 @@ impl MMU {
         }
         
         // Create the new memory region
-        let new_region = (name.to_string(), base, length, flag, r#type, Rc::new(RefCell::new(Box::new(Memory::new(length)) as Box<dyn MMUApi>)));
+        let new_region = 
+            (name.to_string(), base, length, flag, 
+            Rc::new(RefCell::new(match r#type {
+                MMTargetType::Memory => MMTarget::Memory(Memory::new(length)),
+                MMTargetType::Device => MMTarget::Device(Device::new(name)),
+            })));
         
         // Find the correct position to insert based on base address
         let position = self.memory_map.iter()
-            .position(|(_, b, _, _, _, _)| *b > base)
+            .position(|(_, b, _, _, _, )| *b > base)
             .unwrap_or(self.memory_map.len());
         
         // Insert at the correct position to maintain sorted order
@@ -66,18 +71,32 @@ impl MMU {
     }
 
     pub fn show_memory_map(&self) {
-        for (name, base, length, flag, r#type, _) in &self.memory_map {
+        for (name, base, length, flag, target) in &self.memory_map {
             println!("{}\t [{:#010x} : {:#010x}] [{}] [{}]", 
-                name.purple(), base.green(), (base + length).red(), format!("{}", r#type.blue()), format!("{}", flag.blue())
+                name.purple(), base.green(), (base + length).red(), format!("{}", target.borrow().blue()), format!("{}", flag.blue())
             );
         }
     }
 
-    fn find_memory_region(&mut self, addr: u32) 
-        -> MMUResult<(RefMut<Box<dyn MMUApi>>, u32, &MemoryFlags)> {
-        for (_, base, length, flag, _, memory) in &mut self.memory_map {
+    fn find_memory_region(&self, addr: u32) 
+        -> MMUResult<(RefMut<'_, Memory>, u32, &MemoryFlags)> {
+        for (_, base, length, flag, memory) in &self.memory_map {
             if addr >= *base && addr < *base + *length {
-                return Ok((memory.borrow_mut(), addr - *base, flag));
+                // Check type first to avoid borrowing issues
+                let is_memory = matches!(&*memory.borrow(), MMTarget::Memory(_));
+                
+                if is_memory {
+                    // Map the RefMut<MMTargetType> to RefMut<Memory>
+                    let mem_ref = RefMut::map(memory.borrow_mut(), |m| {
+                        match m {
+                            MMTarget::Memory(inner) => inner,
+                            _ => unreachable!(),
+                        }
+                    });
+                    return Ok((mem_ref, addr - *base, flag));
+                } else {
+                    return Err(MMUError::MemoryUnmapped { addr });
+                }
             }
         }
         Err(MMUError::MemoryUnmapped { addr })

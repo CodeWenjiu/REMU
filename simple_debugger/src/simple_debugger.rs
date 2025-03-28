@@ -79,10 +79,10 @@ impl SimpleDebugger {
         }
 
         for region in &cli_result.cfg.region_config {
-            log_err!(state.mmu.add_memory(region.base, region.size, &region.name, region.flag.clone(), region.r#type.clone())).unwrap();
+            log_err!(state.mmu.add_region(region.base, region.size, &region.name, region.flag.clone(), region.r#type.clone())).unwrap();
             
             if let Some(DifftestRef::BuildIn(_)) = cli_result.cli.differtest {
-                log_err!(state_ref.mmu.add_memory(region.base, region.size, &region.name, region.flag.clone(), region.r#type.clone())).unwrap();
+                log_err!(state_ref.mmu.add_region(region.base, region.size, &region.name, region.flag.clone(), region.r#type.clone())).unwrap();
             }
         }
 
