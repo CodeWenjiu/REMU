@@ -94,7 +94,7 @@ impl Emu {
 
         let decode = self.decode(pc, inst)?;
 
-        self.execute(decode)?;
+        println!{"{:?}", decode.clone()};
 
         (self.callback.instruction_compelete)(pc, inst)?;
 

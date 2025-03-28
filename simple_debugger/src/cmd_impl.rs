@@ -98,7 +98,18 @@ impl SimpleDebugger {
             }
 
             DiffertestCmds::MemWatchPoint { addr } => {
-                // self.simulator.set_mem_watchpoint(addr)?;
+                match addr {
+                    Some(addr) => {
+                        self.simulator.memory_watch_points.borrow_mut().push(addr);
+                    }
+
+                    None => {
+                        println!("{}", "Memory watch points:".purple());
+                        for addr in self.simulator.memory_watch_points.borrow().iter() {
+                            println!("{:#010x}", addr.blue());
+                        }
+                    }
+                }
             }
         }
 

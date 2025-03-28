@@ -3,7 +3,7 @@ use std::{cell::RefCell, rc::Rc};
 use logger::Logger;
 use option_parser::{DebugConfiguration, OptionParser};
 use owo_colors::OwoColorize;
-use remu_macro::{log_error, log_todo};
+use remu_macro::{log_err, log_error, log_todo};
 use remu_utils::{Disassembler, ProcessError, ProcessResult, Simulators};
 use enum_dispatch::enum_dispatch;
 use state::States;
@@ -37,13 +37,13 @@ pub enum SimulatorError {
 }
 
 pub struct SimulatorCallback {
-    pub instruction_compelete: Box<dyn Fn(u32, u32) -> ProcessResult<()>>,
+    pub instruction_compelete: Box<dyn FnMut(u32, u32) -> ProcessResult<()>>,
     pub decode_failed: Box<dyn Fn(u32, u32)>,
     pub trap: Box<dyn Fn(bool)>,
 }
 
 impl SimulatorCallback {
-    pub fn new(instruction_compelete: Box<dyn Fn(u32, u32) -> ProcessResult<()>>, decode_failed: Box<dyn Fn(u32, u32)>, trap: Box<dyn Fn(bool)>) -> Self {
+    pub fn new(instruction_compelete: Box<dyn FnMut(u32, u32) -> ProcessResult<()>>, decode_failed: Box<dyn Fn(u32, u32)>, trap: Box<dyn Fn(bool)>) -> Self {
         Self {
             instruction_compelete,
             decode_failed,
@@ -84,7 +84,7 @@ pub struct Simulator {
 
     pub instruction_trace_enable: Rc<RefCell<bool>>,
     pub pending_instructions: Rc<RefCell<u64>>,
-    pub memory_watch_points: Rc<RefCell<Vec<(u32, u32)>>>,
+    pub memory_watch_points: Rc<RefCell<Vec<u32>>>,
 
     pub disaseembler: Rc<RefCell<Disassembler>>,
 }
@@ -127,8 +127,10 @@ impl Simulator {
         let simulator_state_clone1 = simulator_state.clone();
         let simulator_state_clone2 = simulator_state.clone();
         let r#ref_clone = r#ref.clone();
-        let state_dut_clone = states_dut.clone();
+        let mut state_dut_clone = states_dut.clone();
         let pending_instructions_clone = pending_instructions.clone();
+        let memory_watch_points_clone = memory_watch_points.clone();
+
         let instruction_compelete_callback = Box::new(move |pc: u32, inst: u32| -> ProcessResult<()> {
             if *instruction_trace_enable_clone.borrow() {
                 let disassembler = disasm_clone.borrow();
@@ -143,6 +145,16 @@ impl Simulator {
                     *simulator_state_clone1.borrow_mut() = SimulatorState::TRAPED(false);
                     e
                 })?;
+
+                let mut mem_diff_msg = vec![];
+    
+                for addr in memory_watch_points_clone.borrow().iter() {
+                    let dut_data = log_err!(state_dut_clone.mmu.read(*addr, state::mmu::Mask::Word), ProcessError::Recoverable)?;
+    
+                    mem_diff_msg.push((*addr, dut_data));
+                };
+
+                ref_mut.test_mem(mem_diff_msg)?;
             }
 
             let mut pending = pending_instructions_clone.borrow_mut();

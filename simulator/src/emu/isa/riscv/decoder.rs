@@ -106,7 +106,7 @@ impl Emu {
         }
     }
 
-    pub fn decode(&self, pc: u32, inst: u32) -> ProcessResult<InstPattern> {
+    pub fn decode(&mut self, pc: u32, inst: u32) -> ProcessResult<InstPattern> {
         if let Some((opcode, imm_type)) = self.isa_decode(inst) {
             let rs1 = extract_bits(inst, 15..19) as u8;
             let rs2 = extract_bits(inst, 20..24) as u8;

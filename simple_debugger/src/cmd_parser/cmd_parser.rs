@@ -148,7 +148,7 @@ pub enum DiffertestCmds {
     MemWatchPoint {
         /// The target address(hex) and length
         #[arg(value_parser = parse_hex)]
-        addr: u32,
+        addr: Option<u32>,
     },
 }
 
