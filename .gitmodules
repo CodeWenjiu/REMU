@@ -1,0 +1,3 @@
+[submodule "nzea"]
+    path = simulator/src/nzea
+    url = git@github.com:TimeKeepper/NZEA.git
