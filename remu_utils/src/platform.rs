@@ -40,7 +40,7 @@ impl From<Simulators> for &str {
     fn from(sim: Simulators) -> Self {
         match sim {
             Simulators::EMU => "emu",
-            Simulators::NZEA => "npc",
+            Simulators::NZEA => "nzea",
         }
     }
 }

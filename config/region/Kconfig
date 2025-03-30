@@ -135,18 +135,22 @@ menu "Regions"
         endmenu
     endmenu
 
-    menu "NPC Platform"
-        config NPC_MEM_SRAM_BASE
-            hex "NPC SRAM Base Address"
-            default 0x0F000000
+    menu "NZEA Platform"
+        config NZEA_MEM_SRAM_BASE
+            hex "NZEA SRAM Base Address"
+            default 0x80000000
             help
-                Base address for NPC platform's SRAM.
+                Base address for NZEA platform's SRAM.
 
-        config NPC_MEM_SRAM_SIZE
-            hex "NPC SRAM Size"
-            default 0x00002000
+        config NZEA_MEM_SRAM_SIZE
+            hex "NZEA SRAM Size"
+            default 0x08000000
             help
-                Size of SRAM for NPC platform (hex).
+                Size of SRAM for NZEA platform (hex).
+
+        config NZEA_MEM_SRAM_FLAG
+            string "NZEA SRAM Flag"
+            default "0b00000111"
     endmenu
 
     menu "SoC Platform"

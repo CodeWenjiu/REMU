@@ -11,7 +11,7 @@ use state::States;
 
 use crate::{
     difftest_ref::{AnyDifftestRef, DifftestRefApi},
-    emu::Emu,
+    emu::Emu, nzea::Nzea,
 };
 
 /// Available function targets for enabling/disabling simulator features
@@ -24,6 +24,11 @@ pub enum FunctionTarget {
 /// Common interface for all simulator implementations
 #[enum_dispatch(SimulatorEnum)]
 pub trait SimulatorItem {
+    /// Some init code
+    fn init(&self) -> Result<(), SimulatorError> {
+        Ok(())
+    }
+
     /// Execute a single cycle in the simulator
     fn step_cycle(&mut self) -> ProcessResult<()> {
         log_todo!();
@@ -35,11 +40,16 @@ pub trait SimulatorItem {
 #[enum_dispatch]
 pub enum SimulatorEnum {
     NEMU(Emu),
+    NZEA(Nzea),
 }
 
 /// Errors that can occur during simulator operations
 #[derive(Debug, snafu::Snafu)]
 pub enum SimulatorError {
+    /// Simulator init failed
+    #[snafu(display("Simulator Init Failed"))]
+    InitFailed,
+
     /// Requested simulator is not implemented or not available
     #[snafu(display("Unknown Simulator"))]
     UnknownSimulator,
@@ -83,10 +93,7 @@ impl TryFrom<(&OptionParser, States, SimulatorCallback)> for SimulatorEnum {
         let sim = option.cli.platform.simulator;
         match sim {
             Simulators::EMU => Ok(SimulatorEnum::NEMU(Emu::new(option, states, callback))),
-            Simulators::NZEA => {
-                log_error!("NPC is not implemented yet");
-                Err(SimulatorError::UnknownSimulator)
-            }
+            Simulators::NZEA => Ok(SimulatorEnum::NZEA(Nzea::new(option, states, callback)))
         }
     }
 }
@@ -294,6 +301,7 @@ impl Simulator {
             trap_callback,
         );
         let dut = SimulatorEnum::try_from((option, states_dut.clone(), dut_callback)).unwrap();
+        dut.init()?;
 
         let debug_config = SimulatorDebugConfig {
             instruction_trace_enable,
@@ -317,14 +325,14 @@ impl Simulator {
 
     /// Execute a specified number of cycles
     pub fn step_cycle(&mut self, count: u64) -> ProcessResult<()> {
-        // Check if simulator is already trapped
-        if let SimulatorState::TRAPED(_) = *self.state.borrow() {
-            log_error!("Simulator already TRAPED!");
-            return Err(ProcessError::Recoverable);
-        }
-
         // Execute the specified number of cycles
         for _ in 0..count {
+            // Check if simulator is already trapped
+            if let SimulatorState::TRAPED(_) = *self.state.borrow() {
+                log_error!("Simulator already TRAPED!");
+                return Err(ProcessError::Recoverable);
+            }
+
             self.times.cycle += 1;
             self.dut.step_cycle()?;
         }
