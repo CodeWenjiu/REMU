@@ -17,6 +17,7 @@ snafu = {workspace = true}
 owo-colors = {workspace = true}
 bitflags = {workspace = true}
 clap = {workspace = true}
+dlopen2 = "0.7.0"
 
 [build-dependencies]
 bindgen = "0.71.1"

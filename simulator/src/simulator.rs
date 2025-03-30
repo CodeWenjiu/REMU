@@ -83,7 +83,7 @@ impl TryFrom<(&OptionParser, States, SimulatorCallback)> for SimulatorEnum {
         let sim = option.cli.platform.simulator;
         match sim {
             Simulators::EMU => Ok(SimulatorEnum::NEMU(Emu::new(option, states, callback))),
-            Simulators::NPC => {
+            Simulators::NZEA => {
                 log_error!("NPC is not implemented yet");
                 Err(SimulatorError::UnknownSimulator)
             }

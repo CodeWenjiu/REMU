@@ -33,14 +33,14 @@ impl FromStr for ISA {
 #[derive(Debug, Clone, Copy)]
 pub enum Simulators {
     EMU,
-    NPC,
+    NZEA,
 }
 
 impl From<Simulators> for &str {
     fn from(sim: Simulators) -> Self {
         match sim {
             Simulators::EMU => "emu",
-            Simulators::NPC => "npc",
+            Simulators::NZEA => "npc",
         }
     }
 }
@@ -51,7 +51,7 @@ impl FromStr for Simulators {
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         match s {
             "emu" => Ok(Simulators::EMU),
-            "npc" => Ok(Simulators::NPC),
+            "nzea" => Ok(Simulators::NZEA),
             _ => Err("Unknown Simulator".into()),
         }
     }
