@@ -2,6 +2,7 @@ use logger::Logger;
 use owo_colors::OwoColorize;
 use remu_macro::log_err;
 use remu_utils::{ProcessError, ProcessResult};
+use simulator::SimulatorItem;
 use state::{mmu::Mask, reg::RegfileIo};
 
 use crate::{cmd_parser::{Cmds, DiffertestCmds, FunctionCmds, InfoCmds, MemoryCmds, RegisterCmds, StepCmds}, SimpleDebugger};
@@ -197,7 +198,7 @@ impl SimpleDebugger {
             }
 
             Cmds::Times => {
-                self.simulator.times.show();
+                self.simulator.dut.times()?;
             }
         }
 

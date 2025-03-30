@@ -34,6 +34,12 @@ pub trait SimulatorItem {
         log_todo!();
         Ok(())
     }
+
+    /// Show Times
+    fn times(&self) -> ProcessResult<()> {
+        log_todo!();
+        Ok(())
+    }
 }
 
 /// Enum of available simulator implementations
@@ -127,19 +133,6 @@ pub struct Simulator {
 
     /// Debug configuration for the simulator
     pub debug_config: SimulatorDebugConfig,
-
-    /// Times for the simulator
-    pub times: SimulatorTimes,
-}
-
-pub struct SimulatorTimes {
-    pub cycle: u64,
-}
-
-impl SimulatorTimes {
-    pub fn show(&self) {
-        println!("Cycle: {}", self.cycle);
-    }
 }
 
 pub struct SimulatorDebugConfig {
@@ -317,9 +310,6 @@ impl Simulator {
             states_ref,
             disaseembler: disasm,
             debug_config,
-            times: SimulatorTimes {
-                cycle: 0,
-            },
         })
     }
 
@@ -333,7 +323,6 @@ impl Simulator {
                 return Err(ProcessError::Recoverable);
             }
 
-            self.times.cycle += 1;
             self.dut.step_cycle()?;
         }
 

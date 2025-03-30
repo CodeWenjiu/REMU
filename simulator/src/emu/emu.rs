@@ -1,6 +1,7 @@
 use bitflags::bitflags;
 use logger::Logger;
 use option_parser::OptionParser;
+use owo_colors::OwoColorize;
 use remu_macro::log_err;
 use remu_utils::{ProcessError, ProcessResult, ISA};
 use state::{reg::RegfileIo, States};
@@ -63,6 +64,14 @@ impl InstructionSetFlags {
     }
 }
 
+pub struct EmuTimes {
+    /// Number of cycles to execute
+    pub cycles: u64,
+    
+    /// Number of instructions executed
+    pub instructions: u64,
+}
+
 /// RISC-V Emulator implementation
 pub struct Emu {
     /// Enabled instruction set extensions
@@ -73,11 +82,20 @@ pub struct Emu {
     
     /// Callbacks for emulator events
     pub callback: SimulatorCallback,
+
+    /// Emulator times
+    pub times: EmuTimes,
 }
 
 impl SimulatorItem for Emu {
     fn step_cycle(&mut self) -> ProcessResult<()> {
         self.self_step_cycle()
+    }
+
+    fn times(&self) -> ProcessResult<()> {
+        println!("{}: {}", "Cycles".purple(), self.times.cycles.blue());
+        println!("{}: {}", "Instructions".purple(), self.times.instructions.blue());
+        Ok(())
     }
 }
 
@@ -90,6 +108,10 @@ impl Emu {
             instruction_set: InstructionSetFlags::from(isa),
             states,
             callback,
+            times: EmuTimes {
+                cycles: 0,
+                instructions: 0,
+            },
         }
     }
 
@@ -140,6 +162,9 @@ impl Emu {
 
         // 4. Notify completion and return
         (self.callback.instruction_compelete)(pc, inst.1)?;
+
+        self.times.cycles += 1;
+        self.times.instructions += 1;
 
         Ok(())
     }
