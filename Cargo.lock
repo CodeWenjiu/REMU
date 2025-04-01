@@ -3591,7 +3591,6 @@ dependencies = [
  "clap",
  "dlopen2",
  "enum_dispatch",
- "lazy_static",
  "logger",
  "option_parser",
  "owo-colors 4.2.0",
