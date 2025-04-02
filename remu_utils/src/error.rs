@@ -1,6 +1,6 @@
 use snafu::Snafu;
 
-#[derive(Debug, Snafu)]
+#[derive(Debug, Snafu, Clone)]
 pub enum ProcessError {
     Recoverable,
     GracefulExit,

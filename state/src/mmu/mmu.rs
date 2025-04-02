@@ -17,6 +17,9 @@ pub enum MMUError {
     #[snafu(display("memory unmapped: {:#010x}", addr))]
     MemoryUnmapped {addr: u32},
 
+    #[snafu(display("memory unknowned: {}", name))]
+    MemoryUnkowned {name: String},
+
     #[snafu(display("load out of range: {:#010x} : {:#010x}", addr, addr + len))]
     LoadOutOfRange {addr: u32, len: u32},
 
@@ -102,6 +105,16 @@ impl MMU {
         Err(MMUError::MemoryUnmapped { addr })
     }
 
+    fn find_region_byname(&self, name: &str) 
+        -> MMUResult<(RefMut<'_, MMTarget>, &MemoryFlags)> {
+        for (name_, _, _, flag, memory) in &self.memory_map {
+            if name == name_ {
+                return Ok((memory.borrow_mut(), flag));
+            }
+        }
+        Err(MMUError::MemoryUnkowned { name: name.to_string() })
+    }
+
     fn find_region(&self, addr: u32) -> MMUResult<(RefMut<'_, MMTarget>, u32, &MemoryFlags)> {
         for (_, base, length, flag, memory) in &self.memory_map {
             if addr >= *base && addr < *base + *length {
@@ -131,6 +144,16 @@ impl MMU {
         
         if !flags.contains(MemoryFlags::Read) {
             return Err(MMUError::MemoryUnreadable { addr });
+        }
+        
+        Ok(memory.read(offset, mask))
+    }
+
+    pub fn read_by_name(&mut self, name: &str, mask: Mask, offset: u32) -> MMUResult<u32> {
+        let (mut memory, flags) = self.find_region_byname(name)?;
+        
+        if !flags.contains(MemoryFlags::Read) {
+            return Err(MMUError::MemoryUnreadable { addr: offset });
         }
         
         Ok(memory.read(offset, mask))
