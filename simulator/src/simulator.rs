@@ -1,3 +1,4 @@
+use core::panic;
 use std::{cell::RefCell, rc::Rc};
 
 use clap::Subcommand;
@@ -5,7 +6,7 @@ use enum_dispatch::enum_dispatch;
 use logger::Logger;
 use option_parser::{DebugConfiguration, OptionParser};
 use owo_colors::OwoColorize;
-use remu_macro::{log_err, log_error, log_todo};
+use remu_macro::{log_debug, log_err, log_error, log_todo};
 use remu_utils::{Disassembler, ProcessError, ProcessResult, Simulators};
 use state::States;
 
@@ -258,6 +259,8 @@ impl Simulator {
                 if *pending == 0 {
                     return Err(ProcessError::Recoverable);
                 }
+            } else {
+                panic!("Pending instruction count is no positive!");
             }
 
             Ok(())
