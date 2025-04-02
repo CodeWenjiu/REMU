@@ -6,7 +6,7 @@ use enum_dispatch::enum_dispatch;
 use logger::Logger;
 use option_parser::{DebugConfiguration, OptionParser};
 use owo_colors::OwoColorize;
-use remu_macro::{log_debug, log_err, log_error, log_todo};
+use remu_macro::{log_err, log_error, log_todo};
 use remu_utils::{Disassembler, ProcessError, ProcessResult, Simulators};
 use state::States;
 
@@ -20,6 +20,8 @@ use crate::{
 pub enum FunctionTarget {
     /// The instruction trace function - displays executed instructions
     InstructionTrace,
+    /// The Wave trace function - displays the waveforms of signals(basically only suit for HDL simulator)
+    WaveTrace,
 }
 
 /// Common interface for all simulator implementations
@@ -38,6 +40,11 @@ pub trait SimulatorItem {
 
     /// Show Times
     fn times(&self) -> ProcessResult<()> {
+        log_todo!();
+        Ok(())
+    }
+
+    fn function_wave_trace(&self, _enable: bool) -> ProcessResult<()> {
         log_todo!();
         Ok(())
     }
@@ -350,6 +357,10 @@ impl Simulator {
             FunctionTarget::InstructionTrace => {
                 self.debug_config.instruction_trace_enable.replace(enable);
                 Logger::function("ITrace", enable);
+            }
+            FunctionTarget::WaveTrace => {
+                self.dut.function_wave_trace(enable)?;
+                Logger::function("WaveTrace", enable);
             }
         }
 

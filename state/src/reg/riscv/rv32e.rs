@@ -7,7 +7,7 @@ use crate::reg::{RegError, RegIdentifier, RegIoResult, RegResult, RegfileIo};
 
 use super::RvCsrEnum;
 
-#[derive(Clone, Copy, Debug)]
+#[derive(Clone, Copy, Debug, PartialEq)]
 pub enum Rv32eGprEnum {
     X0 = 0,
     RA = 1,
