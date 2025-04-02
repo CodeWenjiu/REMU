@@ -1,5 +1,5 @@
 use core::panic;
-use std::{cell::RefCell, rc::Rc};
+use std::{cell::RefCell, rc::Rc, sync::{Arc, Mutex}};
 
 use clap::Subcommand;
 use enum_dispatch::enum_dispatch;
@@ -113,10 +113,12 @@ impl TryFrom<(&OptionParser, States, SimulatorCallback)> for SimulatorEnum {
 }
 
 /// Represents the current state of the simulator
-#[derive(PartialEq)]
+#[derive(PartialEq, Clone)]
 pub enum SimulatorState {
     /// Simulator is ready to execute
-    IDLE,
+    STOP,
+    /// Simulator is running
+    RUN,
     /// Simulator has encountered a trap (true = good trap, false = bad trap)
     TRAPED(bool),
 }
@@ -124,7 +126,7 @@ pub enum SimulatorState {
 /// Main simulator that coordinates execution and testing
 pub struct Simulator {
     /// Current state of the simulator
-    pub state: Rc<RefCell<SimulatorState>>,
+    pub state: Arc<Mutex<SimulatorState>>,
 
     /// Device Under Test - the simulator being tested
     pub dut: SimulatorEnum,
@@ -195,8 +197,15 @@ impl Simulator {
         };
 
         let instruction_trace_enable = Rc::new(RefCell::new(itrace));
-        let simulator_state: Rc<RefCell<SimulatorState>> =
-            Rc::new(RefCell::new(SimulatorState::IDLE));
+        let simulator_state: Arc<Mutex<SimulatorState>> =
+            Arc::new(Mutex::new(SimulatorState::STOP));
+
+        // Set Signal Handle to change simulator_state
+        let simulator_state_clone0 = simulator_state.clone();
+        ctrlc::set_handler(move || {
+            // Set the simulator state to TRAPED(true) when Ctrl+C is pressed
+            *simulator_state_clone0.lock().unwrap() = SimulatorState::STOP;
+        }).unwrap();
 
         // Create clones for use in callbacks
         let disasm_clone = disasm.clone();
@@ -231,7 +240,7 @@ impl Simulator {
                 let mut ref_mut = r#ref_clone.as_ref().unwrap().borrow_mut();
                 ref_mut.step_cycle()?;
                 ref_mut.test_reg(&state_dut_clone.regfile).map_err(|e| {
-                    *simulator_state_clone1.borrow_mut() = SimulatorState::TRAPED(false);
+                    *simulator_state_clone1.lock().unwrap() = SimulatorState::TRAPED(false);
                     e
                 })?;
         
@@ -289,10 +298,10 @@ impl Simulator {
         let trap_callback = Box::new(move |is_good: bool| {
             if !is_good {
                 Logger::show("Hit Bad Trap", Logger::ERROR);
-                *simulator_state_clone2.borrow_mut() = SimulatorState::TRAPED(false);
+                *simulator_state_clone2.lock().unwrap() = SimulatorState::TRAPED(false);
             } else {
                 Logger::show("Hit Good Trap", Logger::SUCCESS);
-                *simulator_state_clone2.borrow_mut() = SimulatorState::TRAPED(true);
+                *simulator_state_clone2.lock().unwrap() = SimulatorState::TRAPED(true);
             }
         });
 
@@ -325,11 +334,15 @@ impl Simulator {
 
     /// Execute a specified number of cycles
     pub fn step_cycle(&mut self, count: u64) -> ProcessResult<()> {
+        *self.state.lock().unwrap() = SimulatorState::RUN;
+
         // Execute the specified number of cycles
         for _ in 0..count {
-            // Check if simulator is already trapped
-            if let SimulatorState::TRAPED(_) = *self.state.borrow() {
+            let state = self.state.lock().unwrap().clone();
+            if let SimulatorState::TRAPED(_) = state {
                 log_error!("Simulator already TRAPED!");
+                return Err(ProcessError::Recoverable);
+            } else if SimulatorState::STOP == state {
                 return Err(ProcessError::Recoverable);
             }
 
