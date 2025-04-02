@@ -3,3 +3,4 @@
 .vscode/**
 .vscode
 simulator/bindings.rs
+waveform.fst
