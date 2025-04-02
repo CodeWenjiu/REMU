@@ -255,6 +255,13 @@ impl Emu {
         Ok(())
     }
 
+    fn rv32_e_execute(&mut self, name: RV32I, mut msg: InstMsg) -> ProcessResult<()> {
+        msg.rs1 &= 0xF;
+        msg.rs2 &= 0xF;
+        msg.rd &= 0xF;
+        self.rv32_i_execute(name, msg)
+    }
+
     fn rv32_m_execute(&mut self, _name: RV32M, msg: InstMsg) -> ProcessResult<()> {
         let regfile = &mut self.states.regfile;
         let rs1: u32 = regfile.read_gpr(msg.rs1.into()).map_err(|_| ProcessError::Recoverable)?;
@@ -331,6 +338,10 @@ impl Emu {
         match belongs_to {
             RISCV::RV32I(name) => {
                 self.rv32_i_execute(name, inst.msg)?;
+            }
+
+            RISCV::RV32E(name) => {
+                self.rv32_e_execute(name, inst.msg)?;
             }
 
             RISCV::RV32M(name) => {

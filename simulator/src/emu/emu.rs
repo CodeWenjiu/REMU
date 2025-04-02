@@ -53,8 +53,10 @@ impl InstructionSetFlags {
     pub fn enable(&self, isa: RISCV) -> bool {
         match isa {
             // RV32I instructions are enabled if either RV32I or RV32E is set
-            RISCV::RV32I(_) => self.contains(InstructionSetFlags::RV32I) || 
-                               self.contains(InstructionSetFlags::RV32E),
+            RISCV::RV32I(_) => self.contains(InstructionSetFlags::RV32I),
+
+            // RV32E instructions are enabled if RV32E is set
+            RISCV::RV32E(_) => self.contains(InstructionSetFlags::RV32E),
             
             // Other extensions require their specific flag
             RISCV::RV32M(_) => self.contains(InstructionSetFlags::RV32M),

@@ -121,8 +121,8 @@ impl AnyRegfile {
 
 #[derive(Debug, snafu::Snafu)]
 pub enum RegError {
-    #[snafu(display("Invalid generou purpose register index"))]
-    InvalidGPRIndex,
+    #[snafu(display("Invalid generou purpose register index {}", index))]
+    InvalidGPRIndex { index: u32 },
 
     #[snafu(display("Invalid CSR index"))]
     InvalidCSRIndex,

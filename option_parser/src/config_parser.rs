@@ -160,7 +160,7 @@ fn parse_region(
         }
     }
 
-    let re = Regex::new(r"(\w+)_DEV_(\w+)_BASE").unwrap();
+    let re = Regex::new(r"^(\w+)_DEV_(\w+)_BASE$").unwrap();
 
     for (key, _value) in config.iter() {
         if let Some(caps) = re.captures(key) {

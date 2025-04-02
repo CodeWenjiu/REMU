@@ -1,0 +1,17 @@
+menu "NZEA Platform"
+    config NZEA_MEM_SRAM_BASE
+        hex "NZEA SRAM Base Address"
+        default 0x80000000
+        help
+            Base address for NZEA platform's SRAM.
+
+    config NZEA_MEM_SRAM_SIZE
+        hex "NZEA SRAM Size"
+        default 0x08000000
+        help
+            Size of SRAM for NZEA platform (hex).
+
+    config NZEA_MEM_SRAM_FLAG
+        string "NZEA SRAM Flag"
+        default "0b00000111"
+endmenu

@@ -59,6 +59,12 @@ impl Emu {
             }
         }
 
+        if isa.contains(InstructionSetFlags::RV32E) {
+            if let Some((opcode, imm_type)) = Self::rv32_i_decode(inst) {
+                return Some((RISCV::RV32E(opcode), imm_type));
+            }
+        }
+
         // Try to decode as RV32M
         if isa.contains(InstructionSetFlags::RV32M) {
             if let Some((opcode, imm_type)) = Self::rv32_m_decode(inst) {

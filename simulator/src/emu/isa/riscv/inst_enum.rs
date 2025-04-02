@@ -100,6 +100,7 @@ pub enum Priv {
 #[derive(Debug, PartialEq, Copy, Clone)]
 pub enum RISCV {
     RV32I(RV32I),
+    RV32E(RV32I),
     RV32M(RV32M),
     Zicsr(Zicsr),
     Priv(Priv),

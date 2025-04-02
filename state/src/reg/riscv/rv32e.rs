@@ -29,7 +29,7 @@ pub enum Rv32eGprEnum {
 
 impl Rv32eGprEnum {
     fn validate(index: u32) -> RegResult<Self> {
-        Self::try_from(index).map_err(|_| RegError::InvalidGPRIndex)
+        Self::try_from(index).map_err(|_| RegError::InvalidGPRIndex { index })
     }
 }
 
