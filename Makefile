@@ -1,9 +1,9 @@
 Job = -j `nproc`
 
-Binfile = ./.test/microbench-riscv32-nemu.bin
+Binfile = ./.test/microbench-riscv32e-npc.bin
 
 Mainargs = --bin $(Binfile) -p rv32e-nzea
-Debugargs = $(Mainargs) #--log -d spike
+Debugargs = $(Mainargs) -d spike #--log
 
 default: run
 
