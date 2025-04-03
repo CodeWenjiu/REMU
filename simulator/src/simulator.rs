@@ -1,4 +1,3 @@
-use core::panic;
 use std::{cell::RefCell, rc::Rc, sync::{Arc, Mutex}};
 
 use clap::Subcommand;
@@ -281,8 +280,6 @@ impl Simulator {
                 if *pending == 0 {
                     return Err(ProcessError::Recoverable);
                 }
-            } else {
-                panic!("Pending instruction count is no positive!");
             }
 
             Ok(())
