@@ -44,9 +44,8 @@ pub trait SimulatorItem {
         Ok(())
     }
 
-    fn function_wave_trace(&self, _enable: bool) -> ProcessResult<()> {
+    fn function_wave_trace(&self, _enable: bool) {
         log_todo!();
-        Ok(())
     }
 }
 
@@ -165,20 +164,6 @@ impl Simulator {
         let pending_instructions = Rc::new(RefCell::new(0));
         let memory_watch_points = Rc::new(RefCell::new(vec![]));
 
-        // Parse debug configuration options
-        let mut itrace = false;
-        for debug_config in &option.cfg.debug_config {
-            match debug_config {
-                DebugConfiguration::Itrace { enable } => {
-                    Logger::function("ITrace", *enable);
-                    itrace = *enable;
-                }
-                DebugConfiguration::Readline { history: _ } => {
-                    // Ignore readline history configuration here
-                }
-            }
-        }
-
         // Create a minimal callback for the reference simulator
         let ref_callback = SimulatorCallback::new(
             Box::new(|_: u32, _: u32| Ok(())),
@@ -195,6 +180,27 @@ impl Simulator {
         } else {
             None
         };
+
+        // Parse debug configuration options
+        let mut itrace = false;
+        let mut wavetrace = false;
+        for debug_config in &option.cfg.debug_config {
+            match debug_config {
+                DebugConfiguration::Itrace { enable } => {
+                    Logger::function("ITrace", *enable);
+                    itrace = *enable;
+                }
+
+                DebugConfiguration::WaveTrace { enable } => {
+                    Logger::function("WaveTrace", *enable);
+                    wavetrace = *enable;
+                }
+
+                DebugConfiguration::Readline { history: _ } => {
+                    // Ignore readline history configuration here
+                }
+            }
+        }
 
         let instruction_trace_enable = Rc::new(RefCell::new(itrace));
         let simulator_state: Arc<Mutex<SimulatorState>> =
@@ -321,6 +327,10 @@ impl Simulator {
             memory_watch_points,
         };
 
+        if wavetrace {
+            dut.function_wave_trace(true);
+        }
+
         Ok(Self {
             state: simulator_state,
             dut,
@@ -372,7 +382,7 @@ impl Simulator {
                 Logger::function("ITrace", enable);
             }
             FunctionTarget::WaveTrace => {
-                self.dut.function_wave_trace(enable)?;
+                self.dut.function_wave_trace(enable);
                 Logger::function("WaveTrace", enable);
             }
         }

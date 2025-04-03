@@ -2,7 +2,7 @@ use bitflags::bitflags;
 use logger::Logger;
 use option_parser::OptionParser;
 use owo_colors::OwoColorize;
-use remu_macro::log_err;
+use remu_macro::{log_err, log_error};
 use remu_utils::{ProcessError, ProcessResult, ISA};
 use state::{reg::RegfileIo, States};
 
@@ -98,6 +98,10 @@ impl SimulatorItem for Emu {
         println!("{}: {}", "Cycles".purple(), self.times.cycles.blue());
         println!("{}: {}", "Instructions".purple(), self.times.instructions.blue());
         Ok(())
+    }
+
+    fn function_wave_trace(&self,_enable:bool) {
+        log_error!("Wave tracing is not supported in Emu.");
     }
 }
 

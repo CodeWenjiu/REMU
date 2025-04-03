@@ -10,4 +10,10 @@ menu "Debugging"
         default n
         help
             Enable Itrace by default.
+
+    config DEBUG_DEFAULT_WaveTRACE_ENABLE
+        bool "Default Wavetrace Enable"
+        default n
+        help
+            Enable WaveTrace by default.
 endmenu

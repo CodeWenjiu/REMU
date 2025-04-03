@@ -47,6 +47,7 @@ pub struct RegionConfiguration {
 pub enum DebugConfiguration {
     Readline { history: usize },
     Itrace { enable: bool },
+    WaveTrace { enable: bool },
 }
 
 pub type ConfigResult<T, E = ConfigError> = std::result::Result<T, E>;
@@ -211,6 +212,12 @@ fn parse_debug_configuration(
 
                 ("DEFAULT", "ITRACE", "ENABLE") => {
                     debug_config.push(DebugConfiguration::Itrace {
+                        enable: parse_bool(value)?,
+                    });
+                }
+
+                ("DEFAULT", "WaveTRACE", "ENABLE") => {
+                    debug_config.push(DebugConfiguration::WaveTrace {
                         enable: parse_bool(value)?,
                     });
                 }
