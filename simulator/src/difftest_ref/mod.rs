@@ -10,6 +10,11 @@ use enum_dispatch::enum_dispatch;
 
 remu_macro::mod_flat!(difftest_ffi);
 
+#[enum_dispatch]
+pub enum AnyDifftestFfiRef {
+    SPIKE(Spike),
+}
+
 #[enum_dispatch(AnyDifftestFfiRef)]
 pub trait DifftestRefFfiApi {
     fn step_cycle(&mut self) -> ProcessResult<()>;
@@ -28,13 +33,13 @@ pub trait DifftestRefFfiApi {
 }
 
 #[enum_dispatch]
-pub enum AnyDifftestFfiRef {
-    SPIKE(Spike),
-}
-
-#[enum_dispatch]
 pub enum AnyDifftestBuildInRef {
     EMU(Emu),
+}
+
+#[enum_dispatch(AnyDifftestBuildInRef)]
+pub trait DifftestRefBuildInApi {
+    fn instruction_compelete(&mut self) -> ProcessResult<()>;
 }
 
 pub enum AnyDifftestRef {

@@ -5,12 +5,12 @@ use enum_dispatch::enum_dispatch;
 use logger::Logger;
 use option_parser::{DebugConfiguration, OptionParser};
 use owo_colors::OwoColorize;
-use remu_macro::{log_err, log_error, log_todo};
+use remu_macro::{xlog_err, log_error, log_todo};
 use remu_utils::{Disassembler, ProcessError, ProcessResult, Simulators};
-use state::States;
+use state::{reg::RegfileIo, CheckFlags4reg, States};
 
 use crate::{
-    difftest_ref::{AnyDifftestRef, DifftestRefFfiApi},
+    difftest_ref::{AnyDifftestRef, DifftestRefBuildInApi, DifftestRefFfiApi},
     emu::Emu, nzea::Nzea,
 };
 
@@ -218,6 +218,7 @@ impl Simulator {
         let simulator_state_clone1 = simulator_state.clone();
         let simulator_state_clone2 = simulator_state.clone();
         let r#ref_clone = r#ref.clone();
+        let mut state_ref_clone = states_ref.clone();
         let mut state_dut_clone = states_dut.clone();
         let pending_instructions_clone = pending_instructions.clone();
         let memory_watch_points_clone = memory_watch_points.clone();
@@ -263,7 +264,10 @@ impl Simulator {
                         r_ref.test_mem(mem_diff_msg)?;
                     }
         
-                    AnyDifftestRef::BuildIn(_r_ref) => {
+                    AnyDifftestRef::BuildIn(r_ref) => {
+                        r_ref.instruction_compelete()?;
+
+                        state_ref_clone.regfile.check(&state_dut_clone.regfile, CheckFlags4reg::gpr.union(CheckFlags4reg::pc))?;
                     }
                 }
                 
@@ -277,7 +281,8 @@ impl Simulator {
                         AnyDifftestRef::FFI(r_ref) => {
                             r_ref.set_ref(&state_dut_clone.regfile);
                         }
-                        AnyDifftestRef::BuildIn(_r_ref) => {
+                        AnyDifftestRef::BuildIn(_) => {
+                            state_ref_clone.regfile.set_reg(&state_dut_clone.regfile);
                         }
                     }
                 }

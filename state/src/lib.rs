@@ -1,5 +1,5 @@
 use mmu::MMU;
-use reg::{AnyRegfile, RegfileIo};
+use reg::AnyRegfile;
 use remu_utils::ISA;
 
 remu_macro::mod_pub!(mmu, reg);
@@ -31,9 +31,5 @@ impl States {
         let mmu = MMU::new();
 
         Ok(States { regfile, mmu })
-    }
-
-    pub fn check_states(&self, states: &States, flags: CheckFlags) -> Result<(), ()> {
-        self.regfile.check(&states.regfile, flags.reg_flag)
     }
 }

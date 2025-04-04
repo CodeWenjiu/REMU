@@ -13,7 +13,7 @@ Binfile_default = $(Binfile_Nzea)
 Platform_default = $(Platform_nzea)
 
 Mainargs = --bin $(Binfile_default) -p $(Platform_default)
-Debugargs = $(Mainargs) #-d spike #--log
+Debugargs = $(Mainargs) -d emu #--log
 
 default: run
 

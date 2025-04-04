@@ -2,7 +2,7 @@ use enum_dispatch::enum_dispatch;
 use logger::Logger;
 use owo_colors::OwoColorize;
 use remu_macro::{log_error, log_todo};
-use remu_utils::ISA;
+use remu_utils::{ProcessError, ProcessResult, ISA};
 use riscv::{Rv32eGprEnum, Rv32eRegFile, Rv32iRegFile};
 
 use crate::CheckFlags4reg;
@@ -67,7 +67,11 @@ pub trait RegfileIo {
         log_todo!();
     }
 
-    fn check(&self, regfile: &AnyRegfile, flags: CheckFlags4reg) -> Result<(), ()> {
+    fn set_reg(&mut self, _target: &AnyRegfile) {
+        log_todo!()
+    }
+
+    fn check(&self, regfile: &AnyRegfile, flags: CheckFlags4reg) -> ProcessResult<()> {
         if flags.contains(CheckFlags4reg::pc) {
             if self.read_pc() != regfile.read_pc() {
                 log_error!(format!(
@@ -75,7 +79,7 @@ pub trait RegfileIo {
                     self.read_pc(),
                     regfile.read_pc()
                 ));
-                return Err(());
+                return Err(ProcessError::Recoverable);
             }
         }
         if flags.contains(CheckFlags4reg::gpr) {
@@ -88,7 +92,7 @@ pub trait RegfileIo {
                         "Dut GPR[{}]: {:#010x}, Ref GPR[{}]: {:#010x}",
                         i, a, i, b
                     ));
-                    return Err(());
+                    return Err(ProcessError::Recoverable);
                 }
             }
         }

@@ -1,6 +1,6 @@
 use std::ops::Range;
 
-remu_macro::mod_flat!(emu);
+remu_macro::mod_flat!(emu, difftest_ref);
 remu_macro::mod_pub!(isa);
 
 fn extract_bits(input: u32, range: Range<u8>) -> u32 {
