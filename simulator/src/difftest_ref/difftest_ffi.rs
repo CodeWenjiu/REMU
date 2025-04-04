@@ -7,7 +7,7 @@ use remu_macro::log_error;
 use remu_utils::ProcessResult;
 use state::reg::{AnyRegfile, RegfileIo};
 
-use super::DifftestRefApi;
+use super::DifftestRefFfiApi;
 
 include!(concat!("../../bindings.rs"));
 
@@ -55,7 +55,7 @@ pub fn difftestffi_init(regfile: &AnyRegfile, bin: Vec<u8>, reset_vector: u32) {
 pub struct Spike {
 }
 
-impl DifftestRefApi for Spike {
+impl DifftestRefFfiApi for Spike {
     fn step_cycle(&mut self) -> ProcessResult<()> {
         unsafe {
             difftest_exec(1);

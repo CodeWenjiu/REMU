@@ -10,7 +10,7 @@ use remu_utils::{Disassembler, ProcessError, ProcessResult, Simulators};
 use state::States;
 
 use crate::{
-    difftest_ref::{AnyDifftestRef, DifftestRefApi},
+    difftest_ref::{AnyDifftestRef, DifftestRefFfiApi},
     emu::Emu, nzea::Nzea,
 };
 
@@ -243,23 +243,29 @@ impl Simulator {
                     return Ok(());
                 }
                 let mut ref_mut = r#ref_clone.as_ref().unwrap().borrow_mut();
-                ref_mut.step_cycle()?;
-                ref_mut.test_reg(&state_dut_clone.regfile).map_err(|e| {
-                    *simulator_state_clone1.lock().unwrap() = SimulatorState::TRAPED(false);
-                    e
-                })?;
-        
+                match &mut *ref_mut {
+                    AnyDifftestRef::FFI(r_ref) => {
+                        r_ref.step_cycle()?;
+                        r_ref.test_reg(&state_dut_clone.regfile).map_err(|e| {
+                            *simulator_state_clone1.lock().unwrap() = SimulatorState::TRAPED(false);
+                            e
+                        })?;
 
-                // Check memory watchpoints
-                let mut mem_diff_msg = vec![];
-                for addr in memory_watch_points_clone.borrow().iter() {
-                    let dut_data = log_err!(
-                        state_dut_clone.mmu.read(*addr, state::mmu::Mask::Word),
-                        ProcessError::Recoverable
-                    )?.1;
-                    mem_diff_msg.push((*addr, dut_data));
+                        // Check memory watchpoints
+                        let mut mem_diff_msg = vec![];
+                        for addr in memory_watch_points_clone.borrow().iter() {
+                            let dut_data = log_err!(
+                                state_dut_clone.mmu.read(*addr, state::mmu::Mask::Word),
+                                ProcessError::Recoverable
+                            )?.1;
+                            mem_diff_msg.push((*addr, dut_data));
+                        }
+                        r_ref.test_mem(mem_diff_msg)?;
+                    }
+        
+                    AnyDifftestRef::BuildIn(_r_ref) => {
+                    }
                 }
-                ref_mut.test_mem(mem_diff_msg)?;
                 
                 Ok(())
             };
@@ -267,7 +273,13 @@ impl Simulator {
             if *is_difftest_skip_clone.borrow() == true {
                 if let Some(r#ref) = &r#ref_clone {
                     *is_difftest_skip_clone.borrow_mut() = false;
-                    r#ref.borrow_mut().set_ref(&state_dut_clone.regfile);
+                    match &mut *r#ref.borrow_mut() {
+                        AnyDifftestRef::FFI(r_ref) => {
+                            r_ref.set_ref(&state_dut_clone.regfile);
+                        }
+                        AnyDifftestRef::BuildIn(_r_ref) => {
+                        }
+                    }
                 }
             } else {
                 difftest_step()?;
