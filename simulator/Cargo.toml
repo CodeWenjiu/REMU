@@ -17,6 +17,7 @@ snafu = {workspace = true}
 owo-colors = {workspace = true}
 bitflags = {workspace = true}
 clap = {workspace = true}
+petgraph = {workspace = true}
 dlopen2 = "0.7.0"
 once_cell = "1.21.3"
 ctrlc = "3.4.5"

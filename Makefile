@@ -24,10 +24,10 @@ clean:
 	@$(MAKE) -C ./config clean
 
 run :
-	cargo run $(Job) --release --bin core -- $(Mainargs)
+	@cargo run $(Job) --release --bin core -- $(Mainargs)
 
 debug :
-	RUST_BACKTRACE=full cargo run $(Job) --bin core -- $(Debugargs)
+	@RUST_BACKTRACE=full cargo run $(Job) --bin core -- $(Debugargs)
 
 .PHONY: default menuconfig clean run debug
 

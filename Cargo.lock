@@ -3606,6 +3606,7 @@ dependencies = [
  "once_cell",
  "option_parser",
  "owo-colors 4.2.0",
+ "petgraph",
  "remu_macro",
  "remu_utils",
  "snafu",

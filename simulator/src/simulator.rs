@@ -5,7 +5,7 @@ use enum_dispatch::enum_dispatch;
 use logger::Logger;
 use option_parser::{DebugConfiguration, OptionParser};
 use owo_colors::OwoColorize;
-use remu_macro::{xlog_err, log_error, log_todo};
+use remu_macro::{log_err, log_error, log_todo};
 use remu_utils::{Disassembler, ProcessError, ProcessResult, Simulators};
 use state::{reg::RegfileIo, CheckFlags4reg, States};
 

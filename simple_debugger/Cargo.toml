@@ -16,5 +16,5 @@ simulator = { path = "../simulator" }
 owo-colors = {workspace = true}
 snafu = {workspace = true}
 clap = {workspace = true}
+petgraph = {workspace = true}
 rustyline = { version = "15.0.0", features = ["derive"] }
-petgraph = "0.7.1"
