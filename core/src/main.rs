@@ -10,7 +10,8 @@ fn init(option: &OptionParser) -> Result<(), ()> {
     Ok(())
 }
 
-fn main() -> Result<(), ()> {
+#[tokio::main]
+async fn main() -> Result<(), ()> {
     let option = parse()?;
 
     init(&option)?;

@@ -30,3 +30,5 @@ color-eyre = "0.6"
 clap = { version = "4.5.32", features = [ "derive", "color" ] }
 bitflags = "2.9.0"
 petgraph = "0.7.1"
+tokio = { version = "1.44.2", features = ["full"] }
+futures = "0.3.31"
