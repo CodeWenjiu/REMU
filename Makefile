@@ -1,19 +1,19 @@
 Job = -j `nproc`
 
-Binfile_Emu = ./.test/microbench-riscv32-nemu.bin
 Binfile_Nzea = ./.test/microbench-riscv32e-npc.bin
+Binfile_Emu = ./.test/microbench-riscv32-nemu.bin
 
 Platform_emu_rv32im = rv32im-emu
 Platform_emu_rv32e = rv32e-emu
 Platform_emu_default = $(Platform_emu_rv32im)
 
-Platform_nzea = rv32e-nzea
+Platform_Nzea = rv32e-nzea
 
 Binfile_default = $(Binfile_Nzea)
-Platform_default = $(Platform_nzea)
+Platform_default = $(Platform_Nzea)
 
 Mainargs = --bin $(Binfile_default) -p $(Platform_default)
-Debugargs = $(Mainargs) -d emu #--log
+Debugargs = $(Mainargs) # -d emu--log
 
 default: run
 
