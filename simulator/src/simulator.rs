@@ -21,6 +21,8 @@ pub enum FunctionTarget {
     InstructionTrace,
     /// The Wave trace function - displays the waveforms of signals(basically only suit for HDL simulator)
     WaveTrace,
+    /// GUI Simulator, for now it direct to `NVBOARD`
+    GuiSimulator,
 }
 
 /// Common interface for all simulator implementations
@@ -44,6 +46,10 @@ pub trait SimulatorItem {
     }
 
     fn function_wave_trace(&self, _enable: bool) {
+        log_todo!();
+    }
+
+    fn function_nvboard(&self, _enable: bool) {
         log_todo!();
     }
 }
@@ -398,6 +404,9 @@ impl Simulator {
             FunctionTarget::WaveTrace => {
                 self.dut.function_wave_trace(enable);
                 Logger::function("WaveTrace", enable);
+            }
+            FunctionTarget::GuiSimulator => {
+                self.dut.function_nvboard(enable);
             }
         }
 
