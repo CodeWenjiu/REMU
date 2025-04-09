@@ -21,7 +21,4 @@ fn main() {
     bindings
         .write_to_file("bindings.rs")
         .expect("Failed to write bindings");
-
-    println!("cargo:rustc-link-search=native=/home/wenjiu/ysyx-workbench/remu/simulator/src/nzea/nvboard/build");
-    println!("cargo:rustc-link-lib=nvboard");
 }
