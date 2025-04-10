@@ -1,6 +1,7 @@
 Job = -j `nproc`
 
 Binfile_Nzea = ./.test/microbench-riscv32e-npc.bin
+Binfile_jyd = ./.test/jyd_driver-riscv32e-npc.bin
 Binfile_Emu = ./.test/microbench-riscv32-nemu.bin
 
 Platform_emu_rv32im = rv32im-emu
@@ -9,7 +10,7 @@ Platform_emu_default = $(Platform_emu_rv32im)
 
 Platform_Nzea = rv32e-nzea
 
-Binfile_default = $(Binfile_Nzea)
+Binfile_default = $(Binfile_jyd)
 Platform_default = $(Platform_Nzea)
 
 Mainargs = --bin $(Binfile_default) -p $(Platform_default)
