@@ -13,3 +13,4 @@ enum_dispatch = {workspace = true}
 snafu = {workspace = true}
 owo-colors = {workspace = true}
 bitflags = {workspace = true}
+petgraph = {workspace = true}

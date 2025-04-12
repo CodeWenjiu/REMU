@@ -10,7 +10,7 @@ Platform_emu_default = $(Platform_emu_rv32im)
 
 Platform_Nzea = rv32e-nzea
 
-Binfile_default = $(Binfile_jyd)
+Binfile_default = $(Binfile_Nzea)
 Platform_default = $(Platform_Nzea)
 
 Mainargs = --bin $(Binfile_default) -p $(Platform_default)

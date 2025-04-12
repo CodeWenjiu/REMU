@@ -1,13 +1,15 @@
 use mmu::MMU;
+use model::{BasicPipeCell, PipelineModel};
 use reg::AnyRegfile;
 use remu_utils::ISA;
 
-remu_macro::mod_pub!(mmu, reg);
+remu_macro::mod_pub!(mmu, reg, model);
 
 #[derive(Clone)]
 pub struct States {
     pub regfile: AnyRegfile,
     pub mmu: MMU,
+    pub pipe_state: PipelineModel<BasicPipeCell>,
 }
 
 use bitflags::bitflags;
@@ -25,11 +27,11 @@ pub struct CheckFlags {
 }
 
 impl States {
-    pub fn new(isa: ISA, reset_vector: u32) -> Result<Self, ()> {
+    pub fn new(isa: ISA, reset_vector: u32, pipe_state: PipelineModel<BasicPipeCell>) -> Result<Self, ()> {
         let regfile = reg::regfile_io_factory(isa, reset_vector)?;
 
         let mmu = MMU::new();
 
-        Ok(States { regfile, mmu })
+        Ok(States { regfile, mmu, pipe_state })
     }
 }
