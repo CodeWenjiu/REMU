@@ -4,8 +4,8 @@ Binfile_Nzea = ./.test/microbench-riscv32e-npc.bin
 Binfile_jyd = ./.test/jyd_driver-riscv32e-npc.bin
 Binfile_Emu = ./.test/microbench-riscv32-nemu.bin
 
-Platform_emu_rv32im = rv32im-emu
-Platform_emu_rv32e = rv32e-emu
+Platform_emu_rv32im = rv32im-emu-nemu
+Platform_emu_rv32e = rv32e-emu-nemu
 Platform_emu_default = $(Platform_emu_rv32im)
 
 Platform_Nzea = rv32e-nzea

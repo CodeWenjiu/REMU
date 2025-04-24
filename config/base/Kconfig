@@ -8,9 +8,15 @@ menu "BASE_CONFIG"
         help
             Set the reset vector for the EMU platform.
 
-    config NZEA_BASE_RESET_VECTOR
-        hex "Set NZEA Reset Vector"
+    config NZEA_NPC_BASE_RESET_VECTOR
+        hex "Set NZEA NPC Reset Vector"
         default 0x80000000
+        help
+            Set the reset vector for the NZEA platform.
+            
+    config NZEA_YSYXSOC_BASE_RESET_VECTOR
+        hex "Set NZEA YSYXSOC Reset Vector"
+        default 0x30000000
         help
             Set the reset vector for the NZEA platform.
 

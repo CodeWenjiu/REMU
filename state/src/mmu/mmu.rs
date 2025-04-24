@@ -149,7 +149,7 @@ impl MMU {
         Ok(memory.read(offset, mask))
     }
 
-    pub fn read_by_name(&mut self, name: &str, mask: Mask, offset: u32) -> MMUResult<u32> {
+    pub fn read_by_name(&mut self, name: &str, offset: u32, mask: Mask) -> MMUResult<u32> {
         let (mut memory, flags) = self.find_region_byname(name)?;
         
         if !flags.contains(MemoryFlags::Read) {
@@ -173,6 +173,17 @@ impl MMU {
         
         memory.write(offset, data, mask);
         Ok(is_device)
+    }
+
+    pub fn write_by_name(&mut self, name: &str, offset: u32, data: u32, mask: Mask) -> MMUResult<()> {
+        let (mut memory, flags) = self.find_region_byname(name)?;
+        
+        if !flags.contains(MemoryFlags::Write) {
+            return Err(MMUError::MemoryUnwritable { addr: offset });
+        }
+        
+        memory.write(offset, data, mask);
+        Ok(())
     }
 
     pub fn inst_fetch(&mut self, addr: u32) -> MMUResult<u32> {

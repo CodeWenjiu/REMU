@@ -43,6 +43,17 @@ impl From<RemuSimulators> for &str {
     }
 }
 
+impl FromStr for RemuSimulators {
+    type Err = Box<dyn Error + Send + Sync>;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        match s {
+            "nemu" => Ok(RemuSimulators::NEMU),
+            _ => Err("Unknown Remu Simulator".into()),
+        }
+    }
+}
+
 #[derive(Debug, Clone, Copy)]
 pub enum NzeaSimulators {
     NPC,
@@ -56,6 +67,19 @@ impl From<NzeaSimulators> for &str {
             NzeaSimulators::JYD => "jyd",
             NzeaSimulators::NPC => "npc",
             NzeaSimulators::YSYXSOC => "ysyxsoc",
+        }
+    }
+}
+
+impl FromStr for NzeaSimulators {
+    type Err = Box<dyn Error + Send + Sync>;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        match s {
+            "jyd" => Ok(NzeaSimulators::JYD),
+            "npc" => Ok(NzeaSimulators::NPC),
+            "ysyxsoc" => Ok(NzeaSimulators::YSYXSOC),
+            _ => Err("Unknown Nzea Simulator".into()),
         }
     }
 }
@@ -83,10 +107,12 @@ impl FromStr for Simulators {
     type Err = Box<dyn Error + Send + Sync>;
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
-        match s {
-            "emu" => Ok(Simulators::EMU(RemuSimulators::NEMU)),
-            "nzea" => Ok(Simulators::NZEA(NzeaSimulators::NPC)),
-            _ => Err("Unknown Simulator".into()),
+        let (sim_type, sim_name) = s.split_once('-').ok_or("Invalid simulator format")?;
+
+        match sim_type {
+            "emu" => Ok(Simulators::EMU(RemuSimulators::from_str(sim_name)?)),
+            "nzea" => Ok(Simulators::NZEA(NzeaSimulators::from_str(sim_name)?)),
+            _ => Err("Unknown simulator type".into()),
         }
     }
 }

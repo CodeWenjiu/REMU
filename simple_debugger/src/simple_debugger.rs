@@ -139,14 +139,16 @@ impl SimpleDebugger {
         };
 
         log_err!(state.mmu.load(reset_vector, &bytes)).unwrap();
-        if let Some(DifftestRef::BuildIn(_)) = cli_result.cli.differtest {
-            log_err!(state_ref.mmu.load(reset_vector, &bytes)).unwrap();
-        } else {
-            difftestffi_init(&state.regfile, bytes, reset_vector);
-        }
-
-        if cli_result.cli.differtest.is_none() {
-            state_ref = state.clone();
+        match cli_result.cli.differtest {
+            Some(DifftestRef::BuildIn(_)) => {
+                log_err!(state_ref.mmu.load(reset_vector, &bytes)).unwrap();
+            }
+            Some(DifftestRef::FFI(_)) => {
+                difftestffi_init(&state.regfile, bytes, reset_vector);
+            }
+            None => {
+                state_ref = state.clone();
+            }
         }
 
         (state, state_ref)

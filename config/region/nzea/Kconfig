@@ -1,17 +1,131 @@
 menu "NZEA Platform"
-    config NZEA_NPC_MEM_SRAM_BASE
-        hex "NZEA SRAM Base Address"
-        default 0x80000000
-        help
-            Base address for NZEA platform's SRAM.
+    menu "YSYXSOC Memory Regions"
 
-    config NZEA_NPC_MEM_SRAM_SIZE
-        hex "NZEA SRAM Size"
-        default 0x08000000
-        help
-            Size of SRAM for NZEA platform (hex).
+        menu "SRAM"
 
-    config NZEA_NPC_MEM_SRAM_FLAG
-        string "NZEA SRAM Flag"
-        default "0b00000111"
+            config NZEA_YSYXSOC_MEM_SRAM_BASE
+                hex "EMU SRAM Base Address"
+                default 0x0f000000
+                help
+                    Base address for EMU platform's SRAM.
+
+            config NZEA_YSYXSOC_MEM_SRAM_SIZE
+                hex "EMU SRAM Size"
+                default 0x00002000
+                help
+                    Size of SRAM for EMU platform (hex).
+
+            config NZEA_YSYXSOC_MEM_SRAM_FLAG
+                string "EMU SRAM Flag"
+                default "0b00000111"
+                help
+                    Flag for SRAM region.
+
+        endmenu
+
+        menu "MROM"
+
+            config NZEA_YSYXSOC_MEM_MROM_BASE
+                hex "EMU MROM Base Address"
+                default 0x20000000
+                help
+                    Base address for EMU platform's MROM.
+
+            config NZEA_YSYXSOC_MEM_MROM_SIZE
+                hex "EMU MROM Size"
+                default 0x00001000
+                help
+                    Size of MROM for EMU platform (hex).
+
+            config NZEA_YSYXSOC_MEM_MROM_FLAG
+                string "EMU MROM Flag"
+                default "0b00000101"
+                help
+                    Flag for MROM region.
+
+        endmenu
+
+        menu "FLASH"
+
+            config NZEA_YSYXSOC_MEM_FLASH_BASE
+                hex "EMU FLASH Base Address"
+                default 0x30000000
+                help
+                    Base address for EMU platform's FLASH.
+
+            config NZEA_YSYXSOC_MEM_FLASH_SIZE
+                hex "EMU FLASH Size"
+                default 0x10000000
+                help
+                    Size of FLASH for EMU platform (hex).
+
+            config NZEA_YSYXSOC_MEM_FLASH_FLAG
+                string "EMU FLASH Flag"
+                default "0b00000111"
+                help
+                    Flag for FLASH region.
+
+        endmenu
+
+        menu "PSRAM"
+
+            config NZEA_YSYXSOC_MEM_PSRAM_BASE
+                hex "EMU PSRAM Base Address"
+                default 0x80000000
+                help
+                    Base address for EMU platform's PSRAM.
+
+            config NZEA_YSYXSOC_MEM_PSRAM_SIZE
+                hex "EMU PSRAM Size"
+                default 0x00400000
+                help
+                    Size of PSRAM for EMU platform (hex).
+                    
+            config NZEA_YSYXSOC_MEM_PSRAM_FLAG
+                string "EMU PSRAM Flag"
+                default "0b00000111"
+
+        endmenu
+
+        menu "SDRAM"
+
+            config NZEA_YSYXSOC_MEM_SDRAM_BASE
+                hex "EMU SDRAM Base Address"
+                default 0xa0000000
+                help
+                    Base address for EMU platform's SDRAM.
+
+            config NZEA_YSYXSOC_MEM_SDRAM_SIZE
+                hex "EMU SDRAM Size"
+                default 0x02000000
+                help
+                    Size of SDRAM for EMU platform (hex).
+                    
+            config NZEA_YSYXSOC_MEM_SDRAM_FLAG
+                string "EMU SDRAM Flag"
+                default "0b00000111"
+
+        endmenu
+
+    endmenu
+
+    menu "NPC Memory Regions"
+        
+        config NZEA_NPC_MEM_SRAM_BASE
+            hex "NZEA NPC SRAM Base Address"
+            default 0x80000000
+            help
+                Base address for NZEA platform's SRAM.
+
+        config NZEA_NPC_MEM_SRAM_SIZE
+            hex "NZEA NPC SRAM Size"
+            default 0x08000000
+            help
+                Size of SRAM for NZEA platform (hex).
+
+        config NZEA_NPC_MEM_SRAM_FLAG
+            string "NZEA NPC SRAM Flag"
+            default "0b00000111"
+        
+    endmenu
 endmenu
