@@ -137,7 +137,7 @@ fn parse_region(
         if let Some(caps) = re.captures(key) {
             let prefix = &caps[1];
 
-            if prefix != &simulator.to_uppercase() {
+            if prefix.replace("_", "-") != simulator.to_uppercase() {
                 continue;
             }
 
@@ -167,7 +167,7 @@ fn parse_region(
         if let Some(caps) = re.captures(key) {
             let prefix = &caps[1];
 
-            if prefix != &simulator.to_uppercase() {
+            if prefix.replace("_", "-") != simulator.to_uppercase() {
                 continue;
             }
 

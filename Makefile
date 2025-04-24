@@ -10,10 +10,17 @@ Platform_emu_default = $(Platform_emu_rv32im)
 
 Platform_Nzea = rv32e-nzea
 
-Binfile_default = $(Binfile_Nzea)
-Platform_default = $(Platform_Nzea)
+Platform ?= $(Platform_Nzea)
+# Set Binfile based on Platform
+ifeq ($(Platform),$(Platform_emu_rv32im))
+	Binfile ?= $(Binfile_Emu)
+else ifeq ($(Platform),$(Platform_emu_rv32e))
+	Binfile ?= $(Binfile_Emu)
+else
+	Binfile ?= $(Binfile_Nzea)
+endif
 
-Mainargs = --bin $(Binfile_default) -p $(Platform_default)
+Mainargs = --bin $(Binfile) -p $(Platform)
 Debugargs = $(Mainargs) # -d emu--log
 
 default: run

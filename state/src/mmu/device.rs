@@ -1,4 +1,4 @@
-use std::time::{SystemTime, UNIX_EPOCH};
+use std::time::Instant;
 
 use remu_macro::{log_error, log_todo};
 use logger::Logger;
@@ -62,33 +62,25 @@ impl DeviceIo for Serial {
 
 #[derive(Debug)]
 pub struct Timer {
-    pub base: u64,
+    pub start_time: Instant
 }
 
 impl Timer {
     pub fn new() -> Self {
-        let start = SystemTime::now();
-        let since_the_epoch = start.duration_since(UNIX_EPOCH)
-            .expect("Time went backwards");
-        let timestamp_micros = since_the_epoch.as_micros();
-        let base = timestamp_micros as u64;
         Timer {
-            base,
+            start_time: Instant::now()
         }
     }
 }
 
 impl DeviceIo for Timer {
     fn read(&mut self, addr: u32, _mask: Mask) -> u32 {
-        let start = SystemTime::now();
-        let since_the_epoch = start.duration_since(UNIX_EPOCH)
-            .expect("Time went backwards");
-        let timestamp_micros = since_the_epoch.as_micros();
-        let current = timestamp_micros as u64;
-        let elapsed = current - self.base;
+        let elapsed_duration = self.start_time.elapsed(); 
+        let elapsed_micros = elapsed_duration.as_micros();
+
         match addr {
-            0 => (elapsed & 0xFFFFFFFF) as u32,
-            4 => ((elapsed >> 32) & 0xFFFFFFFF) as u32,
+            0 => (elapsed_micros & 0xFFFFFFFF) as u32,
+            4 => ((elapsed_micros >> 32) & 0xFFFFFFFF) as u32,
             _ => panic!("Invalid timer read address"),
         }
     }

@@ -31,6 +31,19 @@ impl FromStr for ISA {
 }
 
 #[derive(Debug, Clone, Copy)]
+pub enum RemuSimulators {
+    NEMU,
+}
+
+impl From<RemuSimulators> for &str {
+    fn from(sim: RemuSimulators) -> Self {
+        match sim {
+            RemuSimulators::NEMU => "nemu",
+        }
+    }
+}
+
+#[derive(Debug, Clone, Copy)]
 pub enum NzeaSimulators {
     NPC,
     YSYXSOC,
@@ -49,14 +62,16 @@ impl From<NzeaSimulators> for &str {
 
 #[derive(Debug, Clone, Copy)]
 pub enum Simulators {
-    EMU,
+    EMU (RemuSimulators),
     NZEA (NzeaSimulators),
 }
 
 impl From<Simulators> for &str {
     fn from(sim: Simulators) -> Self {
         match sim {
-            Simulators::EMU => "emu",
+            Simulators::EMU(remu_sim) => {
+                Box::leak(format!("emu-{}", Into::<&str>::into(remu_sim)).into_boxed_str())
+            }
             Simulators::NZEA(nzea_sim) => {
                 Box::leak(format!("nzea-{}", Into::<&str>::into(nzea_sim)).into_boxed_str())
             }
@@ -69,7 +84,7 @@ impl FromStr for Simulators {
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         match s {
-            "emu" => Ok(Simulators::EMU),
+            "emu" => Ok(Simulators::EMU(RemuSimulators::NEMU)),
             "nzea" => Ok(Simulators::NZEA(NzeaSimulators::NPC)),
             _ => Err("Unknown Simulator".into()),
         }
