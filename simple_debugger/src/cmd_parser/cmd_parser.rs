@@ -97,6 +97,10 @@ pub enum InfoCmds {
         #[command(subcommand)]
         subcmd: MemoryCmds,
     },
+
+    /// Get the state of the pipeline
+    Pipeline {
+    },
 }
 
 #[derive(Debug, Subcommand)]

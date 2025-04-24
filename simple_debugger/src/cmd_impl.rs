@@ -17,6 +17,10 @@ impl SimpleDebugger {
             InfoCmds::Register { subcmd } => {
                 self.cmd_register(subcmd)?;
             }
+
+            InfoCmds::Pipeline {  } => {
+                println!("{:#?}", self.state.pipe_state)
+            }
         }
 
         Ok(())
@@ -125,6 +129,10 @@ impl SimpleDebugger {
 
             InfoCmds::Register { subcmd } => {
                 self.cmd_differtest_register(subcmd)?;
+            }
+
+            InfoCmds::Pipeline {  } => {
+                println!("{:#?}", self.state_ref.pipe_state)
             }
         }
 
