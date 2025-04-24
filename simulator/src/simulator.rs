@@ -111,7 +111,7 @@ impl TryFrom<(&OptionParser, States, SimulatorCallback)> for SimulatorEnum {
         let sim = option.cli.platform.simulator;
         match sim {
             Simulators::EMU => Ok(SimulatorEnum::NEMU(Emu::new(option, states, callback))),
-            Simulators::NZEA => Ok(SimulatorEnum::NZEA(Nzea::new(option, states, callback)))
+            Simulators::NZEA(_) => Ok(SimulatorEnum::NZEA(Nzea::new(option, states, callback)))
         }
     }
 }
