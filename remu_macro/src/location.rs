@@ -55,6 +55,21 @@ macro_rules! log_error {
 }
 
 #[macro_export]
+macro_rules! log_err {
+    ($expr:expr) => {
+        $expr.map_err(|e| {
+            $crate::log_error!(e.to_string())
+        })
+    };
+    ($expr:expr, $err:expr) => {
+        $expr.map_err(|e| {
+            $crate::log_error!(e.to_string());
+            $err
+        })
+    };
+}
+
+#[macro_export]
 macro_rules! log_todo {
     () => {
         $crate::log_error!("TODO")

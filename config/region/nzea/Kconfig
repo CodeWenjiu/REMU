@@ -45,6 +45,28 @@ menu "NZEA Platform"
 
         endmenu
 
+        menu "VGA"
+
+            config NZEA_YSYXSOC_MEM_VGA_BASE
+                hex "EMU VGA Base Address"
+                default 0x21000000
+                help
+                    Base address for EMU platform's VGA.
+
+            config NZEA_YSYXSOC_MEM_VGA_SIZE
+                hex "EMU VGA Size"
+                default 0x00200000
+                help
+                    Size of VGA for EMU platform (hex).
+
+            config NZEA_YSYXSOC_MEM_VGA_FLAG
+                string "EMU VGA Flag"
+                default "0b00000011"
+                help
+                    Flag for VGA region.
+
+        endmenu
+
         menu "FLASH"
 
             config NZEA_YSYXSOC_MEM_FLASH_BASE

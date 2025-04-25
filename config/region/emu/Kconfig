@@ -67,13 +67,13 @@ menu "EMU Platform"
 
             config EMU_NEMU_MEM_FLASH_BASE
                 hex "EMU FLASH Base Address"
-                default 0x30001000
+                default 0x30000000
                 help
                     Base address for EMU platform's FLASH.
 
             config EMU_NEMU_MEM_FLASH_SIZE
                 hex "EMU FLASH Size"
-                default 0x00001000
+                default 0x10000000
                 help
                     Size of FLASH for EMU platform (hex).
 
@@ -95,7 +95,7 @@ menu "EMU Platform"
 
             config EMU_NEMU_MEM_PSRAM_SIZE
                 hex "EMU PSRAM Size"
-                default 0x08000000
+                default 0x00400000
                 help
                     Size of PSRAM for EMU platform (hex).
                     
