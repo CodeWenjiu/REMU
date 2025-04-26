@@ -6,8 +6,12 @@ use std::path::PathBuf;
 
 fn main() {
     let out_dir = PathBuf::from(env::var("OUT_DIR").unwrap());
+
+    let mut path = env::current_dir().unwrap();
+    path.pop();
+    let path = path.join("remu_buildin").join("difftest_ref");
     fs::copy(
-        "/home/wenjiu/ysyx-workbench/nemu/tools/spike-diff/build/riscv32-spike-so",
+        path.join("riscv32-spike-so"),
         out_dir.join("libriscv32-spike.so"),
     )
     .unwrap();
