@@ -23,8 +23,15 @@ impl FromStr for ISA {
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         match s {
             "rv32e" => Ok(ISA::RV32E),
+            "riscv32e" => Ok(ISA::RV32E),
+
+            "riscv32i" => Ok(ISA::RV32I),
             "rv32i" => Ok(ISA::RV32I),
+
+            "riscv32im" => Ok(ISA::RV32IM),
+            "riscv32" => Ok(ISA::RV32IM),
             "rv32im" => Ok(ISA::RV32IM),
+
             _ => Err("Unknown ISA".into()),
         }
     }

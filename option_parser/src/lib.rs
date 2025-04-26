@@ -11,13 +11,10 @@ pub fn parse() -> Result<OptionParser, ()> {
     let cli = CLI::try_parse().map_err(|e| {
         let _ = e.print();
     })?;
-    
+
     let cfg = config_parse(&cli)?;
 
     welcome(&cli.platform);
 
-    Ok(OptionParser {
-        cfg,
-        cli,
-    })
+    Ok(OptionParser { cfg, cli })
 }

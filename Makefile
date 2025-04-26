@@ -25,6 +25,7 @@ else
 endif
 
 Mainargs = --bin $(Binfile) -p $(Platform)
+ExtraArgs ?=
 Debugargs = $(Mainargs) # -d emu--log
 
 default: run
@@ -36,10 +37,13 @@ clean:
 	@$(MAKE) -C ./config clean
 
 run :
-	@cargo run $(Job) --release --bin core -- $(Mainargs)
+	@cargo run $(Job) --release --bin core -- $(Mainargs) $(ExtraArgs)
 
 debug :
 	@RUST_BACKTRACE=full cargo run $(Job) --bin core -- $(Debugargs)
 
-.PHONY: default menuconfig clean run debug
+fmt :
+	@cargo fmt --all 
+
+.PHONY: default menuconfig clean run debug fmt
 

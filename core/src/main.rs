@@ -1,5 +1,5 @@
 use logger::Logger;
-use option_parser::{parse, OptionParser};
+use option_parser::{OptionParser, parse};
 use simple_debugger::SimpleDebugger;
 
 fn init(option: &OptionParser) -> Result<(), ()> {
