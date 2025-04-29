@@ -8,7 +8,7 @@ use crate::{emu::Emu, SimulatorCallback};
 
 use enum_dispatch::enum_dispatch;
 
-remu_macro::mod_flat!(difftest_ffi);
+remu_macro::mod_flat!(difftest_ffi, difftest);
 
 #[enum_dispatch]
 pub enum AnyDifftestFfiRef {

@@ -1,7 +1,8 @@
 **/target
 .test
-.vscode/**
-.vscode
+.vscode/compile_commands.json
+.bloop
+out
 simulator/bindings.rs
 waveform.fst
 .metals
