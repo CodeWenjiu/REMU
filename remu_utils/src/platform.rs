@@ -66,14 +66,16 @@ pub enum NzeaSimulators {
     NPC,
     YSYXSOC,
     JYD,
+    JydRemote,
 }
 
 impl From<NzeaSimulators> for &str {
     fn from(sim: NzeaSimulators) -> Self {
         match sim {
-            NzeaSimulators::JYD => "jyd",
             NzeaSimulators::NPC => "npc",
             NzeaSimulators::YSYXSOC => "ysyxsoc",
+            NzeaSimulators::JYD => "jyd",
+            NzeaSimulators::JydRemote => "jyd_remote",
         }
     }
 }
@@ -83,9 +85,10 @@ impl FromStr for NzeaSimulators {
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         match s {
-            "jyd" => Ok(NzeaSimulators::JYD),
             "npc" => Ok(NzeaSimulators::NPC),
             "ysyxsoc" => Ok(NzeaSimulators::YSYXSOC),
+            "jyd" => Ok(NzeaSimulators::JYD),
+            "jyd_remote" => Ok(NzeaSimulators::JydRemote),
             _ => Err("Unknown Nzea Simulator".into()),
         }
     }

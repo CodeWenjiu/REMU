@@ -12,7 +12,7 @@ Platform_emu_default = $(Platform_emu_rv32im)
 Platform_Nzea_npc = rv32e-nzea-npc
 Platform_Nzea_ysyxsoc = rv32e-nzea-ysyxsoc
 
-Platform ?= $(Platform_Nzea)
+Platform ?= $(Platform_emu_default)
 # Set Binfile based on Platform
 ifeq ($(Platform),$(Platform_emu_rv32im))
 	Binfile ?= $(Binfile_Emu)

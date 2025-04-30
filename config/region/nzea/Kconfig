@@ -150,4 +150,52 @@ menu "NZEA Platform"
             default "0b00000111"
         
     endmenu
+
+    menu "jyd remote Regions"
+
+        menu "IROM"
+
+            config NZEA_JYD_REMOTE_MEM_IROM_BASE
+                hex "jyd remote IROM Base Address"
+                default 0x80000000
+                help
+                    Base address for jyd remote platform's IROM.
+
+            config NZEA_JYD_REMOTE_MEM_IROM_SIZE
+                hex "jyd remote IROM Size"
+                default 0x00004000
+                help
+                    Size of IROM for jyd remote platform (hex).
+
+            config NZEA_JYD_REMOTE_MEM_IROM_FLAG
+                string "jyd remote IROM Flag"
+                default "0b00000111"
+                help
+                    Flag for IROM region.
+
+        endmenu
+
+        menu "DRAM"
+
+            config NZEA_JYD_REMOTE_MEM_DRAM_BASE
+                hex "jyd remote DRAM Base Address"
+                default 0x80100000
+                help
+                    Base address for jyd remote platform's DRAM.
+
+            config NZEA_JYD_REMOTE_MEM_DRAM_SIZE
+                hex "jyd remote DRAM Size"
+                default 0x00040000
+                help
+                    Size of DRAM for jyd remote platform (hex).
+
+            config NZEA_JYD_REMOTE_MEM_DRAM_FLAG
+                string "jyd remote DRAM Flag"
+                default "0b00000110"
+                help
+                    Flag for DRAM region.
+
+        endmenu
+
+    endmenu
 endmenu
