@@ -1,6 +1,7 @@
 use std::{cell::{RefCell, RefMut}, rc::Rc};
 
 use owo_colors::OwoColorize;
+use remu_utils::{ProcessError, ProcessResult};
 
 use super::{MMTarget, MMTargetType, Mask, Memory, MemoryFlags, Device};
 
@@ -204,6 +205,23 @@ impl MMU {
         }
             
         memory.load(offset, data);
+        Ok(())
+    }
+
+    pub fn check(&mut self, mem_diff_msg: Vec<(u32, u32)>) -> ProcessResult<()> {
+        for (addr, data) in mem_diff_msg {
+            let (mut memory, offset, flags) = self.find_memory_region(addr).unwrap();
+
+            if !flags.contains(MemoryFlags::Read) {
+                println!("Memory unreadable at {:#010x}", addr);
+                return Err(ProcessError::Recoverable);
+            }
+            
+            let read_data = memory.read(offset, Mask::Word);
+            if read_data != data {
+                println!("Memory mismatch at {:#010x}: expected {:#010x}, got {:#010x}", addr, data, read_data);
+            }
+        }
         Ok(())
     }
 }

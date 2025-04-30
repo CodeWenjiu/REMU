@@ -259,7 +259,7 @@ impl RegfileIo for Rv32eRegFile {
                     if a != b {
                         log_error!(format!(
                             "Dut GPR[{}]: {:#010x}, Ref GPR[{}]: {:#010x}",
-                            i, a, i, b
+                            i, b, i, a
                         ));
                         return Err(ProcessError::Recoverable);
                     }

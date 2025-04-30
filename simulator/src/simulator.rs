@@ -274,6 +274,16 @@ impl Simulator {
                         r_ref.instruction_compelete()?;
 
                         state_ref_clone.regfile.check(&state_dut_clone.regfile, CheckFlags4reg::gpr.union(CheckFlags4reg::pc))?;
+
+                        let mut mem_diff_msg = vec![];
+                        for addr in memory_watch_points_clone.borrow().iter() {
+                            let dut_data = log_err!(
+                                state_dut_clone.mmu.read(*addr, state::mmu::Mask::Word),
+                                ProcessError::Recoverable
+                            )?.1;
+                            mem_diff_msg.push((*addr, dut_data));
+                        }
+                        state_ref_clone.mmu.check(mem_diff_msg)?;
                     }
                 }
                 
