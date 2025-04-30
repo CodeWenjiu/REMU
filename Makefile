@@ -3,7 +3,7 @@ Job = -j `nproc`
 Binfile_Nzea_npc = ./.test/microbench-riscv32e-npc.bin
 Binfile_Nzea_ysyxsoc = ./.test/microbench-riscv32e-ysyxsoc.bin
 Binfile_jyd = ./.test/jyd_driver-riscv32e-npc.bin
-Binfile_jyd_remote = ./.test/coremark-riscv32e-npc.bin
+Binfile_jyd_remote = ./.test/coremark-riscv32e-jyd_remote.bin
 Binfile_Emu = ./.test/microbench-riscv32-nemu.bin
 
 Platform_emu_rv32im = rv32im-emu-nemu
