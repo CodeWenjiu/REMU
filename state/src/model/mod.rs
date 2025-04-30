@@ -44,7 +44,6 @@ impl<T: Debug + Eq + Hash + Clone + Copy> MessageChannel<T> {
     }
 }
 
-
 bitflags! {
     #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
     pub struct BasicPipeCell: u32 {
@@ -53,6 +52,18 @@ bitflags! {
         const ALU = 1 << 2;
         const LSU = 1 << 3;
         const WBU = 1 << 4;
+    }
+}
+
+bitflags! {
+    #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+    pub struct JydPipeCell: u32 {
+        const IFU = 1 << 0;
+        const IDU = 1 << 1;
+        const ALU = 1 << 2;
+        const AGU = 1 << 3;
+        const LSU = 1 << 4;
+        const WBU = 1 << 5;
     }
 }
 
@@ -202,6 +213,50 @@ impl PipelineModel<BasicPipeCell> {
         channels.insert(lsu, (Rc::new(RefCell::new(MessageChannel::new(1))), lsu_node));
 
         let output = BasicPipeCell::WBU;
+        let output_node = graph.add_node(output);
+        graph.add_edge(alu_node, output_node, ());
+        graph.add_edge(lsu_node, output_node, ());
+        channels.insert(output, (Rc::new(RefCell::new(MessageChannel::new(1))), output_node));
+
+        Self {
+            channels,
+            graph,
+            input,
+            output,
+        }
+    }
+}
+
+impl PipelineModel<JydPipeCell> {
+    pub fn new() -> Self {
+        let mut graph = Graph::new(); // 显式指定 Graph 的 NodeIndex 类型
+        let mut channels = HashMap::new();
+
+        let input = JydPipeCell::IFU;
+        let input_node = graph.add_node(input);
+        channels.insert(input, (Rc::new(RefCell::new(MessageChannel::new(1))), input_node));
+
+        let idu = JydPipeCell::IDU;
+        let idu_node = graph.add_node(idu);
+        graph.add_edge(input_node, idu_node, ());
+        channels.insert(idu, (Rc::new(RefCell::new(MessageChannel::new(1))), idu_node));
+
+        let alu = JydPipeCell::ALU;
+        let alu_node = graph.add_node(alu);
+        graph.add_edge(idu_node, alu_node, ());
+        channels.insert(alu, (Rc::new(RefCell::new(MessageChannel::new(1))), alu_node));
+
+        let agu = JydPipeCell::AGU;
+        let agu_node = graph.add_node(agu);
+        graph.add_edge(idu_node, agu_node, ());
+        channels.insert(agu, (Rc::new(RefCell::new(MessageChannel::new(1))), agu_node));
+
+        let lsu = JydPipeCell::LSU;
+        let lsu_node = graph.add_node(lsu);
+        graph.add_edge(agu_node, lsu_node, ());
+        channels.insert(lsu, (Rc::new(RefCell::new(MessageChannel::new(1))), lsu_node));
+
+        let output = JydPipeCell::WBU;
         let output_node = graph.add_node(output);
         graph.add_edge(alu_node, output_node, ());
         graph.add_edge(lsu_node, output_node, ());
