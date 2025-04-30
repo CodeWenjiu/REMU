@@ -191,7 +191,7 @@ menu "NZEA Platform"
 
             config NZEA_JYD_REMOTE_MEM_DRAM_FLAG
                 string "jyd remote DRAM Flag"
-                default "0b00000110"
+                default "0b00000011"
                 help
                     Flag for DRAM region.
 

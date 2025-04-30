@@ -19,6 +19,12 @@ menu "BASE_CONFIG"
         default 0x30000000
         help
             Set the reset vector for the NZEA platform.
+            
+    config NZEA_JYD_REMOTE_BASE_RESET_VECTOR
+        hex "Set NZEA JYD_REMOTE Reset Vector"
+        default 0x80000000
+        help
+            Set the reset vector for the NZEA platform.
 
     endmenu
 

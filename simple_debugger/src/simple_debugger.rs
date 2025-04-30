@@ -139,6 +139,7 @@ impl SimpleDebugger {
         };
 
         log_err!(state.mmu.load(reset_vector, &bytes)).unwrap();
+
         match cli_result.cli.differtest {
             Some(DifftestRef::BuildIn(_)) => {
                 log_err!(state_ref.mmu.load(reset_vector, &bytes)).unwrap();
