@@ -1,9 +1,10 @@
 use std::{cell::RefCell, rc::Rc, str::FromStr};
 
 use logger::Logger;
-use remu_macro::log_err;
+use remu_macro::{log_err, log_error};
+use remu_utils::{ProcessError, ProcessResult};
 
-use crate::reg::{RegError, RegIdentifier, RegIoResult, RegResult, RegfileIo};
+use crate::{reg::{AnyRegfile, RegError, RegIdentifier, RegIoResult, RegResult, RegfileIo}, CheckFlags4reg};
 
 use super::RvCsrEnum;
 
@@ -294,5 +295,62 @@ impl RegfileIo for Rv32iRegFile {
                 }
             }
         }
+    }
+
+    fn set_reg(&mut self,_target: &crate::reg::AnyRegfile) {
+        if let AnyRegfile::Rv32i(target) = _target {
+            self.pc.replace(target.pc.borrow().clone());
+            self.regs.replace(target.regs.borrow().clone());
+            // csr is not need for now
+        } else {
+            panic!("Invalid register file type");
+        }
+    }
+
+    fn check(&self, regfile: &AnyRegfile, flags: CheckFlags4reg) -> ProcessResult<()> {
+        if let AnyRegfile::Rv32i(regfile) = regfile {
+            if flags.contains(CheckFlags4reg::pc) {
+                if *self.pc.borrow() != *regfile.pc.borrow() {
+                    log_error!(format!(
+                        "Dut PC: {:#010x}, Ref PC: {:#010x}",
+                        self.read_pc(),
+                        regfile.read_pc()
+                    ));
+                    return Err(ProcessError::Recoverable);
+                }
+            }
+
+            if flags.contains(CheckFlags4reg::gpr) {
+                let gprs = self.get_gprs();
+                let ref_gprs = regfile.get_gprs();
+
+                for (i, (a, b)) in gprs.iter().zip(ref_gprs.iter()).enumerate() {
+                    if a != b {
+                        log_error!(format!(
+                            "Dut GPR[{}]: {:#010x}, Ref GPR[{}]: {:#010x}",
+                            i, b, i, a
+                        ));
+                        return Err(ProcessError::Recoverable);
+                    }
+                }
+            }
+
+            if flags.contains(CheckFlags4reg::csr) {
+                for csr in RvCsrEnum::iter() {
+                    let index = csr as u32;
+                    if self.csrs.borrow()[index as usize] != regfile.csrs.borrow()[index as usize] {
+                        log_error!(format!(
+                            "Dut CSR[{}]: {:#010x}, Ref CSR[{}]: {:#010x}",
+                            index, self.csrs.borrow()[index as usize], index, regfile.csrs.borrow()[index as usize]
+                        ));
+                        return Err(ProcessError::Recoverable);
+                    }
+                }
+            }
+        } else {
+            panic!("Invalid register file type");
+        }
+
+        Ok(())
     }
 }
