@@ -9,6 +9,7 @@ build = "build.rs"
 [dependencies]
 remu_macro = { path = "../remu_macro" }
 remu_utils = { path = "../remu_utils" }
+remu_buildin = { path = "../remu_buildin" }
 logger = { path = "../logger" }
 state = { path = "../state" }
 option_parser = { path = "../option_parser" }

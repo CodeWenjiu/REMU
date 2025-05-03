@@ -167,7 +167,7 @@ impl Emu {
         self.execute(decode)?;
 
         // 4. Notify completion and return
-        (self.callback.instruction_compelete)(pc, inst.1)?;
+        (self.callback.instruction_complete)(pc, inst.1)?;
 
         self.times.cycles += 1;
         self.times.instructions += 1;

@@ -3986,6 +3986,7 @@ dependencies = [
  "option_parser",
  "owo-colors 4.2.0",
  "petgraph",
+ "remu_buildin",
  "remu_macro",
  "remu_utils",
  "snafu",
