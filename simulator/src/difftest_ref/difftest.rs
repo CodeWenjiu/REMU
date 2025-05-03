@@ -16,6 +16,7 @@ pub struct DifftestManager {
     pub states_dut: States,
 
     pub memory_watch_point: Rc<RefCell<Vec<u32>>>,
+    is_diff_skip: bool,
 }
 
 impl DifftestManager {
@@ -42,10 +43,11 @@ impl DifftestManager {
             states_dut,
 
             memory_watch_point,
+            is_diff_skip: false,
         }
     }
 
-    pub fn step(&mut self) -> ProcessResult<()> {
+    pub fn step_run(&mut self) -> ProcessResult<()> {
         let mem_diff_msg = self.memory_watch_point.borrow().iter()
         .map(|addr| {
             let dut_data = log_err!(
@@ -75,7 +77,8 @@ impl DifftestManager {
         Ok(())
     }
 
-    pub fn skip(&mut self) {
+    pub fn step_skip(&mut self) {
+        self.is_diff_skip = false;
         match &mut self.reference {
             AnyDifftestRef::BuildIn(_reference) => {
                 self.states_ref.regfile.set_reg(&self.states_dut.regfile);
@@ -85,5 +88,22 @@ impl DifftestManager {
                 reference.set_ref(&self.states_dut.regfile);
             }
         }
+    }
+
+    pub fn step(&mut self) -> ProcessResult<()> {
+        match self.is_diff_skip {
+            true => {
+                self.step_skip();
+                Ok(())
+            }
+
+            false => {
+                self.step_run()
+            }
+        }
+    }
+
+    pub fn skip(&mut self) {
+        self.is_diff_skip = true;
     }
 }

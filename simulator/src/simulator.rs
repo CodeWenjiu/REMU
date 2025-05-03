@@ -11,10 +11,10 @@ use option_parser::{DebugConfiguration, OptionParser};
 use owo_colors::OwoColorize;
 use remu_macro::{log_error, log_todo};
 use remu_utils::{Disassembler, ProcessError, ProcessResult, Simulators};
-use state::{reg::RegfileIo, States};
+use state::States;
 
 use crate::{
-    difftest_ref::{AnyDifftestRef, DifftestManager, DifftestRefFfiApi},
+    difftest_ref::DifftestManager,
     emu::Emu, nzea::Nzea,
 };
 
@@ -94,7 +94,6 @@ pub struct Simulator {
     pub state: Arc<Mutex<SimulatorState>>,
     pub dut: SimulatorEnum,
     pub states_dut: States,
-    pub r#ref: Option<Rc<RefCell<AnyDifftestRef>>>,
     pub states_ref: States,
     pub disassembler: Rc<RefCell<Disassembler>>,
     pub debug_config: SimulatorDebugConfig,
@@ -113,37 +112,6 @@ impl Simulator {
         states_ref: States,
         disasm: Rc<RefCell<Disassembler>>,
     ) -> Result<Self, SimulatorError> {
-        let pending_instructions = Rc::new(RefCell::new(0));
-        let memory_watch_points= Rc::new(RefCell::new(vec![]));
-
-
-
-        let ref_callback = SimulatorCallback::new(
-            Box::new(|_, _| Ok(())),
-            Box::new(|| {}),
-            Box::new(|_, _| {}),
-            Box::new(|_| {}),
-        );
-        let r#ref = option.cli.differtest.as_ref().map(|_| {
-            Rc::new(RefCell::new(
-                AnyDifftestRef::try_from((option, states_ref.clone(), ref_callback)).unwrap(),
-            ))
-        });
-        
-        let difftest_manager = option.cli.differtest.as_ref().map(|_| {
-            Rc::new(RefCell::new(
-                DifftestManager::new(
-                    option,
-                    states_dut.clone(),
-                    states_ref.clone(),
-        
-                    memory_watch_points.clone(),
-                )
-            ))
-        });
-
-
-
         let (itrace, wavetrace) = option.cfg.debug_config.iter().fold((false, false), |mut acc, cfg| {
             match cfg {
                 DebugConfiguration::Itrace { enable } => {
@@ -159,59 +127,71 @@ impl Simulator {
             acc
         });
 
+        let pending_instructions = Rc::new(RefCell::new(0));
+        let memory_watch_points= Rc::new(RefCell::new(vec![]));
         let instruction_trace_enable = Rc::new(RefCell::new(itrace));
         let simulator_state = Arc::new(Mutex::new(SimulatorState::STOP));
-        let simulator_state_clone = simulator_state.clone();
-        ctrlc::set_handler(move || {
-            *simulator_state_clone.lock().unwrap() = SimulatorState::STOP;
-        }).unwrap();
 
-        let disasm_clone = disasm.clone();
-        let instruction_trace_enable_clone = instruction_trace_enable.clone();
-        let simulator_state_clone2 = simulator_state.clone();
-        let pending_instructions_clone = pending_instructions.clone();
-        let is_difftest_skip = Rc::new(RefCell::new(false));
-        let is_difftest_skip_clone = is_difftest_skip.clone();
-
-        let instruction_complete_callback = Box::new(move |pc: u32, inst: u32| -> ProcessResult<()> {
-            if *instruction_trace_enable_clone.borrow() {
-                let disassembler = disasm_clone.borrow();
-                println!(
-                    "0x{:08x}: {}",
-                    pc.blue(),
-                    disassembler.try_analize(inst, pc).purple()
-                );
-            }
-
-            difftest_manager
-                .as_ref()
-                .map(|mgr| 
-                    match *is_difftest_skip_clone.borrow() {
-                        true => {
-                            *is_difftest_skip_clone.borrow_mut() = false;
-                            mgr.borrow_mut().skip();
-                            Ok(())
-                        }
-
-                        false => {
-                            mgr.borrow_mut().step()
-                        }
-                    }
-                ).transpose()?;
-
-            let mut pending = pending_instructions_clone.borrow_mut();
-            if *pending > 0 {
-                *pending -= 1;
-                if *pending == 0 {
-                    return Err(ProcessError::Recoverable);
-                }
-            }
-            Ok(())
+        let difftest_manager = option.cli.differtest.as_ref().map(|_| {
+            Rc::new(RefCell::new(
+                DifftestManager::new(
+                    option,
+                    states_dut.clone(),
+                    states_ref.clone(),
+        
+                    memory_watch_points.clone(),
+                )
+            ))
         });
 
+        ctrlc::set_handler({
+            let simulator_state = simulator_state.clone();
+            move || {
+                *simulator_state.lock().unwrap() = SimulatorState::STOP;
+            }
+        }).unwrap();
+
+        let instruction_complete_callback = {
+            let pending_instructions = pending_instructions.clone();
+            let instruction_trace_enable = instruction_trace_enable.clone();
+            let disasm = disasm.clone();
+            let difftest_manager = difftest_manager.clone();
+
+            Box::new(move |pc: u32, inst: u32| -> ProcessResult<()> {
+                if *instruction_trace_enable.borrow() {
+                    let disassembler = disasm.borrow();
+                    println!(
+                        "0x{:08x}: {}",
+                        pc.blue(),
+                        disassembler.try_analize(inst, pc).purple()
+                    );
+                }
+
+                difftest_manager
+                    .as_ref()
+                    .map(|mgr| 
+                        mgr.borrow_mut().step()
+                    ).transpose()?;
+
+                let mut pending = pending_instructions.borrow_mut();
+                if *pending > 0 {
+                    *pending -= 1;
+                    if *pending == 0 {
+                        return Err(ProcessError::Recoverable);
+                    }
+                }
+                
+                Ok(())
+            })
+        };
+
         let difftest_skip_callback = {
-            let is_difftest_skip_clone = is_difftest_skip.clone();
-            Box::new(move || *is_difftest_skip_clone.borrow_mut() = true)
+            let difftest_manager = difftest_manager.clone();
+            Box::new(move || {
+                if let Some(mgr) = difftest_manager.as_ref() {
+                    mgr.borrow_mut().skip();
+                }
+            })
         };
 
         let decode_failed_callback = Box::new(|pc: u32, inst: u32| {
@@ -219,11 +199,14 @@ impl Simulator {
             println!("0x{:08x}: 0x{:08x}", pc.blue(), inst.purple());
         });
 
-        let trap_callback = Box::new(move |is_good: bool| {
+        let trap_callback = {
+            let simulator_state = simulator_state.clone();
+
+            Box::new(move |is_good: bool| {
             let msg = if is_good { Logger::SUCCESS } else { Logger::ERROR };
             Logger::show(if is_good { "Hit Good Trap" } else { "Hit Bad Trap" }, msg);
-            *simulator_state_clone2.lock().unwrap() = SimulatorState::TRAPED(is_good);
-        });
+            *simulator_state.lock().unwrap() = SimulatorState::TRAPED(is_good);
+        })};
 
         let dut_callback = SimulatorCallback::new(
             instruction_complete_callback,
@@ -248,7 +231,6 @@ impl Simulator {
             state: simulator_state,
             dut,
             states_dut,
-            r#ref,
             states_ref,
             disassembler: disasm,
             debug_config,
