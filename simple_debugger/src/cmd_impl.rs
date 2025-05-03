@@ -105,14 +105,15 @@ impl SimpleDebugger {
             DiffertestCmds::MemWatchPoint { addr } => {
                 match addr {
                     Some(addr) => {
-                        self.simulator.debug_config.memory_watch_points.borrow_mut().push(addr);
+                        self.simulator.difftest_manager.as_ref().map(|man| {
+                            man.borrow_mut().push_memory_watch_point(addr);
+                        });
                     }
 
                     None => {
-                        println!("{}", "Memory watch points:".purple());
-                        for addr in self.simulator.debug_config.memory_watch_points.borrow().iter() {
-                            println!("{:#010x}", addr.blue());
-                        }
+                        self.simulator.difftest_manager.as_ref().map(|man| {
+                            man.borrow_mut().show_memory_watch_point();
+                        });
                     }
                 }
             }

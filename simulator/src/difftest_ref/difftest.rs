@@ -1,7 +1,6 @@
-use std::{cell::RefCell, rc::Rc};
-
 use option_parser::OptionParser;
 use logger::Logger;
+use owo_colors::OwoColorize;
 use remu_macro::log_err;
 use remu_utils::{ProcessError, ProcessResult};
 use state::{reg::RegfileIo, CheckFlags4reg, States};
@@ -15,7 +14,7 @@ pub struct DifftestManager {
     pub states_ref: States,
     pub states_dut: States,
 
-    pub memory_watch_point: Rc<RefCell<Vec<u32>>>,
+    memory_watch_point: Vec<u32>,
     is_diff_skip: bool,
 }
 
@@ -24,8 +23,6 @@ impl DifftestManager {
         option: &OptionParser,
         states_dut: States,
         states_ref: States,
-
-        memory_watch_point: Rc<RefCell<Vec<u32>>>,
     ) -> Self {
         // Create a minimal callback for the reference simulator, may be useful in future
         let ref_callback = SimulatorCallback::new(
@@ -42,13 +39,13 @@ impl DifftestManager {
             states_ref,
             states_dut,
 
-            memory_watch_point,
+            memory_watch_point: vec!(),
             is_diff_skip: false,
         }
     }
 
     pub fn step_run(&mut self) -> ProcessResult<()> {
-        let mem_diff_msg = self.memory_watch_point.borrow().iter()
+        let mem_diff_msg = self.memory_watch_point.iter()
         .map(|addr| {
             let dut_data = log_err!(
                 self.states_dut.mmu.read(*addr, state::mmu::Mask::Word),
@@ -105,5 +102,15 @@ impl DifftestManager {
 
     pub fn skip(&mut self) {
         self.is_diff_skip = true;
+    }
+
+    pub fn push_memory_watch_point(&mut self, addr: u32) {
+        self.memory_watch_point.push(addr);
+    }
+
+    pub fn show_memory_watch_point(&self) {
+        for addr in &self.memory_watch_point {
+            println!("{:#010x}", addr.blue());
+        }
     }
 }

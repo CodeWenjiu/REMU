@@ -95,6 +95,7 @@ pub struct Simulator {
     pub dut: SimulatorEnum,
     pub states_dut: States,
     pub states_ref: States,
+    pub difftest_manager: Option<Rc<RefCell<DifftestManager>>>,
     pub disassembler: Rc<RefCell<Disassembler>>,
     pub debug_config: SimulatorDebugConfig,
 }
@@ -102,14 +103,15 @@ pub struct Simulator {
 pub struct SimulatorDebugConfig {
     pub instruction_trace_enable: Rc<RefCell<bool>>,
     pub pending_instructions: Rc<RefCell<u64>>,
-    pub memory_watch_points: Rc<RefCell<Vec<u32>>>,
 }
 
 impl Simulator {
     pub fn new(
         option: &OptionParser,
         states_dut: States,
+
         states_ref: States,
+
         disasm: Rc<RefCell<Disassembler>>,
     ) -> Result<Self, SimulatorError> {
         let (itrace, wavetrace) = option.cfg.debug_config.iter().fold((false, false), |mut acc, cfg| {
@@ -128,7 +130,6 @@ impl Simulator {
         });
 
         let pending_instructions = Rc::new(RefCell::new(0));
-        let memory_watch_points= Rc::new(RefCell::new(vec![]));
         let instruction_trace_enable = Rc::new(RefCell::new(itrace));
         let simulator_state = Arc::new(Mutex::new(SimulatorState::STOP));
 
@@ -138,8 +139,6 @@ impl Simulator {
                     option,
                     states_dut.clone(),
                     states_ref.clone(),
-        
-                    memory_watch_points.clone(),
                 )
             ))
         });
@@ -220,7 +219,6 @@ impl Simulator {
         let debug_config = SimulatorDebugConfig {
             instruction_trace_enable,
             pending_instructions,
-            memory_watch_points,
         };
 
         if wavetrace {
@@ -232,6 +230,7 @@ impl Simulator {
             dut,
             states_dut,
             states_ref,
+            difftest_manager,
             disassembler: disasm,
             debug_config,
         })
