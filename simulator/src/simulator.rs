@@ -14,8 +14,7 @@ use remu_utils::{Disassembler, ProcessError, ProcessResult, Simulators};
 use state::States;
 
 use crate::{
-    difftest_ref::DifftestManager,
-    emu::Emu, nzea::Nzea,
+    difftest_ref::DifftestManager, emu::Emu, nzea::Nzea, TraceFunction, Tracer
 };
 
 #[derive(Debug, Subcommand)]
@@ -93,15 +92,18 @@ pub enum SimulatorState {
 pub struct Simulator {
     pub state: Arc<Mutex<SimulatorState>>,
     pub dut: SimulatorEnum,
+
     pub states_dut: States,
     pub states_ref: States,
+
     pub difftest_manager: Option<Rc<RefCell<DifftestManager>>>,
+    pub tracer: Rc<RefCell<Tracer>>,
+
     pub disassembler: Rc<RefCell<Disassembler>>,
     pub debug_config: SimulatorDebugConfig,
 }
 
 pub struct SimulatorDebugConfig {
-    pub instruction_trace_enable: Rc<RefCell<bool>>,
     pub pending_instructions: Rc<RefCell<u64>>,
 }
 
@@ -130,8 +132,12 @@ impl Simulator {
         });
 
         let pending_instructions = Rc::new(RefCell::new(0));
-        let instruction_trace_enable = Rc::new(RefCell::new(itrace));
         let simulator_state = Arc::new(Mutex::new(SimulatorState::STOP));
+
+        let tracer = Rc::new(RefCell::new(Tracer::new(
+            itrace,
+            disasm.clone(),
+        )));
 
         let difftest_manager = option.cli.differtest.as_ref().map(|_| {
             Rc::new(RefCell::new(
@@ -152,25 +158,17 @@ impl Simulator {
 
         let instruction_complete_callback = {
             let pending_instructions = pending_instructions.clone();
-            let instruction_trace_enable = instruction_trace_enable.clone();
-            let disasm = disasm.clone();
+            let tracer = tracer.clone();
             let difftest_manager = difftest_manager.clone();
 
             Box::new(move |pc: u32, inst: u32| -> ProcessResult<()> {
-                if *instruction_trace_enable.borrow() {
-                    let disassembler = disasm.borrow();
-                    println!(
-                        "0x{:08x}: {}",
-                        pc.blue(),
-                        disassembler.try_analize(inst, pc).purple()
-                    );
-                }
-
                 difftest_manager
                     .as_ref()
                     .map(|mgr| 
                         mgr.borrow_mut().step()
                     ).transpose()?;
+
+                tracer.borrow().trace(pc, inst)?;
 
                 let mut pending = pending_instructions.borrow_mut();
                 if *pending > 0 {
@@ -217,7 +215,6 @@ impl Simulator {
         dut.init()?;
 
         let debug_config = SimulatorDebugConfig {
-            instruction_trace_enable,
             pending_instructions,
         };
 
@@ -231,6 +228,7 @@ impl Simulator {
             states_dut,
             states_ref,
             difftest_manager,
+            tracer,
             disassembler: disasm,
             debug_config,
         })
@@ -260,7 +258,7 @@ impl Simulator {
     pub fn cmd_function_mut(&mut self, subcmd: FunctionTarget, enable: bool) -> ProcessResult<()> {
         match subcmd {
             FunctionTarget::InstructionTrace => {
-                self.debug_config.instruction_trace_enable.replace(enable);
+                self.tracer.borrow_mut().trace_function(TraceFunction::InstructionTrace, enable);
                 Logger::function("ITrace", enable);
             }
             FunctionTarget::WaveTrace => {

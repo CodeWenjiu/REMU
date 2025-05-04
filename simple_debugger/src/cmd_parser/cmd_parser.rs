@@ -53,17 +53,23 @@ pub enum Cmds {
         subcmd: InfoCmds,
     },
 
-    /// Differtest Reference
-    Differtest {
+    /// BreakPoint
+    BreakPoint {
         #[command(subcommand)]
-        subcmd: DiffertestCmds,
+        subcmd: BreakPointCmds,
     },
 
     /// Enable/Disable Simulator Function
     Function {
         #[command(subcommand)]
         subcmd: FunctionCmds,
-    }
+    },
+
+    /// Differtest Reference
+    Differtest {
+        #[command(subcommand)]
+        subcmd: DiffertestCmds,
+    },
 }
 
 #[derive(Debug, Subcommand)]
@@ -101,6 +107,26 @@ pub enum InfoCmds {
     /// Get the state of the pipeline
     Pipeline {
     },
+}
+
+#[derive(Debug, Subcommand)]
+pub enum BreakPointCmds {
+    /// Set a breakpoint
+    Add {
+        /// The target address(hex)
+        #[arg(value_parser = parse_hex)]
+        addr: u32,
+    },
+
+    /// Remove a breakpoint
+    Remove {
+        /// The target address(hex)
+        #[arg(value_parser = parse_hex)]
+        addr: u32,
+    },
+
+    /// Show all breakpoints
+    Show,
 }
 
 #[derive(Debug, Subcommand)]

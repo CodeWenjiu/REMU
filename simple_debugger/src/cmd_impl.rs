@@ -5,7 +5,7 @@ use remu_utils::{ProcessError, ProcessResult};
 use simulator::SimulatorItem;
 use state::{mmu::Mask, reg::RegfileIo};
 
-use crate::{cmd_parser::{Cmds, DiffertestCmds, FunctionCmds, InfoCmds, MemoryCmds, RegisterCmds, StepCmds}, SimpleDebugger};
+use crate::{cmd_parser::{BreakPointCmds, Cmds, DiffertestCmds, FunctionCmds, InfoCmds, MemoryCmds, RegisterCmds, StepCmds}, SimpleDebugger};
 
 impl SimpleDebugger {
     fn cmd_info (&mut self, subcmd: InfoCmds) -> ProcessResult<()> {
@@ -20,6 +20,24 @@ impl SimpleDebugger {
 
             InfoCmds::Pipeline {  } => {
                 println!("{:#?}", self.state.pipe_state)
+            }
+        }
+
+        Ok(())
+    }
+
+    fn cmd_breakpoint (&mut self, subcmd: BreakPointCmds) -> ProcessResult<()> {
+        match subcmd {
+            BreakPointCmds::Add { addr } => {
+                self.simulator.tracer.borrow_mut().add_breakpoint(addr);
+            }
+
+            BreakPointCmds::Remove { addr } => {
+                self.simulator.tracer.borrow_mut().remove_breakpoint_by_addr(addr);
+            }
+
+            BreakPointCmds::Show => {
+                self.simulator.tracer.borrow_mut().show_breakpoints();
             }
         }
 
@@ -194,8 +212,16 @@ impl SimpleDebugger {
                 self.simulator.step_instruction(u64::MAX)?;
             }
 
+            Cmds::Times => {
+                self.simulator.dut.times()?;
+            }
+
             Cmds::Info { subcmd } => {
                 self.cmd_info(subcmd)?;
+            }
+
+            Cmds::BreakPoint { subcmd } => {
+                self.cmd_breakpoint(subcmd)?;
             }
 
             Cmds::Function { subcmd } => {
@@ -204,10 +230,6 @@ impl SimpleDebugger {
 
             Cmds::Differtest { subcmd } => {
                 self.cmd_differtest(subcmd)?;
-            }
-
-            Cmds::Times => {
-                self.simulator.dut.times()?;
             }
         }
 
