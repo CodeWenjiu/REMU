@@ -1,0 +1,31 @@
+
+/home/wenjiu/ysyx-workbench/am-kernels/tests/cpu-tests/build/jyd_driver-riscv32e-npc.elf:     file format elf32-littleriscv
+
+
+Disassembly of section .text:
+
+80000000 <_start>:
+80000000:	00000413          	li	s0,0
+80000004:	00009117          	auipc	sp,0x9
+80000008:	ffc10113          	addi	sp,sp,-4 # 80009000 <_end>
+8000000c:	024000ef          	jal	ra,80000030 <_trm_init>
+
+80000010 <main>:
+80000010:	200007b7          	lui	a5,0x20000
+80000014:	0047c703          	lbu	a4,4(a5) # 20000004 <_entry_offset+0x20000004>
+80000018:	0ff77713          	zext.b	a4,a4
+8000001c:	00e780a3          	sb	a4,1(a5)
+80000020:	0057c703          	lbu	a4,5(a5)
+80000024:	0ff77713          	zext.b	a4,a4
+80000028:	00e78023          	sb	a4,0(a5)
+8000002c:	fe9ff06f          	j	80000014 <main+0x4>
+
+80000030 <_trm_init>:
+80000030:	ff410113          	addi	sp,sp,-12
+80000034:	00000517          	auipc	a0,0x0
+80000038:	01c50513          	addi	a0,a0,28 # 80000050 <_etext>
+8000003c:	00112423          	sw	ra,8(sp)
+80000040:	fd1ff0ef          	jal	ra,80000010 <main>
+80000044:	00050513          	mv	a0,a0
+80000048:	00100073          	ebreak
+8000004c:	0000006f          	j	8000004c <_trm_init+0x1c>
