@@ -112,16 +112,26 @@ impl SimpleDebugger {
             }
         }
 
+        if cli_result.cli.additional_bin.is_some() {
+            let bin = cli_result.cli.additional_bin.as_ref().unwrap();
+
+            let bin_path = &bin.file_path;
+            let bytes = log_err!(std::fs::read(bin_path)).unwrap();
+            log_err!(state.mmu.load(bin.load_addr, &bytes)).unwrap();
+
+            match cli_result.cli.differtest {
+                Some(DifftestRef::BuildIn(_)) => {
+                    log_err!(state_ref.mmu.load(0x80100000, &bytes)).unwrap();
+                }
+
+                _ => ()
+            }
+        };
+
         let buildin_img = get_buildin_img(isa);
 
-        // just for jyd remote
-        let bin_path = "/home/wenjiu/ysyx-workbench/remu/simulator/src/nzea/tools/bin_spliter/dram.bin";
-        let bytes = log_err!(std::fs::read(bin_path)).unwrap();
-        log_err!(state.mmu.load(0x80100000, &bytes)).unwrap();
-        // log_err!(state_ref.mmu.load(0x80100000, &bytes)).unwrap();
-
-        let bytes = if cli_result.cli.bin.is_some() {
-            let bin = cli_result.cli.bin.as_ref().unwrap();
+        let bytes = if cli_result.cli.primary_bin.is_some() {
+            let bin = cli_result.cli.primary_bin.as_ref().unwrap();
             let bytes = log_err!(std::fs::read(bin)).unwrap();
 
             Logger::show(

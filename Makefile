@@ -1,9 +1,14 @@
 Job = -j `nproc`
 
 Binfile_Nzea_npc = ./.test/microbench-riscv32e-npc.bin
+
 Binfile_Nzea_ysyxsoc = ./.test/microbench-riscv32e-ysyxsoc.bin
+
 Binfile_jyd = ./.test/jyd_driver-riscv32e-npc.bin
-Binfile_jyd_remote = ./simulator/src/nzea/tools/bin_spliter/irom.bin
+
+Binfile_jyd_remote = ./simulator/src/nzea/on_board/NZ-jyd/tools/bin_spliter/irom.bin
+Alternate_jyd_remote = 0x80100000:./simulator/src/nzea/on_board/NZ-jyd/tools/bin_spliter/dram.bin
+
 Binfile_Emu = ./.test/microbench-riscv32-nemu.bin
 
 Platform_emu_rv32im = rv32im-emu-nemu
@@ -24,11 +29,12 @@ else ifeq ($(Platform),$(Platform_Nzea_ysyxsoc))
 	Binfile ?= $(Binfile_Nzea_ysyxsoc)
 else ifeq ($(Platform),$(Platform_Nzea_jyd_remote))
 	Binfile ?= $(Binfile_jyd_remote)
+	Alternate ?= $(Alternate_jyd_remote)
 else
 	Binfile ?= $(Binfile_Nzea)
 endif
 
-Mainargs = --bin $(Binfile) -p $(Platform)
+Mainargs = --primary-bin $(Binfile) --additional-bin $(Alternate) -p $(Platform)
 ExtraArgs ?=
 Debugargs = $(Mainargs) -d emu #--log
 
