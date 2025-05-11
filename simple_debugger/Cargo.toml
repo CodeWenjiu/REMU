@@ -23,3 +23,6 @@ futures = {workspace = true}
 ratatui = { version = "0.29.0", features = ["termion"] }
 tui-textarea = "0.7.0"
 crossterm = { version = "0.29.0", features = ["event-stream"] }
+pest = "2.8.0"
+pest_derive = "2.8.0"
+lazy_static = "1.5.0"

@@ -77,6 +77,7 @@ impl SimpleDebugger {
             MemoryCmds::Examine { addr, length } => {
                 for i in (0..(length * 4)).step_by(4) {
                     let i = i as u32;
+                    let addr = self.eval_expr(&addr)?;
                     let data = log_err!(self.state.mmu.read_memory(addr + i, Mask::None), ProcessError::Recoverable)?;
 
                     println!("{:#010x}: {:#010x}\t {}",
@@ -167,6 +168,7 @@ impl SimpleDebugger {
             MemoryCmds::Examine { addr, length } => {
                 for i in (0..(length * 4)).step_by(4) {
                     let i = i as u32;
+                    let addr = log_err!(self.eval_expr(&addr), ProcessError::Recoverable)?;
                     let data = log_err!(self.state_ref.mmu.read_memory(addr + i, Mask::None), ProcessError::Recoverable)?;
 
                     println!("{:#010x}: {:#010x}\t {}",

@@ -1,0 +1,13 @@
+num = { ASCII_DIGIT+ }
+
+binary_operation = _{ add | subtract }
+    add      = { "+" }
+    subtract = { "-" }
+
+unary_operation = _{ deref }
+    deref = { "*" }
+
+expr = { term ~ (binary_operation ~ term)* | unary_operation ~ term }
+term = _{ num | "(" ~ expr ~ ")" }
+
+calculation = _{ SOI ~ expr ~ EOI }

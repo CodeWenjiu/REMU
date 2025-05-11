@@ -1,9 +1,20 @@
-use clap::{command, CommandFactory, Parser, Subcommand, builder::styling};
+use clap::{command, CommandFactory, Subcommand, builder::styling};
 use petgraph::Graph;
 use simulator::FunctionTarget;
 use state::reg::RegIdentifier;
 
-#[derive(Parser, Debug)]
+use std::num::ParseIntError;
+
+// hex parser
+fn parse_hex(src: &str) -> Result<u32, ParseIntError> {
+    if src.starts_with("0x") || src.starts_with("0X") {
+        u32::from_str_radix(&src[2..], 16)
+    } else {
+        src.parse::<u32>()
+    }
+}
+
+#[derive(clap::Parser, Debug)]
 #[command(author, version, about, styles = styling::Styles::styled()
 .header(styling::AnsiColor::Green.on_default().bold())
 .usage(styling::AnsiColor::Green.on_default().bold())
@@ -12,16 +23,6 @@ use state::reg::RegIdentifier;
 pub struct CmdParser {
     #[command(subcommand)]
     pub command: Cmds,
-}
-
-use std::num::ParseIntError;
-// hex parser
-fn parse_hex(src: &str) -> Result<u32, ParseIntError> {
-    if src.starts_with("0x") || src.starts_with("0X") {
-        u32::from_str_radix(&src[2..], 16)
-    } else {
-        src.parse::<u32>()
-    }
 }
 
 // reg identifier parser
@@ -157,8 +158,7 @@ pub enum MemoryCmds {
     /// Examine memory
     Examine {
         /// The target address(hex) and length
-        #[arg(value_parser = parse_hex)]
-        addr: u32,
+        addr: String,
 
         /// Exam length in bitwidth, default as 1
         #[arg(default_value("1"))]
