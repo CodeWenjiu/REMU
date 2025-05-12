@@ -15,7 +15,7 @@ pub enum RvCsrEnum {
 
 impl RvCsrEnum {
     pub fn validate(index: u32) -> RegResult<Self> {
-        Self::try_from(index).map_err(|_| RegError::InvalidCSRIndex)
+        Self::try_from(index)
     }
 
     pub fn iter() -> impl Iterator<Item = RvCsrEnum> {
@@ -24,7 +24,7 @@ impl RvCsrEnum {
 }
 
 impl FromStr for RvCsrEnum {
-    type Err = ();
+    type Err = RegError;
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         match s {
@@ -35,13 +35,13 @@ impl FromStr for RvCsrEnum {
             "mcause"    => Ok(RvCsrEnum::MCAUSE),
             "mvendorid" => Ok(RvCsrEnum::MVENDORID),
             "marchid"   => Ok(RvCsrEnum::MARCHID),
-            _ => Err(()),
+            _ => Err(RegError::InvalidCSRName { name: s.to_string() }),
         }
     }
 }
 
 impl TryFrom <u32> for RvCsrEnum {
-    type Error = ();
+    type Error = RegError;
 
     fn try_from(value: u32) -> Result<Self, Self::Error> {
         match value {
@@ -52,13 +52,13 @@ impl TryFrom <u32> for RvCsrEnum {
             0x342 => Ok(RvCsrEnum::MCAUSE),
             0xF11 => Ok(RvCsrEnum::MVENDORID),
             0xF12 => Ok(RvCsrEnum::MARCHID),
-            _ => Err(()),
+            _ => Err(RegError::InvalidCSRIndex { index: value }),
         }
     }
 }
 
 impl TryFrom <String> for RvCsrEnum {
-    type Error = ();
+    type Error = RegError;
 
     fn try_from(value: String) -> Result<Self, Self::Error> {
         Self::from_str(&value)

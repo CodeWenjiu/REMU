@@ -18,6 +18,7 @@ pub enum BinOp {
 #[derive(Debug)]
 pub enum UnaryOp {
     Deref,
+    Reg,
 }
 
 #[derive(Debug)]
@@ -56,13 +57,15 @@ impl SimpleDebugger {
     fn parse_expr(pairs: Pairs<Rule>) -> Expr {
         PRATT_PARSER
             .map_primary(|primary| match primary.as_rule() {
-                Rule::num => Expr::Num(primary.as_str().parse::<u32>().unwrap()),
+                Rule::oct => Expr::Num(primary.as_str().parse::<u32>().unwrap()),
+                Rule::hex => Expr::Num(u32::from_str_radix(primary.as_str().trim_start_matches("0x"), 16).unwrap()),
                 Rule::expr => Self::parse_expr(primary.into_inner()),
                 rule => unreachable!("Expr::parse expected atom, found {:?}", rule),
             })
             .map_prefix(|op, expr| {
                 let op = match op.as_rule() {
                     Rule::deref => UnaryOp::Deref,
+                    Rule::reg => UnaryOp::Reg,
                     rule => unreachable!("Expr::parse expected prefix operation, found {:?}", rule),
                 };
                 Expr::Unary {
@@ -92,6 +95,7 @@ impl SimpleDebugger {
                 let val = self.calculate_expr(expr)?;
                 match op {
                     UnaryOp::Deref => log_err!(self.state.mmu.read_memory(val, Mask::Word), ProcessError::Recoverable),
+                    _ => unreachable!()
                 }
             },
             Expr::Bin { lhs, op, rhs } => {

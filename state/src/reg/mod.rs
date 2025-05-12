@@ -3,16 +3,21 @@ use logger::Logger;
 use owo_colors::OwoColorize;
 use remu_macro::{log_error, log_todo};
 use remu_utils::{ProcessError, ProcessResult, ISA};
-use riscv::{Rv32eGprEnum, Rv32eRegFile, Rv32iRegFile};
+use riscv::{Rv32eGprEnum, Rv32eRegFile, Rv32iGprEnum, Rv32iRegFile, RvCsrEnum};
 
 use crate::CheckFlags4reg;
 
 remu_macro::mod_pub!(riscv);
 
 #[derive(Clone, Debug)]
-pub enum RegIdentifier {
-    Index(u32),
-    Name(String),
+pub enum ALLGPRIdentifier {
+    Rv32eGprEnum(Rv32eGprEnum),
+    Rv32iGprEnum(Rv32iGprEnum),
+}
+
+#[derive(Clone, Debug)]
+pub enum ALLCSRIdentifier {
+    RISCV(RvCsrEnum),
 }
 
 #[enum_dispatch(AnyRegfile)]
@@ -59,11 +64,11 @@ pub trait RegfileIo {
         self.print_format("PC", self.read_pc());
     }
 
-    fn print_gpr(&self, _index: Option<RegIdentifier>) {
+    fn print_gpr(&self, _index: Option<ALLGPRIdentifier>) {
         log_todo!();
     }
 
-    fn print_csr(&self, _index: Option<RegIdentifier>) {
+    fn print_csr(&self, _index: Option<ALLCSRIdentifier>) {
         log_todo!();
     }
 
@@ -127,9 +132,15 @@ impl AnyRegfile {
 pub enum RegError {
     #[snafu(display("Invalid generou purpose register index {}", index))]
     InvalidGPRIndex { index: u32 },
+    
+    #[snafu(display("Invalid generou purpose register name {}", name))]
+    InvalidGPRName { name: String },
 
-    #[snafu(display("Invalid CSR index"))]
-    InvalidCSRIndex,
+    #[snafu(display("Invalid CSR index {}", index))]
+    InvalidCSRIndex { index: u32 },
+
+    #[snafu(display("Invalid CSR name {}", name))]
+    InvalidCSRName { name: String },
 }
 
 type RegResult<T> = Result<T, RegError>;
@@ -140,10 +151,5 @@ pub fn regfile_io_factory(isa: ISA, reset_vector: u32) -> Result<AnyRegfile, ()>
         ISA::RV32E => Ok(Rv32eRegFile::new(reset_vector).into()),
         ISA::RV32I => Ok(Rv32iRegFile::new(reset_vector).into()),
         ISA::RV32IM => Ok(Rv32iRegFile::new(reset_vector).into()),
-        // _ => {
-        //     let isa: &str = From::from(isa);
-        //     Logger::show(&format!("Unknown ISA: {}", isa), Logger::ERROR);
-        //     Err(())
-        // }
     }
 }

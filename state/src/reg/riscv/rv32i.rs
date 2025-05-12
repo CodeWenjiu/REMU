@@ -4,7 +4,7 @@ use logger::Logger;
 use remu_macro::{log_err, log_error};
 use remu_utils::{ProcessError, ProcessResult};
 
-use crate::{reg::{AnyRegfile, RegError, RegIdentifier, RegIoResult, RegResult, RegfileIo}, CheckFlags4reg};
+use crate::{reg::{ALLCSRIdentifier, ALLGPRIdentifier, AnyRegfile, RegError, RegIoResult, RegResult, RegfileIo}, CheckFlags4reg};
 
 use super::RvCsrEnum;
 
@@ -51,7 +51,7 @@ impl Rv32iGprEnum {
 }
 
 impl FromStr for Rv32iGprEnum {
-    type Err = ();
+    type Err = RegError;
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         match s {
@@ -87,13 +87,13 @@ impl FromStr for Rv32iGprEnum {
             "t4" => Ok(Rv32iGprEnum::T4),
             "t5" => Ok(Rv32iGprEnum::T5),
             "t6" => Ok(Rv32iGprEnum::T6),
-            _ => Err(()),
+            _ => Err(RegError::InvalidGPRName { name: s.to_string() }),
         }
     }
 }
 
 impl TryFrom <u32> for Rv32iGprEnum {
-    type Error = ();
+    type Error = RegError;
 
     fn try_from(value: u32) -> Result<Self, Self::Error> {
         match value {
@@ -129,7 +129,7 @@ impl TryFrom <u32> for Rv32iGprEnum {
             29 => Ok(Rv32iGprEnum::T4),
             30 => Ok(Rv32iGprEnum::T5),
             31 => Ok(Rv32iGprEnum::T6),
-            _ => Err(()),
+            _ => Err(RegError::InvalidGPRIndex { index: value }),
         }
     }
 }
@@ -251,19 +251,12 @@ impl RegfileIo for Rv32iRegFile {
         self.print_format("PC", self.read_pc());
     }
 
-    fn print_gpr(&self, index: Option<RegIdentifier>) {
+    fn print_gpr(&self, index: Option<ALLGPRIdentifier>) {
         match index {
-            Some(RegIdentifier::Index(index)) => {
-                let index = Rv32iRegFile::validate_gpr_index(index).unwrap();
-                let name = Rv32iGprEnum::try_from(index).unwrap().into();
+            Some(ALLGPRIdentifier::Rv32iGprEnum(index)) => {
+                let name = Rv32iGprEnum::from(index).into();
                 self.print_format(name, self.regs.borrow()[index as usize]);
-            },
-
-            Some(RegIdentifier::Name(name)) => {
-                let name = Rv32iGprEnum::from_str(&name).unwrap();
-                let index: usize = Rv32iGprEnum::try_from(name).unwrap().into();
-                self.print_format(name.into(), self.regs.borrow()[index]);
-            },
+            }
 
             None => {
                 for i in 0..32 {
@@ -271,27 +264,22 @@ impl RegfileIo for Rv32iRegFile {
                     self.print_format(name, self.regs.borrow()[i as usize]);
                 }
             }
+
+            _ => unreachable!("Invalid GPR identifier {:?}", index),
         }
     }
 
-    fn print_csr(&self, index: Option<RegIdentifier>) {
+    fn print_csr(&self, index: Option<ALLCSRIdentifier>) {
         match index {
-            Some(RegIdentifier::Index(index)) => {
-                let index = Rv32iRegFile::validate_csr_index(index).unwrap();
+            Some(ALLCSRIdentifier::RISCV(index)) => {
                 let name = RvCsrEnum::try_from(index).unwrap().into();
                 self.print_format(name, self.csrs.borrow()[index as usize]);
-            },
-
-            Some(RegIdentifier::Name(name)) => {
-                let name = RvCsrEnum::try_from(name).unwrap();
-                let index = RvCsrEnum::try_from(name).unwrap() as u32;
-                self.print_format(name.into(), self.csrs.borrow()[index as usize]);
-            },
+            }
 
             None => {
                 for csr in RvCsrEnum::iter() {
                     let name = csr.into();
-                    self.print_format(name, self.csrs.borrow()[csr as usize]);
+                    self.print_format(name, self.csrs.borrow()[csr as u32 as usize]);
                 }
             }
         }

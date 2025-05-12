@@ -1,13 +1,15 @@
-num = { ASCII_DIGIT+ }
+hex = { "0x" ~ HEX_DIGIT+ }
+oct = { ASCII_DIGIT+ }
 
 binary_operation = _{ add | subtract }
     add      = { "+" }
     subtract = { "-" }
 
-unary_operation = _{ deref }
+unary_operation = _{ deref | reg }
     deref = { "*" }
+    reg   = { "$" }
 
 expr = { term ~ (binary_operation ~ term)* | unary_operation ~ term }
-term = _{ num | "(" ~ expr ~ ")" }
+term = _{ hex | oct | "(" ~ expr ~ ")" }
 
 calculation = _{ SOI ~ expr ~ EOI }

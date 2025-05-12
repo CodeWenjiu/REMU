@@ -1,11 +1,13 @@
+use std::str::FromStr;
+
 use logger::Logger;
 use owo_colors::OwoColorize;
 use remu_macro::log_err;
 use remu_utils::{ProcessError, ProcessResult};
 use simulator::SimulatorItem;
-use state::{mmu::Mask, reg::RegfileIo};
+use state::{mmu::Mask, reg::{riscv::{Rv32eGprEnum, Rv32iGprEnum, RvCsrEnum}, ALLCSRIdentifier, ALLGPRIdentifier, RegfileIo}};
 
-use crate::{cmd_parser::{BreakPointCmds, Cmds, DiffertestCmds, FunctionCmds, InfoCmds, MemoryCmds, RegisterCmds, StepCmds}, SimpleDebugger};
+use crate::{cmd_parser::{BreakPointCmds, Cmds, DiffertestCmds, FunctionCmds, InfoCmds, MemoryCmds, RegIdentifier, RegisterCmds, StepCmds}, SimpleDebugger};
 
 impl SimpleDebugger {
     fn cmd_info (&mut self, subcmd: InfoCmds) -> ProcessResult<()> {
@@ -44,14 +46,50 @@ impl SimpleDebugger {
         Ok(())
     }
 
+    fn gpr_index_converter(&self, index: RegIdentifier) -> ProcessResult<ALLGPRIdentifier> {
+        match self.state.regfile {
+            state::reg::AnyRegfile::Rv32e(_) => {
+                let index = match index {
+                    RegIdentifier::Index(index) => log_err!(Rv32eGprEnum::try_from(index), ProcessError::Recoverable)?,
+                    RegIdentifier::Name(name) => log_err!(Rv32eGprEnum::from_str(&name), ProcessError::Recoverable)?,
+                };
+                Ok(ALLGPRIdentifier::Rv32eGprEnum(index))
+            }
+
+            state::reg::AnyRegfile::Rv32i(_) => {
+                let index = match index {
+                    RegIdentifier::Index(index) => log_err!(Rv32iGprEnum::try_from(index), ProcessError::Recoverable)?,
+                    RegIdentifier::Name(name) => log_err!(Rv32iGprEnum::from_str(&name), ProcessError::Recoverable)?,
+                };
+                Ok(ALLGPRIdentifier::Rv32iGprEnum(index))
+            }
+        }
+    }
+
+    fn csr_index_converter(&self, index: RegIdentifier) -> ProcessResult<ALLCSRIdentifier> {
+        let index = match index {
+            RegIdentifier::Index(index) => log_err!(RvCsrEnum::try_from(index), ProcessError::Recoverable)?,
+            RegIdentifier::Name(name) => log_err!(RvCsrEnum::from_str(&name), ProcessError::Recoverable)?,
+        };
+        Ok(ALLCSRIdentifier::RISCV(index))
+    }
+
     fn cmd_register (&mut self, subcmd: Option<RegisterCmds>) -> ProcessResult<()> {
         match subcmd {
             Some(RegisterCmds::CSR { index }) => {
-                self.state.regfile.print_csr(index);
+                let converted = match index {
+                    Some(index) => Some(self.csr_index_converter(index)?),
+                    None => None,
+                };
+                self.state.regfile.print_csr(converted);
             }
 
             Some(RegisterCmds::GPR { index }) => {
-                self.state.regfile.print_gpr(index);
+                let converted = match index {
+                    Some(index) => Some(self.gpr_index_converter(index)?),
+                    None => None,
+                };
+                self.state.regfile.print_gpr(converted);
             }
 
             Some(RegisterCmds::PC {}) => {
@@ -183,11 +221,19 @@ impl SimpleDebugger {
     fn cmd_differtest_register (&mut self, subcmd: Option<RegisterCmds>) -> ProcessResult<()> {
         match subcmd {
             Some(RegisterCmds::CSR { index }) => {
-                self.state_ref.regfile.print_csr(index);
+                let converted = match index {
+                    Some(index) => Some(self.csr_index_converter(index)?),
+                    None => None,
+                };
+                self.state.regfile.print_csr(converted);
             }
 
             Some(RegisterCmds::GPR { index }) => {
-                self.state_ref.regfile.print_gpr(index);
+                let converted = match index {
+                    Some(index) => Some(self.gpr_index_converter(index)?),
+                    None => None,
+                };
+                self.state_ref.regfile.print_gpr(converted);
             }
 
             Some(RegisterCmds::PC {}) => {
