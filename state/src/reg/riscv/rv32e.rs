@@ -4,7 +4,7 @@ use logger::Logger;
 use remu_macro::{log_err, log_error};
 use remu_utils::{ProcessError, ProcessResult};
 
-use crate::{reg::{ALLCSRIdentifier, ALLGPRIdentifier, AnyRegfile, RegError, RegIoResult, RegResult, RegfileIo}, CheckFlags4reg};
+use crate::{reg::{AnyRegfile, RegError, RegIdentifier, RegfileIo}, CheckFlags4reg};
 
 use super::RvCsrEnum;
 
@@ -29,8 +29,16 @@ pub enum Rv32eGprEnum {
 }
 
 impl Rv32eGprEnum {
-    fn validate(index: u32) -> RegResult<Self> {
-        Self::try_from(index).map_err(|_| RegError::InvalidGPRIndex { index })
+    fn gpr_index_converter(index: u32) -> ProcessResult<Self> {
+        Ok(log_err!(Self::try_from(index), ProcessError::Recoverable)?)
+    }
+
+    fn gpr_identifier_converter(index: RegIdentifier) -> ProcessResult<Self> {
+        let index = match index {
+            RegIdentifier::Index(index) => Self::gpr_index_converter(index)?,
+            RegIdentifier::Name(name) => log_err!(Self::from_str(&name), ProcessError::Recoverable)?,
+        };
+        Ok(index)
     }
 }
 
@@ -130,18 +138,6 @@ impl Rv32eRegFile {
             csrs: Rc::new(RefCell::new([0; 4096])),
         }
     }
-
-    fn validate_gpr_index(index: u32) -> Result<(), ()> {
-        log_err!(Rv32eGprEnum::validate(index))?;
-
-        Ok(())
-    }
-
-    fn validate_csr_index(index: u32) -> Result<(), ()>  {
-        log_err!(RvCsrEnum::validate(index))?;
-
-        Ok(())
-    }
 }
 
 impl RegfileIo for Rv32eRegFile {
@@ -153,16 +149,16 @@ impl RegfileIo for Rv32eRegFile {
         *self.pc.borrow_mut() = value;
     }
 
-    fn read_gpr(&self, index : u32) -> RegIoResult<u32> {
-        Rv32eRegFile::validate_gpr_index(index)?;
+    fn read_gpr(&self, index: u32) -> ProcessResult<u32> {
+        let index = Rv32eGprEnum::gpr_index_converter(index)?;
         Ok(self.regs.borrow()[index as usize])
     }
 
-    fn write_gpr(&mut self,index : u32, value : u32) -> RegIoResult<()> {
-        if index == 0 {
+    fn write_gpr(&mut self, index: u32, value : u32) -> ProcessResult<()> {
+        let index = Rv32eGprEnum::gpr_index_converter(index)?;
+        if index == Rv32eGprEnum::X0 {
             return Ok(());
         }
-        Rv32eRegFile::validate_gpr_index(index)?;
         self.regs.borrow_mut()[index as usize] = value;
         Ok(())
     }
@@ -171,20 +167,21 @@ impl RegfileIo for Rv32eRegFile {
         self.regs.borrow().to_vec()
     }
 
-    fn read_csr(&self,index : u32) -> RegIoResult<u32> {
-        Rv32eRegFile::validate_csr_index(index)?;
+    fn read_csr(&self, index: u32) -> ProcessResult<u32> {
+        let index = RvCsrEnum::csr_index_converter(index)?;
         Ok(self.csrs.borrow()[index as usize])
     }
 
-    fn write_csr(&mut self,index : u32, value : u32) -> RegIoResult<()> {
-        Rv32eRegFile::validate_csr_index(index)?;
+    fn write_csr(&mut self, index: u32, value : u32) -> ProcessResult<()> {
+        let index = RvCsrEnum::csr_index_converter(index)?;
         self.csrs.borrow_mut()[index as usize] = value;
         Ok(())
     }
 
-    fn print_gpr(&self, index: Option<ALLGPRIdentifier>) {
+    fn print_gpr(&self, index: Option<RegIdentifier>) -> ProcessResult<()> {
         match index {
-            Some(ALLGPRIdentifier::Rv32eGprEnum(index)) => {
+            Some(identifier) => {
+                let index = Rv32eGprEnum::gpr_identifier_converter(identifier)?;
                 let name = Rv32eGprEnum::from(index).into();
                 self.print_format(name, self.regs.borrow()[index as usize]);
             }
@@ -195,16 +192,17 @@ impl RegfileIo for Rv32eRegFile {
                     self.print_format(name, self.regs.borrow()[i as usize]);
                 }
             }
-
-            _ => unreachable!("Invalid GPR identifier {:?}", index),
         }
+
+        Ok(())
     }
 
-    fn print_csr(&self, index: Option<ALLCSRIdentifier>) {
+    fn print_csr(&self, index: Option<RegIdentifier>) -> ProcessResult<()> {
         match index {
-            Some(ALLCSRIdentifier::RISCV(index)) => {
-                let name = RvCsrEnum::try_from(index).unwrap().into();
-                self.print_format(name, self.csrs.borrow()[index as usize]);
+            Some(identifier) => {
+                let index = RvCsrEnum::csr_identifier_converter(identifier)?;
+                let name = RvCsrEnum::from(index).into();
+                self.print_format(name, self.regs.borrow()[index as usize]);
             }
 
             None => {
@@ -214,6 +212,8 @@ impl RegfileIo for Rv32eRegFile {
                 }
             }
         }
+
+        Ok(())
     }
 
     fn set_reg(&mut self,_target: &crate::reg::AnyRegfile) {

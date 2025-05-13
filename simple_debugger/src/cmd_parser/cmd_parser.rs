@@ -1,14 +1,9 @@
 use clap::{command, CommandFactory, Subcommand, builder::styling};
 use petgraph::Graph;
 use simulator::FunctionTarget;
+use state::reg::RegIdentifier;
 
 use std::num::ParseIntError;
-
-#[derive(Clone, Debug)]
-pub enum RegIdentifier {
-    Index(u32),
-    Name(String),
-}
 
 // hex parser
 fn parse_hex(src: &str) -> Result<u32, ParseIntError> {

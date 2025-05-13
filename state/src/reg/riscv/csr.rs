@@ -1,6 +1,10 @@
 use std::str::FromStr;
 
-use crate::reg::{RegError, RegResult};
+use remu_macro::log_err;
+use logger::Logger;
+use remu_utils::{ProcessError, ProcessResult};
+
+use crate::reg::{ALLCSRIdentifier, RegError, RegIdentifier, RegResult};
 
 #[derive(Clone, Copy, Debug)]
 pub enum RvCsrEnum {
@@ -18,8 +22,20 @@ impl RvCsrEnum {
         Self::try_from(index)
     }
 
-    pub fn iter() -> impl Iterator<Item = RvCsrEnum> {
-        [RvCsrEnum::MSTATUS, RvCsrEnum::MTVEC, RvCsrEnum::MSCRATCH, RvCsrEnum::MEPC, RvCsrEnum::MCAUSE, RvCsrEnum::MVENDORID, RvCsrEnum::MARCHID].iter().copied()
+    pub fn iter() -> impl Iterator<Item = Self> {
+        [Self::MSTATUS, Self::MTVEC, Self::MSCRATCH, Self::MEPC, Self::MCAUSE, Self::MVENDORID, Self::MARCHID].iter().copied()
+    }
+
+    pub fn csr_index_converter(index: u32) -> ProcessResult<Self> {
+        Ok(log_err!(RvCsrEnum::try_from(index), ProcessError::Recoverable)?)
+    }
+
+    pub fn csr_identifier_converter(index: RegIdentifier) -> ProcessResult<Self> {
+        let index = match index {
+            RegIdentifier::Index(index) => Self::csr_index_converter(index)?,
+            RegIdentifier::Name(name) => log_err!(Self::from_str(&name), ProcessError::Recoverable)?,
+        };
+        Ok(index)
     }
 }
 
@@ -68,6 +84,12 @@ impl TryFrom <String> for RvCsrEnum {
 impl Into<u32> for RvCsrEnum {
     fn into(self) -> u32 {
         self as u32
+    }
+}
+
+impl Into<ALLCSRIdentifier> for RvCsrEnum {
+    fn into(self) -> ALLCSRIdentifier {
+        ALLCSRIdentifier::RISCV(self)
     }
 }
 

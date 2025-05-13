@@ -231,9 +231,9 @@ impl Emu {
 
             RV32I::Ecall => {
                 msg.rd = 0;
-                regfile.write_csr(RvCsrEnum::MEPC.into(), pc).map_err(|_| ProcessError::Recoverable)?;
-                regfile.write_csr(RvCsrEnum::MCAUSE.into(), 0x0000000b).map_err(|_| ProcessError::Recoverable)?;
-                next_pc = regfile.read_csr(RvCsrEnum::MTVEC.into()).map_err(|_| ProcessError::Recoverable)?;
+                regfile.write_csr(RvCsrEnum::MEPC.into(), pc)?;
+                regfile.write_csr(RvCsrEnum::MCAUSE.into(), 0x0000000b)?;
+                next_pc = regfile.read_csr(RvCsrEnum::MTVEC.into())?;
             }
 
             RV32I::Ebreak => {
@@ -248,7 +248,7 @@ impl Emu {
             }
         }
         
-        regfile.write_gpr(msg.rd.into(), rd_val).map_err(|_| ProcessError::Recoverable)?;
+        regfile.write_gpr(msg.rd.into(), rd_val)?;
 
         regfile.write_pc(next_pc);
 

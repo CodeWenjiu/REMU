@@ -20,6 +20,12 @@ pub enum ALLCSRIdentifier {
     RISCV(RvCsrEnum),
 }
 
+#[derive(Clone, Debug)]
+pub enum RegIdentifier {
+    Index(u32),
+    Name(String),
+}
+
 #[enum_dispatch(AnyRegfile)]
 pub trait RegfileIo {
     fn print_format(&self, name: &str, data: u32) {
@@ -35,14 +41,14 @@ pub trait RegfileIo {
         log_todo!();
     }
 
-    fn read_gpr(&self, _index: u32) -> RegIoResult<u32> {
+    fn read_gpr(&self, _index: u32) -> ProcessResult<u32> {
         log_todo!();
-        Err(())
+        Err(ProcessError::Recoverable)
     }
 
-    fn write_gpr(&mut self, _index: u32, _value: u32) -> RegIoResult<()> {
+    fn write_gpr(&mut self, _index: u32, _value: u32) -> ProcessResult<()> {
         log_todo!();
-        Err(())
+        Err(ProcessError::Recoverable)
     }
 
     fn get_gprs(&self) -> Vec<u32> {
@@ -50,26 +56,28 @@ pub trait RegfileIo {
         Vec::new()
     }
 
-    fn read_csr(&self, _index: u32) -> RegIoResult<u32> {
+    fn read_csr(&self, _index: u32) -> ProcessResult<u32> {
         log_todo!();
-        Err(())
+        Err(ProcessError::Recoverable)
     }
 
-    fn write_csr(&mut self, _index: u32, _value: u32) -> RegIoResult<()> {
+    fn write_csr(&mut self, _index: u32, _value: u32) -> ProcessResult<()> {
         log_todo!();
-        Err(())
+        Err(ProcessError::Recoverable)
     }
 
     fn print_pc(&self) {
         self.print_format("PC", self.read_pc());
     }
 
-    fn print_gpr(&self, _index: Option<ALLGPRIdentifier>) {
+    fn print_gpr(&self, _index: Option<RegIdentifier>) -> ProcessResult<()> {
         log_todo!();
+        Err(ProcessError::Recoverable)
     }
 
-    fn print_csr(&self, _index: Option<ALLCSRIdentifier>) {
+    fn print_csr(&self, _index: Option<RegIdentifier>) -> ProcessResult<()> {
         log_todo!();
+        Err(ProcessError::Recoverable)
     }
 
     fn set_reg(&mut self, _target: &AnyRegfile) {
@@ -144,7 +152,6 @@ pub enum RegError {
 }
 
 type RegResult<T> = Result<T, RegError>;
-type RegIoResult<T> = Result<T, ()>;
 
 pub fn regfile_io_factory(isa: ISA, reset_vector: u32) -> Result<AnyRegfile, ()> {
     match isa {
