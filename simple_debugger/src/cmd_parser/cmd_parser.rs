@@ -156,6 +156,7 @@ pub enum MemoryCmds {
     ShowMemoryMap,
 
     /// Examine memory
+    #[clap(verbatim_doc_comment)]
     Examine {
         /// The target address(hex) and length
         addr: String,

@@ -3,7 +3,7 @@ use pest_derive::Parser;
 use pest::pratt_parser::PrattParser;
 use pest::iterators::Pairs;
 use logger::Logger;
-use remu_macro::log_err;
+use remu_macro::{log_err, log_error};
 use remu_utils::{ProcessError, ProcessResult};
 use state::mmu::Mask;
 
@@ -18,12 +18,16 @@ pub enum BinOp {
 #[derive(Debug)]
 pub enum UnaryOp {
     Deref,
+}
+
+#[derive(Debug)]
+pub enum NameUnaryOp {
     Reg,
 }
 
 #[derive(Debug)]
 pub enum Expr {
-    Num(u32),
+    Val(u32),
     Unary {
         op: UnaryOp,
         expr: Box<Expr>,
@@ -33,6 +37,18 @@ pub enum Expr {
         op: BinOp,
         rhs: Box<Expr>,
     },
+
+    NameExpr(NameExpr),
+}
+
+#[derive(Debug)]
+pub enum NameExpr {
+    Name (String),
+
+    NameUnary {
+        op: NameUnaryOp,
+        expr: Box<NameExpr>,
+    }
 }
 
 #[derive(Parser)]
@@ -40,37 +56,67 @@ pub enum Expr {
 pub struct ExprParser;
 
 lazy_static::lazy_static! {
-    static ref PRATT_PARSER: PrattParser<Rule> = {
+    static ref Val_PRATT_PARSER: PrattParser<Rule> = {
         use pest::pratt_parser::{Assoc::*, Op};
         use Rule::*;
 
         // Precedence is defined lowest to highest
         PrattParser::new()
-            .op(Op::prefix(deref)) // Deref has the highest precedence
-            // Addition and subtract have equal precedence
+            .op(Op::prefix(deref))
             .op(Op::infix(add, Left) | Op::infix(subtract, Left))
     };
+
+    static ref Name_PRATT_PARSER: PrattParser<Rule> = {
+        use pest::pratt_parser::Op;
+        use Rule::*;
+
+        // Precedence is defined lowest to highest
+        PrattParser::new()
+            .op(Op::prefix(reg))
+    };
+}
+
+fn name_parse_expr(pairs: Pairs<Rule>) -> NameExpr {
+    Name_PRATT_PARSER
+        .map_primary(|primary| match primary.as_rule() {
+            Rule::name => {
+                NameExpr::Name(primary.as_str().to_string())
+            }
+            rule => unreachable!("Expr::parse expected atom, found {:?}", rule),
+        })
+        .map_prefix(|op, expr| {
+            match op.as_rule() {
+                Rule::reg => match expr {
+                    NameExpr::Name(s) => NameExpr::NameUnary {
+                        op: NameUnaryOp::Reg,
+                        expr: Box::new(NameExpr::Name(s.to_string())),
+                    },
+                    _ => unreachable!("Reg operator expects a value operand"),
+                },
+                rule => unreachable!("Expr::parse expected prefix operation, found {:?}", rule),
+            }
+        })
+        .parse(pairs)
 }
 
 impl SimpleDebugger {
 
-    fn parse_expr(pairs: Pairs<Rule>) -> Expr {
-        PRATT_PARSER
+    fn val_parse_expr(&mut self, pairs: Pairs<Rule>) -> Expr {
+        Val_PRATT_PARSER
             .map_primary(|primary| match primary.as_rule() {
-                Rule::oct => Expr::Num(primary.as_str().parse::<u32>().unwrap()),
-                Rule::hex => Expr::Num(u32::from_str_radix(primary.as_str().trim_start_matches("0x"), 16).unwrap()),
-                Rule::expr => Self::parse_expr(primary.into_inner()),
+                Rule::oct => Expr::Val(primary.as_str().parse::<u32>().unwrap()),
+                Rule::hex => Expr::Val(u32::from_str_radix(primary.as_str(), 16).unwrap()),
+                Rule::name_term => Expr::NameExpr(name_parse_expr(primary.into_inner())),
+                Rule::expr => self.val_parse_expr(primary.into_inner()),
                 rule => unreachable!("Expr::parse expected atom, found {:?}", rule),
             })
             .map_prefix(|op, expr| {
-                let op = match op.as_rule() {
-                    Rule::deref => UnaryOp::Deref,
-                    Rule::reg => UnaryOp::Reg,
+                match op.as_rule() {
+                    Rule::deref => Expr::Unary {
+                        op: UnaryOp::Deref,
+                        expr: Box::new(expr),
+                    },
                     rule => unreachable!("Expr::parse expected prefix operation, found {:?}", rule),
-                };
-                Expr::Unary {
-                    op,
-                    expr: Box::new(expr),
                 }
             })
             .map_infix(|lhs, op, rhs| {
@@ -81,21 +127,38 @@ impl SimpleDebugger {
                 };
                 Expr::Bin {
                     lhs: Box::new(lhs),
-                    op,
+                    op: op,
                     rhs: Box::new(rhs),
                 }
             })
             .parse(pairs)
     }
 
+    fn calculate_name_expr(&mut self, expr: &NameExpr) -> ProcessResult<u32> {
+        match expr {
+            NameExpr::Name(s) => {
+                log_error!(format!("An single name {} can not evaluate to a value", s));
+                Err(ProcessError::Recoverable)
+            }
+
+            NameExpr::NameUnary { op, expr } => {
+                match op {
+                    NameUnaryOp::Reg => {
+                        let reg = 0;
+                        Ok(reg)
+                    }
+                }
+            }
+        }
+    }
+
     fn calculate_expr(&mut self, expr: &Expr) -> ProcessResult<u32> {
         match expr {
-            Expr::Num(n) => Ok(*n),
+            Expr::Val(n) => Ok(*n),
             Expr::Unary { op, expr } => {
                 let val = self.calculate_expr(expr)?;
                 match op {
                     UnaryOp::Deref => log_err!(self.state.mmu.read_memory(val, Mask::Word), ProcessError::Recoverable),
-                    _ => unreachable!()
                 }
             },
             Expr::Bin { lhs, op, rhs } => {
@@ -105,12 +168,17 @@ impl SimpleDebugger {
                     BinOp::Add => Ok(lhs_val + rhs_val),
                     BinOp::Subtract => Ok(lhs_val - rhs_val),
                 }
+            },
+            Expr::NameExpr(expr) => {
+                self.calculate_name_expr(expr)
             }
         }
     }
 
     pub fn eval_expr(&mut self, src: &str) -> ProcessResult<u32> {
-        self.calculate_expr(&Self::parse_expr(log_err!(ExprParser::parse(Rule::expr, src), ProcessError::Recoverable)?))
+        let pairs = log_err!(ExprParser::parse(Rule::expr, src), ProcessError::Recoverable)?;
+        let exprs = self.val_parse_expr(pairs);
+        self.calculate_expr(&exprs)
     }
 
 }

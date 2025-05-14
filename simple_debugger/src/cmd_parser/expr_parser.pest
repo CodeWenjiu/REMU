@@ -1,15 +1,26 @@
-hex = { "0x" ~ HEX_DIGIT+ }
-oct = { ASCII_DIGIT+ }
+val = _{ hex_full | oct }
+    hex = { HEX_DIGIT+ }
+    hex_full = _{ "0x" ~ hex }
+    oct = { ASCII_DIGIT+ }
 
-binary_operation = _{ add | subtract }
+name = { ASCII_ALPHA+ }
+
+val_binary_operation = _{ add | subtract }
     add      = { "+" }
     subtract = { "-" }
 
-unary_operation = _{ deref | reg }
+val_unary_operation = _{ deref }
     deref = { "*" }
-    reg   = { "$" }
 
-expr = { term ~ (binary_operation ~ term)* | unary_operation ~ term }
-term = _{ hex | oct | "(" ~ expr ~ ")" }
+term = _{ val_unary_operation* ~ val_term }
+
+    val_term = _{ val | "(" ~ expr ~ ")" | name_term }
+
+        name_unary_operation = _{ reg }
+            reg = { "$" }
+
+        name_term = { (name_unary_operation ~ name) }
+
+expr = { term ~ (val_binary_operation ~ term)* }
 
 calculation = _{ SOI ~ expr ~ EOI }
