@@ -5,7 +5,7 @@ use pest::iterators::Pairs;
 use logger::Logger;
 use remu_macro::{log_err, log_error};
 use remu_utils::{ProcessError, ProcessResult};
-use state::mmu::Mask;
+use state::{mmu::Mask, reg::RegfileIo};
 
 use crate::SimpleDebugger;
 
@@ -144,8 +144,17 @@ impl SimpleDebugger {
             NameExpr::NameUnary { op, expr } => {
                 match op {
                     NameUnaryOp::Reg => {
-                        let reg = 0;
-                        Ok(reg)
+                        match &**expr {
+                            NameExpr::Name(s) => {
+                                self.state.regfile.read_reg(s)
+                            }
+
+                            rule => unreachable!("Expr::parse expected a name, found {:?}", rule),
+                            // NameExpr::NameUnary { op, expr } => {
+                            //     log_error!("recursive evaluation of variable expressions is not supported for now");
+                            //     Err(ProcessError::Recoverable)
+                            // }
+                        }
                     }
                 }
             }

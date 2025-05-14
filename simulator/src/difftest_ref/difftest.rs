@@ -26,7 +26,7 @@ impl DifftestManager {
     ) -> Self {
         // Create a minimal callback for the reference simulator, may be useful in future
         let ref_callback = SimulatorCallback::new(
-            Box::new(|_: u32, _: u32| Ok(())),
+            Box::new(|_: u32, _: u32, _: u32| Ok(())),
             Box::new(|| {}),
             Box::new(|_: u32, _: u32| {}),
             Box::new(|_: bool| {}),

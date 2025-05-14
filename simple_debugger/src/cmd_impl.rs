@@ -29,10 +29,12 @@ impl SimpleDebugger {
     fn cmd_breakpoint (&mut self, subcmd: BreakPointCmds) -> ProcessResult<()> {
         match subcmd {
             BreakPointCmds::Add { addr } => {
+                let addr = self.eval_expr(&addr)?;
                 self.simulator.tracer.borrow_mut().add_breakpoint(addr);
             }
 
             BreakPointCmds::Remove { addr } => {
+                let addr = self.eval_expr(&addr)?;
                 self.simulator.tracer.borrow_mut().remove_breakpoint_by_addr(addr);
             }
 

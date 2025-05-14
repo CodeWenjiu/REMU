@@ -4,7 +4,7 @@ use logger::Logger;
 use remu_macro::{log_err, log_error};
 use remu_utils::{ProcessError, ProcessResult};
 
-use crate::{reg::{AnyRegfile, RegError, RegIdentifier, RegfileIo}, CheckFlags4reg};
+use crate::{reg::{AnyRegfile, RegError, RegIdentifier, RegResult, RegfileIo}, CheckFlags4reg};
 
 use super::RvCsrEnum;
 
@@ -45,14 +45,14 @@ pub enum Rv32iGprEnum {
 }
 
 impl Rv32iGprEnum {
-    fn gpr_index_converter(index: u32) -> ProcessResult<Self> {
-        Ok(log_err!(Self::try_from(index), ProcessError::Recoverable)?)
+    fn gpr_index_converter(index: u32) -> RegResult<Self> {
+        Self::try_from(index)
     }
 
-    fn gpr_identifier_converter(index: RegIdentifier) -> ProcessResult<Self> {
+    fn gpr_identifier_converter(index: RegIdentifier) -> RegResult<Self> {
         let index = match index {
             RegIdentifier::Index(index) => Self::gpr_index_converter(index)?,
-            RegIdentifier::Name(name) => log_err!(Self::from_str(&name), ProcessError::Recoverable)?,
+            RegIdentifier::Name(name) => Self::from_str(&name)?,
         };
         Ok(index)
     }
@@ -214,12 +214,12 @@ impl RegfileIo for Rv32iRegFile {
     }
 
     fn read_gpr(&self, index: u32) -> ProcessResult<u32> {
-        let index = Rv32iGprEnum::gpr_index_converter(index)?;
+        let index = log_err!(Rv32iGprEnum::gpr_index_converter(index), ProcessError::Recoverable)?;
         Ok(self.regs.borrow()[index as usize])
     }
 
     fn write_gpr(&mut self, index: u32, value: u32) -> ProcessResult<()> {
-        let index = Rv32iGprEnum::gpr_index_converter(index)?;
+        let index = log_err!(Rv32iGprEnum::gpr_index_converter(index), ProcessError::Recoverable)?;
         if index == Rv32iGprEnum::X0 {
             return Ok(());
         }
@@ -242,6 +242,24 @@ impl RegfileIo for Rv32iRegFile {
         Ok(())
     }
 
+    fn read_reg(&self, name: &str) -> ProcessResult<u32> {
+        if name == "pc" {
+            return Ok(self.read_pc());
+        }
+
+        if let Ok(index) = Rv32iGprEnum::from_str(name) {
+            return Ok(self.regs.borrow()[index as usize]);
+        }
+
+        if let Ok(index) = RvCsrEnum::from_str(name) {
+            return Ok(self.csrs.borrow()[index as usize]);
+        }
+        
+        log_error!(format!("Invalid register name: {}", name));
+
+        Err(ProcessError::Recoverable)
+    }
+
     fn print_pc(&self) {
         self.print_format("PC", self.read_pc());
     }
@@ -249,7 +267,7 @@ impl RegfileIo for Rv32iRegFile {
     fn print_gpr(&self, index: Option<RegIdentifier>) -> ProcessResult<()> {
         match index {
             Some(identifier) => {
-                let index = Rv32iGprEnum::gpr_identifier_converter(identifier)?;
+                let index = log_err!(Rv32iGprEnum::gpr_identifier_converter(identifier), ProcessError::Recoverable)?;
                 let name = Rv32iGprEnum::from(index).into();
                 self.print_format(name, self.regs.borrow()[index as usize]);
             }

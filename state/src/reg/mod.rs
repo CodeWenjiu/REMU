@@ -66,6 +66,11 @@ pub trait RegfileIo {
         Err(ProcessError::Recoverable)
     }
 
+    fn read_reg(&self, _name: &str) -> ProcessResult<u32> {
+        log_todo!();
+        Err(ProcessError::Recoverable)
+    }
+
     fn print_pc(&self) {
         self.print_format("PC", self.read_pc());
     }

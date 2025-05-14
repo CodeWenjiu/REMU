@@ -3,7 +3,7 @@ val = _{ hex_full | oct }
     hex_full = _{ "0x" ~ hex }
     oct = { ASCII_DIGIT+ }
 
-name = { ASCII_ALPHA+ }
+name = { ASCII_ALPHA+ ~ (oct)* }
 
 val_binary_operation = _{ add | subtract }
     add      = { "+" }

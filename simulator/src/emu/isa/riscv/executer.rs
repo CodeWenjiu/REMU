@@ -9,7 +9,7 @@ use super::{InstMsg, InstPattern, RISCV, RV32I, RV32M};
 use state::{mmu::Mask, reg::{riscv::RvCsrEnum, RegfileIo}};
 
 impl Emu {
-    fn rv32_i_execute(&mut self, name: RV32I, mut msg: InstMsg) -> ProcessResult<()> {
+    fn rv32_i_execute(&mut self, name: RV32I, mut msg: InstMsg) -> ProcessResult<u32> {
         let regfile = &mut self.states.regfile;
         let rs1: u32 = regfile.read_gpr(msg.rs1.into()).map_err(|_| ProcessError::Recoverable)?;
         let rs2: u32 = regfile.read_gpr(msg.rs2.into()).map_err(|_| ProcessError::Recoverable)?;
@@ -252,17 +252,17 @@ impl Emu {
 
         regfile.write_pc(next_pc);
 
-        Ok(())
+        Ok(next_pc)
     }
 
-    fn rv32_e_execute(&mut self, name: RV32I, mut msg: InstMsg) -> ProcessResult<()> {
+    fn rv32_e_execute(&mut self, name: RV32I, mut msg: InstMsg) -> ProcessResult<u32> {
         msg.rs1 &= 0xF;
         msg.rs2 &= 0xF;
         msg.rd &= 0xF;
         self.rv32_i_execute(name, msg)
     }
 
-    fn rv32_m_execute(&mut self, _name: RV32M, msg: InstMsg) -> ProcessResult<()> {
+    fn rv32_m_execute(&mut self, _name: RV32M, msg: InstMsg) -> ProcessResult<u32> {
         let regfile = &mut self.states.regfile;
         let rs1: u32 = regfile.read_gpr(msg.rs1.into()).map_err(|_| ProcessError::Recoverable)?;
         let rs2: u32 = regfile.read_gpr(msg.rs2.into()).map_err(|_| ProcessError::Recoverable)?;
@@ -326,10 +326,10 @@ impl Emu {
 
         regfile.write_pc(next_pc);
 
-        Ok(())
+        Ok(next_pc)
     }
 
-    pub fn execute(&mut self, inst: InstPattern) -> ProcessResult<()> {
+    pub fn execute(&mut self, inst: InstPattern) -> ProcessResult<u32> {
         let belongs_to = inst.name;
         if !self.instruction_set.enable(belongs_to) {
             return Err(ProcessError::Recoverable)
@@ -337,15 +337,15 @@ impl Emu {
 
         match belongs_to {
             RISCV::RV32I(name) => {
-                self.rv32_i_execute(name, inst.msg)?;
+                return self.rv32_i_execute(name, inst.msg);
             }
 
             RISCV::RV32E(name) => {
-                self.rv32_e_execute(name, inst.msg)?;
+                return self.rv32_e_execute(name, inst.msg);
             }
 
             RISCV::RV32M(name) => {
-                self.rv32_m_execute(name, inst.msg)?;
+                return self.rv32_m_execute(name, inst.msg);
             }
 
             RISCV::Priv(_) => {
@@ -357,6 +357,6 @@ impl Emu {
             }
         }
 
-        Ok(())
+        Err(ProcessError::Recoverable)
     }
 }

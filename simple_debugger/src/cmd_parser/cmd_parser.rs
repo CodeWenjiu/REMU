@@ -114,16 +114,14 @@ pub enum InfoCmds {
 pub enum BreakPointCmds {
     /// Set a breakpoint
     Add {
-        /// The target address(hex)
-        #[arg(value_parser = parse_hex)]
-        addr: u32,
+        /// The target address(expr)
+        addr: String,
     },
 
     /// Remove a breakpoint
     Remove {
-        /// The target address(hex)
-        #[arg(value_parser = parse_hex)]
-        addr: u32,
+        /// The target address(expr)
+        addr: String,
     },
 
     /// Show all breakpoints

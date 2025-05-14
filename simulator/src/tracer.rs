@@ -39,14 +39,19 @@ impl Tracer {
     }
 
     pub fn add_breakpoint(&mut self, addr: u32) {
-        if !self.breakpoints.contains(&addr) {
+        if let Some(pos) = self.breakpoints.iter().position(|&x| x == addr) {
+            println!("Breakpoint already exists at {}:{:#010x}", pos.purple(), addr.blue());
+        } else {
+            let index = self.breakpoints.len();
             self.breakpoints.push(addr);
+            println!("Breakpoint {} added at {:#010x}", index.purple(), addr.blue());
         }
     }
 
     pub fn remove_breakpoint_by_addr(&mut self, addr: u32) {
         if let Some(pos) = self.breakpoints.iter().position(|&x| x == addr) {
             self.breakpoints.remove(pos);
+            println!("Breakpoint at {}:{:#010x} removed", pos.purple(), addr.blue());
         }
     }
 
@@ -81,10 +86,10 @@ impl Tracer {
         }
     }
 
-    pub fn trace(&self, pc: u32, inst: u32) -> ProcessResult<()> {
+    pub fn trace(&self, pc: u32, next_pc: u32, inst: u32) -> ProcessResult<()> {
         self.instruction_trace(pc, inst);
 
-        self.check_breakpoint(pc)?;
+        self.check_breakpoint(next_pc)?;
 
         Ok(())
     }

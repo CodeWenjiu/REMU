@@ -164,10 +164,10 @@ impl Emu {
         let decode = self.decode(pc, inst.1)?;
         
         // 3. Execute: Execute the instruction
-        self.execute(decode)?;
+        let next_pc = self.execute(decode)?;
 
         // 4. Notify completion and return
-        (self.callback.instruction_complete)(pc, inst.1)?;
+        (self.callback.instruction_complete)(pc, next_pc, inst.1)?;
 
         self.times.cycles += 1;
         self.times.instructions += 1;

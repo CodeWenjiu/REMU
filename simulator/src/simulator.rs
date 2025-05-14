@@ -48,7 +48,7 @@ pub enum SimulatorError {
 }
 
 pub struct SimulatorCallback {
-    pub instruction_complete: Box<dyn FnMut(u32, u32) -> ProcessResult<()>>,
+    pub instruction_complete: Box<dyn FnMut(u32, u32, u32) -> ProcessResult<()>>,
     pub difftest_skip: Box<dyn Fn()>,
     pub decode_failed: Box<dyn Fn(u32, u32)>,
     pub trap: Box<dyn Fn(bool)>,
@@ -56,7 +56,7 @@ pub struct SimulatorCallback {
 
 impl SimulatorCallback {
     pub fn new(
-        instruction_complete: Box<dyn FnMut(u32, u32) -> ProcessResult<()>>,
+        instruction_complete: Box<dyn FnMut(u32, u32, u32) -> ProcessResult<()>>,
         difftest_skip: Box<dyn Fn()>,
         decode_failed: Box<dyn Fn(u32, u32)>,
         trap: Box<dyn Fn(bool)>,
@@ -161,14 +161,14 @@ impl Simulator {
             let tracer = tracer.clone();
             let difftest_manager = difftest_manager.clone();
 
-            Box::new(move |pc: u32, inst: u32| -> ProcessResult<()> {
+            Box::new(move |pc: u32, next_pc: u32, inst: u32| -> ProcessResult<()> {
                 difftest_manager
                     .as_ref()
                     .map(|mgr| 
                         mgr.borrow_mut().step()
                     ).transpose()?;
 
-                tracer.borrow().trace(pc, inst)?;
+                tracer.borrow().trace(pc, next_pc, inst)?;
 
                 let mut pending = pending_instructions.borrow_mut();
                 if *pending > 0 {
