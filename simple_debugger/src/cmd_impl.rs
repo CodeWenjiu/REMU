@@ -126,6 +126,7 @@ impl SimpleDebugger {
             DiffertestCmds::MemWatchPoint { addr } => {
                 match addr {
                     Some(addr) => {
+                        let addr = log_err!(self.eval_expr(&addr), ProcessError::Recoverable)?;
                         self.simulator.difftest_manager.as_ref().map(|man| {
                             man.borrow_mut().push_memory_watch_point(addr);
                         });
@@ -222,6 +223,11 @@ impl SimpleDebugger {
 
             Cmds::Info { subcmd } => {
                 self.cmd_info(subcmd)?;
+            }
+
+            Cmds::Print { expr } => {
+                let result = self.eval_expr(&expr)?;
+                println!("{} = {} : {:#08x}", expr.magenta(), result.green(), result.blue());
             }
 
             Cmds::BreakPoint { subcmd } => {

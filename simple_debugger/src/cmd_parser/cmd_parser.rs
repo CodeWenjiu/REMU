@@ -5,15 +5,6 @@ use state::reg::RegIdentifier;
 
 use std::num::ParseIntError;
 
-// hex parser
-fn parse_hex(src: &str) -> Result<u32, ParseIntError> {
-    if src.starts_with("0x") || src.starts_with("0X") {
-        u32::from_str_radix(&src[2..], 16)
-    } else {
-        src.parse::<u32>()
-    }
-}
-
 #[derive(clap::Parser, Debug)]
 #[command(author, version, about, styles = styling::Styles::styled()
 .header(styling::AnsiColor::Green.on_default().bold())
@@ -52,6 +43,12 @@ pub enum Cmds {
     Info {
         #[command(subcommand)]
         subcmd: InfoCmds,
+    },
+
+    /// Print Expr Result
+    Print {
+        /// The target expression
+        expr: String,
     },
 
     /// BreakPoint
@@ -156,7 +153,7 @@ pub enum MemoryCmds {
     /// Examine memory
     #[clap(verbatim_doc_comment)]
     Examine {
-        /// The target address(hex) and length
+        /// The target address(expr) and length
         addr: String,
 
         /// Exam length in bitwidth, default as 1
@@ -175,9 +172,8 @@ pub enum DiffertestCmds {
 
     /// Set memory watch point
     MemWatchPoint {
-        /// The target address(hex) and length
-        #[arg(value_parser = parse_hex)]
-        addr: Option<u32>,
+        /// The target address(expr) and length
+        addr: Option<String>,
     },
 }
 
