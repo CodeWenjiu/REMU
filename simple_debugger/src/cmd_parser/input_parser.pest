@@ -1,0 +1,17 @@
+WHITESPACE = _{ " " | "\t" }
+
+cmd = @{ (ASCII_ALPHA | ASCII_DIGIT | "_" | operation)+ }
+
+operation = _{ add | subtract | deref | reg }
+    add         = _{ "+" }
+    subtract    = _{ "-" }
+    deref       = _{ "*" }
+    reg         = _{ "$" }
+
+expr = { (ASCII_ALPHA | ASCII_DIGIT | operation)+ }
+
+expr_full = _{ "`" ~ expr ~ "`" }
+
+term = _{cmd | expr_full}
+
+cmd_full = _{ (term)* }

@@ -1,3 +1,5 @@
+WHITESPACE = _{ " " | "\t" }
+
 val = _{ hex_full | oct }
     hex = { HEX_DIGIT+ }
     hex_full = _{ "0x" ~ hex }

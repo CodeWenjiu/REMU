@@ -1,5 +1,6 @@
 use clap::Parser;
 use logger::Logger;
+use remu_macro::log_err;
 use rustyline::{error::ReadlineError, highlight::MatchingBracketHighlighter, hint::HistoryHinter, history::{FileHistory, History}, validate::MatchingBracketValidator, CompletionType, Config, EditMode, Editor};
 
 use remu_utils::{ProcessError, ProcessResult, Simulators};
@@ -13,6 +14,22 @@ pub struct Server {
     rl: Editor<MyHelper, FileHistory>,
 
     rl_history_length: usize,
+}
+
+#[derive(pest_derive::Parser)]
+#[grammar = "cmd_parser/input_parser.pest"]
+pub struct InputParser;
+
+fn input_parse(pairs: pest::iterators::Pairs<Rule>) -> Vec<String> {
+    pairs
+        .into_iter()
+        .map(|pair| 
+            match pair.as_rule() {
+                Rule::expr | Rule::cmd => pair.as_str().to_string(),
+                _ => unreachable!()
+            }
+        )
+        .collect()
 }
 
 impl Server {
@@ -54,12 +71,15 @@ impl Server {
         loop {
             let line = self.readline()?;
 
-            let mut line = line.trim().split_whitespace().collect::<Vec<&str>>();
+            use pest::Parser;
+            let pairs = log_err!(InputParser::parse(Rule::cmd_full, &line), ProcessError::Recoverable)?;
+            let mut line = input_parse(pairs);
+
             if line.is_empty() {
                 continue;
             }
 
-            line.insert(0, "");
+            line.insert(0, "".to_owned());
 
             let cmd = CmdParser::try_parse_from(line);
 
