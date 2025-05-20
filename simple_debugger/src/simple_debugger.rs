@@ -6,7 +6,7 @@ use option_parser::{BaseConfiguration, DebugConfiguration, OptionParser};
 use remu_buildin::{READLINE_HISTORY_LENGTH, get_buildin_img, get_reset_vector};
 use remu_macro::log_err;
 use simulator::{Simulator, difftest_ref::difftestffi_init};
-use state::{model::{JydPipeCell, PipelineModel}, States};
+use state::{model::{BasePipeCell, PipelineModel}, States};
 
 use remu_utils::{DifftestRef, Disassembler, ProcessError};
 
@@ -83,11 +83,11 @@ impl SimpleDebugger {
             }
         }
 
-        let mut state = States::new(isa, reset_vector, PipelineModel::<JydPipeCell>::new()).unwrap();
+        let mut state = States::new(isa, reset_vector, PipelineModel::<BasePipeCell>::new()).unwrap();
         let mut state_ref = state.clone();
 
         if let Some(DifftestRef::BuildIn(_)) = cli_result.cli.differtest {
-            state_ref = States::new(isa, reset_vector, PipelineModel::<JydPipeCell>::new()).unwrap();
+            state_ref = States::new(isa, reset_vector, PipelineModel::<BasePipeCell>::new()).unwrap();
         }
 
         for region in &cli_result.cfg.region_config {

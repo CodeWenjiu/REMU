@@ -178,6 +178,24 @@ impl RegfileIo for Rv32eRegFile {
         Ok(())
     }
 
+    fn read_reg(&self, name: &str) -> ProcessResult<u32> {
+        if name == "pc" {
+            return Ok(self.read_pc());
+        }
+
+        if let Ok(index) = Rv32eGprEnum::from_str(name) {
+            return Ok(self.regs.borrow()[index as usize]);
+        }
+
+        if let Ok(index) = RvCsrEnum::from_str(name) {
+            return Ok(self.csrs.borrow()[index as usize]);
+        }
+        
+        log_error!(format!("Invalid register name: {}", name));
+
+        Err(ProcessError::Recoverable)
+    }
+
     fn print_pc(&self) {
         self.print_format("PC", self.read_pc());
     }

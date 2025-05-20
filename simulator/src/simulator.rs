@@ -162,13 +162,13 @@ impl Simulator {
             let difftest_manager = difftest_manager.clone();
 
             Box::new(move |pc: u32, next_pc: u32, inst: u32| -> ProcessResult<()> {
+                tracer.borrow().trace(pc, next_pc, inst)?;
+
                 difftest_manager
                     .as_ref()
                     .map(|mgr| 
                         mgr.borrow_mut().step()
                     ).transpose()?;
-
-                tracer.borrow().trace(pc, next_pc, inst)?;
 
                 let mut pending = pending_instructions.borrow_mut();
                 if *pending > 0 {

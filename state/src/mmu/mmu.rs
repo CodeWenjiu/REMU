@@ -221,7 +221,7 @@ impl MMU {
             
             let read_data = memory.read(offset, Mask::Word);
             if read_data != data {
-                log_error!(format!("Memory mismatch at {:#010x}: expected {:#010x}, got {:#010x}", addr, data, read_data));
+                log_error!(format!("Memory mismatch at {:#010x}: expected {:#010x}, got {:#010x}", addr, read_data, data));
                 return Err(ProcessError::Recoverable);
             }
         }

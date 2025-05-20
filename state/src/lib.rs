@@ -1,5 +1,5 @@
 use mmu::MMU;
-use model::{JydPipeCell, PipelineModel};
+use model::{BasePipeCell, PipelineModel};
 use reg::AnyRegfile;
 use remu_utils::ISA;
 
@@ -9,7 +9,7 @@ remu_macro::mod_pub!(mmu, reg, model);
 pub struct States {
     pub regfile: AnyRegfile,
     pub mmu: MMU,
-    pub pipe_state: PipelineModel<JydPipeCell>,
+    pub pipe_state: PipelineModel<BasePipeCell>,
 }
 
 use bitflags::bitflags;
@@ -30,7 +30,7 @@ impl States {
     pub fn new(
         isa: ISA,
         reset_vector: u32,
-        pipe_state: PipelineModel<JydPipeCell>,
+        pipe_state: PipelineModel<BasePipeCell>,
     ) -> Result<Self, ()> {
         let regfile = reg::regfile_io_factory(isa, reset_vector)?;
 

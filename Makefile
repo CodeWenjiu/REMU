@@ -9,7 +9,7 @@ Binfile_jyd = ./.test/jyd_driver-riscv32e-npc.bin
 Binfile_jyd_remote = ./simulator/src/nzea/on_board/NZ-jyd/tools/bin_spliter/irom.bin
 Alternate_jyd_remote = 0x80100000:./simulator/src/nzea/on_board/NZ-jyd/tools/bin_spliter/dram.bin
 
-Binfile_Emu = ./.test/microbench-riscv32-nemu.bin
+Binfile_Emu = ./.test/image.bin
 
 Platform_emu_rv32im = rv32im-emu-nemu
 Platform_emu_rv32e = rv32e-emu-nemu
@@ -25,16 +25,18 @@ ifeq ($(Platform),$(Platform_emu_rv32im))
 	Binfile ?= $(Binfile_Emu)
 else ifeq ($(Platform),$(Platform_emu_rv32e))
 	Binfile ?= $(Binfile_Emu)
+else ifeq ($(Platform),$(Platform_Nzea_npc))
+	Binfile ?= $(Binfile_Nzea_npc)
 else ifeq ($(Platform),$(Platform_Nzea_ysyxsoc))
 	Binfile ?= $(Binfile_Nzea_ysyxsoc)
 else ifeq ($(Platform),$(Platform_Nzea_jyd_remote))
 	Binfile ?= $(Binfile_jyd_remote)
-	Alternate ?= $(Alternate_jyd_remote)
+	Alternate ?= --additional-bin $(Alternate_jyd_remote)
 else
 	Binfile ?= $(Binfile_Nzea)
 endif
 
-Mainargs = --primary-bin $(Binfile) --additional-bin $(Alternate) -p $(Platform)
+Mainargs = --primary-bin $(Binfile) $(Alternate) -p $(Platform)
 ExtraArgs ?=
 Debugargs = $(Mainargs) -d emu #--log
 
