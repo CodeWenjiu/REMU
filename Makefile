@@ -20,6 +20,17 @@ Platform_Nzea_ysyxsoc = rv32e-nzea-ysyxsoc
 Platform_Nzea_jyd_remote = rv32i-nzea-jyd_remote
 
 Platform ?= $(Platform_emu_default)
+
+PLATFORMS = $(Platform_emu_rv32im) $(Platform_emu_rv32e) $(Platform_Nzea_npc) $(Platform_Nzea_ysyxsoc) $(Platform_Nzea_jyd_remote)
+
+ifeq ($(filter clean menuconfig fmt,$(MAKECMDGOALS)),)
+
+ifeq ($(filter $(PLATFORMS), $(Platform)), )
+$(error Expected $$PLATFORM in {$(PLATFORMS)}, Got "$(Platform)")
+endif
+
+endif
+
 # Set Binfile based on Platform
 ifeq ($(Platform),$(Platform_emu_rv32im))
 	Binfile ?= $(Binfile_Emu)
