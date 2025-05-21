@@ -4,22 +4,19 @@ use std::{collections::HashMap, fmt::Display};
 use std::hash::Hash;
 use std::fmt::{Debug, Error};
 
-use bitflags::bitflags;
 use petgraph::{graph::NodeIndex, algo::toposort, Graph};
 use remu_macro::log_error;
 use logger::Logger;
 use remu_utils::{ProcessError, ProcessResult};
 
-bitflags! {
-    #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
-    pub struct BasePipeCell: u32 {
-        const IFU = 1 << 0;
-        const IDU = 1 << 1;
-        const ALU = 1 << 2;
-        const AGU = 1 << 3;
-        const LSU = 1 << 4;
-        const WBU = 1 << 5;
-    }
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+pub enum BasePipeCell {
+    IFU,
+    IDU,
+    ALU,
+    AGU,
+    LSU,
+    WBU,
 }
 
 impl Display for BasePipeCell {
@@ -31,7 +28,6 @@ impl Display for BasePipeCell {
             BasePipeCell::AGU => write!(f, "AGU"),
             BasePipeCell::LSU => write!(f, "LSU"),
             BasePipeCell::WBU => write!(f, "WBU"),
-            _ => write!(f, "Unknown"),
         }
     }
 }
@@ -77,8 +73,6 @@ pub struct ModelCell {
 pub struct PipelineModel { 
     pub cells: HashMap<BasePipeCell, ModelCell>, 
     graph: Graph<BasePipeCell, ()>, 
-    input: BasePipeCell, 
-    output: BasePipeCell,
 }
 
 impl PipelineModel {
@@ -92,15 +86,15 @@ impl PipelineModel {
     }
 
     pub fn send(&mut self, data: (u32, u32), to: BasePipeCell) -> ProcessResult<()> {
-        self.find_cell(self.input)?
+        self.find_cell(BasePipeCell::IFU)?
             .channel
             .push(data)
             .map_err(|e| {
-                log_error!(format!("{:?}: buffer is full", self.input));
+                log_error!(format!("{:?}: buffer is full", BasePipeCell::IFU));
                 e
             })?;
 
-        self.trans(self.input, to)
+        self.trans(BasePipeCell::IFU, to)
     }
 
     pub fn trans(&mut self, from: BasePipeCell, to: BasePipeCell) -> ProcessResult<()> {
@@ -119,7 +113,7 @@ impl PipelineModel {
     }
 
     pub fn get(&mut self) -> ProcessResult<(u32, u32)> {
-        let output = self.output; 
+        let output = BasePipeCell::WBU; 
         let channel = &mut self.find_cell(output)?.channel;
         let data = channel.buffer.borrow_mut().pop().ok_or({
             ProcessError::Recoverable
@@ -267,8 +261,6 @@ impl Default for PipelineModel {
         Self {
             cells,
             graph,
-            input,
-            output,
         }
     }
 }
@@ -306,12 +298,8 @@ impl Display for PipelineModel {
         write!(f, 
             "Pipeline Model\n\
              ==============\n\
-             Input: {}\n\
-             Output: {}\n\n\
              Processing Cells:\n{}\n\
              Connections:\n{}",
-            self.input, 
-            self.output, 
             cells_str, 
             edges_str
         )
