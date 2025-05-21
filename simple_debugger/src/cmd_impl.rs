@@ -19,7 +19,7 @@ impl SimpleDebugger {
             }
 
             InfoCmds::Pipeline {  } => {
-                println!("{:#?}", self.state.pipe_state)
+                println!("{}", self.state.pipe_state)
             }
         }
 
@@ -155,7 +155,7 @@ impl SimpleDebugger {
             }
 
             InfoCmds::Pipeline {  } => {
-                println!("{:#?}", self.state_ref.pipe_state)
+                println!("{}", self.state_ref.pipe_state)
             }
         }
 
