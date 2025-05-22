@@ -1,5 +1,6 @@
-#[derive(Debug, PartialEq, Copy, Clone)]
+#[derive(Debug, PartialEq, Copy, Clone, Default)]
 pub enum ImmType {
+    #[default]
     I,
     S,
     B,
@@ -9,8 +10,9 @@ pub enum ImmType {
     N,
 }
 
-#[derive(Debug, PartialEq, Copy, Clone)]
-pub enum RV32I {
+#[derive(Debug, PartialEq, Copy, Clone, Default)]
+pub enum RV32IAL {
+    #[default]
     Lui,
     Auipc,
 
@@ -23,16 +25,6 @@ pub enum RV32I {
     Bge,
     Bltu,
     Bgeu,
-
-    Lb,
-    Lh,
-    Lw,
-    Lbu,
-    Lhu,
-
-    Sb,
-    Sh,
-    Sw,
 
     Addi,
 
@@ -66,8 +58,35 @@ pub enum RV32I {
     Ebreak,
 }
 
+#[derive(Debug, PartialEq, Copy, Clone, Default)]
+pub enum RV32ILS {
+    #[default]
+    Lb,
+    Lh,
+    Lw,
+    Lbu,
+    Lhu,
+
+    Sb,
+    Sh,
+    Sw,
+}
+
 #[derive(Debug, PartialEq, Copy, Clone)]
+pub enum RV32I {
+    AL(RV32IAL),
+    LS(RV32ILS),
+}
+
+impl Default for RV32I {
+    fn default() -> Self {
+        RV32I::AL(RV32IAL::default())
+    }
+}
+
+#[derive(Debug, PartialEq, Copy, Clone, Default)]
 pub enum RV32M {
+    #[default]
     Mul,
 
     Mulh,
@@ -81,8 +100,9 @@ pub enum RV32M {
     Remu,
 }
 
-#[derive(Debug, PartialEq, Copy, Clone)]
+#[derive(Debug, PartialEq, Copy, Clone, Default)]
 pub enum Zicsr {
+    #[default]
     Csrrw,
     Csrrs,
     Csrrc,
@@ -92,8 +112,9 @@ pub enum Zicsr {
     Csrrci,
 }
 
-#[derive(Debug, PartialEq, Copy, Clone)]
+#[derive(Debug, PartialEq, Copy, Clone, Default)]
 pub enum Priv {
+    #[default]
     Mret,
 }
 
@@ -104,4 +125,10 @@ pub enum RISCV {
     RV32M(RV32M),
     Zicsr(Zicsr),
     Priv(Priv),
+}
+
+impl Default for RISCV {
+    fn default() -> Self {
+        RISCV::RV32I(RV32I::default())
+    }
 }

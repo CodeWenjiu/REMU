@@ -8,21 +8,23 @@ use state::{reg::RegfileIo, States};
 
 use crate::{SimulatorCallback, SimulatorItem};
 
-use super::isa::riscv::RISCV;
+use super::isa::riscv::{EmuPipeCell, RISCV};
 
 bitflags! {
     #[derive(Clone, Copy, Debug)]
     pub struct InstructionSetFlags: u8 {
         /// RV32I base integer instruction set
         const RV32I = 1 << 0;
+
+        const RV32ILS = 1 << 1;
         /// RV32M integer multiplication and division extension
-        const RV32M = 1 << 1;
+        const RV32M = 1 << 2;
         /// RV32E base integer instruction set (embedded)
-        const RV32E = 1 << 2;
+        const RV32E = 1 << 3;
         /// Zicsr control and status register extension
-        const ZICSR = 1 << 3;
+        const ZICSR = 1 << 4;
         /// Privileged architecture extension
-        const PRIV  = 1 << 4;
+        const PRIV  = 1 << 5;
     }
 }
 
@@ -87,6 +89,9 @@ pub struct Emu {
 
     /// Emulator times
     pub times: EmuTimes,
+
+    /// Emulator pipeline
+    pub pipe: EmuPipeCell,
 }
 
 impl SimulatorItem for Emu {
@@ -118,6 +123,7 @@ impl Emu {
                 cycles: 0,
                 instructions: 0,
             },
+            pipe: EmuPipeCell::default(),
         }
     }
 
@@ -150,10 +156,11 @@ impl Emu {
         
         Ok(())
     }
-    
+
     /// Execute a single cycle in the emulator
     pub fn self_step_cycle(&mut self) -> ProcessResult<()> {
         // 1. Fetch: Read the PC and fetch the instruction
+
         let pc = self.states.regfile.read_pc();
         let inst = log_err!(
             self.states.mmu.read(pc, state::mmu::Mask::Word), 

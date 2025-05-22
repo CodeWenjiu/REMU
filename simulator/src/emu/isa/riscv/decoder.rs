@@ -3,18 +3,36 @@ use remu_utils::{ProcessError, ProcessResult};
 use crate::emu::{extract_bits, sig_extend, Emu, InstructionSetFlags};
 
 use super::{
-    ImmType, InstPattern, Priv, Zicsr, RISCV, RV32I, RV32M, RV32_I_PATTERN_ITER,
-    RV32_M_PATTERN_ITER, RV_PRIV_PATTERN_ITER, RV_ZICSR_PATTERN_ITER,
+    ImmType, InstPattern, Priv, Zicsr, RISCV, RV32I, RV32IAL, RV32ILS, RV32M, RV32_IAL_PATTERN_ITER, RV32_ILS_PATTERN_ITER, RV32_M_PATTERN_ITER, RV_PRIV_PATTERN_ITER, RV_ZICSR_PATTERN_ITER
 };
 
 impl Emu {
     /// Decode an instruction as RV32I
-    fn rv32_i_decode(inst: u32) -> Option<(RV32I, ImmType)> {
-        for (opcode, imm_type, (mask, value)) in RV32_I_PATTERN_ITER {
+    fn rv32_i_al_decode(inst: u32) -> Option<(RV32IAL, ImmType)> {
+        for (opcode, imm_type, (mask, value)) in RV32_IAL_PATTERN_ITER {
             if (inst & mask) == *value {
                 return Some((*opcode, *imm_type));
             }
         }
+        None
+    }
+
+    fn rv32_i_ls_decode(inst: u32) -> Option<(RV32ILS, ImmType)> {
+        for (opcode, imm_type, (mask, value)) in RV32_ILS_PATTERN_ITER {
+            if (inst & mask) == *value {
+                return Some((*opcode, *imm_type));
+            }
+        }
+        None
+    }
+
+    fn rv32_i_decode(inst: u32) -> Option<(RV32I, ImmType)> {
+        if let Some((opcode, imm_type)) = Self::rv32_i_al_decode(inst) {
+            return Some((RV32I::AL(opcode), imm_type));
+        } else if let Some((opcode, imm_type)) = Self::rv32_i_ls_decode(inst) {
+            return Some((RV32I::LS(opcode), imm_type));
+        }
+
         None
     }
 
