@@ -8,7 +8,7 @@ use state::{reg::RegfileIo, States};
 
 use crate::{SimulatorCallback, SimulatorItem};
 
-use super::isa::riscv::{EmuPipeCell, RISCV};
+use super::isa::riscv::{EmuPipeCell, ToIdStage, RISCV};
 
 bitflags! {
     #[derive(Clone, Copy, Debug)]
@@ -168,7 +168,7 @@ impl Emu {
         )?;
 
         // 2. Decode: Decode the instruction
-        let decode = self.decode(pc, inst.1)?;
+        let decode = self.decode(ToIdStage { pc: pc, inst: inst.1 })?;
         
         // 3. Execute: Execute the instruction
         let next_pc = self.execute(decode)?;

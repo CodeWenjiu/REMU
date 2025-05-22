@@ -88,9 +88,9 @@ pub const RV_PRIV_PATTERN_ITER: &[(Priv, ImmType, (u32, u32))] = &[
 
 #[derive(Debug, PartialEq, Clone, Default)]
 pub struct InstMsg {
-    pub rs1: u8,
-    pub rs2: u8,
-    pub rd: u8,
+    pub rs1: u32,
+    pub rs2: u32,
+    pub rd_addr: u8,
     pub imm: u32,
 }
 
@@ -101,13 +101,13 @@ pub struct InstPattern {
 }
 
 impl InstPattern {
-    pub fn new(name: RISCV, rs1: u8, rs2: u8, rd: u8, imm: u32) -> Self {
+    pub fn new(name: RISCV, rs1: u32, rs2: u32, rd: u8, imm: u32) -> Self {
         Self {
             name,
             msg: InstMsg {
                 rs1,
                 rs2,
-                rd,
+                rd_addr: rd,
                 imm,
             }
         }

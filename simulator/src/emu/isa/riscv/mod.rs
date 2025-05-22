@@ -1,1 +1,1 @@
-remu_macro::mod_flat!(inst_enum, patterns, decoder, executer);
+remu_macro::mod_flat!(inst_enum, patterns, decoder, arithmetic_logic, executer, trap);

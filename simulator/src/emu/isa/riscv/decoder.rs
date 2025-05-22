@@ -1,10 +1,17 @@
 use remu_utils::{ProcessError, ProcessResult};
+use state::reg::RegfileIo;
 
 use crate::emu::{extract_bits, sig_extend, Emu, InstructionSetFlags};
 
 use super::{
     ImmType, InstPattern, Priv, Zicsr, RISCV, RV32I, RV32IAL, RV32ILS, RV32M, RV32_IAL_PATTERN_ITER, RV32_ILS_PATTERN_ITER, RV32_M_PATTERN_ITER, RV_PRIV_PATTERN_ITER, RV_ZICSR_PATTERN_ITER
 };
+
+#[derive(Default)]
+pub struct ToIdStage {
+    pub pc: u32,
+    pub inst: u32,
+}
 
 impl Emu {
     /// Decode an instruction as RV32I
@@ -156,7 +163,9 @@ impl Emu {
     }
 
     /// Decode an instruction into its components
-    pub fn decode(&mut self, pc: u32, inst: u32) -> ProcessResult<InstPattern> {
+    pub fn decode(&mut self, msg: ToIdStage) -> ProcessResult<InstPattern> {
+        let pc = msg.pc;
+        let inst = msg.inst;
         if let Some((opcode, imm_type)) = self.isa_decode(inst) {
             // Extract register fields
             let rs1 = extract_bits(inst, 15..19) as u8;
@@ -165,6 +174,10 @@ impl Emu {
             
             // Extract immediate value
             let imm = Self::get_imm(inst, imm_type);
+
+            let regfile = &mut self.states.regfile;
+            let rs1: u32 = regfile.read_gpr(rs1.into()).map_err(|_| ProcessError::Recoverable)?;
+            let rs2: u32 = regfile.read_gpr(rs2.into()).map_err(|_| ProcessError::Recoverable)?;
 
             // Create instruction pattern
             Ok(InstPattern::new(opcode, rs1, rs2, rd, imm))

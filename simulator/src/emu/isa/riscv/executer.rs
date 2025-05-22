@@ -4,24 +4,10 @@ use remu_utils::{ProcessError, ProcessResult};
 
 use crate::emu::Emu;
 
-use super::{InstMsg, InstPattern, RISCV, RV32I, RV32IAL, RV32ILS, RV32M};
+use super::{InstMsg, InstPattern, ToAlStage, ToIdStage, RISCV, RV32I, RV32IAL, RV32ILS, RV32M};
 
 use state::{mmu::Mask, model::BasePipeCell, reg::{riscv::RvCsrEnum, RegfileIo}};
 
-
-
-#[derive(Default)]
-struct ToIdStage {
-    pub pc: u32,
-    pub inst: u32,
-}
-
-#[derive(Default)]
-struct ToAlStage {
-    pub pc: u32,
-    pub inst: RV32IAL,
-    pub msg: InstMsg, 
-}
 
 #[derive(Default)]
 struct ToAgStage {
@@ -31,17 +17,18 @@ struct ToAgStage {
 }
 
 #[derive(Default)]
-struct ToLsStage {
+pub struct ToLsStage {
     pub pc: u32,
     pub to_ls: RV32ILS,
     pub inst_msg: InstMsg,
 }
 
 #[derive(Default)]
-struct ToWbStage {
+pub struct ToWbStage {
     pub pc: u32,
     pub next_pc: u32,
     pub gpr_wmsg: (u8, u32),
+    pub csr_wmsg: [(bool, u32, u32); 2],
 }
 
 #[derive(Default)]
@@ -56,8 +43,8 @@ pub struct EmuPipeCell {
 impl Emu {
     fn rv32_i_al_execute(&mut self, name: RV32IAL, mut msg: InstMsg) -> ProcessResult<u32> {
         let regfile = &mut self.states.regfile;
-        let rs1: u32 = regfile.read_gpr(msg.rs1.into()).map_err(|_| ProcessError::Recoverable)?;
-        let rs2: u32 = regfile.read_gpr(msg.rs2.into()).map_err(|_| ProcessError::Recoverable)?;
+        let rs1: u32 = msg.rs1;
+        let rs2: u32 = msg.rs2;
         
         let mut rd_val: u32 = 0;
 
@@ -86,42 +73,42 @@ impl Emu {
             }
 
             RV32IAL::Beq => {
-                msg.rd = 0;
+                msg.rd_addr = 0;
                 if rs1 == rs2 {
                     next_pc = pc.wrapping_add(imm);
                 }
             }
 
             RV32IAL::Bne => {
-                msg.rd = 0;
+                msg.rd_addr = 0;
                 if rs1 != rs2 {
                     next_pc = pc.wrapping_add(imm);
                 }
             }
 
             RV32IAL::Blt => {
-                msg.rd = 0;
+                msg.rd_addr = 0;
                 if (rs1 as i32) < (rs2 as i32) {
                     next_pc = pc.wrapping_add(imm);
                 }
             }
 
             RV32IAL::Bge => {
-                msg.rd = 0;
+                msg.rd_addr = 0;
                 if (rs1 as i32) >= (rs2 as i32) {
                     next_pc = pc.wrapping_add(imm);
                 }
             }
 
             RV32IAL::Bltu => {
-                msg.rd = 0;
+                msg.rd_addr = 0;
                 if rs1 < rs2 {
                     next_pc = pc.wrapping_add(imm);
                 }
             }
 
             RV32IAL::Bgeu => {
-                msg.rd = 0;
+                msg.rd_addr = 0;
                 if rs1 >= rs2 {
                     next_pc = pc.wrapping_add(imm);
                 }
@@ -204,7 +191,7 @@ impl Emu {
             }
 
             RV32IAL::Ecall => {
-                msg.rd = 0;
+                msg.rd_addr = 0;
                 regfile.write_csr(RvCsrEnum::MEPC.into(), pc)?;
                 regfile.write_csr(RvCsrEnum::MCAUSE.into(), 0x0000000b)?;
                 next_pc = regfile.read_csr(RvCsrEnum::MTVEC.into())?;
@@ -217,12 +204,12 @@ impl Emu {
             }
 
             RV32IAL::Fence => {
-                msg.rd = 0;
+                msg.rd_addr = 0;
                 // Do nothing
             }
         }
         
-        regfile.write_gpr(msg.rd.into(), rd_val)?;
+        regfile.write_gpr(msg.rd_addr.into(), rd_val)?;
 
         regfile.write_pc(next_pc);
 
@@ -231,8 +218,8 @@ impl Emu {
 
     fn rv32_i_ls_execute(&mut self, name: RV32ILS, mut msg: InstMsg) -> ProcessResult<u32> {
         let regfile = &mut self.states.regfile;
-        let rs1: u32 = regfile.read_gpr(msg.rs1.into()).map_err(|_| ProcessError::Recoverable)?;
-        let rs2: u32 = regfile.read_gpr(msg.rs2.into()).map_err(|_| ProcessError::Recoverable)?;
+        let rs1: u32 = msg.rs1;
+        let rs2: u32 = msg.rs2;
         
         let mut rd_val: u32 = 0;
 
@@ -290,7 +277,7 @@ impl Emu {
             }
 
             RV32ILS::Sb => {
-                msg.rd = 0;
+                msg.rd_addr = 0;
                 let addr = rs1.wrapping_add(imm);
                 if log_err!(mmu.write(addr, rs2, Mask::Byte), ProcessError::Recoverable)? == true {
                     (self.callback.difftest_skip)();
@@ -298,7 +285,7 @@ impl Emu {
             }
 
             RV32ILS::Sh => {
-                msg.rd = 0;
+                msg.rd_addr = 0;
                 let addr = rs1.wrapping_add(imm);
                 if log_err!(mmu.write(addr, rs2, Mask::Half), ProcessError::Recoverable)? == true {
                     (self.callback.difftest_skip)();
@@ -306,7 +293,7 @@ impl Emu {
             }
 
             RV32ILS::Sw => {
-                msg.rd = 0;
+                msg.rd_addr = 0;
                 let addr = rs1.wrapping_add(imm);
                 if log_err!(mmu.write(addr, rs2, Mask::Word), ProcessError::Recoverable)? == true {
                     (self.callback.difftest_skip)();
@@ -314,7 +301,7 @@ impl Emu {
             }
         }
             
-        regfile.write_gpr(msg.rd.into(), rd_val)?;
+        regfile.write_gpr(msg.rd_addr.into(), rd_val)?;
 
         regfile.write_pc(next_pc);
 
@@ -329,16 +316,14 @@ impl Emu {
     }
 
     fn rv32_e_execute(&mut self, name: RV32I, mut msg: InstMsg) -> ProcessResult<u32> {
-        msg.rs1 &= 0xF;
-        msg.rs2 &= 0xF;
-        msg.rd &= 0xF;
+        msg.rd_addr &= 0xF;
         self.rv32_i_execute(name, msg)
     }
 
     fn rv32_m_execute(&mut self, _name: RV32M, msg: InstMsg) -> ProcessResult<u32> {
         let regfile = &mut self.states.regfile;
-        let rs1: u32 = regfile.read_gpr(msg.rs1.into()).map_err(|_| ProcessError::Recoverable)?;
-        let rs2: u32 = regfile.read_gpr(msg.rs2.into()).map_err(|_| ProcessError::Recoverable)?;
+        let rs1: u32 = msg.rs1;
+        let rs2: u32 = msg.rs2;
         
         let rd_val: u32;
 
@@ -395,7 +380,7 @@ impl Emu {
             }
         }
         
-        regfile.write_gpr(msg.rd.into(), rd_val).map_err(|_| ProcessError::Recoverable)?;
+        regfile.write_gpr(msg.rd_addr.into(), rd_val).map_err(|_| ProcessError::Recoverable)?;
 
         regfile.write_pc(next_pc);
 
@@ -423,7 +408,7 @@ impl Emu {
         let pc = self.pipe.to_id.pc;
         let inst = self.pipe.to_id.inst;
 
-        let inst_pattern = self.decode(pc, inst)?;
+        let inst_pattern = self.decode(ToIdStage { pc: pc, inst: inst })?;
         
         self.pipe.to_al.pc = pc;
         self.pipe.to_al.msg = inst_pattern.msg;
