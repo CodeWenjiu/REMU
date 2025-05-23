@@ -8,7 +8,7 @@ use state::{reg::RegfileIo, States};
 
 use crate::{SimulatorCallback, SimulatorItem};
 
-use super::isa::riscv::{frontend::ToIfStage, backend::{AlInst, ToAgStage, ToAlStage}, RISCV, RV32I};
+use super::isa::riscv::{frontend::ToIfStage, backend::{AlInst, ToAgStage, ToAlStageBe}, RISCV, RV32I};
 
 bitflags! {
     #[derive(Clone, Copy, Debug)]
@@ -165,7 +165,7 @@ impl Emu {
         let to_ex = self.instruction_decode(to_id)?;
         let to_wb = match to_ex.inst {
             RISCV::RV32I(RV32I::AL(inst)) => {
-                let to_al = ToAlStage {
+                let to_al = ToAlStageBe {
                     pc: to_ex.pc,
                     inst: AlInst::RV32I(inst),
                     msg: to_ex.msg,
@@ -186,7 +186,7 @@ impl Emu {
             }
 
             RISCV::RV32M(inst) => {
-                let to_al = ToAlStage {
+                let to_al = ToAlStageBe {
                     pc: to_ex.pc,
                     inst: AlInst::RV32M(inst),
                     msg: to_ex.msg,

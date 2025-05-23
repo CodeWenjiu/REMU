@@ -18,10 +18,25 @@ impl Default for AlInst {
 }
 
 #[derive(Default)]
-pub struct ToAlStage {
+pub struct ToAlStageBe {
     pub pc: u32,
     pub inst: AlInst,
     pub msg: InstMsg, 
+}
+
+#[derive(Default)]
+pub enum AlCtrl {
+    #[default]
+    A,
+    ADD,
+
+}
+
+#[derive(Default)]
+pub struct ToAlStage {
+    pub pc: u32,
+    pub srca: u32,
+    pub srcb: u32,
 }
 
 impl Emu {
@@ -257,7 +272,7 @@ impl Emu {
 
     }
 
-    pub fn arithmetic_logic_rv32(&self, stage: ToAlStage) -> ProcessResult<ToWbStage> {
+    pub fn arithmetic_logic_rv32(&self, stage: ToAlStageBe) -> ProcessResult<ToWbStage> {
         match stage.inst {
             AlInst::RV32I(inst) => self.arithmetic_logic_rv32i(stage.pc, inst, stage.msg),
             AlInst::RV32M(inst) => self.arithmetic_logic_rv32m(stage.pc, inst, stage.msg),
