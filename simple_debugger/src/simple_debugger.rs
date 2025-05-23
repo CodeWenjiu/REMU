@@ -132,10 +132,18 @@ impl SimpleDebugger {
 
         let bytes = if cli_result.cli.primary_bin.is_some() {
             let bin = cli_result.cli.primary_bin.as_ref().unwrap();
-            let bytes = log_err!(std::fs::read(bin)).unwrap();
+            let bytes = log_err!(std::fs::read(bin))
+                .map_err(|e| {
+                    Logger::show(
+                        &format!("Unable to read binary image {}", bin).to_string(),
+                        Logger::ERROR,
+                    );
+                    e
+                })
+                .unwrap();
 
             Logger::show(
-                &format!("Loading binary image size: {}", bytes.len() / 4).to_string(),
+                &format!("Loading binary image {} size: {}", bin, bytes.len() / 4).to_string(),
                 Logger::INFO,
             );
 
