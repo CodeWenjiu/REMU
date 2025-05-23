@@ -1,44 +1,12 @@
 use logger::Logger;
-use remu_macro::{log_err, log_error, log_todo};
+use remu_macro::{log_err, log_todo};
 use remu_utils::{ProcessError, ProcessResult};
 
 use crate::emu::Emu;
 
-use super::{InstMsg, InstPattern, ToAlStage, ToIdStage, RISCV, RV32I, RV32IAL, RV32ILS, RV32M};
+use super::{InstMsg, InstPattern, RISCV, RV32I, RV32IAL, RV32ILS, RV32M};
 
-use state::{mmu::Mask, model::BasePipeCell, reg::{riscv::RvCsrEnum, RegfileIo}};
-
-
-#[derive(Default)]
-struct ToAgStage {
-    pub pc: u32,
-    pub inst: RV32ILS,
-    pub msg: InstMsg, 
-}
-
-#[derive(Default)]
-pub struct ToLsStage {
-    pub pc: u32,
-    pub to_ls: RV32ILS,
-    pub inst_msg: InstMsg,
-}
-
-#[derive(Default)]
-pub struct ToWbStage {
-    pub pc: u32,
-    pub next_pc: u32,
-    pub gpr_wmsg: (u8, u32),
-    pub csr_wmsg: [(bool, u32, u32); 2],
-}
-
-#[derive(Default)]
-pub struct EmuPipeCell {
-    to_id: ToIdStage,
-    to_al: ToAlStage,
-    to_ag: ToAgStage,
-    to_ls: ToLsStage,
-    to_wb: ToWbStage,
-}
+use state::{mmu::Mask, reg::{riscv::RvCsrEnum, RegfileIo}};
 
 impl Emu {
     fn rv32_i_al_execute(&mut self, name: RV32IAL, mut msg: InstMsg) -> ProcessResult<u32> {
@@ -198,8 +166,7 @@ impl Emu {
             }
 
             RV32IAL::Ebreak => {
-                let a0 = regfile.read_gpr(10).unwrap();
-                (self.callback.trap)(a0 == 0);
+                (self.callback.trap)();
                 return Err(ProcessError::Recoverable);
             }
 
@@ -385,78 +352,6 @@ impl Emu {
         regfile.write_pc(next_pc);
 
         Ok(next_pc)
-    }
-    
-    pub fn self_if_catch(&mut self) -> ProcessResult<()> {
-        let pc = self.states.regfile.read_pc();
-        let inst = log_err!(
-            self.states.mmu.read(pc, state::mmu::Mask::Word),
-            ProcessError::Recoverable
-        )?.1;
-
-        self.pipe.to_id = ToIdStage {
-            pc,
-            inst,
-        };
-
-        self.states.pipe_state.send((pc, inst), BasePipeCell::IDU)?;
-
-        Ok(())
-    }
-
-    pub fn self_id_catch(&mut self, fetched_pc: u32) -> ProcessResult<()> {
-        let pc = self.pipe.to_id.pc;
-        let inst = self.pipe.to_id.inst;
-
-        let inst_pattern = self.decode(ToIdStage { pc: pc, inst: inst })?;
-        
-        self.pipe.to_al.pc = pc;
-        self.pipe.to_al.msg = inst_pattern.msg;
-
-        match inst_pattern.name {
-            RISCV::RV32I(RV32I::LS(name)) => {
-                self.states.pipe_state.send((pc, inst), BasePipeCell::AGU)?;
-                self.pipe.to_ag.inst = name;
-            }
-
-            RISCV::RV32I(RV32I::AL(name)) => {
-                self.states.pipe_state.send((pc, inst), BasePipeCell::ALU)?;
-                self.pipe.to_al.inst = name;
-            }
-
-            _ => unreachable!(),
-        }
-
-
-        if fetched_pc != pc {
-            log_error!(format!("IDU catch PC mismatch: fetched {:#08x}, expected {:#08x}", fetched_pc, pc));
-            return Err(ProcessError::Recoverable);
-        }
-
-        Ok(())
-    }
-
-    pub fn al_execute(&mut self, fetched_pc: u32) -> ProcessResult<()> {
-        let pc = self.pipe.to_al.pc;
-        let inst = self.pipe.to_al.inst;
-        let msg = self.pipe.to_al.msg.clone();
-
-        self.rv32_i_al_execute(inst, msg)?;
-
-        if fetched_pc != pc {
-            log_error!(format!("ALU catch PC mismatch: fetched {:#08x}, expected {:#08x}", fetched_pc, pc));
-            return Err(ProcessError::Recoverable);
-        }
-        
-        Ok(())
-    }
-
-    pub fn ag_execute(&mut self, fetched_pc: u32) -> ProcessResult<()> {
-        let pc = self.pipe.to_al.pc;
-        let inst = self.pipe.to_ag.inst;
-        let msg = self.pipe.to_al.msg.clone();
-
-        Ok(())
     }
 
     pub fn execute(&mut self, inst: InstPattern) -> ProcessResult<u32> {

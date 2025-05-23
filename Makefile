@@ -9,7 +9,7 @@ Binfile_jyd = ./.test/jyd_driver-riscv32e-npc.bin
 Binfile_jyd_remote = ./simulator/src/nzea/on_board/NZ-jyd/tools/bin_spliter/irom.bin
 Alternate_jyd_remote = 0x80100000:./simulator/src/nzea/on_board/NZ-jyd/tools/bin_spliter/dram.bin
 
-Binfile_Emu = ./.test/microbench-riscv32-nemu.bin
+Binfile_Emu = ./.test/microbench-riscv32e-nemu.bin
 
 Platform_emu_rv32im = rv32im-emu-nemu
 Platform_emu_rv32e = rv32e-emu-nemu

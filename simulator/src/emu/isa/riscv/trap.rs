@@ -1,6 +1,6 @@
+#[derive(PartialEq, Clone, Copy)]
 pub enum Trap {
-    Ebreak {is_trap_good: bool}, // for ysyx runtime
-    Ecall {cause: u32},
+    Ebreak = 3,
 
-    None,
+    EcallM = 11,
 }

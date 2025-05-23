@@ -4,13 +4,20 @@ use state::reg::RegfileIo;
 use crate::emu::{extract_bits, sig_extend, Emu, InstructionSetFlags};
 
 use super::{
-    ImmType, InstPattern, Priv, Zicsr, RISCV, RV32I, RV32IAL, RV32ILS, RV32M, RV32_IAL_PATTERN_ITER, RV32_ILS_PATTERN_ITER, RV32_M_PATTERN_ITER, RV_PRIV_PATTERN_ITER, RV_ZICSR_PATTERN_ITER
+    ImmType, InstMsg, InstPattern, Priv, Zicsr, RISCV, RV32I, RV32IAL, RV32ILS, RV32M, RV32_IAL_PATTERN_ITER, RV32_ILS_PATTERN_ITER, RV32_M_PATTERN_ITER, RV_PRIV_PATTERN_ITER, RV_ZICSR_PATTERN_ITER
 };
 
-#[derive(Default)]
+#[derive(Default, Clone, Copy)]
 pub struct ToIdStage {
     pub pc: u32,
     pub inst: u32,
+}
+
+#[derive(Default)]
+pub struct IdOutStage {
+    pub pc: u32,
+    pub inst: RISCV,
+    pub msg: InstMsg, 
 }
 
 impl Emu {
@@ -163,7 +170,7 @@ impl Emu {
     }
 
     /// Decode an instruction into its components
-    pub fn decode(&mut self, msg: ToIdStage) -> ProcessResult<InstPattern> {
+    pub fn decode(&self, msg: ToIdStage) -> ProcessResult<InstPattern> {
         let pc = msg.pc;
         let inst = msg.inst;
         if let Some((opcode, imm_type)) = self.isa_decode(inst) {
@@ -175,7 +182,7 @@ impl Emu {
             // Extract immediate value
             let imm = Self::get_imm(inst, imm_type);
 
-            let regfile = &mut self.states.regfile;
+            let regfile = &self.states.regfile;
             let rs1: u32 = regfile.read_gpr(rs1.into()).map_err(|_| ProcessError::Recoverable)?;
             let rs2: u32 = regfile.read_gpr(rs2.into()).map_err(|_| ProcessError::Recoverable)?;
 
@@ -186,5 +193,15 @@ impl Emu {
             (self.callback.decode_failed)(pc, inst);
             Err(ProcessError::Recoverable)
         }
+    }
+
+    pub fn instruction_decode(&mut self, msg: ToIdStage) -> ProcessResult<IdOutStage> {
+        let inst = self.decode(msg)?;
+
+        let pc = msg.pc;
+        let msg = inst.msg;
+        let inst = inst.name;
+
+        Ok(IdOutStage { pc, inst, msg })
     }
 }

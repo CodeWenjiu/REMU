@@ -29,7 +29,7 @@ impl DifftestManager {
             Box::new(|_: u32, _: u32, _: u32| Ok(())),
             Box::new(|| {}),
             Box::new(|_: u32, _: u32| {}),
-            Box::new(|_: bool| {}),
+            Box::new(|| {}),
         );
 
         let reference = AnyDifftestRef::try_from((option, states_ref.clone(), ref_callback)).unwrap();

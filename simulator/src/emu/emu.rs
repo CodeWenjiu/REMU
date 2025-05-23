@@ -8,7 +8,7 @@ use state::{reg::RegfileIo, States};
 
 use crate::{SimulatorCallback, SimulatorItem};
 
-use super::isa::riscv::{EmuPipeCell, ToIdStage, RISCV};
+use super::isa::riscv::{AlInst, ToAgStage, ToAlStage, ToIdStage, ToIfStage, RISCV, RV32I};
 
 bitflags! {
     #[derive(Clone, Copy, Debug)]
@@ -89,14 +89,11 @@ pub struct Emu {
 
     /// Emulator times
     pub times: EmuTimes,
-
-    /// Emulator pipeline
-    pub pipe: EmuPipeCell,
 }
 
 impl SimulatorItem for Emu {
     fn step_cycle(&mut self) -> ProcessResult<()> {
-        self.self_step_cycle()
+        self.self_step_cycle_multicycle()
     }
 
     fn times(&self) -> ProcessResult<()> {
@@ -123,7 +120,6 @@ impl Emu {
                 cycles: 0,
                 instructions: 0,
             },
-            pipe: EmuPipeCell::default(),
         }
     }
 
@@ -180,5 +176,50 @@ impl Emu {
         self.times.instructions += 1;
 
         Ok(())
+    }
+
+    pub fn self_step_cycle_multicycle(&mut self) -> ProcessResult<()> {
+        let to_if = ToIfStage {
+            pc: self.states.regfile.read_pc(),
+        };
+
+        let to_id = self.instruction_fetch_rv32i(to_if)?;
+        
+        let to_ex = self.instruction_decode(to_id)?;
+        let to_wb = match to_ex.inst {
+            RISCV::RV32I(RV32I::AL(inst)) => {
+                let to_al = ToAlStage {
+                    pc: to_ex.pc,
+                    inst: AlInst::RV32I(inst),
+                    msg: to_ex.msg,
+                };
+
+                self.arithmetic_logic_rv32(to_al)?
+            }
+            
+            RISCV::RV32I(RV32I::LS(inst)) => {
+                let to_ag = ToAgStage {
+                    pc: to_ex.pc,
+                    inst,
+                    msg: to_ex.msg,
+                };
+
+                let to_ls = self.address_generation_rv32i(to_ag)?;
+                self.load_store_rv32i(to_ls)?
+            }
+
+            RISCV::RV32M(inst) => {
+                let to_al = ToAlStage {
+                    pc: to_ex.pc,
+                    inst: AlInst::RV32M(inst),
+                    msg: to_ex.msg,
+                };
+                self.arithmetic_logic_rv32(to_al)?
+            }
+
+            _ => unreachable!("{:?}", to_ex.inst),
+        };
+
+        self.write_back_rv32i(to_wb)
     }
 }

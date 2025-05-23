@@ -11,7 +11,7 @@ use option_parser::{DebugConfiguration, OptionParser};
 use owo_colors::OwoColorize;
 use remu_macro::{log_error, log_todo};
 use remu_utils::{Disassembler, ProcessError, ProcessResult, Simulators};
-use state::States;
+use state::{reg::RegfileIo, States};
 
 use crate::{
     difftest_ref::DifftestManager, emu::Emu, nzea::Nzea, TraceFunction, Tracer
@@ -51,7 +51,7 @@ pub struct SimulatorCallback {
     pub instruction_complete: Box<dyn FnMut(u32, u32, u32) -> ProcessResult<()>>,
     pub difftest_skip: Box<dyn Fn()>,
     pub decode_failed: Box<dyn Fn(u32, u32)>,
-    pub trap: Box<dyn Fn(bool)>,
+    pub trap: Box<dyn Fn()>,
 }
 
 impl SimulatorCallback {
@@ -59,7 +59,7 @@ impl SimulatorCallback {
         instruction_complete: Box<dyn FnMut(u32, u32, u32) -> ProcessResult<()>>,
         difftest_skip: Box<dyn Fn()>,
         decode_failed: Box<dyn Fn(u32, u32)>,
-        trap: Box<dyn Fn(bool)>,
+        trap: Box<dyn Fn()>,
     ) -> Self {
         Self {
             instruction_complete,
@@ -197,13 +197,16 @@ impl Simulator {
         });
 
         let trap_callback = {
+            let states_dut = states_dut.clone();
             let simulator_state = simulator_state.clone();
 
-            Box::new(move |is_good: bool| {
-            let msg = if is_good { Logger::SUCCESS } else { Logger::ERROR };
-            Logger::show(if is_good { "Hit Good Trap" } else { "Hit Bad Trap" }, msg);
-            *simulator_state.lock().unwrap() = SimulatorState::TRAPED(is_good);
-        })};
+            Box::new(move || {
+                let is_good = states_dut.regfile.read_gpr(10).unwrap() == 0;
+                let msg = if is_good { Logger::SUCCESS } else { Logger::ERROR };
+                Logger::show(if is_good { "Hit Good Trap" } else { "Hit Bad Trap" }, msg);
+                *simulator_state.lock().unwrap() = SimulatorState::TRAPED(is_good);
+            }
+        )};
 
         let dut_callback = SimulatorCallback::new(
             instruction_complete_callback,
