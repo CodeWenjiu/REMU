@@ -15,7 +15,7 @@ pub struct ToWbStage {
 }
 
 impl Emu {
-    pub fn write_back_rv32i(&mut self, stage: ToWbStage) -> ProcessResult<()> {
+    pub fn write_back_rv32i(&mut self, stage: ToWbStage) -> ProcessResult<u32> {
         let regfile = &mut self.states.regfile;
         let pc = stage.pc;
 
@@ -39,7 +39,6 @@ impl Emu {
         }
 
         regfile.write_pc(stage.next_pc);
-
-        Ok(())
+        Ok(stage.next_pc)
     }
 }

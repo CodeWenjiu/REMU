@@ -49,7 +49,7 @@ endif
 
 Mainargs = --primary-bin $(Binfile) $(Alternate) -p $(Platform)
 ExtraArgs ?=
-Debugargs = $(Mainargs) -d spike #--log
+Debugargs = $(Mainargs) #-d spike #--log
 
 default: run
 

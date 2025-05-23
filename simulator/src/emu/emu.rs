@@ -2,13 +2,13 @@ use bitflags::bitflags;
 use logger::Logger;
 use option_parser::OptionParser;
 use owo_colors::OwoColorize;
-use remu_macro::{log_err, log_error};
-use remu_utils::{ProcessError, ProcessResult, ISA};
+use remu_macro::log_error;
+use remu_utils::{ProcessResult, ISA};
 use state::{reg::RegfileIo, States};
 
 use crate::{SimulatorCallback, SimulatorItem};
 
-use super::isa::riscv::{frontend::{ToIdStage, ToIfStage}, backend::{AlInst, ToAgStage, ToAlStage}, RISCV, RV32I};
+use super::isa::riscv::{frontend::ToIfStage, backend::{AlInst, ToAgStage, ToAlStage}, RISCV, RV32I};
 
 bitflags! {
     #[derive(Clone, Copy, Debug)]
@@ -93,7 +93,7 @@ pub struct Emu {
 
 impl SimulatorItem for Emu {
     fn step_cycle(&mut self) -> ProcessResult<()> {
-        self.self_step_cycle_multicycle()
+        self.self_step_cycle_singlecycle()
     }
 
     fn times(&self) -> ProcessResult<()> {
@@ -153,37 +153,14 @@ impl Emu {
         Ok(())
     }
 
-    /// Execute a single cycle in the emulator
-    pub fn self_step_cycle(&mut self) -> ProcessResult<()> {
-        // 1. Fetch: Read the PC and fetch the instruction
-
+    pub fn self_step_cycle_singlecycle(&mut self) -> ProcessResult<()> {
         let pc = self.states.regfile.read_pc();
-        let inst = log_err!(
-            self.states.mmu.read(pc, state::mmu::Mask::Word), 
-            ProcessError::Recoverable
-        )?;
 
-        // 2. Decode: Decode the instruction
-        let decode = self.decode(ToIdStage { pc: pc, inst: inst.1 })?;
-        
-        // 3. Execute: Execute the instruction
-        let next_pc = self.execute(decode)?;
-
-        // 4. Notify completion and return
-        (self.callback.instruction_complete)(pc, next_pc, inst.1)?;
-
-        self.times.cycles += 1;
-        self.times.instructions += 1;
-
-        Ok(())
-    }
-
-    pub fn self_step_cycle_multicycle(&mut self) -> ProcessResult<()> {
-        let to_if = ToIfStage {
-            pc: self.states.regfile.read_pc(),
-        };
+        let to_if = ToIfStage { pc };
 
         let to_id = self.instruction_fetch_rv32i(to_if)?;
+
+        let inst = to_id.inst;
         
         let to_ex = self.instruction_decode(to_id)?;
         let to_wb = match to_ex.inst {
@@ -220,6 +197,13 @@ impl Emu {
             _ => unreachable!("{:?}", to_ex.inst),
         };
 
-        self.write_back_rv32i(to_wb)
+        let next_pc = self.write_back_rv32i(to_wb)?;
+        
+        (self.callback.instruction_complete)(pc, next_pc, inst)?;
+
+        self.times.cycles += 1;
+        self.times.instructions += 1;
+
+        Ok(())
     }
 }

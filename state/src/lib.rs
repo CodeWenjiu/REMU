@@ -27,11 +27,7 @@ pub struct CheckFlags {
 }
 
 impl States {
-    pub fn new(
-        isa: ISA,
-        reset_vector: u32,
-        pipe_state: PipelineModel,
-    ) -> Result<Self, ()> {
+    pub fn new(isa: ISA, reset_vector: u32, pipe_state: PipelineModel) -> Result<Self, ()> {
         let regfile = reg::regfile_io_factory(isa, reset_vector)?;
 
         let mmu = MMU::new();
