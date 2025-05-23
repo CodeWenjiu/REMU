@@ -2,7 +2,8 @@ use remu_utils::ProcessResult;
 
 use crate::emu::Emu;
 
-use super::{InstMsg, ToLsStage, RV32ILS};
+use super::{ToLsStage};
+use super::super::{InstMsg, RV32ILS};
 
 #[derive(Default)]
 pub struct ToAgStage {
@@ -27,7 +28,7 @@ impl Emu {
             pc,
             inst,
             rd_addr,
-            
+
             addr,
             data,
         })

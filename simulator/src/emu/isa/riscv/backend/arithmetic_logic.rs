@@ -3,7 +3,8 @@ use state::reg::{riscv::RvCsrEnum, RegfileIo};
 
 use crate::emu::Emu;
 
-use super::{InstMsg, ToWbStage, Trap, RV32IAL, RV32M};
+use super::{ToWbStage, };
+use super::super::{InstMsg, Trap, RV32IAL, RV32M};
 
 pub enum AlInst {
     RV32I(RV32IAL),

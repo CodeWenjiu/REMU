@@ -8,7 +8,7 @@ use state::{reg::RegfileIo, States};
 
 use crate::{SimulatorCallback, SimulatorItem};
 
-use super::isa::riscv::{AlInst, ToAgStage, ToAlStage, ToIdStage, ToIfStage, RISCV, RV32I};
+use super::isa::riscv::{frontend::{ToIdStage, ToIfStage}, backend::{AlInst, ToAgStage, ToAlStage}, RISCV, RV32I};
 
 bitflags! {
     #[derive(Clone, Copy, Debug)]

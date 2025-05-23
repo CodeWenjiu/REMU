@@ -3,7 +3,7 @@ use state::reg::{riscv::RvCsrEnum, RegfileIo};
 
 use crate::emu::Emu;
 
-use super::Trap;
+use super::super::Trap;
 
 #[derive(Default)]
 pub struct ToWbStage {

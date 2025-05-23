@@ -132,3 +132,31 @@ impl Default for RISCV {
         RISCV::RV32I(RV32I::default())
     }
 }
+
+#[derive(Debug, PartialEq, Clone, Default)]
+pub struct InstMsg {
+    pub rs1: u32,
+    pub rs2: u32,
+    pub rd_addr: u8,
+    pub imm: u32,
+}
+
+#[derive(Debug, PartialEq, Clone, Default)]
+pub struct InstPattern {
+    pub name: RISCV,
+    pub msg: InstMsg,
+}
+
+impl InstPattern {
+    pub fn new(name: RISCV, rs1: u32, rs2: u32, rd: u8, imm: u32) -> Self {
+        Self {
+            name,
+            msg: InstMsg {
+                rs1,
+                rs2,
+                rd_addr: rd,
+                imm,
+            }
+        }
+    }
+}

@@ -1,0 +1,1 @@
+remu_macro::mod_flat!(instruction_fetch, patterns, instruction_decoder);

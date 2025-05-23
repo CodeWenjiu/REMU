@@ -5,7 +5,8 @@ use state::mmu::Mask;
 
 use crate::emu::Emu;
 
-use super::{ToWbStage, RV32ILS};
+use super::{ToWbStage, };
+use super::super::{RV32ILS};
 
 #[derive(Default)]
 pub struct ToLsStage {

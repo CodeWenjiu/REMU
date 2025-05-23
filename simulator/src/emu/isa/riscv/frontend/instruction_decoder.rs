@@ -1,10 +1,11 @@
 use remu_utils::{ProcessError, ProcessResult};
 use state::reg::RegfileIo;
 
-use crate::emu::{extract_bits, sig_extend, Emu, InstructionSetFlags};
+use crate::emu::{extract_bits, isa::riscv::{InstMsg, InstPattern}, sig_extend, Emu, InstructionSetFlags};
 
 use super::{
-    ImmType, InstMsg, InstPattern, Priv, Zicsr, RISCV, RV32I, RV32IAL, RV32ILS, RV32M, RV32_IAL_PATTERN_ITER, RV32_ILS_PATTERN_ITER, RV32_M_PATTERN_ITER, RV_PRIV_PATTERN_ITER, RV_ZICSR_PATTERN_ITER
+    super::{ImmType, Priv, Zicsr, RISCV, RV32I, RV32IAL, RV32ILS, RV32M, },
+    RV32_IAL_PATTERN_ITER, RV32_ILS_PATTERN_ITER, RV32_M_PATTERN_ITER, RV_PRIV_PATTERN_ITER, RV_ZICSR_PATTERN_ITER
 };
 
 #[derive(Default, Clone, Copy)]
