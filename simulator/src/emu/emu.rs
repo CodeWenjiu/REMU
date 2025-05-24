@@ -171,7 +171,7 @@ impl Emu {
                     msg: to_ex.msg,
                 };
 
-                self.arithmetic_logic_rv32(to_al)?
+                self.arithmetic_logic_rv32n(to_al)?
             }
             
             RISCV::RV32I(RV32I::LS(inst)) => {
@@ -182,7 +182,7 @@ impl Emu {
                 };
 
                 let to_ls = self.address_generation_rv32i(to_ag)?;
-                self.load_store_rv32i(to_ls)?
+                self.load_store_rv32in(to_ls)?
             }
 
             RISCV::RV32M(inst) => {
@@ -191,13 +191,13 @@ impl Emu {
                     inst: AlInst::RV32M(inst),
                     msg: to_ex.msg,
                 };
-                self.arithmetic_logic_rv32(to_al)?
+                self.arithmetic_logic_rv32n(to_al)?
             }
 
             _ => unreachable!("{:?}", to_ex.inst),
         };
 
-        let next_pc = self.write_back_rv32i(to_wb)?;
+        let next_pc = self.write_back_rv32in(to_wb)?;
         
         (self.callback.instruction_complete)(pc, next_pc, inst)?;
 
