@@ -8,7 +8,7 @@ use state::{reg::RegfileIo, States};
 
 use crate::{SimulatorCallback, SimulatorItem};
 
-use super::isa::riscv::{frontend::{ IdOutStagen, ToIfStage}, RISCV};
+use super::isa::riscv::{frontend::{ IsOutStage, ToIfStage}, RISCV};
 
 bitflags! {
     #[derive(Clone, Copy, Debug)]
@@ -162,14 +162,15 @@ impl Emu {
 
         let inst = to_id.inst;
         
-        let to_ex = self.instruction_decode(to_id)?;
+        let to_is = self.instruction_decode(to_id)?;
+        let to_ex = self.instruction_issue(to_is)?;
 
         let to_wb = match to_ex {
-            IdOutStagen::AL(to_al) => {
+            IsOutStage::AL(to_al) => {
                 self.arithmetic_logic_rv32(to_al)?
             }
 
-            IdOutStagen::LS(to_ls) => {
+            IsOutStage::LS(to_ls) => {
                 self.load_store_rv32i(to_ls)?
             }
         };
