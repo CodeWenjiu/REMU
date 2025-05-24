@@ -8,7 +8,7 @@ use state::{reg::RegfileIo, States};
 
 use crate::{SimulatorCallback, SimulatorItem};
 
-use super::isa::riscv::{frontend::ToIfStage, backend::{AlInst, ToAgStage, ToAlStageBe}, RISCV, RV32I};
+use super::isa::riscv::{frontend::{ IdOutStagen, ToIfStage}, RISCV};
 
 bitflags! {
     #[derive(Clone, Copy, Debug)]
@@ -163,41 +163,18 @@ impl Emu {
         let inst = to_id.inst;
         
         let to_ex = self.instruction_decode(to_id)?;
-        let to_wb = match to_ex.inst {
-            RISCV::RV32I(RV32I::AL(inst)) => {
-                let to_al = ToAlStageBe {
-                    pc: to_ex.pc,
-                    inst: AlInst::RV32I(inst),
-                    msg: to_ex.msg,
-                };
 
-                self.arithmetic_logic_rv32n(to_al)?
-            }
-            
-            RISCV::RV32I(RV32I::LS(inst)) => {
-                let to_ag = ToAgStage {
-                    pc: to_ex.pc,
-                    inst,
-                    msg: to_ex.msg,
-                };
-
-                let to_ls = self.address_generation_rv32i(to_ag)?;
-                self.load_store_rv32in(to_ls)?
+        let to_wb = match to_ex {
+            IdOutStagen::AL(to_al) => {
+                self.arithmetic_logic_rv32(to_al)?
             }
 
-            RISCV::RV32M(inst) => {
-                let to_al = ToAlStageBe {
-                    pc: to_ex.pc,
-                    inst: AlInst::RV32M(inst),
-                    msg: to_ex.msg,
-                };
-                self.arithmetic_logic_rv32n(to_al)?
+            IdOutStagen::LS(to_ls) => {
+                self.load_store_rv32i(to_ls)?
             }
-
-            _ => unreachable!("{:?}", to_ex.inst),
         };
 
-        let next_pc = self.write_back_rv32in(to_wb)?;
+        let next_pc = self.write_back_rv32i(to_wb)?;
         
         (self.callback.instruction_complete)(pc, next_pc, inst)?;
 

@@ -1,7 +1,7 @@
 use remu_utils::{ProcessError, ProcessResult};
 use state::reg::RegfileIo;
 
-use crate::emu::{extract_bits, isa::riscv::{InstMsg, InstPattern}, sig_extend, Emu, InstructionSetFlags};
+use crate::emu::{extract_bits, isa::riscv::{backend::{AlCtrl, ToAlStage, ToLsStage, WbCtrl}, InstMsg, InstPattern, Trap}, sig_extend, Emu, InstructionSetFlags};
 
 use super::{
     super::{ImmType, Priv, Zicsr, RISCV, RV32I, RV32IAL, RV32ILS, RV32M, },
@@ -19,6 +19,17 @@ pub struct IdOutStage {
     pub pc: u32,
     pub inst: RISCV,
     pub msg: InstMsg, 
+}
+
+pub enum IdOutStagen {
+    AL(ToAlStage),
+    LS(ToLsStage),
+}
+
+impl Default for IdOutStagen {
+    fn default() -> Self {
+        Self::AL(ToAlStage::default())
+    }
 }
 
 impl Emu {
@@ -196,13 +207,299 @@ impl Emu {
         }
     }
 
-    pub fn instruction_decode(&mut self, msg: ToIdStage) -> ProcessResult<IdOutStage> {
-        let inst = self.decode(msg)?;
+    // pub fn instruction_issue(&mut self, msg: InstPattern) -> ProcessResult<IdOutStagen> {
+    //     let inst = msg.name;
 
-        let pc = msg.pc;
+    //     match inst {
+    //         RISCV::RV32I(RV32I::AL(inst)) => {
+    //             let stage = ToAlStage {
+    //                 pc: msg.pc,
+    //                 inst,
+    //                 msg,
+    //             };
+
+    //             Ok(IdOutStagen::AL(stage))
+    //         }
+
+    //         _ => unreachable!()
+    //     }
+    // }
+
+    pub fn instruction_decode(&mut self, stage: ToIdStage) -> ProcessResult<IdOutStagen> {
+        let inst = self.decode(stage)?;
+
         let msg = inst.msg;
+
+        let rs1_val = msg.rs1;
+        let rs2_val: u32 = msg.rs2;
+        let mut gpr_waddr = msg.rd_addr;
+        let imm = msg.imm;
+
         let inst = inst.name;
 
-        Ok(IdOutStage { pc, inst, msg })
+        let pc = stage.pc;
+        let mut srca = 0;
+        let mut srcb = 0;
+        let mut ctrl = AlCtrl::Add;
+        let mut wb_ctrl = WbCtrl::WriteGpr;
+
+        let mut trap = None;
+
+        match inst {
+            RISCV::RV32I(RV32I::AL(inst)) => {
+                match inst {
+                    RV32IAL::Lui => {
+                        srca = imm;
+                    }
+
+                    RV32IAL::Auipc => {
+                        srca = pc;
+                        srcb = imm;
+                    }
+
+                    RV32IAL::Jal => {
+                        wb_ctrl = WbCtrl::Jump;
+                        srca = pc;
+                        srcb = imm;
+                    }
+
+                    RV32IAL::Jalr => {
+                        wb_ctrl = WbCtrl::Jump;
+                        srca = rs1_val;
+                        srcb = imm;
+                    }
+
+                    // logic work should move to IS stage in the future
+                    RV32IAL::Beq => {
+                        wb_ctrl = WbCtrl::Jump;
+                        gpr_waddr = 0; // there is no rd need to link address to register
+                        srca = pc;
+                        srcb = if rs1_val == rs2_val { imm } else { 4 };
+                    }
+
+                    RV32IAL::Bne => {
+                        wb_ctrl = WbCtrl::Jump;
+                        gpr_waddr = 0; 
+                        srca = pc;
+                        srcb = if rs1_val != rs2_val { imm } else { 4 };
+                    }
+
+                    RV32IAL::Blt => {
+                        wb_ctrl = WbCtrl::Jump;
+                        gpr_waddr = 0; 
+                        srca = pc;
+                        srcb = if (rs1_val as i32) < (rs2_val as i32) { imm } else { 4 };
+                    }
+
+                    RV32IAL::Bge => {
+                        wb_ctrl = WbCtrl::Jump;
+                        gpr_waddr = 0; 
+                        srca = pc;
+                        srcb = if (rs1_val as i32) >= (rs2_val as i32) { imm } else { 4 };
+                    }
+
+                    RV32IAL::Bltu => {
+                        wb_ctrl = WbCtrl::Jump;
+                        gpr_waddr = 0; 
+                        srca = pc;
+                        srcb = if rs1_val < rs2_val { imm } else { 4 };
+                    }
+
+                    RV32IAL::Bgeu => {
+                        wb_ctrl = WbCtrl::Jump;
+                        gpr_waddr = 0; 
+                        srca = pc;
+                        srcb = if rs1_val >= rs2_val { imm } else { 4 };
+                    }
+
+                    RV32IAL::Addi => {
+                        srca = rs1_val;
+                        srcb = imm;
+                    }
+
+                    RV32IAL::Slti => {
+                        srca = if (rs1_val as i32) < (imm as i32) { 1 } else { 0 };
+                        srcb = 0;
+                    }
+
+                    RV32IAL::Sltiu => {
+                        srca = if rs1_val < imm { 1 } else { 0 };
+                        srcb = 0;
+                    }
+
+                    RV32IAL::Xori => {
+                        ctrl = AlCtrl::Xor;
+                        srca = rs1_val;
+                        srcb = imm;
+                    }
+
+                    RV32IAL::Ori => {
+                        ctrl = AlCtrl::Or;
+                        srca = rs1_val;
+                        srcb = imm;
+                    }
+
+                    RV32IAL::Andi => {
+                        ctrl = AlCtrl::And;
+                        srca = rs1_val;
+                        srcb = imm;
+                    }
+
+                    RV32IAL::Slli => {
+                        ctrl = AlCtrl::Sll;
+                        srca = rs1_val;
+                        srcb = imm;
+                    }
+
+                    RV32IAL::Srli => {
+                        ctrl = AlCtrl::Srl;
+                        srca = rs1_val;
+                        srcb = imm;
+                    }
+
+                    RV32IAL::Srai => {
+                        ctrl = AlCtrl::Sra;
+                        srca = rs1_val;
+                        srcb = imm;
+                    }
+
+                    RV32IAL::Add => {
+                        srca = rs1_val;
+                        srcb = rs2_val;
+                    }
+
+                    RV32IAL::Sub => {
+                        ctrl = AlCtrl::Sub;
+                        srca = rs1_val;
+                        srcb = rs2_val;
+                    }
+
+                    RV32IAL::Xor => {
+                        ctrl = AlCtrl::Xor;
+                        srca = rs1_val;
+                        srcb = rs2_val;
+                    }
+
+                    RV32IAL::Or => {
+                        ctrl = AlCtrl::Or;
+                        srca = rs1_val;
+                        srcb = rs2_val;
+                    }
+
+                    RV32IAL::And => {
+                        ctrl = AlCtrl::And;
+                        srca = rs1_val;
+                        srcb = rs2_val;
+                    }
+
+                    RV32IAL::Slt => {
+                        srca = if (rs1_val as i32) < (rs2_val as i32) { 1 } else { 0 };
+                        srcb = 0;
+                    }
+
+                    RV32IAL::Sltu => {
+                        srca = if rs1_val < rs2_val { 1 } else { 0 };
+                        srcb = 0;
+                    }
+
+                    RV32IAL::Sll => {
+                        ctrl = AlCtrl::Sll;
+                        srca = rs1_val;
+                        srcb = rs2_val;
+                    }
+
+                    RV32IAL::Srl => {
+                        ctrl = AlCtrl::Srl;
+                        srca = rs1_val;
+                        srcb = rs2_val;
+                    }
+
+                    RV32IAL::Sra => {
+                        ctrl = AlCtrl::Sra;
+                        srca = rs1_val;
+                        srcb = rs2_val;
+                    }
+
+                    RV32IAL::Ecall => {
+                        trap = Some(Trap::EcallM);
+                    }
+        
+                    RV32IAL::Ebreak => {
+                        trap = Some(Trap::Ebreak);
+                    }
+        
+                    RV32IAL::Fence => {
+                        gpr_waddr = 0; // do nothing for now
+                    }
+                }
+            }
+
+            RISCV::RV32I(RV32I::LS(inst)) => {
+                return Ok(IdOutStagen::LS(ToLsStage {
+                    pc,
+                    inst,
+                    rd_addr: gpr_waddr,
+
+                    addr: rs1_val.wrapping_add(imm),
+                    data: rs2_val,
+                }));
+            }
+
+            RISCV::RV32M(inst) => {
+                match inst {
+                    RV32M::Mul => {
+                        ctrl = AlCtrl::Mul;
+                        srca = rs1_val;
+                        srcb = rs2_val;
+                    }
+
+                    RV32M::Mulh => {
+                        ctrl = AlCtrl::Mulh;
+                        srca = rs1_val;
+                        srcb = rs2_val;
+                    }
+
+                    RV32M::Mulhsu => {
+                        ctrl = AlCtrl::Mulhsu;
+                        srca = rs1_val;
+                        srcb = rs2_val;
+                    }
+
+                    RV32M::Mulhu => {
+                        ctrl = AlCtrl::Mulhu;
+                        srca = rs1_val;
+                        srcb = rs2_val;
+                    }
+
+                    RV32M::Div => {
+                        ctrl = AlCtrl::Div;
+                        srca = rs1_val;
+                        srcb = rs2_val;
+                    }
+
+                    RV32M::Divu => {
+                        ctrl = AlCtrl::Divu;
+                        srca = rs1_val;
+                        srcb = rs2_val;
+                    }
+
+                    RV32M::Rem => {
+                        ctrl = AlCtrl::Rem;
+                        srca = rs1_val;
+                        srcb = rs2_val;
+                    }
+
+                    RV32M::Remu => {
+                        ctrl = AlCtrl::Remu;
+                        srca = rs1_val;
+                        srcb = rs2_val;
+                    }
+                }
+            }
+
+            _ => unreachable!()
+        };
+
+        Ok(IdOutStagen::AL(ToAlStage { pc, srca, srcb, ctrl, wb_ctrl, gpr_waddr, trap }))
     }
 }
