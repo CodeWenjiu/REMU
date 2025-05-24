@@ -6,6 +6,14 @@ use remu_utils::{ProcessError, ProcessResult};
 
 use crate::reg::{ALLCSRIdentifier, RegError, RegIdentifier, RegResult};
 
+#[derive(PartialEq, Clone, Copy, Default)]
+pub enum Trap {
+    #[default]
+    Ebreak = 3,
+
+    EcallM = 11,
+}
+
 #[derive(Clone, Copy, Debug)]
 pub enum RvCsrEnum {
     MSTATUS     = 0x300,

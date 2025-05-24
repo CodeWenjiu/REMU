@@ -1,6 +1,7 @@
 use remu_utils::ProcessResult;
+use state::reg::riscv::Trap;
 
-use crate::emu::{isa::riscv::{backend::{AlCtrl, ToAlStage, ToLsStage, WbCtrl}, Trap, RISCV, RV32I, RV32IAL, RV32M}, Emu};
+use crate::emu::{isa::riscv::{backend::{AlCtrl, ToAlStage, ToLsStage, WbCtrl}, RISCV, RV32I, RV32IAL, RV32M}, Emu};
 
 
 

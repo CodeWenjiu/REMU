@@ -1,9 +1,7 @@
 use remu_utils::{ProcessError, ProcessResult};
-use state::reg::{riscv::RvCsrEnum, RegfileIo};
+use state::reg::{riscv::{RvCsrEnum, Trap}, RegfileIo};
 
 use crate::emu::Emu;
-
-use super::super::Trap;
 
 #[derive(Default)] 
 pub enum WbCtrl{
