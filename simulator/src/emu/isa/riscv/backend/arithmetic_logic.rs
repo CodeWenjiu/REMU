@@ -17,7 +17,7 @@ impl Default for AlInst {
     }
 }
 
-#[derive(Default)]
+#[derive(Default, Clone, Copy)]
 pub enum AlCtrl {
     #[default]
     Add,   

@@ -3,7 +3,7 @@ use state::reg::{riscv::{RvCsrEnum, Trap}, RegfileIo};
 
 use crate::emu::Emu;
 
-#[derive(Default)] 
+#[derive(Default, Clone, Copy)] 
 pub enum WbCtrl{
     #[default]
     WriteGpr,

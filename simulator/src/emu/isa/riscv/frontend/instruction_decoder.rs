@@ -1,10 +1,10 @@
 use remu_utils::{ProcessError, ProcessResult};
-use state::reg::RegfileIo;
+use state::reg::{riscv::Trap, RegfileIo};
 
-use crate::emu::{extract_bits, sig_extend, Emu, InstructionSetFlags};
+use crate::emu::{extract_bits, isa::riscv::backend::{AlCtrl, LsCtrl, WbCtrl}, sig_extend, Emu, InstructionSetFlags};
 
 use super::{
-    super::{ImmType, Priv, Zicsr, RISCV, RV32I, RV32IAL, RV32ILS, RV32M, }, ToIsStage, RV32_IAL_PATTERN_ITER, RV32_ILS_PATTERN_ITER, RV32_M_PATTERN_ITER, RV_PRIV_PATTERN_ITER, RV_ZICSR_PATTERN_ITER
+    super::{ImmType, Priv, Zicsr, RISCV, RV32I, RV32IAL, RV32ILS, RV32M, }, InstType, IsCtrl, IsLogic, ToIsStage, RV32_IAL_PATTERN_ITER, RV32_ILS_PATTERN_ITER, RV32_M_PATTERN_ITER, RV_PRIV_PATTERN_ITER, RV_ZICSR_PATTERN_ITER, SRCA, SRCB
 };
 
 #[derive(Default, Clone, Copy)]
@@ -170,17 +170,172 @@ impl Emu {
             // Extract register fields
             let rs1 = extract_bits(inst, 15..19) as u8;
             let rs2 = extract_bits(inst, 20..24) as u8;
-            let rd = extract_bits(inst, 7..11) as u8;
+
+            let gpr_waddr = match opcode {
+                RISCV::RV32I(RV32I::AL(opcode)) => {
+                    match opcode {
+                        RV32IAL::Beq | RV32IAL::Bne  | RV32IAL::Blt  | RV32IAL::Bge  | RV32IAL::Bltu | RV32IAL::Bgeu => 0,
+
+                        RV32IAL::Fence => 0, // do nothing for now
+
+                        _ => extract_bits(inst, 7..11) as u8,
+                    }
+                }
+
+                _ => extract_bits(inst, 7..11) as u8,
+            };
             
             // Extract immediate value
             let imm = Self::get_imm(inst, imm_type);
 
             let regfile = &self.states.regfile;
-            let rs1: u32 = regfile.read_gpr(rs1.into()).map_err(|_| ProcessError::Recoverable)?;
-            let rs2: u32 = regfile.read_gpr(rs2.into()).map_err(|_| ProcessError::Recoverable)?;
+            let rs1_val: u32 = regfile.read_gpr(rs1.into()).map_err(|_| ProcessError::Recoverable)?;
+            let rs2_val: u32 = regfile.read_gpr(rs2.into()).map_err(|_| ProcessError::Recoverable)?;
+
+            let logic = match opcode {
+                RISCV::RV32I(RV32I::AL(inst)) => {
+                    match inst {
+                        RV32IAL::Beq => IsLogic::EQ,
+                        RV32IAL::Bne => IsLogic::NE,
+                        RV32IAL::Blt | RV32IAL::Slt => IsLogic::LT,
+                        RV32IAL::Bge => IsLogic::GE,
+                        RV32IAL::Bltu | RV32IAL::Sltu => IsLogic::LTU,
+                        RV32IAL::Bgeu => IsLogic::GEU,
+                        RV32IAL::Sltiu => IsLogic::SLTIU,
+
+                        _ => IsLogic::EQ,
+                    }
+                }
+                _ => IsLogic::EQ,
+            };
+
+            let srca = match opcode {
+                RISCV::RV32I(RV32I::AL(inst)) => {
+                    match inst {
+                        RV32IAL::Lui | RV32IAL::Slti | RV32IAL::Sltiu | RV32IAL::Slt | RV32IAL::Sltu => SRCA::ZERO,
+                        RV32IAL::Auipc | RV32IAL::Jal |
+                        RV32IAL::Beq | RV32IAL::Bne  | RV32IAL::Blt  | RV32IAL::Bge  | RV32IAL::Bltu | RV32IAL::Bgeu => SRCA::PC,
+                        _ => SRCA::RS1,
+                    }
+                }
+                _ => SRCA::RS1,
+            };
+
+            let srcb = match opcode {
+                RISCV::RV32I(RV32I::AL(inst)) => {
+                    match inst {
+                        RV32IAL::Lui  | RV32IAL::Auipc | RV32IAL::Jal | RV32IAL::Jalr | RV32IAL::Addi |
+                        RV32IAL::Xori | RV32IAL::Ori   | RV32IAL::Andi| 
+                        RV32IAL::Slli | RV32IAL::Srli  | RV32IAL::Srai => SRCB::IMM,
+
+                        RV32IAL::Beq  | RV32IAL::Bne  | RV32IAL::Blt  | RV32IAL::Bge  | RV32IAL::Bltu | RV32IAL::Bgeu => SRCB::LogicBranch,
+                        
+                        RV32IAL::Slti | RV32IAL::Sltiu | RV32IAL::Slt | RV32IAL::Sltu => SRCB::LogicSet,
+
+                        _ => SRCB::RS2,
+                    }
+                }
+
+                _ => SRCB::RS2,
+            };
+
+            let is_ctrl = IsCtrl {
+                srca,
+                srcb,
+                logic,
+            };
+
+            let inst_type = match opcode {
+                RISCV::RV32I(RV32I::AL(_)) => InstType::AL,
+                RISCV::RV32I(RV32I::LS(_)) => InstType::LS,
+                _ => InstType::AL,
+            };
+
+            let al_ctrl = match opcode {
+                RISCV::RV32I(RV32I::AL(inst)) => {
+                    match inst {
+                        RV32IAL::Xori | RV32IAL::Xor => AlCtrl::Xor,
+                        RV32IAL::Ori  | RV32IAL::Or  => AlCtrl::Or,
+                        RV32IAL::Andi | RV32IAL::And => AlCtrl::And,
+                        RV32IAL::Slli | RV32IAL::Sll => AlCtrl::Sll,
+                        RV32IAL::Srli | RV32IAL::Srl => AlCtrl::Srl,
+                        RV32IAL::Srai | RV32IAL::Sra => AlCtrl::Sra,
+
+                        RV32IAL::Sub  => AlCtrl::Sub,
+
+                        _ => AlCtrl::Add,
+                    }
+                }
+
+                RISCV::RV32M(inst) => {
+                    match inst {
+                        RV32M::Mul               => AlCtrl::Mul,
+                        RV32M::Mulh              => AlCtrl::Mulh,
+                        RV32M::Mulhsu            => AlCtrl::Mulhsu,
+                        RV32M::Mulhu             => AlCtrl::Mulhu,
+
+                        RV32M::Div               => AlCtrl::Div,
+                        RV32M::Divu              => AlCtrl::Divu,
+
+                        RV32M::Rem               => AlCtrl::Rem,
+                        RV32M::Remu              => AlCtrl::Remu,
+                    }
+                }
+
+                _ => AlCtrl::Add,
+            };
+
+            let ls_ctrl = match opcode {
+                RISCV::RV32I(RV32I::LS(inst)) => {
+                    match inst {
+                        RV32ILS::Lb => LsCtrl::Lb,
+                        RV32ILS::Lh => LsCtrl::Lh,
+                        RV32ILS::Lw => LsCtrl::Lw,
+
+                        RV32ILS::Lbu => LsCtrl::Lbu,
+                        RV32ILS::Lhu => LsCtrl::Lhu,
+
+                        RV32ILS::Sb => LsCtrl::Sb,
+                        RV32ILS::Sh => LsCtrl::Sh,
+                        RV32ILS::Sw => LsCtrl::Sw,
+                    }
+                }
+
+                _ => LsCtrl::Lb,
+            };
+
+            let wb_ctrl = match opcode {
+                RISCV::RV32I(RV32I::AL(inst)) => {
+                    match inst {
+                        RV32IAL::Jal | RV32IAL::Jalr | 
+                        RV32IAL::Beq | RV32IAL::Bne  | RV32IAL::Blt  | RV32IAL::Bge  | RV32IAL::Bltu | RV32IAL::Bgeu => WbCtrl::Jump,
+                        _ => WbCtrl::WriteGpr,
+                    }
+                }
+
+                _ => WbCtrl::WriteGpr,
+            };
+
+            let trap = match opcode {
+                RISCV::RV32I(RV32I::AL(inst)) => {
+                    match inst {
+                        RV32IAL::Ecall => {
+                            Some(Trap::EcallM)
+                        }
+            
+                        RV32IAL::Ebreak => {
+                            Some(Trap::Ebreak)
+                        }
+
+                        _ => None,
+                    }
+                }
+
+                _ => None,
+            };
 
             // Create instruction pattern
-            Ok(ToIsStage { pc, inst: opcode, rs1, rs2, rd_addr: rd, imm })
+            Ok(ToIsStage { pc, rs1_val, rs2_val, gpr_waddr, imm, inst_type, is_ctrl, al_ctrl, ls_ctrl, wb_ctrl, trap })
         } else {
             // Decoding failed
             (self.callback.decode_failed)(pc, inst);

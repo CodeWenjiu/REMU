@@ -1,18 +1,73 @@
 use remu_utils::ProcessResult;
 use state::reg::riscv::Trap;
 
-use crate::emu::{isa::riscv::{backend::{AlCtrl, ToAlStage, ToLsStage, WbCtrl}, RISCV, RV32I, RV32IAL, RV32M}, Emu};
-
-
+use crate::emu::{isa::riscv::{backend::{AlCtrl, LsCtrl, ToAlStage, ToLsStage, WbCtrl}}, Emu};
 
 #[derive(Default, Clone, Copy)]
 pub struct ToIsStage {
     pub pc: u32,
-    pub inst: RISCV,
-    pub rs1: u32,
-    pub rs2: u32,
-    pub rd_addr: u8,
+
+    pub rs1_val: u32,
+    pub rs2_val: u32,
+    pub gpr_waddr: u8,
     pub imm: u32,
+
+    pub inst_type: InstType,
+    pub is_ctrl: IsCtrl,
+
+    pub al_ctrl: AlCtrl,
+    pub ls_ctrl: LsCtrl,
+
+    pub wb_ctrl: WbCtrl,
+
+    pub trap: Option<Trap>,
+}
+
+#[derive(Default, Clone, Copy)]
+pub enum IsLogic {
+    #[default]
+    EQ,
+    NE,
+
+    LT,
+    GE,
+
+    LTU,
+    GEU,
+
+    SLTI,
+    SLTIU,
+}
+
+#[derive(Default, Clone, Copy)]
+pub enum SRCA {
+    #[default]
+    RS1,
+    ZERO,
+    PC,
+}
+
+#[derive(Default, Clone, Copy)]
+pub enum SRCB {
+    #[default]
+    RS2,
+    IMM,
+    LogicBranch,
+    LogicSet,
+}
+
+#[derive(Default, Clone, Copy)]
+pub struct IsCtrl {
+    pub srca: SRCA,
+    pub srcb: SRCB,
+    pub logic: IsLogic,
+}
+
+#[derive(Default, Clone, Copy)]
+pub enum InstType {
+    #[default]
+    AL,
+    LS,
 }
 
 pub enum IsOutStage {
@@ -29,236 +84,61 @@ impl Default for IsOutStage {
 impl Emu {
     
     pub fn instruction_issue(&mut self, stage: ToIsStage) -> ProcessResult<IsOutStage> {
-        let rs1_val = stage.rs1;
-        let rs2_val: u32 = stage.rs2;
-        let mut gpr_waddr = stage.rd_addr;
+        let rs1_val = stage.rs1_val;
+        let rs2_val: u32 = stage.rs2_val;
+        let gpr_waddr = stage.gpr_waddr;
         let imm = stage.imm;
 
-        let inst = stage.inst;
+        let inst_type = stage.inst_type;
 
         let pc = stage.pc;
-        let mut srca = rs1_val;
-        let mut srcb = rs2_val;
-        let mut ctrl = AlCtrl::Add;
-        let mut wb_ctrl = WbCtrl::WriteGpr;
+        let wb_ctrl = stage.wb_ctrl;
 
-        let mut trap = None;
+        match inst_type {
+            InstType::AL => {
+                let al_ctrl = stage.al_ctrl;
 
-        match inst {
-            RISCV::RV32I(RV32I::AL(inst)) => {
-                match inst {
-                    RV32IAL::Lui => {
-                        srca = imm;
-                        srcb = 0;
-                    }
-
-                    RV32IAL::Auipc => {
-                        srca = pc;
-                        srcb = imm;
-                    }
-
-                    RV32IAL::Jal => {
-                        wb_ctrl = WbCtrl::Jump;
-                        srca = pc;
-                        srcb = imm;
-                    }
-
-                    RV32IAL::Jalr => {
-                        wb_ctrl = WbCtrl::Jump;
-                        srcb = imm;
-                    }
-
-                    // logic work should move to IS stage in the future
-                    RV32IAL::Beq => {
-                        wb_ctrl = WbCtrl::Jump;
-                        gpr_waddr = 0; // there is no rd need to link address to register
-                        srca = pc;
-                        srcb = if rs1_val == rs2_val { imm } else { 4 };
-                    }
-
-                    RV32IAL::Bne => {
-                        wb_ctrl = WbCtrl::Jump;
-                        gpr_waddr = 0; 
-                        srca = pc;
-                        srcb = if rs1_val != rs2_val { imm } else { 4 };
-                    }
-
-                    RV32IAL::Blt => {
-                        wb_ctrl = WbCtrl::Jump;
-                        gpr_waddr = 0; 
-                        srca = pc;
-                        srcb = if (rs1_val as i32) < (rs2_val as i32) { imm } else { 4 };
-                    }
-
-                    RV32IAL::Bge => {
-                        wb_ctrl = WbCtrl::Jump;
-                        gpr_waddr = 0; 
-                        srca = pc;
-                        srcb = if (rs1_val as i32) >= (rs2_val as i32) { imm } else { 4 };
-                    }
-
-                    RV32IAL::Bltu => {
-                        wb_ctrl = WbCtrl::Jump;
-                        gpr_waddr = 0; 
-                        srca = pc;
-                        srcb = if rs1_val < rs2_val { imm } else { 4 };
-                    }
-
-                    RV32IAL::Bgeu => {
-                        wb_ctrl = WbCtrl::Jump;
-                        gpr_waddr = 0; 
-                        srca = pc;
-                        srcb = if rs1_val >= rs2_val { imm } else { 4 };
-                    }
-
-                    RV32IAL::Addi => {
-                        srcb = imm;
-                    }
-
-                    RV32IAL::Slti => {
-                        srca = if (rs1_val as i32) < (imm as i32) { 1 } else { 0 };
-                        srcb = 0;
-                    }
-
-                    RV32IAL::Sltiu => {
-                        srca = if rs1_val < imm { 1 } else { 0 };
-                        srcb = 0;
-                    }
-
-                    RV32IAL::Xori => {
-                        ctrl = AlCtrl::Xor;
-                        srcb = imm;
-                    }
-
-                    RV32IAL::Ori => {
-                        ctrl = AlCtrl::Or;
-                        srcb = imm;
-                    }
-
-                    RV32IAL::Andi => {
-                        ctrl = AlCtrl::And;
-                        srcb = imm;
-                    }
-
-                    RV32IAL::Slli => {
-                        ctrl = AlCtrl::Sll;
-                        srcb = imm;
-                    }
-
-                    RV32IAL::Srli => {
-                        ctrl = AlCtrl::Srl;
-                        srcb = imm;
-                    }
-
-                    RV32IAL::Srai => {
-                        ctrl = AlCtrl::Sra;
-                        srcb = imm;
-                    }
-
-                    RV32IAL::Add => {}
-
-                    RV32IAL::Sub => {
-                        ctrl = AlCtrl::Sub;
-                    }
-
-                    RV32IAL::Xor => {
-                        ctrl = AlCtrl::Xor;
-                    }
-
-                    RV32IAL::Or => {
-                        ctrl = AlCtrl::Or;
-                    }
-
-                    RV32IAL::And => {
-                        ctrl = AlCtrl::And;
-                    }
-
-                    RV32IAL::Slt => {
-                        srca = if (rs1_val as i32) < (rs2_val as i32) { 1 } else { 0 };
-                        srcb = 0;
-                    }
-
-                    RV32IAL::Sltu => {
-                        srca = if rs1_val < rs2_val { 1 } else { 0 };
-                        srcb = 0;
-                    }
-
-                    RV32IAL::Sll => {
-                        ctrl = AlCtrl::Sll;
-                    }
-
-                    RV32IAL::Srl => {
-                        ctrl = AlCtrl::Srl;
-                    }
-
-                    RV32IAL::Sra => {
-                        ctrl = AlCtrl::Sra;
-                    }
-
-                    RV32IAL::Ecall => {
-                        trap = Some(Trap::EcallM);
-                    }
+                let logic = match stage.is_ctrl.logic {
+                    IsLogic::EQ => rs1_val == rs2_val,
+                    IsLogic::NE => rs1_val != rs2_val,
+                    IsLogic::LT => (rs1_val as i32) < (rs2_val as i32),
+                    IsLogic::GE => (rs1_val as i32) >= (rs2_val as i32),
+                    IsLogic::LTU => rs1_val < rs2_val,
+                    IsLogic::GEU => rs1_val >= rs2_val,
+                    IsLogic::SLTI => (rs1_val as i32) < (imm as i32),
+                    IsLogic::SLTIU => rs1_val < imm,
+                };
         
-                    RV32IAL::Ebreak => {
-                        trap = Some(Trap::Ebreak);
-                    }
+                let srca = match stage.is_ctrl.srca {
+                    SRCA::RS1 => rs1_val,
+                    SRCA::ZERO => 0,
+                    SRCA::PC => pc,
+                };
         
-                    RV32IAL::Fence => {
-                        gpr_waddr = 0; // do nothing for now
-                    }
-                }
+                let srcb = match stage.is_ctrl.srcb {
+                    SRCB::RS2 => rs2_val,
+                    SRCB::IMM => imm,
+                    SRCB::LogicBranch => if logic { imm } else { 4 },
+                    SRCB::LogicSet => if logic { 1 } else { 0 },
+                };
+
+                let trap = stage.trap;
+        
+                Ok(IsOutStage::AL(ToAlStage { pc, srca, srcb, ctrl: al_ctrl, wb_ctrl, gpr_waddr, trap }))
             }
 
-            RISCV::RV32I(RV32I::LS(inst)) => {
-                return Ok(IsOutStage::LS(ToLsStage {
-                    pc,
-                    inst,
-                    rd_addr: gpr_waddr,
+            InstType::LS => {
+                let ls_ctrl = stage.ls_ctrl;
+
+                Ok(IsOutStage::LS(ToLsStage {
+                    pc, 
+                    ls_ctrl,
+                    gpr_waddr,
 
                     addr: rs1_val.wrapping_add(imm),
                     data: rs2_val,
-                }));
+                }))
             }
-
-            RISCV::RV32M(inst) => {
-                match inst {
-                    RV32M::Mul => {
-                        ctrl = AlCtrl::Mul;
-                    }
-
-                    RV32M::Mulh => {
-                        ctrl = AlCtrl::Mulh;
-                    }
-
-                    RV32M::Mulhsu => {
-                        ctrl = AlCtrl::Mulhsu;
-                    }
-
-                    RV32M::Mulhu => {
-                        ctrl = AlCtrl::Mulhu;
-                    }
-
-                    RV32M::Div => {
-                        ctrl = AlCtrl::Div;
-                    }
-
-                    RV32M::Divu => {
-                        ctrl = AlCtrl::Divu;
-                    }
-
-                    RV32M::Rem => {
-                        ctrl = AlCtrl::Rem;
-                    }
-
-                    RV32M::Remu => {
-                        ctrl = AlCtrl::Remu;
-                    }
-                }
-            }
-
-            _ => unreachable!()
-        };
-
-        Ok(IsOutStage::AL(ToAlStage { pc, srca, srcb, ctrl, wb_ctrl, gpr_waddr, trap }))
+        }
     }
 }
