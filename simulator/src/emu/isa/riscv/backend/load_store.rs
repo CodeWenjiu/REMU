@@ -1,4 +1,4 @@
-use remu_macro::log_err;
+use remu_macro::{log_err, log_error};
 use logger::Logger;
 use remu_utils::{ProcessError, ProcessResult};
 use state::mmu::Mask;
@@ -10,6 +10,8 @@ use super::{ToWbStage, WbCtrl, };
 #[derive(Default, Clone, Copy)]
 pub enum LsCtrl {
     #[default]
+    DontCare,
+    
     Lb,
     Lh,
     Lw,
@@ -92,12 +94,17 @@ impl Emu {
                 result = 0;
                 is_difftest_skip = log_err!(mmu.write(addr, data, Mask::Word), ProcessError::Recoverable)?;
             }
+
+            LsCtrl::DontCare => {
+                log_error!(format!("LsCtrl::None should not be used at pc: {:#08x}", pc));
+                return Err(ProcessError::Recoverable);
+            },
         }
 
         if is_difftest_skip {
             (self.callback.difftest_skip)();
         };
 
-        Ok(ToWbStage { pc, result, csr_rdata: 0, gpr_waddr, csr_waddr: 0, wb_ctrl: WbCtrl::default(), trap: None })
+        Ok(ToWbStage { pc, result, csr_rdata: 0, gpr_waddr, csr_waddr: 0, wb_ctrl: WbCtrl::WriteGpr, trap: None })
     }
 }

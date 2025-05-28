@@ -1,4 +1,6 @@
-use remu_utils::ProcessResult;
+use remu_macro::log_error;
+use logger::Logger;
+use remu_utils::{ProcessError, ProcessResult};
 use state::reg::riscv::Trap;
 
 use crate::emu::Emu;
@@ -20,6 +22,8 @@ impl Default for AlInst {
 #[derive(Default, Clone, Copy)]
 pub enum AlCtrl {
     #[default]
+    DontCare,
+
     Add,   
     Sub,     
     
@@ -48,7 +52,7 @@ pub struct ToAlStage {
     pub srca: u32,
     pub srcb: u32,
 
-    pub ctrl: AlCtrl,
+    pub al_ctrl: AlCtrl,
     pub wb_ctrl: WbCtrl,
 
     pub gpr_waddr: u8,
@@ -70,7 +74,7 @@ impl Emu {
         let trap: Option<Trap> = stage.trap;
 
         if trap == None {
-            match stage.ctrl {
+            match stage.al_ctrl {
                 AlCtrl::Add => {
                     result = srca.wrapping_add(srcb);
                 }
@@ -150,6 +154,11 @@ impl Emu {
                         result = srca.wrapping_rem(srcb);
                     }
                 }
+
+                AlCtrl::DontCare => {
+                    log_error!(format!("AlCtrl::None should not be used at pc: {:#08x}", pc));
+                    return Err(ProcessError::Recoverable);
+                },
             };
         }
 

@@ -168,8 +168,8 @@ impl Emu {
         let inst = msg.inst;
         if let Some((opcode, imm_type)) = self.isa_decode(inst) {
             // Extract register fields
-            let rs1 = extract_bits(inst, 15..19) as u8;
-            let rs2 = extract_bits(inst, 20..24) as u8;
+            let rs1_addr = extract_bits(inst, 15..19) as u8;
+            let rs2_addr = extract_bits(inst, 20..24) as u8;
 
             let gpr_waddr = match opcode {
                 RISCV::RV32I(RV32I::AL(opcode)) => {
@@ -189,8 +189,8 @@ impl Emu {
             let imm = Self::get_imm(inst, imm_type);
 
             let regfile = &self.states.regfile;
-            let rs1_val: u32 = regfile.read_gpr(rs1.into()).map_err(|_| ProcessError::Recoverable)?;
-            let rs2_val: u32 = regfile.read_gpr(rs2.into()).map_err(|_| ProcessError::Recoverable)?;
+            let rs1_val: u32 = regfile.read_gpr(rs1_addr.into()).map_err(|_| ProcessError::Recoverable)?;
+            let rs2_val: u32 = regfile.read_gpr(rs2_addr.into()).map_err(|_| ProcessError::Recoverable)?;
 
             let logic = match opcode {
                 RISCV::RV32I(RV32I::AL(inst)) => {
@@ -201,12 +201,19 @@ impl Emu {
                         RV32IAL::Bge => IsLogic::GE,
                         RV32IAL::Bltu | RV32IAL::Sltu => IsLogic::LTU,
                         RV32IAL::Bgeu => IsLogic::GEU,
+                        RV32IAL::Slti => IsLogic::SLTI,
                         RV32IAL::Sltiu => IsLogic::SLTIU,
 
-                        _ => IsLogic::EQ,
+                        _ => IsLogic::DontCare,
                     }
                 }
-                _ => IsLogic::EQ,
+                _ => IsLogic::DontCare,
+            };
+
+            let inst_type = match opcode {
+                RISCV::RV32I(RV32I::AL(_)) => InstType::AL,
+                RISCV::RV32I(RV32I::LS(_)) => InstType::LS,
+                _ => InstType::AL,
             };
 
             let srca = match opcode {
@@ -240,15 +247,10 @@ impl Emu {
             };
 
             let is_ctrl = IsCtrl {
+                inst_type,
                 srca,
                 srcb,
                 logic,
-            };
-
-            let inst_type = match opcode {
-                RISCV::RV32I(RV32I::AL(_)) => InstType::AL,
-                RISCV::RV32I(RV32I::LS(_)) => InstType::LS,
-                _ => InstType::AL,
             };
 
             let al_ctrl = match opcode {
@@ -263,7 +265,13 @@ impl Emu {
 
                         RV32IAL::Sub  => AlCtrl::Sub,
 
-                        _ => AlCtrl::Add,
+                        RV32IAL::Lui  | RV32IAL::Auipc | 
+                        RV32IAL::Jal | RV32IAL::Jalr | 
+                        RV32IAL::Beq | RV32IAL::Bne  | RV32IAL::Blt  | RV32IAL::Bge  | RV32IAL::Bltu | RV32IAL::Bgeu |
+                        RV32IAL::Slti | RV32IAL::Sltiu | RV32IAL::Slt | RV32IAL::Sltu |
+                        RV32IAL::Add | RV32IAL::Addi => AlCtrl::Add,
+
+                        _ => AlCtrl::DontCare,
                     }
                 }
 
@@ -282,7 +290,7 @@ impl Emu {
                     }
                 }
 
-                _ => AlCtrl::Add,
+                _ => AlCtrl::DontCare,
             };
 
             let ls_ctrl = match opcode {
@@ -301,7 +309,7 @@ impl Emu {
                     }
                 }
 
-                _ => LsCtrl::Lb,
+                _ => LsCtrl::DontCare,
             };
 
             let wb_ctrl = match opcode {
@@ -309,11 +317,14 @@ impl Emu {
                     match inst {
                         RV32IAL::Jal | RV32IAL::Jalr | 
                         RV32IAL::Beq | RV32IAL::Bne  | RV32IAL::Blt  | RV32IAL::Bge  | RV32IAL::Bltu | RV32IAL::Bgeu => WbCtrl::Jump,
+                        RV32IAL::Fence | RV32IAL::Ecall | RV32IAL::Ebreak => WbCtrl::DontCare,
                         _ => WbCtrl::WriteGpr,
                     }
                 }
 
-                _ => WbCtrl::WriteGpr,
+                RISCV::RV32M(_) => WbCtrl::WriteGpr,
+
+                _ => WbCtrl::DontCare,
             };
 
             let trap = match opcode {
@@ -335,7 +346,7 @@ impl Emu {
             };
 
             // Create instruction pattern
-            Ok(ToIsStage { pc, rs1_val, rs2_val, gpr_waddr, imm, inst_type, is_ctrl, al_ctrl, ls_ctrl, wb_ctrl, trap })
+            Ok(ToIsStage { pc, rs1_addr, rs1_val, rs2_addr, rs2_val, gpr_waddr, imm, is_ctrl, al_ctrl, ls_ctrl, wb_ctrl, trap })
         } else {
             // Decoding failed
             (self.callback.decode_failed)(pc, inst);

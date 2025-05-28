@@ -1,3 +1,5 @@
+use remu_macro::log_error;
+use logger::Logger;
 use remu_utils::{ProcessError, ProcessResult};
 use state::reg::{riscv::{RvCsrEnum, Trap}, RegfileIo};
 
@@ -6,6 +8,8 @@ use crate::emu::Emu;
 #[derive(Default, Clone, Copy)] 
 pub enum WbCtrl{
     #[default]
+    DontCare,
+
     WriteGpr,
     Jump,
     Csr,
@@ -57,6 +61,11 @@ impl Emu {
                 regfile.write_gpr(stage.gpr_waddr.into(), stage.csr_rdata)?;
                 regfile.write_csr(stage.csr_waddr.into(), stage.result)?;
             }
+
+            WbCtrl::DontCare => {
+                log_error!(format!("WbCtrl::None should not be used at pc: {:#08x}", pc));
+                return Err(ProcessError::Recoverable);
+            },
         }
 
         regfile.write_pc(next_pc);
