@@ -13,8 +13,8 @@ use remu_utils::{ProcessError, ProcessResult};
 pub enum BasePipeCell {
     IFU,
     IDU,
+    ISU,
     ALU,
-    AGU,
     LSU,
     WBU,
 }
@@ -24,8 +24,8 @@ impl Display for BasePipeCell {
         match *self {
             BasePipeCell::IFU => write!(f, "IFU"),
             BasePipeCell::IDU => write!(f, "IDU"),
+            BasePipeCell::ISU => write!(f, "ISU"),
             BasePipeCell::ALU => write!(f, "ALU"),
-            BasePipeCell::AGU => write!(f, "AGU"),
             BasePipeCell::LSU => write!(f, "LSU"),
             BasePipeCell::WBU => write!(f, "WBU"),
         }
@@ -213,9 +213,20 @@ impl Default for PipelineModel {
             },
         );
 
+        let isu = BasePipeCell::ISU;
+        let isu_node = graph.add_node(isu);
+        graph.add_edge(idu_node, isu_node, ());
+        cells.insert(
+            isu,
+            ModelCell {
+                channel: MessageChannel::new(1),
+                node_index: isu_node,
+            },
+        );
+
         let alu = BasePipeCell::ALU;
         let alu_node = graph.add_node(alu);
-        graph.add_edge(idu_node, alu_node, ());
+        graph.add_edge(isu_node, alu_node, ());
         cells.insert(
             alu,
             ModelCell {
@@ -224,20 +235,9 @@ impl Default for PipelineModel {
             },
         );
 
-        let agu = BasePipeCell::AGU;
-        let agu_node = graph.add_node(agu);
-        graph.add_edge(idu_node, agu_node, ());
-        cells.insert(
-            agu,
-            ModelCell {
-                channel: MessageChannel::new(1),
-                node_index: agu_node,
-            },
-        );
-
         let lsu = BasePipeCell::LSU;
         let lsu_node = graph.add_node(lsu);
-        graph.add_edge(agu_node, lsu_node, ());
+        graph.add_edge(isu_node, lsu_node, ());
         cells.insert(
             lsu,
             ModelCell {
