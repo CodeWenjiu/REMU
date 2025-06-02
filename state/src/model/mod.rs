@@ -10,24 +10,24 @@ use logger::Logger;
 use remu_utils::{ProcessError, ProcessResult};
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
-pub enum BasePipeCell {
-    IFU,
-    IDU,
-    ISU,
-    ALU,
-    LSU,
-    WBU,
+pub enum BaseStageCell {
+    Input,
+    IfId,
+    IdIs,
+    IsAl,
+    IsLs,
+    ExWb,
 }
 
-impl Display for BasePipeCell {
+impl Display for BaseStageCell {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match *self {
-            BasePipeCell::IFU => write!(f, "IFU"),
-            BasePipeCell::IDU => write!(f, "IDU"),
-            BasePipeCell::ISU => write!(f, "ISU"),
-            BasePipeCell::ALU => write!(f, "ALU"),
-            BasePipeCell::LSU => write!(f, "LSU"),
-            BasePipeCell::WBU => write!(f, "WBU"),
+            BaseStageCell::Input => write!(f, "Input"),
+            BaseStageCell::IfId => write!(f, "IfId"),
+            BaseStageCell::IdIs => write!(f, "IdIs"),
+            BaseStageCell::IsAl => write!(f, "IsAl"),
+            BaseStageCell::IsLs => write!(f, "IsLs"),
+            BaseStageCell::ExWb => write!(f, "ExWb"),
         }
     }
 }
@@ -36,7 +36,7 @@ impl Display for BasePipeCell {
 struct MessageChannel {
     buffer: Rc::<RefCell::<Vec<(u32, u32)>>>,
     capacity: usize,
-    transmit_target: Option<BasePipeCell>, // Use generic type T
+    transmit_target: Option<BaseStageCell>, // Use generic type T
 }
 
 impl MessageChannel {
@@ -70,13 +70,13 @@ pub struct ModelCell {
 }
 
 #[derive(Debug, Clone)]
-pub struct PipelineModel { 
-    pub cells: HashMap<BasePipeCell, ModelCell>, 
-    graph: Graph<BasePipeCell, ()>, 
+pub struct StageModel { 
+    pub cells: HashMap<BaseStageCell, ModelCell>, 
+    graph: Graph<BaseStageCell, ()>, 
 }
 
-impl PipelineModel {
-    fn find_cell(&mut self, find_type: BasePipeCell) -> ProcessResult<&mut ModelCell> {
+impl StageModel {
+    fn find_cell(&mut self, find_type: BaseStageCell) -> ProcessResult<&mut ModelCell> {
         self.cells.get_mut(&find_type).ok_or({
             ProcessError::Recoverable
         }).map_err(|e| {
@@ -85,19 +85,19 @@ impl PipelineModel {
         })
     }
 
-    pub fn send(&mut self, data: (u32, u32), to: BasePipeCell) -> ProcessResult<()> {
-        self.find_cell(BasePipeCell::IFU)?
+    pub fn send(&mut self, data: (u32, u32), to: BaseStageCell) -> ProcessResult<()> {
+        self.find_cell(BaseStageCell::Input)?
             .channel
             .push(data)
             .map_err(|e| {
-                log_error!(format!("{:?}: buffer is full", BasePipeCell::IFU));
+                log_error!(format!("{:?}: buffer is full", BaseStageCell::Input));
                 e
             })?;
 
-        self.trans(BasePipeCell::IFU, to)
+        self.trans(BaseStageCell::Input, to)
     }
 
-    pub fn trans(&mut self, from: BasePipeCell, to: BasePipeCell) -> ProcessResult<()> {
+    pub fn trans(&mut self, from: BaseStageCell, to: BaseStageCell) -> ProcessResult<()> {
         let from_index = self.find_cell(from)?.node_index;
         let to_index = self.find_cell(to)?.node_index;
 
@@ -113,7 +113,7 @@ impl PipelineModel {
     }
 
     pub fn get(&mut self) -> ProcessResult<(u32, u32)> {
-        let output = BasePipeCell::WBU; 
+        let output = BaseStageCell::ExWb; 
         let channel = &mut self.find_cell(output)?.channel;
         let data = channel.buffer.borrow_mut().pop().ok_or({
             ProcessError::Recoverable
@@ -125,7 +125,7 @@ impl PipelineModel {
         Ok(data)
     }
 
-    pub fn fetch(&mut self, from: BasePipeCell) -> ProcessResult<(u32, u32)> {
+    pub fn fetch(&mut self, from: BaseStageCell) -> ProcessResult<(u32, u32)> {
 
         let buffer = self.find_cell(from)?.channel.buffer.borrow();
 
@@ -187,12 +187,12 @@ impl PipelineModel {
     }
 }
 
-impl Default for PipelineModel {
+impl Default for StageModel {
     fn default() -> Self {
         let mut graph = Graph::new();
         let mut cells = HashMap::new();
 
-        let input = BasePipeCell::IFU;
+        let input = BaseStageCell::Input;
         let input_node = graph.add_node(input);
         cells.insert(
             input,
@@ -202,7 +202,7 @@ impl Default for PipelineModel {
             },
         );
 
-        let idu = BasePipeCell::IDU;
+        let idu = BaseStageCell::IfId;
         let idu_node = graph.add_node(idu);
         graph.add_edge(input_node, idu_node, ());
         cells.insert(
@@ -213,7 +213,7 @@ impl Default for PipelineModel {
             },
         );
 
-        let isu = BasePipeCell::ISU;
+        let isu = BaseStageCell::IdIs;
         let isu_node = graph.add_node(isu);
         graph.add_edge(idu_node, isu_node, ());
         cells.insert(
@@ -224,7 +224,7 @@ impl Default for PipelineModel {
             },
         );
 
-        let alu = BasePipeCell::ALU;
+        let alu = BaseStageCell::IsAl;
         let alu_node = graph.add_node(alu);
         graph.add_edge(isu_node, alu_node, ());
         cells.insert(
@@ -235,7 +235,7 @@ impl Default for PipelineModel {
             },
         );
 
-        let lsu = BasePipeCell::LSU;
+        let lsu = BaseStageCell::IsLs;
         let lsu_node = graph.add_node(lsu);
         graph.add_edge(isu_node, lsu_node, ());
         cells.insert(
@@ -246,7 +246,7 @@ impl Default for PipelineModel {
             },
         );
 
-        let output = BasePipeCell::WBU;
+        let output = BaseStageCell::ExWb;
         let output_node = graph.add_node(output);
         graph.add_edge(alu_node, output_node, ());
         graph.add_edge(lsu_node, output_node, ());
@@ -265,10 +265,13 @@ impl Default for PipelineModel {
     }
 }
 
-impl Display for PipelineModel {
+impl Display for StageModel {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         let order = toposort(&self.graph, None)
-            .map_err(|_| {log_error!("WTF"); Error})?;
+            .map_err(|_| {log_error!("WTF"); Error})?
+            .into_iter()
+            .filter(|t| self.graph[*t] != BaseStageCell::Input)
+            .collect::<Vec<_>>();
 
         let mut cells_str = String::new();
         for &node in &order {
@@ -286,22 +289,11 @@ impl Display for PipelineModel {
             }
         }
 
-        let mut edges_str = String::new();
-        for edge in self.graph.edge_indices() {
-            if let Some((source, target)) = self.graph.edge_endpoints(edge) {
-                let source_cell = self.graph[source];
-                let target_cell = self.graph[target];
-                edges_str.push_str(&format!("  {} -> {}\n", source_cell, target_cell));
-            }
-        }
-
         write!(f, 
             "Pipeline Model\n\
              ==============\n\
-             Processing Cells:\n{}\n\
-             Connections:\n{}",
-            cells_str, 
-            edges_str
+             Processing Cells:\n{}\n",
+            cells_str
         )
     }
 }
