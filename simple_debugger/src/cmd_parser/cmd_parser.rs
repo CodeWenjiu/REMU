@@ -162,8 +162,24 @@ pub enum RegisterInfoCmds {
 
 #[derive(Debug, Subcommand)]
 pub enum RegisterSetCmds {
+    /// Set the state of the Program Counter
+    PC {
+        /// The target value
+        value: String,
+    },
+
     /// Set the state of the general purpose register
     GPR {
+        /// The target register index
+        #[arg(value_parser = parse_reg)]
+        index: RegIdentifier,
+
+        /// The target value
+        value: String,
+    },
+
+    /// Set the state of the control and status register
+    CSR {
         /// The target register index
         #[arg(value_parser = parse_reg)]
         index: RegIdentifier,

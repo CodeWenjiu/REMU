@@ -200,6 +200,11 @@ impl RegfileIo for Rv32eRegFile {
         self.print_format("PC", self.read_pc());
     }
 
+    fn set_pc(&mut self, value:u32) -> ProcessResult<()> {
+        self.write_pc( value);
+        Ok(())
+    }
+
     fn print_gpr(&self, index: Option<RegIdentifier>) -> ProcessResult<()> {
         match index {
             Some(identifier) => {
@@ -220,16 +225,9 @@ impl RegfileIo for Rv32eRegFile {
     }
 
     fn set_gpr(&mut self, index: RegIdentifier, value: u32) -> ProcessResult<()> {
-        match index {
-            RegIdentifier::Index(index) => {
-                self.write_gpr(index, value)?;
-            }
-
-            RegIdentifier::Name(name) => {
-                let index = Rv32eGprEnum::from_str(&name).map_err(|_| ProcessError::Recoverable)?;
-                self.write_gpr(index.into(), value)?;
-            }
-        }
+        let index = log_err!(Rv32eGprEnum::gpr_identifier_converter(index), ProcessError::Recoverable)?;
+        
+        self.regs.borrow_mut()[index as usize] = value;
 
         Ok(())
     }
@@ -250,6 +248,12 @@ impl RegfileIo for Rv32eRegFile {
             }
         }
 
+        Ok(())
+    }
+
+    fn set_csr(&mut self, index: RegIdentifier, value: u32) -> ProcessResult<()> {
+        let index = RvCsrEnum::csr_identifier_converter(index)?;
+        self.csrs.borrow_mut()[index as usize] = value;
         Ok(())
     }
 

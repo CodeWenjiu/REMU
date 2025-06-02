@@ -75,6 +75,11 @@ pub trait RegfileIo {
         self.print_format("PC", self.read_pc());
     }
 
+    fn set_pc(&mut self, _value: u32) -> ProcessResult<()> {
+        log_todo!();
+        Err(ProcessError::Recoverable)
+    }
+
     fn print_gpr(&self, _index: Option<RegIdentifier>) -> ProcessResult<()> {
         log_todo!();
         Err(ProcessError::Recoverable)
@@ -86,6 +91,11 @@ pub trait RegfileIo {
     }
 
     fn print_csr(&self, _index: Option<RegIdentifier>) -> ProcessResult<()> {
+        log_todo!();
+        Err(ProcessError::Recoverable)
+    }
+
+    fn set_csr(&mut self, _index: RegIdentifier, _value: u32) -> ProcessResult<()> {
         log_todo!();
         Err(ProcessError::Recoverable)
     }

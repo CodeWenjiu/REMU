@@ -85,9 +85,19 @@ impl SimpleDebugger {
 
     fn cmd_register_set (&mut self, subcmd: RegisterSetCmds) -> ProcessResult<()> {
         match subcmd {
+            RegisterSetCmds::PC { value } => {
+                let value = self.eval_expr(&value)?;
+                self.state.regfile.set_pc(value)?;
+            }
+
             RegisterSetCmds::GPR { index, value } => {
                 let value = self.eval_expr(&value)?;
                 self.state.regfile.set_gpr(index, value)?;
+            }
+
+            RegisterSetCmds::CSR { index, value } => {
+                let value = self.eval_expr(&value)?;
+                self.state.regfile.set_csr(index, value)?;
             }
         }
 

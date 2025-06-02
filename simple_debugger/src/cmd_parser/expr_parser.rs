@@ -60,7 +60,6 @@ lazy_static::lazy_static! {
         use pest::pratt_parser::{Assoc::*, Op};
         use Rule::*;
 
-        // Precedence is defined lowest to highest
         PrattParser::new()
             .op(Op::prefix(deref))
             .op(Op::infix(add, Left) | Op::infix(subtract, Left))
@@ -101,21 +100,27 @@ fn name_parse_expr(pairs: Pairs<Rule>) -> NameExpr {
 
 impl SimpleDebugger {
 
-    fn val_parse_expr(&mut self, pairs: Pairs<Rule>) -> Expr {
-        Val_PRATT_PARSER
+    fn val_parse_expr(&mut self, pairs: Pairs<Rule>) -> ProcessResult<Expr> {
+        Ok(Val_PRATT_PARSER
             .map_primary(|primary| match primary.as_rule() {
-                Rule::oct => Expr::Val(primary.as_str().parse::<u32>().unwrap()),
-                Rule::hex => Expr::Val(u32::from_str_radix(primary.as_str(), 16).unwrap()),
-                Rule::name_term => Expr::NameExpr(name_parse_expr(primary.into_inner())),
+                Rule::oct => Ok(Expr::Val(primary.as_str().parse::<u32>().map_err(|_| {
+                    log_error!(format!("Invalid octal value: {}", primary.as_str()));
+                    ProcessError::Recoverable
+                })?)),
+                Rule::hex => Ok(Expr::Val(u32::from_str_radix(primary.as_str(), 16).map_err(|_| {
+                    log_error!(format!("Invalid hexadecimal value: {}", primary.as_str()));
+                    ProcessError::Recoverable
+                })?)),
+                Rule::name_term => Ok(Expr::NameExpr(name_parse_expr(primary.into_inner()))),
                 Rule::expr => self.val_parse_expr(primary.into_inner()),
                 rule => unreachable!("Expr::parse expected atom, found {:?}", rule),
             })
             .map_prefix(|op, expr| {
                 match op.as_rule() {
-                    Rule::deref => Expr::Unary {
+                    Rule::deref => Ok(Expr::Unary {
                         op: UnaryOp::Deref,
-                        expr: Box::new(expr),
-                    },
+                        expr: Box::new(expr?),
+                    }),
                     rule => unreachable!("Expr::parse expected prefix operation, found {:?}", rule),
                 }
             })
@@ -125,13 +130,13 @@ impl SimpleDebugger {
                     Rule::subtract => BinOp::Subtract,
                     rule => unreachable!("Expr::parse expected infix operation, found {:?}", rule),
                 };
-                Expr::Bin {
-                    lhs: Box::new(lhs),
-                    op: op,
-                    rhs: Box::new(rhs),
-                }
+                Ok(Expr::Bin {
+                    lhs: Box::new(lhs?),
+                    op,
+                    rhs: Box::new(rhs?),
+                })
             })
-            .parse(pairs)
+            .parse(pairs)?)
     }
 
     fn calculate_name_expr(&mut self, expr: &NameExpr) -> ProcessResult<u32> {
@@ -174,8 +179,8 @@ impl SimpleDebugger {
                 let lhs_val = self.calculate_expr(lhs)?;
                 let rhs_val = self.calculate_expr(rhs)?;
                 match op {
-                    BinOp::Add => Ok(lhs_val + rhs_val),
-                    BinOp::Subtract => Ok(lhs_val - rhs_val),
+                    BinOp::Add => Ok(lhs_val.wrapping_add(rhs_val)),
+                    BinOp::Subtract => Ok(lhs_val.wrapping_sub(rhs_val)),
                 }
             },
             Expr::NameExpr(expr) => {
@@ -186,7 +191,7 @@ impl SimpleDebugger {
 
     pub fn eval_expr(&mut self, src: &str) -> ProcessResult<u32> {
         let pairs = log_err!(ExprParser::parse(Rule::expr, src), ProcessError::Recoverable)?;
-        let exprs = self.val_parse_expr(pairs);
+        let exprs = self.val_parse_expr(pairs)?;
         self.calculate_expr(&exprs)
     }
 
