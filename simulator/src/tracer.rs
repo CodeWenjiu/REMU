@@ -72,7 +72,7 @@ impl Tracer {
             });
     }
 
-    fn check_breakpoint(&self, pc: u32) -> ProcessResult<()> {
+    pub fn check_breakpoint(&self, pc: u32) -> ProcessResult<()> {
         if let Some((i, _)) = self
             .breakpoints
             .iter()
@@ -86,10 +86,8 @@ impl Tracer {
         }
     }
 
-    pub fn trace(&self, pc: u32, next_pc: u32, inst: u32) -> ProcessResult<()> {
+    pub fn trace(&self, pc: u32, inst: u32) -> ProcessResult<()> {
         self.instruction_trace(pc, inst);
-
-        self.check_breakpoint(next_pc)?;
 
         Ok(())
     }

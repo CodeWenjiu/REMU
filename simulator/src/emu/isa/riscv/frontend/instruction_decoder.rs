@@ -247,6 +247,16 @@ impl Emu {
                     _ => SRCA::RS1,
                 }
             }
+
+            // RISCV::Zicsr(_) => SRCA::CSR,
+            RISCV::Zicsr(inst) => {
+                match inst {
+                    Zicsr::Csrrw => SRCA::ZERO,
+
+                    _ => SRCA::CSR,
+                }
+            }
+
             _ => SRCA::RS1,
         };
 
@@ -264,6 +274,8 @@ impl Emu {
                     _ => SRCB::RS2,
                 }
             }
+
+            RISCV::Zicsr(_) => SRCB::RS1,
 
             _ => SRCB::RS2,
         };
@@ -312,6 +324,15 @@ impl Emu {
                 }
             }
 
+            RISCV::Zicsr(inst) => {
+                match inst {
+                    Zicsr::Csrrw => AlCtrl::Add,
+                    Zicsr::Csrrs => AlCtrl::Or,
+
+                    _ => AlCtrl::DontCare,
+                }
+            }
+
             _ => AlCtrl::DontCare,
         };
 
@@ -346,9 +367,11 @@ impl Emu {
 
             RISCV::RV32M(_) => WbCtrl::WriteGpr,
 
+            RISCV::Zicsr(_) => WbCtrl::Csr,
+
             _ => WbCtrl::DontCare,
         };
-        
+
         Ok(ToIsStage { pc, rs1_addr, rs1_val, rs2_addr, rs2_val, gpr_waddr, imm, is_ctrl, al_ctrl, ls_ctrl, wb_ctrl, trap })
     }
 

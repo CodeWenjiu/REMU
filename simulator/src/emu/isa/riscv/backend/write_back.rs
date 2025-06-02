@@ -1,4 +1,4 @@
-use remu_macro::log_error;
+use remu_macro::{log_debug, log_error};
 use logger::Logger;
 use remu_utils::{ProcessError, ProcessResult};
 use state::reg::{riscv::{RvCsrEnum, Trap}, RegfileIo};
@@ -45,6 +45,10 @@ impl Emu {
                 (self.callback.trap)(); // just for now
                 return Err(ProcessError::Recoverable);
             }
+
+            regfile.write_pc(next_pc);
+            
+            return Ok(next_pc);
         }
 
         match stage.wb_ctrl {

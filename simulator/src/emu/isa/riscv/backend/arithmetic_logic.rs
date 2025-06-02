@@ -56,6 +56,7 @@ pub struct ToAlStage {
     pub wb_ctrl: WbCtrl,
 
     pub gpr_waddr: u8,
+    pub csr_waddr: u16,
 
     pub trap: Option<Trap>,
 }
@@ -69,6 +70,7 @@ impl Emu {
         let srcb = stage.srcb;
 
         let gpr_waddr = stage.gpr_waddr;
+        let csr_waddr = stage.csr_waddr;
 
         let wb_ctrl = stage.wb_ctrl;
         let trap: Option<Trap> = stage.trap;
@@ -162,6 +164,6 @@ impl Emu {
             };
         }
 
-        Ok(ToWbStage { pc, result, csr_rdata: 0, gpr_waddr, csr_waddr: 0, wb_ctrl, trap })
+        Ok(ToWbStage { pc, result, csr_rdata: srcb, gpr_waddr, csr_waddr, wb_ctrl, trap })
     }
 }
