@@ -237,7 +237,7 @@ impl RegfileIo for Rv32eRegFile {
             Some(identifier) => {
                 let index = RvCsrEnum::csr_identifier_converter(identifier)?;
                 let name = RvCsrEnum::from(index).into();
-                self.print_format(name, self.regs.borrow()[index as usize]);
+                self.print_format(name, self.csrs.borrow()[index as usize]);
             }
 
             None => {

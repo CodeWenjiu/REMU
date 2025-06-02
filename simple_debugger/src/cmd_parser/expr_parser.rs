@@ -99,7 +99,6 @@ fn name_parse_expr(pairs: Pairs<Rule>) -> NameExpr {
 }
 
 impl SimpleDebugger {
-
     fn val_parse_expr(&mut self, pairs: Pairs<Rule>) -> ProcessResult<Expr> {
         Ok(Val_PRATT_PARSER
             .map_primary(|primary| match primary.as_rule() {
@@ -107,12 +106,16 @@ impl SimpleDebugger {
                     log_error!(format!("Invalid octal value: {}", primary.as_str()));
                     ProcessError::Recoverable
                 })?)),
+
                 Rule::hex => Ok(Expr::Val(u32::from_str_radix(primary.as_str(), 16).map_err(|_| {
                     log_error!(format!("Invalid hexadecimal value: {}", primary.as_str()));
                     ProcessError::Recoverable
                 })?)),
+
                 Rule::name_term => Ok(Expr::NameExpr(name_parse_expr(primary.into_inner()))),
+
                 Rule::expr => self.val_parse_expr(primary.into_inner()),
+
                 rule => unreachable!("Expr::parse expected atom, found {:?}", rule),
             })
             .map_prefix(|op, expr| {

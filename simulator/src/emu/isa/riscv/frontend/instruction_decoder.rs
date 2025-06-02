@@ -348,16 +348,8 @@ impl Emu {
 
             _ => WbCtrl::DontCare,
         };
-
-        // if let Some((opcode, _)) = decode_result {
-
-            // Create instruction pattern
+        
         Ok(ToIsStage { pc, rs1_addr, rs1_val, rs2_addr, rs2_val, gpr_waddr, imm, is_ctrl, al_ctrl, ls_ctrl, wb_ctrl, trap })
-        // } else {
-        //     // Decoding failed
-        //     (self.callback.decode_failed)(pc, inst);
-        //     Err(ProcessError::Recoverable)
-        // }
     }
 
 }

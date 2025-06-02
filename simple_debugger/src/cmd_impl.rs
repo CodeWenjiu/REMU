@@ -76,6 +76,12 @@ impl SimpleDebugger {
             SetCmds::Register { subcmd } => {
                 self.cmd_register_set(subcmd)?;
             }
+
+            SetCmds::Memory { addr, value } => {
+                let addr = self.eval_expr(&addr)?;
+                let value = self.eval_expr(&value)?;
+                log_err!(self.state.mmu.write(addr, value, Mask::None), ProcessError::Recoverable)?;
+            }
         }
 
         log_warn!("Command `Set` is evil, carefully use it.");

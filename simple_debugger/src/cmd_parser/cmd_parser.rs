@@ -120,6 +120,15 @@ pub enum SetCmds {
         #[command(subcommand)]
         subcmd: RegisterSetCmds,
     },
+
+    /// Set the state of the memory
+    Memory {
+        /// The target address(expr)
+        addr: String,
+
+        /// The target value
+        value: String,
+    }
 }
 
 #[derive(Debug, Subcommand)]
