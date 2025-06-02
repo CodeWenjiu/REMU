@@ -73,3 +73,16 @@ macro_rules! log_todo {
         $crate::log_error!("TODO")
     };
 }
+
+#[macro_export]
+macro_rules! log_warn {
+    () => {
+        $crate::log_level!(Logger::WARN)
+    };
+    ($msg:expr) => {
+        $crate::log_level!($msg, Logger::WARN)
+    };
+    ($fmt:expr, $($arg:expr),+) => {
+        $crate::log_level!($fmt, $($arg),+, Logger::WARN)
+    };
+}

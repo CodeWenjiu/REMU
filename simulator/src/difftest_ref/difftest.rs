@@ -78,7 +78,7 @@ impl DifftestManager {
         self.is_diff_skip = false;
         match &mut self.reference {
             AnyDifftestRef::BuildIn(_reference) => {
-                self.states_ref.regfile.set_reg(&self.states_dut.regfile);
+                self.states_ref.regfile.sync_reg(&self.states_dut.regfile);
             }
 
             AnyDifftestRef::FFI(reference) => {

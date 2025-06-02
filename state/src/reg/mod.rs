@@ -80,12 +80,17 @@ pub trait RegfileIo {
         Err(ProcessError::Recoverable)
     }
 
+    fn set_gpr(&mut self, _index: RegIdentifier, _value: u32) -> ProcessResult<()> {
+        log_todo!();
+        Err(ProcessError::Recoverable)
+    }
+
     fn print_csr(&self, _index: Option<RegIdentifier>) -> ProcessResult<()> {
         log_todo!();
         Err(ProcessError::Recoverable)
     }
 
-    fn set_reg(&mut self, _target: &AnyRegfile) {
+    fn sync_reg(&mut self, _target: &AnyRegfile) {
         log_todo!()
     }
 

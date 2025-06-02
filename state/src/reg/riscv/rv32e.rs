@@ -219,6 +219,21 @@ impl RegfileIo for Rv32eRegFile {
         Ok(())
     }
 
+    fn set_gpr(&mut self, index: RegIdentifier, value: u32) -> ProcessResult<()> {
+        match index {
+            RegIdentifier::Index(index) => {
+                self.write_gpr(index, value)?;
+            }
+
+            RegIdentifier::Name(name) => {
+                let index = Rv32eGprEnum::from_str(&name).map_err(|_| ProcessError::Recoverable)?;
+                self.write_gpr(index.into(), value)?;
+            }
+        }
+
+        Ok(())
+    }
+
     fn print_csr(&self, index: Option<RegIdentifier>) -> ProcessResult<()> {
         match index {
             Some(identifier) => {
@@ -238,7 +253,7 @@ impl RegfileIo for Rv32eRegFile {
         Ok(())
     }
 
-    fn set_reg(&mut self,_target: &crate::reg::AnyRegfile) {
+    fn sync_reg(&mut self,_target: &crate::reg::AnyRegfile) {
         if let AnyRegfile::Rv32e(target) = _target {
             self.pc.replace(target.pc.borrow().clone());
             self.regs.replace(target.regs.borrow().clone());

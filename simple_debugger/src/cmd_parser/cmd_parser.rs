@@ -45,6 +45,12 @@ pub enum Cmds {
         subcmd: InfoCmds,
     },
 
+    /// Set state
+    Set {
+        #[command(subcommand)]
+        subcmd: SetCmds,
+    },
+
     /// Print Expr Result
     Print {
         /// The target expression
@@ -93,17 +99,26 @@ pub enum InfoCmds {
     Register {
         /// The target register
         #[command(subcommand)]
-        subcmd: Option<RegisterCmds>,
+        subcmd: Option<RegisterInfoCmds>,
     },
 
     /// Get the state of the memory
     Memory {
         #[command(subcommand)]
-        subcmd: MemoryCmds,
+        subcmd: MemorySetCmds,
     },
 
     /// Get the state of the pipeline
     Pipeline {
+    },
+}
+
+#[derive(Debug, Subcommand)]
+pub enum SetCmds {
+    /// Set the state of the register
+    Register {
+        #[command(subcommand)]
+        subcmd: RegisterSetCmds,
     },
 }
 
@@ -126,7 +141,7 @@ pub enum BreakPointCmds {
 }
 
 #[derive(Debug, Subcommand)]
-pub enum RegisterCmds {
+pub enum RegisterInfoCmds {
     /// Show the state of the general purpose register
     GPR {
         /// The target register index
@@ -146,7 +161,20 @@ pub enum RegisterCmds {
 }
 
 #[derive(Debug, Subcommand)]
-pub enum MemoryCmds {
+pub enum RegisterSetCmds {
+    /// Set the state of the general purpose register
+    GPR {
+        /// The target register index
+        #[arg(value_parser = parse_reg)]
+        index: RegIdentifier,
+
+        /// The target value
+        value: String,
+    },
+}
+
+#[derive(Debug, Subcommand)]
+pub enum MemorySetCmds {
     /// show memory map
     ShowMemoryMap,
 

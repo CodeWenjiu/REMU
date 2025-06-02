@@ -9,6 +9,8 @@ use crate::reg::{ALLCSRIdentifier, RegError, RegIdentifier, RegResult};
 #[derive(PartialEq, Clone, Copy, Default)]
 pub enum Trap {
     #[default]
+    IllegalInstruction = 2,
+
     Ebreak = 3,
 
     EcallM = 11,

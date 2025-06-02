@@ -1,11 +1,11 @@
 use logger::Logger;
 use owo_colors::OwoColorize;
-use remu_macro::log_err;
+use remu_macro::{log_err, log_warn};
 use remu_utils::{ProcessError, ProcessResult};
 use simulator::SimulatorItem;
 use state::{mmu::Mask, reg::RegfileIo};
 
-use crate::{cmd_parser::{BreakPointCmds, Cmds, DiffertestCmds, FunctionCmds, InfoCmds, MemoryCmds, RegisterCmds, StepCmds}, SimpleDebugger};
+use crate::{cmd_parser::{BreakPointCmds, Cmds, DiffertestCmds, FunctionCmds, InfoCmds, MemorySetCmds, RegisterInfoCmds, RegisterSetCmds, SetCmds, StepCmds}, SimpleDebugger};
 
 impl SimpleDebugger {
     fn cmd_info (&mut self, subcmd: InfoCmds) -> ProcessResult<()> {
@@ -15,11 +15,79 @@ impl SimpleDebugger {
             }
 
             InfoCmds::Register { subcmd } => {
-                self.cmd_register(subcmd)?;
+                self.cmd_register_info(subcmd)?;
             }
 
             InfoCmds::Pipeline {  } => {
                 println!("{}", self.state.pipe_state)
+            }
+        }
+
+        Ok(())
+    }
+
+    fn cmd_memory (&mut self, subcmd: MemorySetCmds) -> ProcessResult<()> {
+        match subcmd {
+            MemorySetCmds::ShowMemoryMap {} => {
+                self.state.mmu.show_memory_map();
+            }
+
+            MemorySetCmds::Examine { addr, length } => {
+                for i in (0..(length * 4)).step_by(4) {
+                    let i = i as u32;
+                    let addr = self.eval_expr(&addr)?;
+                    let data = log_err!(self.state.mmu.read_memory(addr + i, Mask::None), ProcessError::Recoverable)?;
+
+                    println!("{:#010x}: {:#010x}\t {}",
+                        (addr + i).blue(), data.green(), self.disassembler.borrow().try_analize(data, addr + i).magenta());
+                }
+            }
+        }
+
+        Ok(())
+    }
+
+    fn cmd_register_info (&mut self, subcmd: Option<RegisterInfoCmds>) -> ProcessResult<()> {
+        match subcmd {
+            Some(RegisterInfoCmds::CSR { index }) => {
+                self.state.regfile.print_csr(index)?;
+            }
+
+            Some(RegisterInfoCmds::GPR { index }) => {
+                self.state.regfile.print_gpr(index)?;
+            }
+
+            Some(RegisterInfoCmds::PC {}) => {
+                self.state.regfile.print_pc();
+            }
+
+            None => {
+                self.state.regfile.print_pc();
+                self.state.regfile.print_gpr(None)?;
+                self.state.regfile.print_csr(None)?;
+            }
+        }
+
+        Ok(())
+    }
+
+    fn cmd_set (&mut self, subcmd: SetCmds) -> ProcessResult<()> {
+        match subcmd {
+            SetCmds::Register { subcmd } => {
+                self.cmd_register_set(subcmd)?;
+            }
+        }
+
+        log_warn!("Command `Set` is evil, carefully use it.");
+
+        Ok(())
+    }
+
+    fn cmd_register_set (&mut self, subcmd: RegisterSetCmds) -> ProcessResult<()> {
+        match subcmd {
+            RegisterSetCmds::GPR { index, value } => {
+                let value = self.eval_expr(&value)?;
+                self.state.regfile.set_gpr(index, value)?;
             }
         }
 
@@ -40,51 +108,6 @@ impl SimpleDebugger {
 
             BreakPointCmds::Show => {
                 self.simulator.tracer.borrow_mut().show_breakpoints();
-            }
-        }
-
-        Ok(())
-    }
-
-    fn cmd_register (&mut self, subcmd: Option<RegisterCmds>) -> ProcessResult<()> {
-        match subcmd {
-            Some(RegisterCmds::CSR { index }) => {
-                self.state.regfile.print_csr(index)?;
-            }
-
-            Some(RegisterCmds::GPR { index }) => {
-                self.state.regfile.print_gpr(index)?;
-            }
-
-            Some(RegisterCmds::PC {}) => {
-                self.state.regfile.print_pc();
-            }
-
-            None => {
-                self.state.regfile.print_pc();
-                self.state.regfile.print_gpr(None)?;
-                self.state.regfile.print_csr(None)?;
-            }
-        }
-
-        Ok(())
-    }
-
-    fn cmd_memory (&mut self, subcmd: MemoryCmds) -> ProcessResult<()> {
-        match subcmd {
-            MemoryCmds::ShowMemoryMap {} => {
-                self.state.mmu.show_memory_map();
-            }
-
-            MemoryCmds::Examine { addr, length } => {
-                for i in (0..(length * 4)).step_by(4) {
-                    let i = i as u32;
-                    let addr = self.eval_expr(&addr)?;
-                    let data = log_err!(self.state.mmu.read_memory(addr + i, Mask::None), ProcessError::Recoverable)?;
-
-                    println!("{:#010x}: {:#010x}\t {}",
-                        (addr + i).blue(), data.green(), self.disassembler.borrow().try_analize(data, addr + i).magenta());
-                }
             }
         }
 
@@ -162,13 +185,13 @@ impl SimpleDebugger {
         Ok(())
     }
 
-    fn cmd_differtest_memory (&mut self, subcmd: MemoryCmds) -> ProcessResult<()> {
+    fn cmd_differtest_memory (&mut self, subcmd: MemorySetCmds) -> ProcessResult<()> {
         match subcmd {
-            MemoryCmds::ShowMemoryMap {} => {
+            MemorySetCmds::ShowMemoryMap {} => {
                 self.state_ref.mmu.show_memory_map();
             }
 
-            MemoryCmds::Examine { addr, length } => {
+            MemorySetCmds::Examine { addr, length } => {
                 for i in (0..(length * 4)).step_by(4) {
                     let i = i as u32;
                     let addr = log_err!(self.eval_expr(&addr), ProcessError::Recoverable)?;
@@ -183,17 +206,17 @@ impl SimpleDebugger {
         Ok(())
     }
 
-    fn cmd_differtest_register (&mut self, subcmd: Option<RegisterCmds>) -> ProcessResult<()> {
+    fn cmd_differtest_register (&mut self, subcmd: Option<RegisterInfoCmds>) -> ProcessResult<()> {
         match subcmd {
-            Some(RegisterCmds::CSR { index }) => {
+            Some(RegisterInfoCmds::CSR { index }) => {
                 self.state.regfile.print_csr(index)?;
             }
 
-            Some(RegisterCmds::GPR { index }) => {
+            Some(RegisterInfoCmds::GPR { index }) => {
                 self.state_ref.regfile.print_gpr(index)?;
             }
 
-            Some(RegisterCmds::PC {}) => {
+            Some(RegisterInfoCmds::PC {}) => {
                 self.state_ref.regfile.print_pc();
             }
 
@@ -223,6 +246,10 @@ impl SimpleDebugger {
 
             Cmds::Info { subcmd } => {
                 self.cmd_info(subcmd)?;
+            }
+
+            Cmds::Set { subcmd } => {
+                self.cmd_set(subcmd)?;
             }
 
             Cmds::Print { expr } => {
