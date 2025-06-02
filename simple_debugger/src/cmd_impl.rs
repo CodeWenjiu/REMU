@@ -1,6 +1,6 @@
 use logger::Logger;
 use owo_colors::OwoColorize;
-use remu_macro::{log_err, log_warn};
+use remu_macro::{log_err, log_todo, log_warn};
 use remu_utils::{ProcessError, ProcessResult};
 use simulator::SimulatorItem;
 use state::{mmu::Mask, reg::RegfileIo};
@@ -162,6 +162,10 @@ impl SimpleDebugger {
                 self.cmd_differtest_info(subcmd)?;
             }
 
+            DiffertestCmds::Set { subcmd } => {
+                self.cmd_differtest_set(subcmd)?;
+            }
+
             DiffertestCmds::MemWatchPoint { addr } => {
                 match addr {
                     Some(addr) => {
@@ -198,6 +202,11 @@ impl SimpleDebugger {
             }
         }
 
+        Ok(())
+    }
+
+    fn cmd_differtest_set (&mut self, _subcmd: SetCmds) -> ProcessResult<()> {
+        log_todo!();
         Ok(())
     }
 

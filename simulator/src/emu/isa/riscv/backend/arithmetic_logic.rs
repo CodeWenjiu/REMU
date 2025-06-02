@@ -164,6 +164,6 @@ impl Emu {
             };
         }
 
-        Ok(ToWbStage { pc, result, csr_rdata: srcb, gpr_waddr, csr_waddr, wb_ctrl, trap })
+        Ok(ToWbStage { pc, result, csr_rdata: srca, gpr_waddr, csr_waddr, wb_ctrl, trap })
     }
 }

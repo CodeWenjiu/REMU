@@ -1,3 +1,5 @@
+use remu_macro::log_debug;
+use logger::Logger;
 use remu_utils::{ProcessError, ProcessResult};
 use state::reg::{riscv::Trap, RegfileIo};
 
@@ -327,7 +329,7 @@ impl Emu {
             RISCV::Zicsr(inst) => {
                 match inst {
                     Zicsr::Csrrw => AlCtrl::Add,
-                    Zicsr::Csrrs => AlCtrl::Or,
+                    Zicsr::Csrrs => {log_debug!("csrrs"); AlCtrl::Or},
 
                     _ => AlCtrl::DontCare,
                 }

@@ -223,6 +223,12 @@ pub enum DiffertestCmds {
         subcmd: InfoCmds,
     },
 
+    /// Set state
+    Set {
+        #[command(subcommand)]
+        subcmd: SetCmds,
+    },
+
     /// Set memory watch point
     MemWatchPoint {
         /// The target address(expr) and length
