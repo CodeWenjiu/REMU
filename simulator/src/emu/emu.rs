@@ -1,12 +1,14 @@
+use std::marker;
+
 use bitflags::bitflags;
 use logger::Logger;
 use option_parser::OptionParser;
 use owo_colors::OwoColorize;
-use remu_macro::log_error;
+use remu_macro::{log_error, log_todo};
 use remu_utils::{ProcessResult, ISA};
 use state::States;
 
-use crate::{SimulatorCallback, SimulatorItem};
+use crate::{DirectlyMap, SimulatorCallback, SimulatorItem};
 
 use super::isa::riscv::instruction::RISCV;
 
@@ -74,6 +76,17 @@ pub struct EmuTimes {
     
     /// Number of instructions executed
     pub instructions: u64,
+}
+
+pub trait EmuArch {
+    fn step_cycle(emu: &mut Emu) -> ProcessResult<()>;
+}
+
+impl EmuArch for DirectlyMap {
+    fn step_cycle(emu: &mut Emu) -> ProcessResult<()> {
+        log_todo!();
+        Ok(())
+    }
 }
 
 /// RISC-V Emulator implementation

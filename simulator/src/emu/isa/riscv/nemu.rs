@@ -335,7 +335,7 @@ impl Emu {
         Ok(next_pc)
     }
 
-    pub fn self_step_cycle_nemu(&mut self, inst: InstPattern) -> ProcessResult<u32> {
+    pub fn rv32_execute_nemu(&mut self, inst: InstPattern) -> ProcessResult<u32> {
         let belongs_to = inst.name;
         if !self.instruction_set.enable(belongs_to) {
             return Err(ProcessError::Recoverable)
