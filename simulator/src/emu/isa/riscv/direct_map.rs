@@ -3,12 +3,12 @@ use logger::Logger;
 use remu_utils::{ProcessError, ProcessResult};
 use state::{mmu::Mask, reg::{riscv::RvCsrEnum, RegfileIo}};
 
-use crate::emu::Emu;
+use crate::emu::{extract_bits, Emu};
 
 use super::instruction::{InstMsg, InstPattern, RISCV, RV32I, RV32IAL, RV32ILS, RV32M};
 
 impl Emu {
-    fn rv32_i_execute_nemu(&mut self, name: RV32I, mut msg: InstMsg) -> ProcessResult<u32> {
+    fn rv32_i_execute_dm(&mut self, name: RV32I, mut msg: InstMsg) -> ProcessResult<u32> {
         let regfile = &mut self.states.regfile;
         let rs1: u32 = regfile.read_gpr(msg.rs1.into()).map_err(|_| ProcessError::Recoverable)?;
         let rs2: u32 = regfile.read_gpr(msg.rs2.into()).map_err(|_| ProcessError::Recoverable)?;
@@ -261,14 +261,14 @@ impl Emu {
         Ok(next_pc)
     }
 
-    fn rv32_e_execute_nemu(&mut self, name: RV32I, mut msg: InstMsg) -> ProcessResult<u32> {
+    fn rv32_e_execute_dm(&mut self, name: RV32I, mut msg: InstMsg) -> ProcessResult<u32> {
         msg.rs1 &= 0xF;
         msg.rs2 &= 0xF;
         msg.rd_addr &= 0xF;
-        self.rv32_i_execute_nemu(name, msg)
+        self.rv32_i_execute_dm(name, msg)
     }
 
-    fn rv32_m_execute_nemu(&mut self, _name: RV32M, msg: InstMsg) -> ProcessResult<u32> {
+    fn rv32_m_execute_dm(&mut self, _name: RV32M, msg: InstMsg) -> ProcessResult<u32> {
         let regfile = &mut self.states.regfile;
         let rs1: u32 = regfile.read_gpr(msg.rs1.into()).map_err(|_| ProcessError::Recoverable)?;
         let rs2: u32 = regfile.read_gpr(msg.rs2.into()).map_err(|_| ProcessError::Recoverable)?;
@@ -334,8 +334,30 @@ impl Emu {
 
         Ok(next_pc)
     }
+    
+    fn rv32_decode_dm(&mut self, inst: u32) -> ProcessResult<InstPattern> {
+        let decode = self.instruction_parse(inst).ok_or(ProcessError::Recoverable)?;
+        
+        // Extract register fields
+        let rs1_addr = extract_bits(inst, 15..19);
+        let rs2_addr = extract_bits(inst, 20..24);
+        let rd_addr  = extract_bits(inst, 7..11) as u8;
 
-    pub fn rv32_execute_nemu(&mut self, inst: InstPattern) -> ProcessResult<u32> {
+        // Extract immediate value
+        let imm = Self::get_imm(inst, decode.1 );
+
+        Ok(InstPattern { 
+            name: decode.0, 
+            msg: InstMsg {
+                rs1: rs1_addr,
+                rs2: rs2_addr,
+                rd_addr,
+                imm,
+            }
+        })
+    }
+
+    pub fn rv32_execute_dm(&mut self, inst: InstPattern) -> ProcessResult<u32> {
         let belongs_to = inst.name;
         if !self.instruction_set.enable(belongs_to) {
             return Err(ProcessError::Recoverable)
@@ -343,15 +365,15 @@ impl Emu {
 
         match belongs_to {
             RISCV::RV32I(name) => {
-                return self.rv32_i_execute_nemu(name, inst.msg);
+                return self.rv32_i_execute_dm(name, inst.msg);
             }
 
             RISCV::RV32E(name) => {
-                return self.rv32_e_execute_nemu(name, inst.msg);
+                return self.rv32_e_execute_dm(name, inst.msg);
             }
 
             RISCV::RV32M(name) => {
-                return self.rv32_m_execute_nemu(name, inst.msg);
+                return self.rv32_m_execute_dm(name, inst.msg);
             }
 
             RISCV::Priv(_) => {
@@ -364,5 +386,30 @@ impl Emu {
         }
 
         Err(ProcessError::Recoverable)
+    }
+
+    /// Execute a single cycle in the emulator
+    pub fn self_step_cycle_dm(&mut self) -> ProcessResult<()> {
+        // 1. Fetch: Read the PC and fetch the instruction
+
+        let pc = self.states.regfile.read_pc();
+        let inst = log_err!(
+            self.states.mmu.read(pc, state::mmu::Mask::Word), 
+            ProcessError::Recoverable
+        )?;
+
+        // 2. Decode: Decode the instruction
+        let decode = self.rv32_decode_dm(inst.1)?;
+        
+        // 3. Execute: Execute the instruction
+        let next_pc = self.rv32_execute_dm(decode)?;
+
+        // 4. Notify completion and return
+        (self.callback.instruction_complete)(pc, next_pc, inst.1)?;
+
+        self.times.cycles += 1;
+        self.times.instructions += 1;
+
+        Ok(())
     }
 }

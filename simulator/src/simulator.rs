@@ -14,7 +14,7 @@ use remu_utils::{Disassembler, ProcessError, ProcessResult, Simulators};
 use state::{reg::RegfileIo, States};
 
 use crate::{
-    difftest_ref::DifftestManager, emu::Emu, nzea::Nzea, TraceFunction, Tracer
+    difftest_ref::DifftestManager, emu::EmuWrapper, nzea::Nzea, DirectlyMap, TraceFunction, Tracer
 };
 
 #[derive(Debug, Subcommand)]
@@ -35,7 +35,7 @@ pub trait SimulatorItem {
 
 #[enum_dispatch]
 pub enum SimulatorEnum {
-    NEMU(Emu),
+    EmuNemu(EmuWrapper<DirectlyMap>),
     NZEA(Nzea),
 }
 
@@ -76,7 +76,7 @@ impl TryFrom<(&OptionParser, States, SimulatorCallback)> for SimulatorEnum {
         (option, states, callback): (&OptionParser, States, SimulatorCallback),
     ) -> Result<Self, Self::Error> {
         match option.cli.platform.simulator {
-            Simulators::EMU(_) => Ok(SimulatorEnum::NEMU(Emu::new(option, states, callback))),
+            Simulators::EMU(_) => Ok(SimulatorEnum::EmuNemu(EmuWrapper::<DirectlyMap>::new(option, states, callback))),
             Simulators::NZEA(_) => Ok(SimulatorEnum::NZEA(Nzea::new(option, states, callback))),
         }
     }

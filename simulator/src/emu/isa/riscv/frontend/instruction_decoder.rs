@@ -17,7 +17,7 @@ pub struct ToIdStage {
 
 impl Emu {
     /// Extract and sign-extend immediate value based on instruction type
-    fn get_imm(inst: u32, imm_type: ImmType) -> u32 {
+    pub fn get_imm(inst: u32, imm_type: ImmType) -> u32 {
         match imm_type {
             // I-type: Load, ALU immediate, JALR
             ImmType::I => {

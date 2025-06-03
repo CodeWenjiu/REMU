@@ -1,14 +1,12 @@
-use std::marker;
-
 use bitflags::bitflags;
 use logger::Logger;
 use option_parser::OptionParser;
 use owo_colors::OwoColorize;
-use remu_macro::{log_error, log_todo};
+use remu_macro::log_error;
 use remu_utils::{ProcessResult, ISA};
 use state::States;
 
-use crate::{DirectlyMap, SimulatorCallback, SimulatorItem};
+use crate::{DirectlyMap, SimulatorCallback, SimulatorItem, SingleCycle};
 
 use super::isa::riscv::instruction::RISCV;
 
@@ -84,8 +82,41 @@ pub trait EmuArch {
 
 impl EmuArch for DirectlyMap {
     fn step_cycle(emu: &mut Emu) -> ProcessResult<()> {
-        log_todo!();
-        Ok(())
+        emu.self_step_cycle_dm()
+    }
+}
+
+impl EmuArch for SingleCycle {
+    fn step_cycle(emu: &mut Emu) -> ProcessResult<()> {
+        emu.self_step_cycle_singlecycle()
+    }
+}
+
+pub struct EmuWrapper<V: EmuArch> {
+    emu: Emu,
+    _marker: std::marker::PhantomData<V>,
+}
+
+impl<V: EmuArch> SimulatorItem for EmuWrapper<V> {
+    fn step_cycle(&mut self) -> ProcessResult<()> {
+        V::step_cycle(&mut self.emu)
+    }
+
+    fn times(&self) -> ProcessResult<()> {
+        self.emu.times()
+    }
+
+    fn function_wave_trace(&self,_enable:bool) {
+        self.emu.function_wave_trace(_enable)
+    }
+}
+
+impl<V: EmuArch> EmuWrapper<V> {
+    pub fn new(option: &OptionParser, states: States, callback: SimulatorCallback) -> Self {
+        Self {
+            emu: Emu::new(option, states, callback),
+            _marker: std::marker::PhantomData,
+        }
     }
 }
 
@@ -102,22 +133,6 @@ pub struct Emu {
 
     /// Emulator times
     pub times: EmuTimes,
-}
-
-impl SimulatorItem for Emu {
-    fn step_cycle(&mut self) -> ProcessResult<()> {
-        self.self_step_cycle_singlecycle()
-    }
-
-    fn times(&self) -> ProcessResult<()> {
-        println!("{}: {}", "Cycles".purple(), self.times.cycles.blue());
-        println!("{}: {}", "Instructions".purple(), self.times.instructions.blue());
-        Ok(())
-    }
-
-    fn function_wave_trace(&self,_enable:bool) {
-        log_error!("Wave tracing is not supported in Emu.");
-    }
 }
 
 impl Emu {
@@ -164,5 +179,15 @@ impl Emu {
         self.instruction_set = self.instruction_set | set_flag;
         
         Ok(())
+    }
+
+    pub fn times(&self) -> ProcessResult<()> {
+        println!("{}: {}", "Cycles".purple(), self.times.cycles.blue());
+        println!("{}: {}", "Instructions".purple(), self.times.instructions.blue());
+        Ok(())
+    }
+
+    pub fn function_wave_trace(&self,_enable:bool) {
+        log_error!("Wave tracing is not supported in Emu.");
     }
 }

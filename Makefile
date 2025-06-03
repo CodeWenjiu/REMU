@@ -11,10 +11,10 @@ Alternate_jyd_remote = 0x80100000:./simulator/src/nzea/on_board/NZ-jyd/tools/bin
 
 Binfile_Emu = ./.test/microbench-riscv32-nemu.bin
 
-Platform_emu_rv32im = rv32im-emu-nemu
-Platform_emu_rv32im_alias = riscv32-emu-nemu
+Platform_emu_rv32im = rv32im-emu-dm
+Platform_emu_rv32im_alias = riscv32-emu-dm
 
-Platform_emu_rv32e = rv32e-emu-nemu
+Platform_emu_rv32e = rv32e-emu-dm
 Platform_emu_default = $(Platform_emu_rv32im)
 
 Platform_Nzea_npc = rv32e-nzea-npc
