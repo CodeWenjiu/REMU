@@ -1,4 +1,5 @@
 use std::time::Instant;
+use std::io::{self, Write};
 
 use remu_macro::{log_error, log_todo};
 use logger::Logger;
@@ -52,6 +53,7 @@ impl DeviceIo for Serial {
             Mask::Byte => {
                 let c = data as u8 as char;
                 print!("{}", c);
+                io::stdout().flush().unwrap();
             }
             _ => {
                 log_error!("Serial write only supports byte access");

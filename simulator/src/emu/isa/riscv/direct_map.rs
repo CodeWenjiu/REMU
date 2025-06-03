@@ -5,7 +5,7 @@ use state::{mmu::Mask, reg::{riscv::RvCsrEnum, RegfileIo}};
 
 use crate::emu::{extract_bits, Emu};
 
-use super::instruction::{InstMsg, InstPattern, RISCV, RV32I, RV32IAL, RV32ILS, RV32M};
+use super::instruction::{InstMsg, InstPattern, Priv, Zicsr, RISCV, RV32I, RV32IAL, RV32ILS, RV32M};
 
 impl Emu {
     fn rv32_i_execute_dm(&mut self, name: RV32I, mut msg: InstMsg) -> ProcessResult<u32> {
@@ -334,6 +334,57 @@ impl Emu {
 
         Ok(next_pc)
     }
+
+    fn rv32_priv_execute_dm(&mut self, _name: Priv, _msg: InstMsg) -> ProcessResult<u32> {
+        let regfile = &mut self.states.regfile;
+
+        let next_pc;
+        
+        match _name {
+            Priv::Mret => {
+                next_pc = regfile.read_csr(RvCsrEnum::MEPC.into())?;
+            }
+        }
+
+        regfile.write_pc(next_pc);
+
+        Ok(next_pc)
+    }
+
+    fn rv32_zicsr_execute_dm(&mut self, _name: Zicsr, msg: InstMsg) -> ProcessResult<u32> {
+        let regfile = &mut self.states.regfile;
+        let rs1: u32 = regfile.read_gpr(msg.rs1.into()).map_err(|_| ProcessError::Recoverable)?;
+        
+        let mut rd_val: u32 = 0;
+
+        let pc: u32 = regfile.read_pc();
+        let next_pc = pc.wrapping_add(4);
+
+        let imm: u32 = msg.imm;
+        let csr_addr = imm & 0x3FF;
+        let csr_val = regfile.read_csr(csr_addr)?;
+        let mut csr_wdata = rs1;
+
+        match _name {
+            Zicsr::Csrrw => {
+                rd_val = csr_val;
+            }
+
+            Zicsr::Csrrs => {
+                rd_val = csr_val;
+                csr_wdata |= csr_val;
+            }
+
+            _ => log_todo!(), 
+        }
+        
+        regfile.write_gpr(msg.rd_addr.into(), rd_val)?;
+        regfile.write_csr(csr_addr, csr_wdata)?;
+
+        regfile.write_pc(next_pc);
+
+        Ok(next_pc)
+    }
     
     fn rv32_decode_dm(&mut self, inst: u32) -> ProcessResult<InstPattern> {
         let decode = self.instruction_parse(inst).ok_or(ProcessError::Recoverable)?;
@@ -376,16 +427,14 @@ impl Emu {
                 return self.rv32_m_execute_dm(name, inst.msg);
             }
 
-            RISCV::Priv(_) => {
-                log_todo!();
+            RISCV::Priv(name) => {
+                return self.rv32_priv_execute_dm(name, inst.msg);
             }
 
-            RISCV::Zicsr(_) => {
-                log_todo!();
+            RISCV::Zicsr(name) => {
+                return self.rv32_zicsr_execute_dm(name, inst.msg);
             }
         }
-
-        Err(ProcessError::Recoverable)
     }
 
     /// Execute a single cycle in the emulator

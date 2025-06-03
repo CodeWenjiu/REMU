@@ -195,12 +195,24 @@ pub struct Rv32iRegFile {
 }
 
 impl Rv32iRegFile {
+    fn init(&mut self, reset_vector: u32) {
+        self.write_pc(reset_vector);
+        
+        self.write_csr(RvCsrEnum::MSTATUS.into(), 0x1800).unwrap();
+        self.write_csr(RvCsrEnum::MVENDORID.into(), 0x79737978).unwrap(); // "ysyx"
+        self.write_csr(RvCsrEnum::MARCHID.into(), 23060198).unwrap(); // my id
+    }
+    
     pub fn new(reset_vector: u32) -> Self {
-        Rv32iRegFile {
-            pc: Rc::new(RefCell::new(reset_vector)),
+        let mut result = Rv32iRegFile {
+            pc: Rc::new(RefCell::new(0)),
             regs: Rc::new(RefCell::new([0; 32])),
             csrs: Rc::new(RefCell::new([0; 4096])),
-        }
+        };
+
+        result.init(reset_vector);
+
+        result
     }
 }
 
