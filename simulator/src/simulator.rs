@@ -10,11 +10,11 @@ use logger::Logger;
 use option_parser::{DebugConfiguration, OptionParser};
 use owo_colors::OwoColorize;
 use remu_macro::{log_error, log_todo};
-use remu_utils::{Disassembler, ProcessError, ProcessResult, Simulators};
+use remu_utils::{Disassembler, EmuSimulators, ProcessError, ProcessResult, Simulators};
 use state::{reg::RegfileIo, States};
 
 use crate::{
-    difftest_ref::DifftestManager, emu::EmuWrapper, nzea::Nzea, DirectlyMap, TraceFunction, Tracer
+    difftest_ref::DifftestManager, emu::EmuWrapper, nzea::Nzea, DirectlyMap, SingleCycle, TraceFunction, Tracer
 };
 
 #[derive(Debug, Subcommand)]
@@ -35,7 +35,8 @@ pub trait SimulatorItem {
 
 #[enum_dispatch]
 pub enum SimulatorEnum {
-    EmuNemu(EmuWrapper<DirectlyMap>),
+    EmuDirectMap(EmuWrapper<DirectlyMap>),
+    EmuSingleCycle(EmuWrapper<SingleCycle>),
     NZEA(Nzea),
 }
 
@@ -76,7 +77,12 @@ impl TryFrom<(&OptionParser, States, SimulatorCallback)> for SimulatorEnum {
         (option, states, callback): (&OptionParser, States, SimulatorCallback),
     ) -> Result<Self, Self::Error> {
         match option.cli.platform.simulator {
-            Simulators::EMU(_) => Ok(SimulatorEnum::EmuNemu(EmuWrapper::<DirectlyMap>::new(option, states, callback))),
+            Simulators::EMU(target) => Ok(
+                match target {
+                    EmuSimulators::DM => SimulatorEnum::EmuDirectMap(EmuWrapper::<DirectlyMap>::new(option, states, callback)),
+                    EmuSimulators::SC => SimulatorEnum::EmuSingleCycle(EmuWrapper::<SingleCycle>::new(option, states, callback)),
+                }
+            ),
             Simulators::NZEA(_) => Ok(SimulatorEnum::NZEA(Nzea::new(option, states, callback))),
         }
     }

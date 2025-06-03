@@ -40,12 +40,14 @@ impl FromStr for ISA {
 #[derive(Debug, Clone, Copy)]
 pub enum EmuSimulators {
     DM,
+    SC,
 }
 
 impl From<EmuSimulators> for &str {
     fn from(sim: EmuSimulators) -> Self {
         match sim {
             EmuSimulators::DM => "dm",
+            EmuSimulators::SC => "sc",
         }
     }
 }
@@ -56,6 +58,7 @@ impl FromStr for EmuSimulators {
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         match s {
             "dm" => Ok(EmuSimulators::DM),
+            "sc" => Ok(EmuSimulators::SC),
             _ => Err("Unknown Remu Simulator".into()),
         }
     }
