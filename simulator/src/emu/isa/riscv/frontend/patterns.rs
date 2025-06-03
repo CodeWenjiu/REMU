@@ -1,4 +1,4 @@
-use super::super::{ImmType, Priv, Zicsr, RV32IAL, RV32ILS, RV32M};
+use super::super::instruction::{ImmType, Priv, Zicsr, RV32IAL, RV32ILS, RV32M};
 
 pub const RV32_IAL_PATTERN_ITER: &[(RV32IAL, ImmType, (u32, u32))] = &[
     (RV32IAL::Lui,     ImmType::U, remu_macro::mask_and_value!("??????? ????? ????? ??? ????? 01101 11")),

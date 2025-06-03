@@ -4,11 +4,11 @@ use option_parser::OptionParser;
 use owo_colors::OwoColorize;
 use remu_macro::log_error;
 use remu_utils::{ProcessResult, ISA};
-use state::{reg::RegfileIo, States};
+use state::States;
 
 use crate::{SimulatorCallback, SimulatorItem};
 
-use super::isa::riscv::{frontend::{ IsOutStage, ToIfStage}, RISCV};
+use super::isa::riscv::instruction::RISCV;
 
 bitflags! {
     #[derive(Clone, Copy, Debug)]
@@ -150,38 +150,6 @@ impl Emu {
 
         self.instruction_set = self.instruction_set | set_flag;
         
-        Ok(())
-    }
-
-    pub fn self_step_cycle_singlecycle(&mut self) -> ProcessResult<()> {
-        let pc = self.states.regfile.read_pc();
-
-        let to_if = ToIfStage { pc };
-
-        let to_id = self.instruction_fetch_rv32i(to_if)?;
-
-        let inst = to_id.inst;
-        
-        let to_is = self.instruction_decode(to_id)?;
-        let to_ex = self.instruction_issue(to_is)?;
-
-        let to_wb = match to_ex {
-            IsOutStage::AL(to_al) => {
-                self.arithmetic_logic_rv32(to_al)?
-            }
-
-            IsOutStage::LS(to_ls) => {
-                self.load_store_rv32i(to_ls)?
-            }
-        };
-
-        let next_pc = self.write_back_rv32i(to_wb)?;
-        
-        (self.callback.instruction_complete)(pc, next_pc, inst)?;
-
-        self.times.cycles += 1;
-        self.times.instructions += 1;
-
         Ok(())
     }
 }

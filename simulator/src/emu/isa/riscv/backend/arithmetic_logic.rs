@@ -6,7 +6,7 @@ use state::reg::riscv::Trap;
 use crate::emu::Emu;
 
 use super::{ToWbStage, WbCtrl, };
-use super::super::{RV32IAL, RV32M};
+use super::super::instruction::{RV32IAL, RV32M};
 
 pub enum AlInst {
     RV32I(RV32IAL),
