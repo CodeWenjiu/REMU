@@ -345,43 +345,63 @@ impl RegfileIo for Rv32iRegFile {
 
     fn check(&self, regfile: &AnyRegfile, flags: CheckFlags4reg) -> ProcessResult<()> {
         if let AnyRegfile::Rv32i(regfile) = regfile {
+            let mut errors = Vec::new();
+
+            // 检查 PC
             if flags.contains(CheckFlags4reg::pc) {
                 if *self.pc.borrow() != *regfile.pc.borrow() {
-                    log_error!(format!(
+                    errors.push(format!(
                         "Dut PC: {:#010x}, Ref PC: {:#010x}",
-                        self.read_pc(),
-                        regfile.read_pc()
+                        regfile.read_pc(),
+                        self.read_pc()
                     ));
-                    return Err(ProcessError::Recoverable);
                 }
             }
 
+            // 检查 GPR
             if flags.contains(CheckFlags4reg::gpr) {
-                let gprs = self.get_gprs();
-                let ref_gprs = regfile.get_gprs();
-
-                for (i, (a, b)) in gprs.iter().zip(ref_gprs.iter()).enumerate() {
-                    if a != b {
-                        log_error!(format!(
-                            "Dut GPR[{}]: {:#010x}, Ref GPR[{}]: {:#010x}",
-                            i, b, i, a
-                        ));
-                        return Err(ProcessError::Recoverable);
-                    }
-                }
+                let gpr_errors: Vec<_> = self.get_gprs()
+                    .iter()
+                    .zip(regfile.get_gprs().iter())
+                    .enumerate()
+                    .filter_map(|(i, (a, b))| {
+                        if a != b {
+                            Some(format!(
+                                "Dut GPR[{}]: {:#010x}, Ref GPR[{}]: {:#010x}",
+                                i, b, i, a
+                            ))
+                        } else {
+                            None
+                        }
+                    })
+                    .collect();
+                errors.extend(gpr_errors);
             }
 
+            // 检查 CSR
             if flags.contains(CheckFlags4reg::csr) {
-                for csr in RvCsrEnum::iter() {
-                    let index = csr as u32;
-                    if self.csrs.borrow()[index as usize] != regfile.csrs.borrow()[index as usize] {
-                        log_error!(format!(
-                            "Dut CSR[{}]: {:#010x}, Ref CSR[{}]: {:#010x}",
-                            index, self.csrs.borrow()[index as usize], index, regfile.csrs.borrow()[index as usize]
-                        ));
-                        return Err(ProcessError::Recoverable);
-                    }
+                let csr_errors: Vec<_> = RvCsrEnum::iter()
+                    .filter_map(|csr| {
+                        let index = csr as u32;
+                        if self.csrs.borrow()[index as usize] != regfile.csrs.borrow()[index as usize] {
+                            Some(format!(
+                                "Dut CSR[{}]: {:#010x}, Ref CSR[{}]: {:#010x}",
+                                index, self.csrs.borrow()[index as usize], index, regfile.csrs.borrow()[index as usize]
+                            ))
+                        } else {
+                            None
+                        }
+                    })
+                    .collect();
+                errors.extend(csr_errors);
+            }
+
+            // 统一处理所有错误
+            if !errors.is_empty() {
+                for error in errors {
+                    log_error!(error);
                 }
+                return Err(ProcessError::Recoverable);
             }
         } else {
             panic!("Invalid register file type");

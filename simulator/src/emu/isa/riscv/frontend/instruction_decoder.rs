@@ -1,9 +1,7 @@
-use remu_macro::log_debug;
-use logger::Logger;
 use remu_utils::{ProcessError, ProcessResult};
-use state::reg::{riscv::Trap, RegfileIo};
+use state::reg::{riscv::{RvCsrEnum, Trap}, RegfileIo};
 
-use crate::emu::{extract_bits, isa::riscv::backend::{AlCtrl, LsCtrl, WbCtrl}, sig_extend, Emu};
+use crate::emu::{extract_bits, isa::riscv::{backend::{AlCtrl, LsCtrl, WbCtrl}, instruction::Priv}, sig_extend, Emu};
 
 use super::{
     super::instruction::{ImmType, Zicsr, RISCV, RV32I, RV32IAL, RV32ILS, RV32M, }, InstType, IsCtrl, IsLogic, ToIsStage, SRCA, SRCB
@@ -109,7 +107,15 @@ impl Emu {
         };
             
         // Extract immediate value
-        let imm = Self::get_imm(inst, imm_type);
+        let imm = match opcode {
+            RISCV::Priv(inst) => {
+                match inst {
+                    Priv::Mret => RvCsrEnum::MEPC.into(),
+                }
+            }
+
+            _ => Self::get_imm(inst, imm_type)
+        };
 
         let regfile = &self.states.regfile;
         let rs1_val: u32 = regfile.read_gpr(rs1_addr.into()).map_err(|_| ProcessError::Recoverable)?;
@@ -142,21 +148,15 @@ impl Emu {
         let srca = match opcode {
             RISCV::RV32I(RV32I::AL(inst)) => {
                 match inst {
-                    RV32IAL::Lui | RV32IAL::Slti | RV32IAL::Sltiu | RV32IAL::Slt | RV32IAL::Sltu => SRCA::ZERO,
                     RV32IAL::Auipc | RV32IAL::Jal |
                     RV32IAL::Beq | RV32IAL::Bne  | RV32IAL::Blt  | RV32IAL::Bge  | RV32IAL::Bltu | RV32IAL::Bgeu => SRCA::PC,
                     _ => SRCA::RS1,
                 }
             }
 
-            // RISCV::Zicsr(_) => SRCA::CSR,
-            RISCV::Zicsr(inst) => {
-                match inst {
-                    Zicsr::Csrrw => SRCA::ZERO,
+            RISCV::Zicsr(_) => SRCA::CSR,
 
-                    _ => SRCA::CSR,
-                }
-            }
+            RISCV::Priv(_) => SRCA::CSR,
 
             _ => SRCA::RS1,
         };
@@ -177,6 +177,8 @@ impl Emu {
             }
 
             RISCV::Zicsr(_) => SRCB::RS1,
+
+            RISCV::Priv(_) => SRCB::RS1,
 
             _ => SRCB::RS2,
         };
@@ -200,11 +202,12 @@ impl Emu {
 
                     RV32IAL::Sub  => AlCtrl::Sub,
 
-                    RV32IAL::Lui  | RV32IAL::Auipc | 
+                    RV32IAL::Auipc | 
                     RV32IAL::Jal | RV32IAL::Jalr | 
                     RV32IAL::Beq | RV32IAL::Bne  | RV32IAL::Blt  | RV32IAL::Bge  | RV32IAL::Bltu | RV32IAL::Bgeu |
-                    RV32IAL::Slti | RV32IAL::Sltiu | RV32IAL::Slt | RV32IAL::Sltu |
                     RV32IAL::Add | RV32IAL::Addi => AlCtrl::Add,
+
+                    RV32IAL::Lui | RV32IAL::Slti | RV32IAL::Sltiu | RV32IAL::Slt | RV32IAL::Sltu => AlCtrl::B,
 
                     _ => AlCtrl::DontCare,
                 }
@@ -227,12 +230,14 @@ impl Emu {
 
             RISCV::Zicsr(inst) => {
                 match inst {
-                    Zicsr::Csrrw => AlCtrl::Add,
-                    Zicsr::Csrrs => {log_debug!("csrrs"); AlCtrl::Or},
+                    Zicsr::Csrrw => AlCtrl::B,
+                    Zicsr::Csrrs => AlCtrl::Or,
 
                     _ => AlCtrl::DontCare,
                 }
             }
+
+            RISCV::Priv(_) => AlCtrl::Add,
 
             _ => AlCtrl::DontCare,
         };
@@ -269,6 +274,8 @@ impl Emu {
             RISCV::RV32M(_) => WbCtrl::WriteGpr,
 
             RISCV::Zicsr(_) => WbCtrl::Csr,
+
+            RISCV::Priv(_) => WbCtrl::Jump,
 
             _ => WbCtrl::DontCare,
         };

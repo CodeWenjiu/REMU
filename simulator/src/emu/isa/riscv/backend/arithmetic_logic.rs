@@ -24,6 +24,8 @@ pub enum AlCtrl {
     #[default]
     DontCare,
 
+    B,
+
     Add,   
     Sub,     
     
@@ -77,6 +79,10 @@ impl Emu {
 
         if trap == None {
             match stage.al_ctrl {
+                AlCtrl::B => {
+                    result = srcb;
+                }
+
                 AlCtrl::Add => {
                     result = srca.wrapping_add(srcb);
                 }

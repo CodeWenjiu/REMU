@@ -62,9 +62,9 @@ impl Emu {
             }
 
             WbCtrl::Csr => {
-                log_debug!(format!("gpr_waddr: {}, csr_rdata: {:#08x}", stage.gpr_waddr, stage.csr_rdata));
+                // log_debug!(format!("gpr_waddr: {}, csr_rdata: {:#08x}", stage.gpr_waddr, stage.csr_rdata));
                 regfile.write_gpr(stage.gpr_waddr.into(), stage.csr_rdata)?;
-                log_debug!(format!("csr_waddr: {}, result: {:#08x}", stage.csr_waddr, stage.result));
+                // log_debug!(format!("csr_waddr: {}, result: {:#08x}", stage.csr_waddr, stage.result));
                 regfile.write_csr(stage.csr_waddr.into(), stage.result)?;
             }
 

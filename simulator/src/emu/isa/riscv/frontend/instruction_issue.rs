@@ -58,7 +58,6 @@ pub enum SRCA {
     DontCare,
 
     RS1,
-    ZERO,
     PC,
     CSR,
 }
@@ -125,7 +124,6 @@ impl Emu {
         
                 let srca = match stage.is_ctrl.srca {
                     SRCA::RS1 => rs1_val,
-                    SRCA::ZERO => 0,
                     SRCA::PC => pc,
                     SRCA::CSR => self.states.regfile.read_csr(imm)?,
                     SRCA::DontCare => {

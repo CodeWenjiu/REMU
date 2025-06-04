@@ -59,7 +59,7 @@ impl DifftestManager {
 
             AnyDifftestRef::SingleCycle(reference) => {
                 reference.instruction_compelete()?;
-                self.states_ref.regfile.check(&self.states_dut.regfile, CheckFlags4reg::gpr.union(CheckFlags4reg::pc))?;
+                self.states_ref.regfile.check(&self.states_dut.regfile, CheckFlags4reg::pc.union(CheckFlags4reg::gpr).union(CheckFlags4reg::csr))?;
                 self.states_ref.mmu.check(mem_diff_msg)?;
             }
 
