@@ -6,7 +6,7 @@ use remu_macro::log_error;
 use remu_utils::{ProcessResult, ISA};
 use state::States;
 
-use crate::{DirectlyMap, SimulatorCallback, SimulatorItem, SingleCycle};
+use crate::SimulatorCallback;
 
 use super::isa::riscv::instruction::RISCV;
 
@@ -74,50 +74,6 @@ pub struct EmuTimes {
     
     /// Number of instructions executed
     pub instructions: u64,
-}
-
-pub trait EmuArch {
-    fn step_cycle(emu: &mut Emu) -> ProcessResult<()>;
-}
-
-impl EmuArch for DirectlyMap {
-    fn step_cycle(emu: &mut Emu) -> ProcessResult<()> {
-        emu.self_step_cycle_dm()
-    }
-}
-
-impl EmuArch for SingleCycle {
-    fn step_cycle(emu: &mut Emu) -> ProcessResult<()> {
-        emu.self_step_cycle_singlecycle()
-    }
-}
-
-pub struct EmuWrapper<V: EmuArch> {
-    emu: Emu,
-    _marker: std::marker::PhantomData<V>,
-}
-
-impl<V: EmuArch> SimulatorItem for EmuWrapper<V> {
-    fn step_cycle(&mut self) -> ProcessResult<()> {
-        V::step_cycle(&mut self.emu)
-    }
-
-    fn times(&self) -> ProcessResult<()> {
-        self.emu.times()
-    }
-
-    fn function_wave_trace(&self,_enable:bool) {
-        self.emu.function_wave_trace(_enable)
-    }
-}
-
-impl<V: EmuArch> EmuWrapper<V> {
-    pub fn new(option: &OptionParser, states: States, callback: SimulatorCallback) -> Self {
-        Self {
-            emu: Emu::new(option, states, callback),
-            _marker: std::marker::PhantomData,
-        }
-    }
 }
 
 /// RISC-V Emulator implementation

@@ -23,7 +23,7 @@ impl Emu {
             ImmType::I => {
                 let range = 20..31;
                 let imm = extract_bits(inst, range.clone());
-                sig_extend(imm, range.end as u8 - range.start as u8 + 1)
+                sig_extend(imm, range.end - range.start + 1)
             },
             
             // S-type: Store

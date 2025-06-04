@@ -4,7 +4,7 @@ use remu_macro::log_todo;
 use remu_utils::{DifftestBuildIn, DifftestFFI, DifftestRef, ProcessResult};
 use state::{reg::AnyRegfile, States};
 
-use crate::{emu::Emu, SimulatorCallback};
+use crate::{emu::EmuWrapper, DirectlyMap, SimulatorCallback};
 
 use enum_dispatch::enum_dispatch;
 
@@ -33,38 +33,31 @@ pub trait DifftestRefFfiApi {
 }
 
 #[enum_dispatch]
-pub enum AnyDifftestBuildInRef {
-    EMU(Emu),
+pub enum AnyDifftestSingleCycleRef {
+    EMU(EmuWrapper<DirectlyMap>),
 }
 
-#[enum_dispatch(AnyDifftestBuildInRef)]
-pub trait DifftestRefBuildInApi {
+#[enum_dispatch(AnyDifftestSingleCycleRef)]
+pub trait DifftestRefSingleCycleApi {
     fn instruction_compelete(&mut self) -> ProcessResult<()>;
 }
 
 pub enum AnyDifftestRef {
     FFI(AnyDifftestFfiRef),
-    BuildIn(AnyDifftestBuildInRef),
+    SingleCycle(AnyDifftestSingleCycleRef),
 }
 
-
-
-impl TryFrom<(&OptionParser, States, SimulatorCallback)> for AnyDifftestRef {
-    type Error = ();
-
-    fn try_from((option, states, callback): (&OptionParser, States, SimulatorCallback)) -> Result<Self, Self::Error> {
+impl AnyDifftestRef {
+    pub fn new(option: &OptionParser, states: States, callback: SimulatorCallback) -> Self {
         let r#ref = option.cli.differtest.unwrap();
         match r#ref {
-            DifftestRef::BuildIn(ref r#ref) => {
-                match r#ref {
-                    DifftestBuildIn::EMU => Ok(AnyDifftestRef::BuildIn(AnyDifftestBuildInRef::EMU(Emu::new(option, states, callback)))),
-                }
-            }
-            DifftestRef::FFI(ref r#ref) => {
-                match r#ref {
-                    DifftestFFI::SPIKE => Ok(AnyDifftestRef::FFI(AnyDifftestFfiRef::SPIKE(Spike {}))),
-                }
-            }
+            DifftestRef::BuildIn(ref r#ref) => match r#ref {
+                DifftestBuildIn::EMU => AnyDifftestRef::SingleCycle(AnyDifftestSingleCycleRef::EMU(EmuWrapper::<DirectlyMap>::new(option, states, callback))),
+            },
+            DifftestRef::FFI(ref r#ref) => match r#ref {
+                DifftestFFI::SPIKE => AnyDifftestRef::FFI(AnyDifftestFfiRef::SPIKE(Spike {})),
+            },
         }
     }
 }
+

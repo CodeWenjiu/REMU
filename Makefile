@@ -14,6 +14,9 @@ Binfile_Emu = ./.test/microbench-riscv32-nemu.bin
 Platform_rv32im_emu_dm = rv32im-emu-dm
 Platform_rv32im_emu_dm_alias = riscv32-emu-dm
 
+Platform_rv32im_emu_sc = rv32im-emu-sc
+Platform_rv32im_emu_sc_alias = riscv32-emu-sc
+
 Platform_rv32e_emu = rv32e-emu-dm
 Platform_emu_default = $(Platform_rv32im_emu_dm)
 
@@ -23,7 +26,7 @@ Platform_Nzea_jyd_remote = rv32i-nzea-jyd_remote
 
 Platform ?= $(Platform_emu_default)
 
-PLATFORMS = $(Platform_rv32im_emu_dm) $(Platform_rv32im_emu_dm_alias) $(Platform_rv32e_emu) $(Platform_Nzea_npc) $(Platform_Nzea_ysyxsoc) $(Platform_Nzea_jyd_remote)
+PLATFORMS = $(Platform_rv32im_emu_dm) $(Platform_rv32im_emu_dm_alias) $(Platform_rv32im_emu_sc) $(Platform_rv32im_emu_sc_alias) $(Platform_rv32e_emu) $(Platform_Nzea_npc) $(Platform_Nzea_ysyxsoc) $(Platform_Nzea_jyd_remote)
 
 ifeq ($(filter clean menuconfig fmt,$(MAKECMDGOALS)),)
 
@@ -36,6 +39,10 @@ endif
 ifeq ($(Platform),$(Platform_rv32im_emu_dm))
     Binfile ?= $(Binfile_Emu)
 else ifeq ($(Platform),$(Platform_rv32im_emu_dm_alias))
+    Binfile ?= $(Binfile_Emu)
+else ifeq ($(Platform),$(Platform_rv32im_emu_sc))
+    Binfile ?= $(Binfile_Emu)
+else ifeq ($(Platform),$(Platform_rv32im_emu_sc_alias))
     Binfile ?= $(Binfile_Emu)
 else ifeq ($(Platform),$(Platform_rv32e_emu))
     Binfile ?= $(Binfile_Emu)
@@ -55,7 +62,7 @@ $(info Final Binfile = $(Binfile))
 
 Mainargs = --primary-bin $(Binfile) $(Alternate) -p $(Platform)
 ExtraArgs ?=
-Debugargs = $(Mainargs) -d spike #--log
+Debugargs = $(Mainargs) -d emu #--log
 
 default: print_binfile run
 

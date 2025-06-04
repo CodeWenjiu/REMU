@@ -7,7 +7,7 @@ use state::{reg::RegfileIo, CheckFlags4reg, States};
 
 use crate::SimulatorCallback;
 
-use super::{AnyDifftestRef, DifftestRefBuildInApi, DifftestRefFfiApi};
+use super::{AnyDifftestRef, DifftestRefSingleCycleApi, DifftestRefFfiApi};
 
 pub struct DifftestManager {
     pub reference: AnyDifftestRef,
@@ -32,7 +32,7 @@ impl DifftestManager {
             Box::new(|| {}),
         );
 
-        let reference = AnyDifftestRef::try_from((option, states_ref.clone(), ref_callback)).unwrap();
+        let reference = AnyDifftestRef::new(option, states_ref.clone(), ref_callback);
 
         Self {
             reference,
@@ -57,7 +57,7 @@ impl DifftestManager {
 
         match &mut self.reference {
 
-            AnyDifftestRef::BuildIn(reference) => {
+            AnyDifftestRef::SingleCycle(reference) => {
                 reference.instruction_compelete()?;
                 self.states_ref.regfile.check(&self.states_dut.regfile, CheckFlags4reg::gpr.union(CheckFlags4reg::pc))?;
                 self.states_ref.mmu.check(mem_diff_msg)?;
@@ -77,7 +77,7 @@ impl DifftestManager {
     pub fn step_skip(&mut self) {
         self.is_diff_skip = false;
         match &mut self.reference {
-            AnyDifftestRef::BuildIn(_reference) => {
+            AnyDifftestRef::SingleCycle(_reference) => {
                 self.states_ref.regfile.sync_reg(&self.states_dut.regfile);
             }
 

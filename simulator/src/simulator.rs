@@ -48,6 +48,19 @@ pub enum SimulatorError {
     UnknownSimulator,
 }
 
+impl SimulatorEnum {
+    pub fn new(option: &OptionParser, states: States, callback: SimulatorCallback) -> Self {
+        match option.cli.platform.simulator {
+            Simulators::EMU(target) => 
+                match target {
+                    EmuSimulators::DM => SimulatorEnum::EmuDirectMap(EmuWrapper::<DirectlyMap>::new(option, states, callback)),
+                    EmuSimulators::SC => SimulatorEnum::EmuSingleCycle(EmuWrapper::<SingleCycle>::new(option, states, callback)),
+                },
+            Simulators::NZEA(_) => SimulatorEnum::NZEA(Nzea::new(option, states, callback)),
+        }
+    }
+}
+
 pub struct SimulatorCallback {
     pub instruction_complete: Box<dyn FnMut(u32, u32, u32) -> ProcessResult<()>>,
     pub difftest_skip: Box<dyn Fn()>,
@@ -67,23 +80,6 @@ impl SimulatorCallback {
             difftest_skip,
             decode_failed,
             trap,
-        }
-    }
-}
-
-impl TryFrom<(&OptionParser, States, SimulatorCallback)> for SimulatorEnum {
-    type Error = SimulatorError;
-    fn try_from(
-        (option, states, callback): (&OptionParser, States, SimulatorCallback),
-    ) -> Result<Self, Self::Error> {
-        match option.cli.platform.simulator {
-            Simulators::EMU(target) => Ok(
-                match target {
-                    EmuSimulators::DM => SimulatorEnum::EmuDirectMap(EmuWrapper::<DirectlyMap>::new(option, states, callback)),
-                    EmuSimulators::SC => SimulatorEnum::EmuSingleCycle(EmuWrapper::<SingleCycle>::new(option, states, callback)),
-                }
-            ),
-            Simulators::NZEA(_) => Ok(SimulatorEnum::NZEA(Nzea::new(option, states, callback))),
         }
     }
 }
@@ -222,7 +218,7 @@ impl Simulator {
             decode_failed_callback,
             trap_callback,
         );
-        let dut = SimulatorEnum::try_from((option, states_dut.clone(), dut_callback)).unwrap();
+        let dut = SimulatorEnum::new(option, states_dut.clone(), dut_callback);
         dut.init()?;
 
         let debug_config = SimulatorDebugConfig {
