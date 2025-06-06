@@ -1,14 +1,8 @@
-use color_eyre::owo_colors::OwoColorize;
 use log::{debug, info, trace, warn};
+use owo_colors::OwoColorize;
 use tracing::error;
 use tracing_appender::{non_blocking, rolling};
 use tracing_subscriber::{fmt, layer::SubscriberExt, util::SubscriberInitExt, Registry};
-
-#[derive(Debug, snafu::Snafu)]
-pub enum LoggerError {
-    #[snafu(display("Unable to install color_eyre: {}", source))]
-    ColorEyreInstall { source: color_eyre::Report },
-}
 
 pub enum Logger{
     TRACE,
@@ -44,8 +38,6 @@ impl Logger {
         Registry::default()
             .with(file_layer)
             .init();
-
-        color_eyre::install().map_err(|e| error!("Unable to install color_eyre: {}", e))?;
 
         Ok(())
     }
