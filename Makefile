@@ -28,7 +28,7 @@ Platform ?= $(Platform_emu_default)
 
 PLATFORMS = $(Platform_rv32im_emu_dm) $(Platform_rv32im_emu_dm_alias) $(Platform_rv32im_emu_sc) $(Platform_rv32im_emu_sc_alias) $(Platform_rv32e_emu) $(Platform_Nzea_npc) $(Platform_Nzea_ysyxsoc) $(Platform_Nzea_jyd_remote)
 
-ConfigFile = config/.config
+ConfigFile = config/.config_dynamic
 
 ifeq ($(filter clean menuconfig fmt,$(MAKECMDGOALS)),)
 
@@ -69,8 +69,8 @@ Debugargs = $(Mainargs) -d emu #--log
 
 default: print_binfile run
 
-menuconfig:
-	@$(MAKE) -C ./config menuconfig
+menuconfig-static:
+	@$(MAKE) -C ./config menuconfig-static
 
 clean: 
 	@$(MAKE) -C ./config clean
@@ -85,5 +85,5 @@ debug :
 fmt :
 	@cargo fmt --all 
 
-.PHONY: default menuconfig clean run debug fmt
+.PHONY: default menuconfig-static clean run debug fmt
 
