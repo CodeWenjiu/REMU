@@ -7,7 +7,6 @@ use remu_macro::{log_debug, log_err, log_error};
 use remu_utils::Platform;
 use snafu::ResultExt;
 use state::mmu::{MMTargetType, MemoryFlags};
-use tests::Rule;
 use std::path::PathBuf;
 use owo_colors::OwoColorize;
 
@@ -249,6 +248,11 @@ pub fn config_parse(cli: &CLI) -> Result<Cfg, ()> {
         debug_config,
     })
 }
+    
+use pest_derive::Parser;
+#[derive(Parser)]
+#[grammar = "config_parser.pest"]
+struct ConfigParser;
 
 fn parse_base_config(
     pairs: pest::iterators::Pairs<'_, Rule>,
@@ -294,7 +298,7 @@ fn parse_statement(
     Ok(result)
 }
 
-fn parse_file(
+pub fn parse_file(
     pairs: pest::iterators::Pairs<'_, Rule>,
     // platform: &Platform,
 ) -> Result<Vec<DebugConfiguration>, ()> {
@@ -316,14 +320,10 @@ fn parse_file(
 #[cfg(test)]
 mod tests {
     use std::fs::read;
-    use pest::Parser;
-    use pest_derive::Parser;
 
-    use crate::config_parser::parse_file;
-    
-    #[derive(Parser)]
-    #[grammar = "config_parser.pest"]
-    struct ConfigParser;
+    use pest::Parser;
+
+    use crate::{config_parser::{parse_file, ConfigParser}, Rule};
 
     #[test]
     fn pest_test() {
