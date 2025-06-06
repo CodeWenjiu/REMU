@@ -17,7 +17,7 @@ pub struct RegionConfiguration {
 }
 
 #[derive(Debug, Default)]
-pub struct DebugConfigurationAf {
+pub struct DebugConfiguration {
     pub rl_history_size: usize,
     pub itrace_enable: bool,
     pub wave_trace_enable: bool,
@@ -32,15 +32,15 @@ fn parse_bool(s: &str) -> Result<bool, ()> {
 }
 
 #[derive(Debug, Default)]
-pub struct PlatformConfigurationAf {
+pub struct PlatformConfiguration {
     pub reset_vector: u32,
     pub regions: Vec<RegionConfiguration>,
 }
 
 #[derive(Debug, Default)]
 pub struct CfgAf {
-    pub debug_config: DebugConfigurationAf,
-    pub platform_config: PlatformConfigurationAf,
+    pub debug_config: DebugConfiguration,
+    pub platform_config: PlatformConfiguration,
 }
     
 use pest_derive::Parser;
@@ -48,7 +48,7 @@ use pest_derive::Parser;
 #[grammar = "config_parser.pest"]
 struct ConfigParser;
 
-fn parse_debug_config(pairs: pest::iterators::Pairs<'_, Rule>, result: &mut DebugConfigurationAf) -> Result<(), ()> {
+fn parse_debug_config(pairs: pest::iterators::Pairs<'_, Rule>, result: &mut DebugConfiguration) -> Result<(), ()> {
     for pair in pairs {
         match pair.as_rule() {
             Rule::rl_history_size => {
@@ -124,7 +124,7 @@ fn parse_region_config(pairs: pest::iterators::Pairs<'_, Rule>) -> Result<Region
     Ok(result)
 }
 
-fn parse_platform_config(pairs: pest::iterators::Pairs<'_, Rule>, result: &mut PlatformConfigurationAf, platform: &Platform) -> Result<(), ()> {
+fn parse_platform_config(pairs: pest::iterators::Pairs<'_, Rule>, result: &mut PlatformConfiguration, platform: &Platform) -> Result<(), ()> {
     for pair in pairs {
         match pair.as_rule() {
             Rule::platform => {
@@ -167,7 +167,6 @@ fn parse_config_statement(pair: pest::iterators::Pair<'_, Rule>, result: &mut Cf
 }
 
 pub fn parse_config(config_path: PathBuf, platform: &Platform) -> Result<CfgAf, ()> {
-    // let src = read("../config/.config").unwrap();
     let src = read(config_path).unwrap();
     let src = String::from_utf8(src).unwrap();
     let pairs = ConfigParser::parse(Rule::file, &src).unwrap();
