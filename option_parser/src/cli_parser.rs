@@ -56,4 +56,8 @@ pub struct CLI {
     /// differtest file path (Will Enable if provided)
     #[arg(short, long, value_parser = value_parser!(DifftestRef))]
     pub differtest: Option<DifftestRef>,
+
+    /// additional config file path
+    #[arg(short, long)]
+    pub config: Option<String>,
 }

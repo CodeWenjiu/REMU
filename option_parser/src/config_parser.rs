@@ -31,14 +31,29 @@ fn parse_bool(s: &str) -> Result<bool, ()> {
     }
 }
 
-#[derive(Debug, Default)]
+#[derive(Debug)]
 pub struct PlatformConfiguration {
     pub reset_vector: u32,
     pub regions: Vec<RegionConfiguration>,
 }
 
+impl Default for PlatformConfiguration {
+    fn default() -> Self {
+        Self {
+            reset_vector: 0x8000_0000,
+            regions: vec![RegionConfiguration {
+                name: String::from("default"),
+                base: 0x8000_0000,
+                size: 0x0800_0000,
+                flag: MemoryFlags::all(),
+                mmtype: MMTargetType::Memory,
+            }],
+        }
+    }
+}
+
 #[derive(Debug, Default)]
-pub struct CfgAf {
+pub struct Cfg {
     pub debug_config: DebugConfiguration,
     pub platform_config: PlatformConfiguration,
 }
@@ -151,7 +166,7 @@ fn parse_platform_config(pairs: pest::iterators::Pairs<'_, Rule>, result: &mut P
     Ok(())
 }
 
-fn parse_config_statement(pair: pest::iterators::Pair<'_, Rule>, result: &mut CfgAf, platform: &Platform) -> Result<(), ()> {
+fn parse_config_statement(pair: pest::iterators::Pair<'_, Rule>, result: &mut Cfg, platform: &Platform) -> Result<(), ()> {
     for pair in pair.into_inner() {
         match pair.as_rule() {
             Rule::config_debug => parse_debug_config(pair.into_inner(), &mut result.debug_config)?,
@@ -166,12 +181,23 @@ fn parse_config_statement(pair: pest::iterators::Pair<'_, Rule>, result: &mut Cf
     Ok(())
 }
 
-pub fn parse_config(config_path: PathBuf, platform: &Platform) -> Result<CfgAf, ()> {
+pub fn parse_config(config_path: PathBuf, platform: &Platform) -> Result<Cfg, ()> {
+    Logger::show(
+        &format!("Parsing config file: {}", config_path.display()).to_string(),
+        Logger::INFO,
+    );
+    
     let src = read(config_path).unwrap();
     let src = String::from_utf8(src).unwrap();
     let pairs = ConfigParser::parse(Rule::file, &src).unwrap();
 
-    let mut result = CfgAf::default();
+    let mut result = Cfg{
+        debug_config: DebugConfiguration::default(),
+        platform_config: PlatformConfiguration{
+            reset_vector: 0x8000_0000,
+            regions: vec![],
+        },
+    };
     
     for pair in pairs {
         match pair.as_rule() {

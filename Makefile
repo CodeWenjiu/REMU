@@ -28,6 +28,8 @@ Platform ?= $(Platform_emu_default)
 
 PLATFORMS = $(Platform_rv32im_emu_dm) $(Platform_rv32im_emu_dm_alias) $(Platform_rv32im_emu_sc) $(Platform_rv32im_emu_sc_alias) $(Platform_rv32e_emu) $(Platform_Nzea_npc) $(Platform_Nzea_ysyxsoc) $(Platform_Nzea_jyd_remote)
 
+ConfigFile = config/.config
+
 ifeq ($(filter clean menuconfig fmt,$(MAKECMDGOALS)),)
 
 ifeq ($(filter $(PLATFORMS), $(Platform)), )
@@ -54,13 +56,14 @@ else ifeq ($(Platform),$(Platform_Nzea_jyd_remote))
     Binfile ?= $(Binfile_jyd_remote)
     Alternate ?= --additional-bin $(Alternate_jyd_remote)
 else
-    $(info No match found)
+    $(info No match Binfile found, using default)
     Binfile ?= $(Binfile_Nzea)
 endif
 
-$(info Final Binfile = $(Binfile))
-
-Mainargs = --primary-bin $(Binfile) $(Alternate) -p $(Platform)
+Mainargs = --primary-bin $(abspath $(Binfile)) $(abspath $(Alternate)) \
+    -p $(Platform) \
+    -c $(abspath $(ConfigFile))
+    
 ExtraArgs ?=
 Debugargs = $(Mainargs) -d emu #--log
 
