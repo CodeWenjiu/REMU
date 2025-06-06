@@ -2,7 +2,7 @@ menuconfig:
 	@menuconfig
 
 clean: 
-	@rm ./.config
-	@rm ./.config.old
+	@rm -f ./.config
+	@rm -f ./.config.old
 
 .PHONY: menuconfig clean

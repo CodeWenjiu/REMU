@@ -74,6 +74,7 @@ menuconfig:
 
 clean: 
 	@$(MAKE) -C ./config clean
+	@cargo clean
 
 run :
 	@cargo run $(Job) --release --bin core -- $(Mainargs) $(ExtraArgs)
