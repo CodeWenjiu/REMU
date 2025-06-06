@@ -18,7 +18,7 @@ menu "Emu Platform"
 
         config Emu_Dm_MEM_PSRAM
             string "Emu PSRAM Region"
-            default "0x80000000 0x00400000 0b00000111"
+            default "0x80000000 0x08000000 0b00000111"
 
         config Emu_Dm_MEM_SRAM
         depends on Emu_Memory_Map_NZEA_YSYXSOC
@@ -61,7 +61,7 @@ menu "Emu Platform"
 
         config Emu_Sc_MEM_PSRAM
             string "Emu PSRAM Region"
-            default "0x80000000 0x00400000 0b00000111"
+            default "0x80000000 0x08000000 0b00000111"
 
         config Emu_Sc_MEM_SRAM
         depends on Emu_Memory_Map_NZEA_YSYXSOC
