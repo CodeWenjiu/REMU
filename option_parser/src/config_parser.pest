@@ -1,0 +1,77 @@
+// 配置项名称规则
+config_statement = { 
+    "CONFIG_" ~ (config_platform | config_debug | config_ignore)
+}
+
+    config_debug = {
+        "DEBUG_" ~ config_debug_rl_history_size
+    }
+
+        config_debug_rl_history_size = _{
+            "RL_HISTORY_SIZE" ~ "=" ~ rl_history_size
+        }
+            rl_history_size = { config_value_dec }
+
+    config_platform = {
+        platform ~ "_" ~ target ~ "_" ~ target_config
+    }
+        platform = { ASCII_ALPHA+ }
+
+        target = { ASCII_ALPHA+ }
+
+        target_config = _{
+            target_base |
+            target_region
+        }
+            target_base = {
+                "BASE_" ~ target_base_resetVector
+            }
+
+                target_base_resetVector = _{
+                    "RESET_VECTOR" ~ "=" ~ "0x" ~ reset_vector_value
+                }
+
+                reset_vector_value = { config_value_hex }
+
+            target_region  = {
+                ("MEM_" ~ target_mem_region ~ "=" ~ region_value) |
+                ("DEV_" ~ target_dev_region ~ "=" ~ region_value)
+            }
+
+                target_mem_region = { ASCII_ALPHA+ }
+
+                target_dev_region = { ASCII_ALPHA+ }
+
+                region_value = _{
+                    "\"" ~ "0x" ~ region_base ~ " " ~ "0x" ~ region_size ~ " " ~ "0b" ~ region_flag ~ "\""
+                }
+                    region_base = { config_value_hex }
+                    region_size = { config_value_hex }
+                    region_flag = { config_value_bin }
+
+    config_value_bool = _{ "y" | "n" }
+    config_value_hex  = _{ASCII_HEX_DIGIT+}
+    config_value_bin  = _{ASCII_BIN_DIGIT+}
+    config_value_dec  = _{ASCII_DIGIT+}
+
+    all_config_value = _{
+        config_value_bool |
+        "0x" ~ config_value_hex | 
+        "0b" ~ config_value_bin |
+        config_value_dec
+    }
+
+    config_ignore = {
+        (ASCII_ALPHA+ ~ ("_" ~ ASCII_ALPHA+)*) ~ "=" ~ all_config_value
+    }
+
+comment_statement = _{ "#" ~ (!NEWLINE ~ ANY)* }
+
+line = _{ ((config_statement | comment_statement) ~ NEWLINE) | NEWLINE }
+
+// 文件规则
+file = _{ 
+    SOI ~
+    (line)*
+    ~ EOI
+}

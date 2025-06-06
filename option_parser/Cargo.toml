@@ -13,6 +13,8 @@ state = { path = "../state" }
 owo-colors = {workspace = true}
 snafu = {workspace = true}
 clap = {workspace = true}
+pest = {workspace = true}
+pest_derive = {workspace = true}
 config = "0.15.11"
 cargo = "0.86.0"
 install = "0.0.0"

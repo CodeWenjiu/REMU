@@ -2,11 +2,17 @@ menu "BASE_CONFIG"
 
     menu "RESET_VECTOR"
 
-    config EMU_BASE_RESET_VECTOR
-        hex "Set EMU Reset Vector"
+    config EMU_DM_BASE_RESET_VECTOR
+        hex "Set EMU DirectlyMap Reset Vector"
         default 0x80000000
         help
-            Set the reset vector for the EMU platform.
+            Set the reset vector for the EMU DirectlyMap platform.
+
+    config EMU_SC_BASE_RESET_VECTOR
+        hex "Set EMU SingleCycle Reset Vector"
+        default 0x80000000
+        help
+            Set the reset vector for the EMU SingleCycle platform.
 
     config NZEA_NPC_BASE_RESET_VECTOR
         hex "Set NZEA NPC Reset Vector"
@@ -20,8 +26,8 @@ menu "BASE_CONFIG"
         help
             Set the reset vector for the NZEA platform.
             
-    config NZEA_JYD_REMOTE_BASE_RESET_VECTOR
-        hex "Set NZEA JYD_REMOTE Reset Vector"
+    config NZEA_JydRemote_BASE_RESET_VECTOR
+        hex "Set NZEA JydRemote Reset Vector"
         default 0x80000000
         help
             Set the reset vector for the NZEA platform.

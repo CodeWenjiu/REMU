@@ -3084,6 +3084,8 @@ dependencies = [
  "install",
  "logger",
  "owo-colors",
+ "pest",
+ "pest_derive",
  "regex",
  "remu_macro",
  "remu_utils",

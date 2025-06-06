@@ -1,201 +1,61 @@
 menu "NZEA Platform"
     menu "YSYXSOC Memory Regions"
 
-        menu "SRAM"
+        config NZEA_YSYXSOC_MEM_SRAM
+            string "EMU SRAM Base Region"
+            default "0x0f000000 0x00002000 0b00000111"
+            help
+                Region for EMU platform's SRAM.
 
-            config NZEA_YSYXSOC_MEM_SRAM_BASE
-                hex "EMU SRAM Base Address"
-                default 0x0f000000
-                help
-                    Base address for EMU platform's SRAM.
+        config NZEA_YSYXSOC_MEM_MROM
+            string "EMU MROM Base Region"
+            default "0x20000000 0x00001000 0b00000101"
+            help
+                Region for EMU platform's MROM.
 
-            config NZEA_YSYXSOC_MEM_SRAM_SIZE
-                hex "EMU SRAM Size"
-                default 0x00002000
-                help
-                    Size of SRAM for EMU platform (hex).
+        config NZEA_YSYXSOC_MEM_VGA
+            string "EMU VGA Base Region"
+            default "0x21000000 0x00200000 0b00000011"
+            help
+                Region for EMU platform's VGA.
 
-            config NZEA_YSYXSOC_MEM_SRAM_FLAG
-                string "EMU SRAM Flag"
-                default "0b00000111"
-                help
-                    Flag for SRAM region.
+        config NZEA_YSYXSOC_MEM_FLASH
+            string "EMU FLASH Base Region"
+            default "0x30000000 0x10000000 0b00000111"
+            help
+                Region for EMU platform's FLASH.
 
-        endmenu
+        config NZEA_YSYXSOC_MEM_PSRAM
+            string "EMU PSRAM Base Region"
+            default "0x80000000 0x00400000 0b00000111"
+            help
+                Region for EMU platform's PSRAM.
 
-        menu "MROM"
-
-            config NZEA_YSYXSOC_MEM_MROM_BASE
-                hex "EMU MROM Base Address"
-                default 0x20000000
-                help
-                    Base address for EMU platform's MROM.
-
-            config NZEA_YSYXSOC_MEM_MROM_SIZE
-                hex "EMU MROM Size"
-                default 0x00001000
-                help
-                    Size of MROM for EMU platform (hex).
-
-            config NZEA_YSYXSOC_MEM_MROM_FLAG
-                string "EMU MROM Flag"
-                default "0b00000101"
-                help
-                    Flag for MROM region.
-
-        endmenu
-
-        menu "VGA"
-
-            config NZEA_YSYXSOC_MEM_VGA_BASE
-                hex "EMU VGA Base Address"
-                default 0x21000000
-                help
-                    Base address for EMU platform's VGA.
-
-            config NZEA_YSYXSOC_MEM_VGA_SIZE
-                hex "EMU VGA Size"
-                default 0x00200000
-                help
-                    Size of VGA for EMU platform (hex).
-
-            config NZEA_YSYXSOC_MEM_VGA_FLAG
-                string "EMU VGA Flag"
-                default "0b00000011"
-                help
-                    Flag for VGA region.
-
-        endmenu
-
-        menu "FLASH"
-
-            config NZEA_YSYXSOC_MEM_FLASH_BASE
-                hex "EMU FLASH Base Address"
-                default 0x30000000
-                help
-                    Base address for EMU platform's FLASH.
-
-            config NZEA_YSYXSOC_MEM_FLASH_SIZE
-                hex "EMU FLASH Size"
-                default 0x10000000
-                help
-                    Size of FLASH for EMU platform (hex).
-
-            config NZEA_YSYXSOC_MEM_FLASH_FLAG
-                string "EMU FLASH Flag"
-                default "0b00000111"
-                help
-                    Flag for FLASH region.
-
-        endmenu
-
-        menu "PSRAM"
-
-            config NZEA_YSYXSOC_MEM_PSRAM_BASE
-                hex "EMU PSRAM Base Address"
-                default 0x80000000
-                help
-                    Base address for EMU platform's PSRAM.
-
-            config NZEA_YSYXSOC_MEM_PSRAM_SIZE
-                hex "EMU PSRAM Size"
-                default 0x00400000
-                help
-                    Size of PSRAM for EMU platform (hex).
-                    
-            config NZEA_YSYXSOC_MEM_PSRAM_FLAG
-                string "EMU PSRAM Flag"
-                default "0b00000111"
-
-        endmenu
-
-        menu "SDRAM"
-
-            config NZEA_YSYXSOC_MEM_SDRAM_BASE
-                hex "EMU SDRAM Base Address"
-                default 0xa0000000
-                help
-                    Base address for EMU platform's SDRAM.
-
-            config NZEA_YSYXSOC_MEM_SDRAM_SIZE
-                hex "EMU SDRAM Size"
-                default 0x02000000
-                help
-                    Size of SDRAM for EMU platform (hex).
-                    
-            config NZEA_YSYXSOC_MEM_SDRAM_FLAG
-                string "EMU SDRAM Flag"
-                default "0b00000111"
-
-        endmenu
+        config NZEA_YSYXSOC_MEM_SDRAM
+            string "EMU SDRAM Base Region"
+            default "0xa0000000 0x02000000 0b00000111"
+            help
+                Region for EMU platform's SDRAM.
 
     endmenu
 
     menu "NPC Memory Regions"
-        
-        config NZEA_NPC_MEM_SRAM_BASE
-            hex "NZEA NPC SRAM Base Address"
-            default 0x80000000
-            help
-                Base address for NZEA platform's SRAM.
 
-        config NZEA_NPC_MEM_SRAM_SIZE
-            hex "NZEA NPC SRAM Size"
-            default 0x08000000
-            help
-                Size of SRAM for NZEA platform (hex).
-
-        config NZEA_NPC_MEM_SRAM_FLAG
-            string "NZEA NPC SRAM Flag"
-            default "0b00000111"
+        config NZEA_NPC_MEM_SDRAM
+            string "NZEA NPC SRAM Base Region"
+            default "0x80000000 0x08000000 0b00000111"
         
     endmenu
 
     menu "jyd remote Regions"
 
-        menu "IROM"
+        config NZEA_JydRemote_MEM_IROM
+            string "NZEA JydRemote IROM Base Region"
+            default "0x80000000 0x00004000 0b00000111"
 
-            config NZEA_JYD_REMOTE_MEM_IROM_BASE
-                hex "jyd remote IROM Base Address"
-                default 0x80000000
-                help
-                    Base address for jyd remote platform's IROM.
-
-            config NZEA_JYD_REMOTE_MEM_IROM_SIZE
-                hex "jyd remote IROM Size"
-                default 0x00004000
-                help
-                    Size of IROM for jyd remote platform (hex).
-
-            config NZEA_JYD_REMOTE_MEM_IROM_FLAG
-                string "jyd remote IROM Flag"
-                default "0b00000111"
-                help
-                    Flag for IROM region.
-
-        endmenu
-
-        menu "DRAM"
-
-            config NZEA_JYD_REMOTE_MEM_DRAM_BASE
-                hex "jyd remote DRAM Base Address"
-                default 0x80100000
-                help
-                    Base address for jyd remote platform's DRAM.
-
-            config NZEA_JYD_REMOTE_MEM_DRAM_SIZE
-                hex "jyd remote DRAM Size"
-                default 0x00040000
-                help
-                    Size of DRAM for jyd remote platform (hex).
-
-            config NZEA_JYD_REMOTE_MEM_DRAM_FLAG
-                string "jyd remote DRAM Flag"
-                default "0b00000011"
-                help
-                    Flag for DRAM region.
-
-        endmenu
+        config NZEA_JydRemote_MEM_DRAM
+            string "NZEA JydRemote DRAM Base Region"
+            default "0x80100000 0x00040000 0b00000011"
 
     endmenu
 endmenu

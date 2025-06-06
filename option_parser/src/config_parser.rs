@@ -3,10 +3,11 @@ use std::{collections::HashMap, fmt::Debug};
 use config::Config;
 use logger::Logger;
 use regex::Regex;
-use remu_macro::log_err;
+use remu_macro::{log_debug, log_err, log_error};
 use remu_utils::Platform;
 use snafu::ResultExt;
 use state::mmu::{MMTargetType, MemoryFlags};
+use tests::Rule;
 use std::path::PathBuf;
 use owo_colors::OwoColorize;
 
@@ -87,7 +88,7 @@ fn parse_bool(s: &str) -> Result<bool, ()> {
     }
 }
 
-fn parse_base_config(
+fn parse_base_config_be(
     config: &HashMap<String, String>,
     platform: &Platform,
 ) -> Result<Vec<BaseConfiguration>, ()> {
@@ -234,7 +235,7 @@ fn parse_debug_configuration(
 pub fn config_parse(cli: &CLI) -> Result<Cfg, ()> {
     let config = log_err!(config_parser())?;
 
-    let base_config = parse_base_config(&config, &cli.platform)?;
+    let base_config = parse_base_config_be(&config, &cli.platform)?;
 
     let regions = parse_region(&config, &cli.platform)?;
 
@@ -247,4 +248,90 @@ pub fn config_parse(cli: &CLI) -> Result<Cfg, ()> {
         region_config: regions,
         debug_config,
     })
+}
+
+fn parse_base_config(
+    pairs: pest::iterators::Pairs<'_, Rule>,
+) -> Result<Vec<DebugConfiguration>, ()> {
+    let mut result = vec![];
+
+    for pair in pairs {
+        match pair.as_rule() {
+            Rule::rl_history_size => {
+                result.push(
+                    DebugConfiguration::Readline {
+                        history: parse_dec(pair.as_str())?,
+                    }
+                );
+            }
+            _ => unreachable!()
+        }
+    }
+
+    Ok(result)
+}
+
+fn parse_statement(
+    pairs: pest::iterators::Pairs<'_, Rule>,
+    // platform: &Platform,
+) -> Result<Vec<DebugConfiguration>, ()> {
+    let mut result = vec![];
+
+    for pair in pairs {
+        match pair.as_rule() {
+            Rule::config_debug => {
+                result = parse_base_config(pair.into_inner())?;
+            }
+
+            Rule::config_platform => {}
+
+            Rule::config_ignore => {}
+
+            _ => unreachable!()
+        }
+    }
+
+    Ok(result)
+}
+
+fn parse_file(
+    pairs: pest::iterators::Pairs<'_, Rule>,
+    // platform: &Platform,
+) -> Result<Vec<DebugConfiguration>, ()> {
+    let mut result = vec![];
+
+    for pair in pairs {
+        match pair.as_rule() {
+            Rule::config_statement => {
+                result = parse_statement(pair.into_inner())?
+            },
+            Rule::EOI => {}
+            _ => unreachable!()
+        }
+    }       
+
+    Ok(result)
+}
+
+#[cfg(test)]
+mod tests {
+    use std::fs::read;
+    use pest::Parser;
+    use pest_derive::Parser;
+
+    use crate::config_parser::parse_file;
+    
+    #[derive(Parser)]
+    #[grammar = "config_parser.pest"]
+    struct ConfigParser;
+
+    #[test]
+    fn pest_test() {
+        let src = read("../config/.config").unwrap();
+        let src = String::from_utf8(src).unwrap();
+        let pairs = ConfigParser::parse(Rule::file, &src).unwrap();
+
+        let result = parse_file(pairs).unwrap();
+        println!("{:?}", result);
+    }
 }
