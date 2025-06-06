@@ -1,102 +1,102 @@
-menu "EMU Platform"
+menu "Emu Platform"
     choice
-        prompt "EMU Memory Map"
-        default EMU_Memory_Map_EMU_default
+        prompt "Emu Memory Map"
+        default Emu_Memory_Map_Emu_default
 
-    config EMU_Memory_Map_EMU_default
-        bool "EMU_default"
+    config Emu_Memory_Map_Emu_default
+        bool "Emu_default"
 
-    config EMU_Memory_Map_NZEA_NPC
+    config Emu_Memory_Map_NZEA_NPC
         bool "NZEA_NPC"
 
-    config EMU_Memory_Map_NZEA_YSYXSOC
+    config Emu_Memory_Map_NZEA_YSYXSOC
         bool "NZEA_YSYXSOC"
             
     endchoice
 
     menu "DirectlyMap Regions"
 
-        config EMU_DM_MEM_PSRAM
-            string "EMU PSRAM Region"
+        config Emu_Dm_MEM_PSRAM
+            string "Emu PSRAM Region"
             default "0x80000000 0x00400000 0b00000111"
 
-        config EMU_DM_MEM_SRAM
-        depends on EMU_Memory_Map_NZEA_YSYXSOC
-            string "EMU SRAM Region"
+        config Emu_Dm_MEM_SRAM
+        depends on Emu_Memory_Map_NZEA_YSYXSOC
+            string "Emu SRAM Region"
             default "0x0f000000 0x00002000 0b00000111"
 
-        config EMU_DM_MEM_MROM
-        depends on EMU_Memory_Map_NZEA_YSYXSOC
-            string "EMU MROM Region"
+        config Emu_Dm_MEM_MROM
+        depends on Emu_Memory_Map_NZEA_YSYXSOC
+            string "Emu MROM Region"
             default "0x20000000 0x00001000 0b00000101"
 
-        config EMU_DM_MEM_FLASH
-        depends on EMU_Memory_Map_NZEA_YSYXSOC
-            string "EMU FLASH Region"
+        config Emu_Dm_MEM_FLASH
+        depends on Emu_Memory_Map_NZEA_YSYXSOC
+            string "Emu FLASH Region"
             default "0x30000000 0x10000000 0b00000111"
 
-        config EMU_DM_MEM_SDRAM
-        depends on EMU_Memory_Map_NZEA_YSYXSOC
-            string "EMU SDRAM Region"
+        config Emu_Dm_MEM_SDRAM
+        depends on Emu_Memory_Map_NZEA_YSYXSOC
+            string "Emu SDRAM Region"
             default "0xa0000000 0x02000000 0b00000111"
 
-        config EMU_DM_MEM_Chip
-        depends on EMU_Memory_Map_NZEA_YSYXSOC
-            string "EMU Chip Region"
+        config Emu_Dm_MEM_Chip
+        depends on Emu_Memory_Map_NZEA_YSYXSOC
+            string "Emu Chip Region"
             default "0xc0000000 0x00020000 0b00000011"
 
-        config EMU_DM_DEV_Serial
-            string "EMU Serial Region"
-            default "0x100003f8 0x00000004 0b00000011" if EMU_Memory_Map_EMU_default
-            default "0x10000000 0x00000004 0b00000011" if EMU_Memory_Map_NZEA_NPC
+        config Emu_Dm_DEV_Serial
+            string "Emu Serial Region"
+            default "0x100003f8 0x00000004 0b00000011" if Emu_Memory_Map_Emu_default
+            default "0x10000000 0x00000004 0b00000011" if Emu_Memory_Map_NZEA_NPC
 
-        config EMU_DM_DEV_Timer
-            string "EMU Timer Region"
-            default "0x10000048 0x00000008 0b00000001" if EMU_Memory_Map_EMU_default
-            default "0xa0000048 0x00000008 0b00000001" if EMU_Memory_Map_NZEA_NPC
+        config Emu_Dm_DEV_Timer
+            string "Emu Timer Region"
+            default "0x10000048 0x00000008 0b00000001" if Emu_Memory_Map_Emu_default
+            default "0xa0000048 0x00000008 0b00000001" if Emu_Memory_Map_NZEA_NPC
 
     endmenu
 
     menu "SingleCycle Regions"
 
-        config EMU_SC_MEM_PSRAM
-            string "EMU PSRAM Region"
+        config Emu_Sc_MEM_PSRAM
+            string "Emu PSRAM Region"
             default "0x80000000 0x00400000 0b00000111"
 
-        config EMU_SC_MEM_SRAM
-        depends on EMU_Memory_Map_NZEA_YSYXSOC
-            string "EMU SRAM Region"
+        config Emu_Sc_MEM_SRAM
+        depends on Emu_Memory_Map_NZEA_YSYXSOC
+            string "Emu SRAM Region"
             default "0x0f000000 0x00002000 0b00000111"
 
-        config EMU_SC_MEM_MROM
-        depends on EMU_Memory_Map_NZEA_YSYXSOC
-            string "EMU MROM Region"
+        config Emu_Sc_MEM_MROM
+        depends on Emu_Memory_Map_NZEA_YSYXSOC
+            string "Emu MROM Region"
             default "0x20000000 0x00001000 0b00000101"
 
-        config EMU_SC_MEM_FLASH
-        depends on EMU_Memory_Map_NZEA_YSYXSOC
-            string "EMU FLASH Region"
+        config Emu_Sc_MEM_FLASH
+        depends on Emu_Memory_Map_NZEA_YSYXSOC
+            string "Emu FLASH Region"
             default "0x30000000 0x10000000 0b00000111"
 
-        config EMU_SC_MEM_SDRAM
-        depends on EMU_Memory_Map_NZEA_YSYXSOC
-            string "EMU SDRAM Region"
+        config Emu_Sc_MEM_SDRAM
+        depends on Emu_Memory_Map_NZEA_YSYXSOC
+            string "Emu SDRAM Region"
             default "0xa0000000 0x02000000 0b00000111"
 
-        config EMU_SC_MEM_Chip
-        depends on EMU_Memory_Map_NZEA_YSYXSOC
-            string "EMU Chip Region"
+        config Emu_Sc_MEM_Chip
+        depends on Emu_Memory_Map_NZEA_YSYXSOC
+            string "Emu Chip Region"
             default "0xc0000000 0x00020000 0b00000011"
 
-        config EMU_SC_DEV_Serial
-            string "EMU Serial Region"
-            default "0x100003f8 0x00000004 0b00000011" if EMU_Memory_Map_EMU_default
-            default "0x10000000 0x00000004 0b00000011" if EMU_Memory_Map_NZEA_NPC
+        config Emu_Sc_DEV_Serial
+            string "Emu Serial Region"
+            default "0x100003f8 0x00000004 0b00000011" if Emu_Memory_Map_Emu_default
+            default "0x10000000 0x00000004 0b00000011" if Emu_Memory_Map_NZEA_NPC
 
-        config EMU_SC_DEV_Timer
-            string "EMU Timer Region"
-            default "0x10000048 0x00000008 0b00000001" if EMU_Memory_Map_EMU_default
-            default "0xa0000048 0x00000008 0b00000001" if EMU_Memory_Map_NZEA_NPC
+        config Emu_Sc_DEV_Timer
+            string "Emu Timer Region"
+            default "0x10000048 0x00000008 0b00000001" if Emu_Memory_Map_Emu_default
+            default "0xa0000048 0x00000008 0b00000001" if Emu_Memory_Map_NZEA_NPC
 
     endmenu
 endmenu

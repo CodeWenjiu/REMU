@@ -2,8 +2,8 @@ use std::{cell::RefCell, rc::Rc};
 
 use crate::cmd_parser::Server;
 use logger::Logger;
-use option_parser::{BaseConfiguration, DebugConfiguration, OptionParser};
-use remu_buildin::{READLINE_HISTORY_LENGTH, get_buildin_img, get_reset_vector};
+use option_parser::OptionParser;
+use remu_buildin::get_buildin_img;
 use remu_macro::log_err;
 use simulator::{Simulator, difftest_ref::difftestffi_init};
 use state::{model::StageModel, States};
@@ -38,15 +38,7 @@ impl SimpleDebugger {
         let rl_history_length = cli_result
             .cfg
             .debug_config
-            .iter()
-            .find_map(|config| {
-                if let DebugConfiguration::Readline { history } = config {
-                    Some(*history)
-                } else {
-                    None
-                }
-            })
-            .unwrap_or(READLINE_HISTORY_LENGTH);
+            .rl_history_size;
 
         let (state, state_ref) = Self::state_init(&cli_result);
 
@@ -73,15 +65,7 @@ impl SimpleDebugger {
     fn state_init(cli_result: &OptionParser) -> (States, States) {
         let isa = cli_result.cli.platform.isa;
 
-        let mut reset_vector = get_reset_vector(isa);
-
-        for base_config in &cli_result.cfg.base_config {
-            match base_config {
-                BaseConfiguration::ResetVector { value } => {
-                    reset_vector = *value;
-                }
-            }
-        }
+        let reset_vector = cli_result.cfg.platform_config.reset_vector;
 
         let mut state = States::new(isa, reset_vector, StageModel::default()).unwrap();
         let mut state_ref = state.clone();
@@ -90,13 +74,13 @@ impl SimpleDebugger {
             state_ref = States::new(isa, reset_vector, StageModel::default()).unwrap();
         }
 
-        for region in &cli_result.cfg.region_config {
+        for region in &cli_result.cfg.platform_config.regions {
             log_err!(state.mmu.add_region(
                 region.base,
                 region.size,
                 &region.name,
                 region.flag.clone(),
-                region.r#type
+                region.mmtype
             ))
             .unwrap();
 
@@ -106,7 +90,7 @@ impl SimpleDebugger {
                     region.size,
                     &region.name,
                     region.flag.clone(),
-                    region.r#type
+                    region.mmtype
                 ))
                 .unwrap();
             }

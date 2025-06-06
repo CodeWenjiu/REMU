@@ -7,7 +7,7 @@ use std::{
 use clap::Subcommand;
 use enum_dispatch::enum_dispatch;
 use logger::Logger;
-use option_parser::{DebugConfiguration, OptionParser};
+use option_parser::OptionParser;
 use owo_colors::OwoColorize;
 use remu_macro::{log_error, log_todo};
 use remu_utils::{Disassembler, EmuSimulators, ProcessError, ProcessResult, Simulators};
@@ -118,20 +118,12 @@ impl Simulator {
 
         disasm: Rc<RefCell<Disassembler>>,
     ) -> Result<Self, SimulatorError> {
-        let (itrace, wavetrace) = option.cfg.debug_config.iter().fold((false, false), |mut acc, cfg| {
-            match cfg {
-                DebugConfiguration::Itrace { enable } => {
-                    Logger::function("ITrace", *enable);
-                    acc.0 = *enable;
-                }
-                DebugConfiguration::WaveTrace { enable } => {
-                    Logger::function("WaveTrace", *enable);
-                    acc.1 = *enable;
-                }
-                _ => {}
-            }
-            acc
-        });
+        let debug_config = &option.cfg.debug_config;
+        let itrace = debug_config.itrace_enable;
+        let wavetrace = debug_config.wave_trace_enable;
+
+        Logger::function("ITrace", itrace);
+        Logger::function("WaveTrace", wavetrace);
 
         let pending_instructions = Rc::new(RefCell::new(0));
         let simulator_state = Arc::new(Mutex::new(SimulatorState::STOP));

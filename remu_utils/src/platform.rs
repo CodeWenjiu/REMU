@@ -46,8 +46,8 @@ pub enum EmuSimulators {
 impl From<EmuSimulators> for &str {
     fn from(sim: EmuSimulators) -> Self {
         match sim {
-            EmuSimulators::DM => "dm",
-            EmuSimulators::SC => "sc",
+            EmuSimulators::DM => "Dm",
+            EmuSimulators::SC => "Sc",
         }
     }
 }
@@ -75,10 +75,10 @@ pub enum NzeaSimulators {
 impl From<NzeaSimulators> for &str {
     fn from(sim: NzeaSimulators) -> Self {
         match sim {
-            NzeaSimulators::NPC => "npc",
-            NzeaSimulators::YSYXSOC => "ysyxsoc",
-            NzeaSimulators::JYD => "jyd",
-            NzeaSimulators::JydRemote => "jyd_remote",
+            NzeaSimulators::NPC => "Npc",
+            NzeaSimulators::YSYXSOC => "Ysyxsoc",
+            NzeaSimulators::JYD => "Jyd",
+            NzeaSimulators::JydRemote => "JydRemote",
         }
     }
 }
@@ -107,10 +107,10 @@ impl From<Simulators> for &str {
     fn from(sim: Simulators) -> Self {
         match sim {
             Simulators::EMU(remu_sim) => {
-                Box::leak(format!("emu-{}", Into::<&str>::into(remu_sim)).into_boxed_str())
+                Box::leak(format!("Emu-{}", Into::<&str>::into(remu_sim)).into_boxed_str())
             }
             Simulators::NZEA(nzea_sim) => {
-                Box::leak(format!("nzea-{}", Into::<&str>::into(nzea_sim)).into_boxed_str())
+                Box::leak(format!("Nzea-{}", Into::<&str>::into(nzea_sim)).into_boxed_str())
             }
         }
     }

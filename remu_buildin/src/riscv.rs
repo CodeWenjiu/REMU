@@ -20,5 +20,3 @@ pub const IMG: &[u32] = &[
     0xdeadbeef, // some data
     0x5f5f5f5f, // "____"
 ];
-
-pub const RESET_VECTOR : u32 = 0x80000000;
