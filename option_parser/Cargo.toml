@@ -15,4 +15,4 @@ snafu = {workspace = true}
 clap = {workspace = true}
 pest = {workspace = true}
 pest_derive = {workspace = true}
-text-to-ascii-art = "0.1.10"
+cfonts = "1.2.0"

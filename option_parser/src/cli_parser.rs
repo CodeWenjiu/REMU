@@ -42,7 +42,7 @@ pub struct CLI {
     pub additional_bin: Option<CliBin>,
 
     /// Platform
-    #[arg(short, long, default_value("rv32i-emu"), value_parser = value_parser!(Platform))]
+    #[arg(short, long, default_value("rv32im-emu-dm"), value_parser = value_parser!(Platform))]
     pub platform: Platform,
 
     /// Enable Batch mode
