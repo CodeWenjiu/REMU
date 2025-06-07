@@ -72,6 +72,9 @@ default: print_binfile run
 menuconfig-static:
 	@$(MAKE) -C ./config menuconfig-static
 
+menuconfig-dynamic:
+	@$(MAKE) -C ./config menuconfig-dynamic
+
 clean: 
 	@$(MAKE) -C ./config clean
 	@cargo clean
@@ -85,5 +88,5 @@ debug :
 fmt :
 	@cargo fmt --all 
 
-.PHONY: default menuconfig-static clean run debug fmt
+.PHONY: default menuconfig-dynamic clean run debug fmt
 
