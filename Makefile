@@ -2,16 +2,8 @@ Job = -j `nproc`
 
 # Binfile
 
-Binfile_Nzea_npc = ./.test/microbench-riscv32e-npc.bin
-
-Binfile_Nzea_ysyxsoc = ./.test/microbench-riscv32e-ysyxsoc.bin
-
-Binfile_jyd = ./.test/jyd_driver-riscv32e-npc.bin
-
 Binfile_jyd_remote = ./simulator/src/nzea/on_board/NZ-jyd/tools/bin_spliter/irom.bin
 Alternate_jyd_remote = 0x80100000:./simulator/src/nzea/on_board/NZ-jyd/tools/bin_spliter/dram.bin
-
-Binfile_Emu = ./.test/microbench-riscv32-nemu.bin
 
 # Platform
 
@@ -44,26 +36,12 @@ endif
 
 endif
 
-ifeq ($(Platform),$(Platform_rv32im_emu_dm))
-    Binfile ?= $(Binfile_Emu)
-else ifeq ($(Platform),$(Platform_rv32im_emu_dm_alias))
-    Binfile ?= $(Binfile_Emu)
-else ifeq ($(Platform),$(Platform_rv32im_emu_sc))
-    Binfile ?= $(Binfile_Emu)
-else ifeq ($(Platform),$(Platform_rv32im_emu_sc_alias))
-    Binfile ?= $(Binfile_Emu)
-else ifeq ($(Platform),$(Platform_rv32e_emu))
-    Binfile ?= $(Binfile_Emu)
-else ifeq ($(Platform),$(Platform_Nzea_npc))
-    Binfile ?= $(Binfile_Nzea_npc)
-else ifeq ($(Platform),$(Platform_Nzea_ysyxsoc))
-    Binfile ?= $(Binfile_Nzea_ysyxsoc)
-else ifeq ($(Platform),$(Platform_Nzea_jyd_remote))
+BinCommand ?= $(if $(Binfile),--primary-bin $(abspath $(Binfile)),)
+AdditionalBinCommand ?= $(if $(Alternate),--additional-bin $(abspath $(Alternate)),)
+
+ifeq ($(Platform),$(Platform_Nzea_jyd_remote))
     Binfile ?= $(Binfile_jyd_remote)
-    Alternate ?= --additional-bin $(Alternate_jyd_remote)
-else
-    $(info No match Binfile found, using default)
-    Binfile ?= $(Binfile_Nzea)
+    Alternate ?= $(Alternate_jyd_remote)
 endif
 
 # Difftest
@@ -73,7 +51,7 @@ Difftest_FFI_Spike = $(Default_FFI_Path)/riscv32-spike-so
 
 # Mainargs
 
-Mainargs = --primary-bin $(abspath $(Binfile)) $(abspath $(Alternate)) \
+Mainargs = $(BinCommand) $(AdditionalBinCommand) \
     -p $(Platform) \
     -c $(abspath $(ConfigFile))
     
