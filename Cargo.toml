@@ -18,18 +18,18 @@ panic         = "abort"
 strip         = true
 
 [workspace.dependencies]
-owo-colors = "4.2.0"
-snafu = "0.8.5"
+owo-colors = "4.2.1"
+snafu = "0.8.6"
 enum_dispatch = "0.3.13"
-log = "0.4.26"
+log = "0.4.27"
 tracing = "0.1.41"
 tracing-subscriber = "0.3"
 tracing-appender = "0.2"
 tracing-error = "0.2.1"
-clap = { version = "4.5.32", features = [ "derive", "color" ] }
-bitflags = "2.9.0"
+clap = { version = "4.5.39", features = [ "derive", "color" ] }
+bitflags = "2.9.1"
 petgraph = "0.8.2"
-tokio = { version = "1.44.2", features = ["full"] }
+tokio = { version = "1.45.1", features = ["full"] }
 lazy_static = "1.5.0"
 pest = "2.8.0"
 pest_derive = "2.8.0"
