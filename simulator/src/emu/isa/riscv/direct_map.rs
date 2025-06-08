@@ -440,7 +440,6 @@ impl Emu {
     /// Execute a single cycle in the emulator
     pub fn self_step_cycle_dm(&mut self) -> ProcessResult<()> {
         // 1. Fetch: Read the PC and fetch the instruction
-
         let pc = self.states.regfile.read_pc();
         let inst = log_err!(
             self.states.mmu.read(pc, state::mmu::Mask::Word), 

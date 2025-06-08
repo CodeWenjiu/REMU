@@ -3,7 +3,7 @@ use logger::Logger;
 use owo_colors::OwoColorize;
 use remu_macro::log_err;
 use remu_utils::{ProcessError, ProcessResult};
-use state::{reg::RegfileIo, CheckFlags4reg, States};
+use state::{reg::{AnyRegfile, RegfileIo}, CheckFlags4reg, States};
 
 use crate::SimulatorCallback;
 
@@ -72,6 +72,14 @@ impl DifftestManager {
         }
 
         Ok(())
+    }
+
+    pub fn init(&mut self, regfile: &AnyRegfile, bin: Vec<u8>, reset_vector: u32) {
+        match &mut self.reference {
+            AnyDifftestRef::FFI(reference) => reference.init(regfile, bin, reset_vector),
+                    
+            _ => ()
+        }
     }
 
     pub fn step_skip(&mut self) {

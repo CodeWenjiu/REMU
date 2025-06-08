@@ -1,7 +1,7 @@
 use option_parser::OptionParser;
 use logger::Logger;
 use remu_macro::log_todo;
-use remu_utils::{DifftestBuildIn, DifftestFFI, DifftestRef, ProcessResult};
+use remu_utils::{DifftestBuildIn, DifftestRef, ProcessResult};
 use state::{reg::AnyRegfile, States};
 
 use crate::{emu::EmuWrapper, DirectlyMap, SimulatorCallback};
@@ -12,11 +12,13 @@ remu_macro::mod_flat!(difftest_ffi, difftest);
 
 #[enum_dispatch]
 pub enum AnyDifftestFfiRef {
-    SPIKE(Spike),
+    TARGET(FFI),
 }
 
 #[enum_dispatch(AnyDifftestFfiRef)]
 pub trait DifftestRefFfiApi {
+    fn init(&mut self, regfile: &AnyRegfile, bin: Vec<u8>, reset_vector: u32);
+
     fn step_cycle(&mut self) -> ProcessResult<()>;
 
     fn test_reg(&self, dut: &AnyRegfile) -> ProcessResult<()>;
@@ -54,10 +56,7 @@ impl AnyDifftestRef {
             DifftestRef::BuildIn(ref r#ref) => match r#ref {
                 DifftestBuildIn::EMU => AnyDifftestRef::SingleCycle(AnyDifftestSingleCycleRef::EMU(EmuWrapper::<DirectlyMap>::new(option, states, callback))),
             },
-            DifftestRef::FFI(ref r#ref) => match r#ref {
-                DifftestFFI::SPIKE => AnyDifftestRef::FFI(AnyDifftestFfiRef::SPIKE(Spike {})),
-            },
+            DifftestRef::FFI(so_path) => AnyDifftestRef::FFI(AnyDifftestFfiRef::TARGET(FFI::new(&so_path))),
         }
     }
 }
-

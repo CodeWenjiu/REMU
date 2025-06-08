@@ -1,5 +1,7 @@
 Job = -j `nproc`
 
+# Binfile
+
 Binfile_Nzea_npc = ./.test/microbench-riscv32e-npc.bin
 
 Binfile_Nzea_ysyxsoc = ./.test/microbench-riscv32e-ysyxsoc.bin
@@ -10,6 +12,8 @@ Binfile_jyd_remote = ./simulator/src/nzea/on_board/NZ-jyd/tools/bin_spliter/irom
 Alternate_jyd_remote = 0x80100000:./simulator/src/nzea/on_board/NZ-jyd/tools/bin_spliter/dram.bin
 
 Binfile_Emu = ./.test/microbench-riscv32-nemu.bin
+
+# Platform
 
 Platform_rv32im_emu_dm = rv32im-emu-dm
 Platform_rv32im_emu_dm_alias = riscv32-emu-dm
@@ -27,6 +31,8 @@ Platform_Nzea_jyd_remote = rv32i-nzea-jyd_remote
 Platform ?= $(Platform_emu_default)
 
 PLATFORMS = $(Platform_rv32im_emu_dm) $(Platform_rv32im_emu_dm_alias) $(Platform_rv32im_emu_sc) $(Platform_rv32im_emu_sc_alias) $(Platform_rv32e_emu) $(Platform_Nzea_npc) $(Platform_Nzea_ysyxsoc) $(Platform_Nzea_jyd_remote)
+
+# Config
 
 ConfigFile = config/.config_dynamic
 
@@ -60,12 +66,19 @@ else
     Binfile ?= $(Binfile_Nzea)
 endif
 
+# Difftest
+Default_FFI_Path = $(abspath ./remu_buildin/difftest_ref)
+
+Difftest_FFI_Spike = $(Default_FFI_Path)/riscv32-spike-so
+
+# Mainargs
+
 Mainargs = --primary-bin $(abspath $(Binfile)) $(abspath $(Alternate)) \
     -p $(Platform) \
     -c $(abspath $(ConfigFile))
     
 ExtraArgs ?=
-Debugargs = $(Mainargs) -d emu #--log
+Debugargs = $(Mainargs) -d $(Difftest_FFI_Spike) #--log
 
 default: print_binfile run
 

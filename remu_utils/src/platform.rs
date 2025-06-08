@@ -1,4 +1,4 @@
-use std::{error::Error, str::FromStr};
+use std::{error::Error, str::FromStr, path::Path};
 
 #[derive(Debug, Clone, Copy)]
 pub enum ISA {
@@ -153,13 +153,13 @@ impl From<DifftestBuildIn> for &str {
 
 #[derive(Debug, Clone, Copy)]
 pub enum DifftestFFI {
-    SPIKE,
+    TARGET,
 }
 
 impl std::fmt::Display for DifftestFFI {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            DifftestFFI::SPIKE => write!(f, "spike"),
+            DifftestFFI::TARGET => write!(f, "ffi"),
         }
     }
 }
@@ -167,7 +167,7 @@ impl std::fmt::Display for DifftestFFI {
 impl From<DifftestFFI> for &str {
     fn from(sim: DifftestFFI) -> Self {
         match sim {
-            DifftestFFI::SPIKE => "spike",
+            DifftestFFI::TARGET => "ffi",
         }
     }
 }
@@ -175,7 +175,17 @@ impl From<DifftestFFI> for &str {
 #[derive(Debug, Clone, Copy)]
 pub enum DifftestRef {
     BuildIn(DifftestBuildIn),
-    FFI(DifftestFFI),
+    FFI(&'static str),
+}
+
+impl DifftestRef {
+    pub fn new_ffi(path: &'static str) -> Result<Self, String> {
+        if Path::new(path).exists() {
+            Ok(DifftestRef::FFI(path))
+        } else {
+            Err(format!("FFI path: {} not found", path))
+        }
+    }
 }
 
 impl std::fmt::Display for DifftestRef {
@@ -187,11 +197,11 @@ impl std::fmt::Display for DifftestRef {
     }
 }
 
-impl From<DifftestRef> for &str {
+impl From<DifftestRef> for String {
     fn from(sim: DifftestRef) -> Self {
         match sim {
-            DifftestRef::BuildIn(sim) => Into::<&str>::into(sim),
-            DifftestRef::FFI(sim) => Into::<&str>::into(sim),
+            DifftestRef::BuildIn(sim) => Into::<&str>::into(sim).to_string(),
+            DifftestRef::FFI(sim) => sim.to_owned(),
         }
     }
 }
@@ -202,8 +212,8 @@ impl FromStr for DifftestRef {
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         match s {
             "emu" => Ok(DifftestRef::BuildIn(DifftestBuildIn::EMU)),
-            "spike" => Ok(DifftestRef::FFI(DifftestFFI::SPIKE)),
-            _ => Err("Unknown DifftestRef".into()),
+            path => DifftestRef::new_ffi(path.to_string().leak())
+                .map_err(|e| e.into())
         }
     }
 }
