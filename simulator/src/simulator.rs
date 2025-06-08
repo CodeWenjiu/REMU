@@ -119,8 +119,8 @@ impl Simulator {
         let itrace = debug_config.itrace_enable;
         let wavetrace = debug_config.wave_trace_enable;
 
-        Logger::function("ITrace", itrace);
-        Logger::function("WaveTrace", wavetrace);
+        Logger::function("ITrace", itrace.into());
+        Logger::function("WaveTrace", wavetrace.into());
 
         let pending_instructions = Rc::new(RefCell::new(0));
         let simulator_state = Arc::new(Mutex::new(SimulatorState::STOP));
@@ -319,11 +319,11 @@ impl Simulator {
         match subcmd {
             FunctionTarget::InstructionTrace => {
                 self.tracer.borrow_mut().trace_function(TraceFunction::InstructionTrace, enable);
-                Logger::function("ITrace", enable);
+                Logger::function("ITrace", enable.into());
             }
             FunctionTarget::WaveTrace => {
                 self.dut.function_wave_trace(enable);
-                Logger::function("WaveTrace", enable);
+                Logger::function("WaveTrace", enable.into());
             }
             FunctionTarget::GuiSimulator => self.dut.function_nvboard(enable),
         }

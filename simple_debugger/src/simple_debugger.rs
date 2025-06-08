@@ -28,10 +28,10 @@ impl SimpleDebugger {
         if let Some(difftest_ref) = cli_result.cli.differtest {
             Logger::function(
                 &format!("differtest \"{}\"", difftest_ref).to_string(),
-                true,
+                true.into(),
             );
         } else {
-            Logger::function("differtest", false);
+            Logger::function("differtest", false.into());
         }
 
         let rl_history_length = cli_result

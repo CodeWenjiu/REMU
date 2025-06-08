@@ -3,7 +3,7 @@ use option_parser::{OptionParser, parse};
 use simple_debugger::SimpleDebugger;
 
 fn init(option: &OptionParser) -> Result<(), ()> {
-    Logger::function("Log", option.cli.log);
+    Logger::function("Log", option.cli.log.into());
     if option.cli.log {
         Logger::new()?;
     }

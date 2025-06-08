@@ -27,6 +27,32 @@ impl From<tracing::Level> for Logger {
     }
 }
 
+#[derive(Debug, Clone, Copy)]
+pub enum FeatureState {
+    /// 功能在编译时被禁用，相关代码不会参与构建
+    Disabled,    // 或 Off
+    /// 功能在编译时被启用，但在运行时默认关闭
+    Inactive,    // 或 Standby
+    /// 功能在编译时被启用，且在运行时默认开启
+    Active,      // 或 On
+}
+
+impl FeatureState {
+    pub fn to_display(&self) -> String {
+        match self {
+            Self::Disabled => format!("[{}]", "OFF".red()),
+            Self::Inactive => format!("[{}]", "STANDBY".yellow()),
+            Self::Active => format!("[{}]", "ON".green()),
+        }
+    }
+}
+
+impl From<bool> for FeatureState {
+    fn from(value: bool) -> Self {
+        if value { Self::Active } else { Self::Inactive }
+    }
+}
+
 impl Logger {
     pub fn new() -> Result<(), ()> {
         let file_appender = rolling::never("target/logs", ".log");
@@ -61,10 +87,8 @@ impl Logger {
         println!("{}", formatted);
     }
 
-    pub fn function(function_name: &str, on: bool) {
-        let onooff = if on { format!("[{}]", "ON".green()) } else { format!("[{}]", "OFF".red()) };
-
-        println!("🔧 {}{}{}", "function ".blue(), function_name.magenta(), onooff);
+    pub fn function(function_name: &str, state: FeatureState) {
+        println!("🔧 {}{}{}", "function ".blue(), function_name.magenta(), state.to_display());
     }
 
     pub fn log(message: &str, level: tracing::Level) {

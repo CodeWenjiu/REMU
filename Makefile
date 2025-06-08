@@ -66,6 +66,9 @@ menuconfig-static:
 menuconfig-dynamic:
 	@$(MAKE) -C ./config menuconfig-dynamic
 
+menuconfig:
+	@$(MAKE) -C ./config menuconfig
+
 menuconfig-static-conditional:
 	@$(MAKE) -C ./config menuconfig-static-conditional
 
@@ -92,5 +95,5 @@ debug : config_dependencies
 fmt :
 	@cargo fmt --all 
 
-.PHONY: default config_dependencies menuconfig-static menuconfig-dynamic clean clean-config clean-all run debug fmt
+.PHONY: default config_dependencies menuconfig-static menuconfig-dynamic menuconfig clean clean-config clean-all run debug fmt
 
