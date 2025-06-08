@@ -34,7 +34,7 @@ PLATFORMS = $(Platform_rv32im_emu_dm) $(Platform_rv32im_emu_dm_alias) $(Platform
 
 # Config
 
-ConfigFile = config/.config_dynamic
+ConfigFile = config/dynamic/.config
 
 ifeq ($(filter clean menuconfig fmt,$(MAKECMDGOALS)),)
 
@@ -88,18 +88,22 @@ menuconfig-static:
 menuconfig-dynamic:
 	@$(MAKE) -C ./config menuconfig-dynamic
 
+config_dependencies: menuconfig-static menuconfig-dynamic
+
 clean: 
-	@$(MAKE) -C ./config clean
 	@cargo clean
 
-run :
+clean-all: clean
+	@$(MAKE) -C ./config clean
+
+run : menuconfig-static menuconfig-dynamic
 	@cargo run $(Job) --release --bin core -- $(Mainargs) $(ExtraArgs)
 
-debug :
+debug : menuconfig-static menuconfig-dynamic
 	@RUST_BACKTRACE=full cargo run $(Job) --bin core -- $(Debugargs)
 
 fmt :
 	@cargo fmt --all 
 
-.PHONY: default menuconfig-dynamic clean run debug fmt
+.PHONY: default config_dependencies menuconfig-static menuconfig-dynamic clean clean-all run debug fmt
 

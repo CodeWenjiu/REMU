@@ -1,7 +1,0 @@
-mainmenu "REMU Configuratuion Menu"
-
-source "region/Kconfig"
-
-source "debug/Kconfig"
-
-source "base/Kconfig"
