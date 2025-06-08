@@ -32,10 +32,7 @@ fn find_workspace_root() -> PathBuf {
 
 fn find_config_path() -> PathBuf {
     let workspace_root = find_workspace_root();
-    let config_path = workspace_root
-        .join("config")
-        .join("static")
-        .join(".config");
+    let config_path = workspace_root.join("config").join("static").join(".config");
 
     if !config_path.is_file() {
         panic!(
@@ -52,8 +49,13 @@ pub fn apply_features() {
 
     println!("cargo:rerun-if-changed={}", config_path.display());
 
-    let config_content = fs::read_to_string(&config_path)
-        .unwrap_or_else(|e| panic!("Failed to read config file at {}: {}", config_path.display(), e));
+    let config_content = fs::read_to_string(&config_path).unwrap_or_else(|e| {
+        panic!(
+            "Failed to read config file at {}: {}",
+            config_path.display(),
+            e
+        )
+    });
 
     let pairs = ConfigParser::parse(Rule::file, &config_content)
         .unwrap_or_else(|e| panic!("Failed to parse config file: {}", e));

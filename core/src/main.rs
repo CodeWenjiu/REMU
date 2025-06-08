@@ -23,6 +23,6 @@ async fn main() -> Result<(), ()> {
     let debugger = SimpleDebugger::new(option)?;
 
     debugger.mainloop()?;
-    
+
     Ok(())
 }
