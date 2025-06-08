@@ -26,5 +26,4 @@ cfg-if = {workspace = true}
 remu_feature = { path = "../remu_feature" }
 
 [features]
-default = []
 LOG = []

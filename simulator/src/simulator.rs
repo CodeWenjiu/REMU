@@ -15,11 +15,12 @@ use remu_utils::{DifftestRef, EmuSimulators, ProcessError, ProcessResult, Simula
 use state::{reg::RegfileIo, States};
 
 use crate::{
-    difftest_ref::DifftestManager, emu::EmuWrapper, nzea::Nzea, DirectlyMap, SingleCycle, TraceFunction, Tracer
+    difftest_ref::DifftestManager, emu::EmuWrapper, nzea::Nzea, DirectlyMap, SingleCycle, Tracer
 };
 
 #[derive(Debug, Subcommand)]
 pub enum FunctionTarget {
+    #[cfg(feature = "ITRACE")]
     InstructionTrace,
     WaveTrace,
     GuiSimulator,
@@ -91,6 +92,7 @@ pub enum SimulatorState {
 
 cfg_if! {
     if #[cfg(feature = "ITRACE")] {
+        use crate::TraceFunction;
         use remu_utils::Disassembler;
     } else {
         use logger::FeatureState;
@@ -127,7 +129,10 @@ impl Simulator {
         disasm: Rc<RefCell<Disassembler>>,
     ) -> Result<Self, SimulatorError> {
         let debug_config = &option.cfg.debug_config;
+
+        #[cfg(feature = "ITRACE")]
         let itrace = debug_config.itrace_enable;
+        
         let wavetrace = debug_config.wave_trace_enable;
 
         cfg_if!{
@@ -144,6 +149,7 @@ impl Simulator {
         let simulator_state = Arc::new(Mutex::new(SimulatorState::STOP));
 
         let tracer = Rc::new(RefCell::new(Tracer::new(
+            #[cfg(feature = "ITRACE")]
             itrace,
             #[cfg(feature = "ITRACE")]
             disasm.clone(),
@@ -339,6 +345,7 @@ impl Simulator {
 
     pub fn cmd_function_mut(&mut self, subcmd: FunctionTarget, enable: bool) -> ProcessResult<()> {
         match subcmd {
+            #[cfg(feature = "ITRACE")]
             FunctionTarget::InstructionTrace => {
                 self.tracer.borrow_mut().trace_function(TraceFunction::InstructionTrace, enable);
                 Logger::function("ITrace", enable.into());

@@ -27,5 +27,4 @@ ctrlc = "3.4.5"
 remu_feature = { path = "../remu_feature" }
 
 [features]
-default = []
 ITRACE = []

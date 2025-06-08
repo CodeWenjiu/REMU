@@ -11,13 +11,14 @@ cfg_if! {
 
 #[derive(Debug, PartialEq, Clone)]
 pub enum TraceFunction {
+    #[cfg(feature = "ITRACE")]
     InstructionTrace,
 }
 
 #[derive(Clone)]
 pub struct Tracer {
+    #[cfg(feature = "ITRACE")]
     pub instruction_trace_enable: bool,
-
     #[cfg(feature = "ITRACE")]
     pub disassembler: Rc<RefCell<Disassembler>>,
 
@@ -38,12 +39,8 @@ impl Tracer {
                 }
             }
         } else {
-            pub fn new(
-                instruction_trace_enable: bool,
-            ) -> Self {
+            pub fn new() -> Self {
                 Self {
-                    instruction_trace_enable,
-
                     breakpoints: Vec::new(),
                 }
             }
@@ -116,14 +113,16 @@ impl Tracer {
         Ok(())
     }
 
+    // ignore: although there is no function need to enable if not ITRACE for now, but it's better to keep it
     pub fn trace_function(
         &mut self,
         function: TraceFunction,
-        enable: bool,
+        _enable: bool,
     )  {
         match function {
+            #[cfg(feature = "ITRACE")]
             TraceFunction::InstructionTrace => {
-                self.instruction_trace_enable = enable;
+                self.instruction_trace_enable = _enable;
             }
         }
     }

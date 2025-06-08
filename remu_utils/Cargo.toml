@@ -20,5 +20,4 @@ llvm-sys = {version = "181", features = ["prefer-dynamic"]}
 remu_feature = { path = "../remu_feature" }
 
 [features]
-default = [ ]
 ITRACE = []
