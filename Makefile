@@ -53,7 +53,8 @@ Difftest_FFI_Spike = $(Default_FFI_Path)/riscv32-spike-so
 
 Mainargs = $(BinCommand) $(AdditionalBinCommand) \
     -p $(Platform) \
-    -c $(abspath $(ConfigFile))
+    -c $(abspath $(ConfigFile)) \
+    # -b
     
 ExtraArgs ?=
 Debugargs = $(Mainargs) -d $(Difftest_FFI_Spike) #--log

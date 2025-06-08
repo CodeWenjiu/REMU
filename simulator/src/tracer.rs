@@ -96,8 +96,8 @@ impl Tracer {
         }
     }
 
+    #[cfg(feature = "ITRACE")]
     pub fn trace(&self, pc: u32, inst: u32) -> ProcessResult<()> {
-        #[cfg(feature = "ITRACE")]
         self.instruction_trace(pc, inst);
 
         Ok(())

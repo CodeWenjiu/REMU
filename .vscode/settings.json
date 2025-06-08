@@ -3,6 +3,6 @@
         "**/target": true
     },
     "rust-analyzer.cargo.features": [
-        "ITRACE",
+        // "ITRACE",
     ],
 }

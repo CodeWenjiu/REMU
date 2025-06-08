@@ -1,4 +1,4 @@
-use crate::cmd_parser::Server;
+use crate::cmd_parser::{Cmds, Server};
 use cfg_if::cfg_if;
 use logger::Logger;
 use option_parser::OptionParser;
@@ -103,7 +103,17 @@ impl SimpleDebugger {
         (state, state_ref)
     }
 
-    pub fn mainloop(mut self) -> Result<(), ()> {
+    pub fn mainloop(mut self, batch: bool) -> Result<(), ()> {
+
+        if batch {
+            match self.execute(Cmds::Continue) {
+                Err(ProcessError::Recoverable) => return Ok(()),
+                Err(ProcessError::GracefulExit) => return Ok(()),
+                Err(ProcessError::Fatal) => return Err(()),
+                _ => (),
+            }
+        }
+
         loop {
             macro_rules! handle_result {
                 ($result:expr) => {
