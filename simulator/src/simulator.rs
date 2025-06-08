@@ -315,17 +315,30 @@ impl Simulator {
         Ok(())
     }
 
+    fn check_state(&self) -> ProcessResult<()> {
+        match self.state.lock().unwrap().clone() {
+            SimulatorState::TRAPED(_) => {
+                log_error!("Simulator already TRAPED!");
+                return Err(ProcessError::Recoverable);
+            }
+            SimulatorState::STOP => {
+                return Err(ProcessError::Recoverable);
+            }
+            _ => {}
+        }
+        Ok(())
+    }
+
     pub fn step_cycle(&mut self, count: u64) -> ProcessResult<()> {
         *self.state.lock().unwrap() = SimulatorState::RUN;
+        let mut state_check_count = 0;
         for _ in 0..count {
-            match self.state.lock().unwrap().clone() {
-                SimulatorState::TRAPED(_) => {
-                    log_error!("Simulator already TRAPED!");
-                    return Err(ProcessError::Recoverable);
-                }
-                SimulatorState::STOP => return Err(ProcessError::Recoverable),
-                _ => {}
+            if state_check_count % 10000 == 0 {
+                self.check_state()?;
+                state_check_count = 0;
             }
+            state_check_count += 1;
+
             self.dut.step_cycle()?;
         }
         Ok(())
