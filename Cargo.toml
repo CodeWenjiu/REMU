@@ -8,7 +8,7 @@ members = [
     "remu_buildin", 
     "simple_debugger", 
     "simulator", 
-    "state", 
+    "state", "remu_feature", 
 ]
 
 [profile.release]

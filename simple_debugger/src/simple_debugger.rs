@@ -1,17 +1,25 @@
-use std::{cell::RefCell, rc::Rc};
-
 use crate::cmd_parser::Server;
+use cfg_if::cfg_if;
 use logger::Logger;
 use option_parser::OptionParser;
 use remu_macro::log_err;
 use simulator::Simulator;
 use state::{model::StageModel, States};
 
-use remu_utils::{DifftestRef, Disassembler, ProcessError};
+use remu_utils::{DifftestRef, ProcessError};
+
+cfg_if! {
+    if #[cfg(feature = "ITRACE")] {
+        use std::{cell::RefCell, rc::Rc};
+
+        use remu_utils::Disassembler;
+    }
+}
 
 pub struct SimpleDebugger {
     server: Server,
 
+    #[cfg(feature = "ITRACE")]
     pub disassembler: Rc<RefCell<Disassembler>>,
 
     pub state: States,
@@ -22,8 +30,8 @@ pub struct SimpleDebugger {
 
 impl SimpleDebugger {
     pub fn new(cli_result: OptionParser) -> Result<Self, ()> {
-        let disassembler = Disassembler::new(cli_result.cli.platform.isa)?;
-        let disassembler = Rc::new(RefCell::new(disassembler));
+        #[cfg(feature = "ITRACE")]
+        let disassembler = Rc::new(RefCell::new(Disassembler::new(cli_result.cli.platform.isa)?));
 
         if let Some(difftest_ref) = cli_result.cli.differtest {
             Logger::function(
@@ -45,6 +53,7 @@ impl SimpleDebugger {
             &cli_result,
             state.clone(),
             state_ref.clone(),
+            #[cfg(feature = "ITRACE")]
             disassembler.clone()
         ))?;
 
@@ -54,6 +63,7 @@ impl SimpleDebugger {
             server: Server::new(cli_result.cli.platform.simulator, rl_history_length)
                 .expect("Unable to create server"),
 
+            #[cfg(feature = "ITRACE")]
             disassembler,
 
             state,

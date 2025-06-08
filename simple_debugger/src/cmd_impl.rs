@@ -38,8 +38,13 @@ impl SimpleDebugger {
                     let addr = self.eval_expr(&addr)?;
                     let data = log_err!(self.state.mmu.read_memory(addr + i, Mask::None), ProcessError::Recoverable)?;
 
-                    println!("{:#010x}: {:#010x}\t {}",
-                        (addr + i).blue(), data.green(), self.disassembler.borrow().try_analize(data, addr + i).magenta());
+                    print!("{:#010x}: {:#010x}\t",
+                        (addr + i).blue(), data.green());
+                    
+                    #[cfg(feature = "ITRACE")]
+                    print!("{}", self.disassembler.borrow().try_analize(data, addr + i).magenta());
+
+                    println!();
                 }
             }
         }
@@ -222,8 +227,13 @@ impl SimpleDebugger {
                     let addr = log_err!(self.eval_expr(&addr), ProcessError::Recoverable)?;
                     let data = log_err!(self.state_ref.mmu.read_memory(addr + i, Mask::None), ProcessError::Recoverable)?;
 
-                    println!("{:#010x}: {:#010x}\t {}",
-                        (addr + i).blue(), data.green(), self.disassembler.borrow().try_analize(data, addr + i).magenta());
+                    print!("{:#010x}: {:#010x}\t",
+                        (addr + i).blue(), data.green());
+                    
+                    #[cfg(feature = "ITRACE")]
+                    print!("{}", self.disassembler.borrow().try_analize(data, addr + i).magenta());
+
+                    println!();
                 }
             }
         }

@@ -4,13 +4,14 @@ use std::{
     sync::{Arc, Mutex},
 };
 
+use cfg_if::cfg_if;
 use clap::Subcommand;
 use enum_dispatch::enum_dispatch;
 use logger::Logger;
 use option_parser::OptionParser;
 use remu_buildin::get_buildin_img;
 use remu_macro::{log_err, log_error, log_todo};
-use remu_utils::{DifftestRef, Disassembler, EmuSimulators, ProcessError, ProcessResult, Simulators};
+use remu_utils::{DifftestRef, EmuSimulators, ProcessError, ProcessResult, Simulators};
 use state::{reg::RegfileIo, States};
 
 use crate::{
@@ -88,6 +89,14 @@ pub enum SimulatorState {
     TRAPED(bool),
 }
 
+cfg_if! {
+    if #[cfg(feature = "ITRACE")] {
+        use remu_utils::Disassembler;
+    } else {
+        use logger::FeatureState;
+    }
+}
+
 pub struct Simulator {
     pub state: Arc<Mutex<SimulatorState>>,
     pub dut: SimulatorEnum,
@@ -98,6 +107,7 @@ pub struct Simulator {
     pub difftest_manager: Option<Rc<RefCell<DifftestManager>>>,
     pub tracer: Rc<RefCell<Tracer>>,
 
+    #[cfg(feature = "ITRACE")]
     pub disassembler: Rc<RefCell<Disassembler>>,
     pub debug_config: SimulatorDebugConfig,
 }
@@ -113,13 +123,21 @@ impl Simulator {
 
         states_ref: States,
 
+        #[cfg(feature = "ITRACE")]
         disasm: Rc<RefCell<Disassembler>>,
     ) -> Result<Self, SimulatorError> {
         let debug_config = &option.cfg.debug_config;
         let itrace = debug_config.itrace_enable;
         let wavetrace = debug_config.wave_trace_enable;
 
-        Logger::function("ITrace", itrace.into());
+        cfg_if!{
+            if #[cfg(feature = "ITRACE")] {
+                Logger::function("ITrace", itrace.into());
+            } else {
+                Logger::function("ITrace", FeatureState::Disabled);
+            }
+        }
+
         Logger::function("WaveTrace", wavetrace.into());
 
         let pending_instructions = Rc::new(RefCell::new(0));
@@ -127,6 +145,7 @@ impl Simulator {
 
         let tracer = Rc::new(RefCell::new(Tracer::new(
             itrace,
+            #[cfg(feature = "ITRACE")]
             disasm.clone(),
         )));
 
@@ -152,8 +171,10 @@ impl Simulator {
             let tracer = tracer.clone();
             let difftest_manager = difftest_manager.clone();
 
-            Box::new(move |pc: u32, next_pc: u32, inst: u32| -> ProcessResult<()> {
-                tracer.borrow().trace(pc, inst)?;
+            // ignore: simulator could be everything, let arguments more stable will be better
+            Box::new(move |_pc: u32, next_pc: u32, _inst: u32| -> ProcessResult<()> {
+                #[cfg(feature = "ITRACE")]
+                tracer.borrow().trace(_pc, _inst)?;
 
                 difftest_manager
                     .as_ref()
@@ -219,6 +240,7 @@ impl Simulator {
             states_ref,
             difftest_manager,
             tracer,
+            #[cfg(feature = "ITRACE")]
             disassembler: disasm,
             debug_config,
         })

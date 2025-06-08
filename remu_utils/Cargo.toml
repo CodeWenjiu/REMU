@@ -8,13 +8,17 @@ authors = [ "wenjiu <27843087979@qq.com>" ]
 [dependencies]
 remu_macro = { path = "../remu_macro" }
 logger = { path = "../logger" }
+cfg-if = {workspace = true}
 owo-colors = {workspace = true}
 snafu = {workspace = true}
 pest = {workspace = true}
 pest_derive = {workspace = true}
 
-llvm-sys = {version = "181",features = ["prefer-dynamic"]}
+llvm-sys = {version = "181", features = ["prefer-dynamic"]}
+
+[build-dependencies]
+remu_feature = { path = "../remu_feature" }
 
 [features]
-default = []
+default = [ ]
 ITRACE = []

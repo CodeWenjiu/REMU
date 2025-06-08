@@ -23,7 +23,7 @@ tokio = {workspace = true}
 cfg-if = {workspace = true}
 
 [build-dependencies]
-remu_utils = { path = "../remu_utils" }
+remu_feature = { path = "../remu_feature" }
 
 [features]
 default = []

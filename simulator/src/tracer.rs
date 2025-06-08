@@ -1,7 +1,13 @@
-use std::{cell::RefCell, rc::Rc};
-
+use cfg_if::cfg_if;
 use owo_colors::OwoColorize;
-use remu_utils::{Disassembler, ProcessError, ProcessResult};
+use remu_utils::{ProcessError, ProcessResult};
+
+cfg_if! {
+    if #[cfg(feature = "ITRACE")] {
+        use remu_utils::Disassembler;
+        use std::{cell::RefCell, rc::Rc};
+    }
+}
 
 #[derive(Debug, PartialEq, Clone)]
 pub enum TraceFunction {
@@ -11,23 +17,40 @@ pub enum TraceFunction {
 #[derive(Clone)]
 pub struct Tracer {
     pub instruction_trace_enable: bool,
+
+    #[cfg(feature = "ITRACE")]
     pub disassembler: Rc<RefCell<Disassembler>>,
 
     pub breakpoints: Vec<u32>,
 }
 
 impl Tracer {
-    pub fn new(
-        instruction_trace_enable: bool,
-        disassembler: Rc<RefCell<Disassembler>>
-    ) -> Self {
-        Self {
-            instruction_trace_enable,
-            disassembler,
-            breakpoints: Vec::new(),
+    cfg_if! {
+        if #[cfg(feature = "ITRACE")] {
+            pub fn new(
+                instruction_trace_enable: bool,
+                disassembler: Rc<RefCell<Disassembler>>
+            ) -> Self {
+                Self {
+                    instruction_trace_enable,
+                    disassembler,
+                    breakpoints: Vec::new(),
+                }
+            }
+        } else {
+            pub fn new(
+                instruction_trace_enable: bool,
+            ) -> Self {
+                Self {
+                    instruction_trace_enable,
+
+                    breakpoints: Vec::new(),
+                }
+            }
         }
     }
 
+    #[cfg(feature = "ITRACE")]
     fn instruction_trace(&self, pc:u32, inst: u32) {
         if self.instruction_trace_enable {
             println!(
@@ -86,6 +109,7 @@ impl Tracer {
         }
     }
 
+    #[cfg(feature = "ITRACE")]
     pub fn trace(&self, pc: u32, inst: u32) -> ProcessResult<()> {
         self.instruction_trace(pc, inst);
 

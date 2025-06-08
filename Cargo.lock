@@ -252,6 +252,7 @@ dependencies = [
  "log",
  "logger",
  "option_parser",
+ "remu_feature",
  "remu_macro",
  "remu_utils",
  "simple_debugger",
@@ -1057,6 +1058,14 @@ dependencies = [
 ]
 
 [[package]]
+name = "remu_feature"
+version = "0.1.0"
+dependencies = [
+ "pest",
+ "pest_derive",
+]
+
+[[package]]
 name = "remu_macro"
 version = "0.1.0"
 
@@ -1064,11 +1073,13 @@ version = "0.1.0"
 name = "remu_utils"
 version = "0.1.0"
 dependencies = [
+ "cfg-if",
  "llvm-sys",
  "logger",
  "owo-colors",
  "pest",
  "pest_derive",
+ "remu_feature",
  "remu_macro",
  "snafu",
 ]
@@ -1255,6 +1266,7 @@ dependencies = [
 name = "simple_debugger"
 version = "0.1.0"
 dependencies = [
+ "cfg-if",
  "clap",
  "lazy_static",
  "logger",
@@ -1265,6 +1277,7 @@ dependencies = [
  "petgraph",
  "ratatui",
  "remu_buildin",
+ "remu_feature",
  "remu_macro",
  "remu_utils",
  "rustyline",
@@ -1280,6 +1293,7 @@ name = "simulator"
 version = "0.1.0"
 dependencies = [
  "bitflags",
+ "cfg-if",
  "clap",
  "ctrlc",
  "dlopen2",
@@ -1290,6 +1304,7 @@ dependencies = [
  "owo-colors",
  "petgraph",
  "remu_buildin",
+ "remu_feature",
  "remu_macro",
  "remu_utils",
  "snafu",

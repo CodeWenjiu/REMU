@@ -8,7 +8,7 @@ fn init() -> Result<(), ()> {
             Logger::new()?;
             Logger::function("Log", FeatureState::Active);
         } else {
-            Logger::function("Log", FeatureState::Inactive);
+            Logger::function("Log", FeatureState::Disabled);
         }
     }
     Ok(())

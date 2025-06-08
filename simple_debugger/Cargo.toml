@@ -21,6 +21,14 @@ lazy_static = {workspace = true}
 tokio = {workspace = true}
 pest = {workspace = true}
 pest_derive = {workspace = true}
+cfg-if = {workspace = true}
 rustyline = { version = "15.0.0", features = ["derive"] }
 ratatui = { version = "0.29.0", features = ["termion"] }
 tui-textarea = "0.7.0"
+
+[build-dependencies]
+remu_feature = { path = "../remu_feature" }
+
+[features]
+default = []
+ITRACE = []
