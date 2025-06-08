@@ -248,10 +248,12 @@ name = "core"
 version = "0.1.0"
 dependencies = [
  "bitflags",
+ "cfg-if",
  "log",
  "logger",
  "option_parser",
  "remu_macro",
+ "remu_utils",
  "simple_debugger",
  "snafu",
  "state",

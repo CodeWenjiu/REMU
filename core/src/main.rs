@@ -1,11 +1,15 @@
-use logger::Logger;
-use option_parser::{OptionParser, parse};
+use logger::{FeatureState, Logger};
+use option_parser::parse;
 use simple_debugger::SimpleDebugger;
 
-fn init(option: &OptionParser) -> Result<(), ()> {
-    Logger::function("Log", option.cli.log.into());
-    if option.cli.log {
-        Logger::new()?;
+fn init() -> Result<(), ()> {
+    cfg_if::cfg_if! {
+        if #[cfg(feature = "LOG")] {
+            Logger::new()?;
+            Logger::function("Log", FeatureState::Active);
+        } else {
+            Logger::function("Log", FeatureState::Inactive);
+        }
     }
     Ok(())
 }
@@ -14,11 +18,11 @@ fn init(option: &OptionParser) -> Result<(), ()> {
 async fn main() -> Result<(), ()> {
     let option = parse()?;
 
-    init(&option)?;
+    init()?;
 
     let debugger = SimpleDebugger::new(option)?;
 
     debugger.mainloop()?;
-
+    
     Ok(())
 }

@@ -14,3 +14,7 @@ pest = {workspace = true}
 pest_derive = {workspace = true}
 
 llvm-sys = {version = "181",features = ["prefer-dynamic"]}
+
+[features]
+default = []
+ITRACE = []

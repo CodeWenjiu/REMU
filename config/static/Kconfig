@@ -3,3 +3,7 @@ mainmenu "REMU Static Configuratuion Menu"
 config ITRACE
     bool "Static Itrace Enable"
     default n
+
+config LOG
+    bool "Enable Log to File"
+    default n
