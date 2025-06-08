@@ -7,19 +7,27 @@ Config_Dynamic = $(Dynamic_Path)/.config
 ALL_Static_CONFIG = $(shell find $(Static_Path) -name Kconfig)
 ALL_Dynamic_CONFIG = $(shell find $(Dynamic_Path) -name Kconfig)
 
-$(Config_Static): $(ALL_Static_CONFIG)
+menuconfig-static:
 	@export KCONFIG_CONFIG=$(Config_Static) && \
 	export MENUCONFIG_STYLE=monochrome \
 	&& menuconfig $(Static_Path)/Kconfig
 
-$(Config_Dynamic): $(ALL_Dynamic_CONFIG)
+menuconfig-dynamic: 
 	@export KCONFIG_CONFIG=$(Config_Dynamic) && \
 	export MENUCONFIG_STYLE=monochrome \
 	&& menuconfig $(Dynamic_Path)/Kconfig
 
-menuconfig-static: $(Config_Static)
+menuconfig: menuconfig-static menuconfig-dynamic
 
-menuconfig-dynamic: $(Config_Dynamic)
+$(Config_Static): $(ALL_Static_CONFIG)
+	@$(MAKE) menuconfig-static
+
+$(Config_Dynamic): $(ALL_Dynamic_CONFIG)
+	@$(MAKE) menuconfig-dynamic
+
+menuconfig-static-conditional: $(Config_Static)
+
+menuconfig-dynamic-conditional: $(Config_Dynamic)
 
 clean: 
 	@rm -f $(Config_Dynamic)
@@ -27,4 +35,4 @@ clean:
 	@rm -f $(Config_Static)
 	@rm -f $(Config_Static).old
 
-.PHONY: menuconfig-static menuconfig-dynamic clean 
+.PHONY: menuconfig menuconfig-static menuconfig-dynamic menuconfig-static-conditional menuconfig-dynamic-conditional clean 

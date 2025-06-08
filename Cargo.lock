@@ -1065,6 +1065,8 @@ dependencies = [
  "llvm-sys",
  "logger",
  "owo-colors",
+ "pest",
+ "pest_derive",
  "remu_macro",
  "snafu",
 ]

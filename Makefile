@@ -66,22 +66,31 @@ menuconfig-static:
 menuconfig-dynamic:
 	@$(MAKE) -C ./config menuconfig-dynamic
 
-config_dependencies: menuconfig-static menuconfig-dynamic
+menuconfig-static-conditional:
+	@$(MAKE) -C ./config menuconfig-static-conditional
+
+menuconfig-dynamic-conditional:
+	@$(MAKE) -C ./config menuconfig-dynamic-conditional
+
+config_dependencies: menuconfig-static-conditional menuconfig-dynamic-conditional
 
 clean: 
 	@cargo clean
 
-clean-all: clean
+clean-config:
 	@$(MAKE) -C ./config clean
 
-run : menuconfig-static menuconfig-dynamic
+
+clean-all: clean clean-config
+
+run : config_dependencies
 	@cargo run $(Job) --release --bin core -- $(Mainargs) $(ExtraArgs)
 
-debug : menuconfig-static menuconfig-dynamic
+debug : config_dependencies
 	@RUST_BACKTRACE=full cargo run $(Job) --bin core -- $(Debugargs)
 
 fmt :
 	@cargo fmt --all 
 
-.PHONY: default config_dependencies menuconfig-static menuconfig-dynamic clean clean-all run debug fmt
+.PHONY: default config_dependencies menuconfig-static menuconfig-dynamic clean clean-config clean-all run debug fmt
 

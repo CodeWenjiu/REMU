@@ -5,3 +5,4 @@ source "dynamic/region/Kconfig"
 source "dynamic/debug/Kconfig"
 
 source "dynamic/base/Kconfig"
+ 
