@@ -9,3 +9,6 @@ waveform.fst
 .bsp
 .scala-build
 commitmsg.txt
+flamegraph.svg
+perf.data
+perf.data.old
