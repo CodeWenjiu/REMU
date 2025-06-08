@@ -9,16 +9,21 @@ curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh
 wget -qO- https://apt.llvm.org/llvm.sh | sudo bash -s -- 18
 ```
 
-- install kconfiglib toml
+- install python kconfiglib
 ```bash
-pip install kconfiglib toml
+pip install kconfiglib
 ```
 
 - run the following commands
 ```bash
-make menuconfig # do nothing and save&exit
 cargo clean # optional
-cargo run
+cargo run # will enter config menu if config file not exist
+```
+
+- enter config menu
+```bash
+make menuconfig-static # control marco
+make menuconfig-dynamic # control dynamic config
 ```
 
 # Key map
