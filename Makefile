@@ -95,5 +95,17 @@ debug : config_dependencies
 fmt :
 	@cargo fmt --all 
 
-.PHONY: default config_dependencies menuconfig-static menuconfig-dynamic menuconfig clean clean-config clean-all run debug fmt
+# chore
+fetch:
+	@onefetch
+
+CommitMsg = commitmsg.txt
+
+$(CommitMsg):
+	git log --pretty=format:"%at|%s" --reverse --no-merges > commitmsg.txt
+
+gource: $(CommitMsg)
+	@gource --load-config ./gource.ini 
+
+.PHONY: default config_dependencies menuconfig-static menuconfig-dynamic menuconfig clean clean-config clean-all run debug fmt fetch gource
 
