@@ -28,7 +28,6 @@ impl DifftestManager {
         let ref_callback = SimulatorCallback::new(
             Box::new(|_: u32, _: u32, _: u32| Ok(())),
             Box::new(|| {}),
-            Box::new(|_: u32, _: u32| {}),
             Box::new(|| {}),
         );
 

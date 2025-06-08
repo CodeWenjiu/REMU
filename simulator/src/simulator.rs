@@ -8,7 +8,6 @@ use clap::Subcommand;
 use enum_dispatch::enum_dispatch;
 use logger::Logger;
 use option_parser::OptionParser;
-use owo_colors::OwoColorize;
 use remu_buildin::get_buildin_img;
 use remu_macro::{log_err, log_error, log_todo};
 use remu_utils::{DifftestRef, Disassembler, EmuSimulators, ProcessError, ProcessResult, Simulators};
@@ -65,7 +64,6 @@ impl SimulatorEnum {
 pub struct SimulatorCallback {
     pub instruction_complete: Box<dyn FnMut(u32, u32, u32) -> ProcessResult<()>>,
     pub difftest_skip: Box<dyn Fn()>,
-    pub decode_failed: Box<dyn Fn(u32, u32)>,
     pub trap: Box<dyn Fn()>,
 }
 
@@ -73,13 +71,11 @@ impl SimulatorCallback {
     pub fn new(
         instruction_complete: Box<dyn FnMut(u32, u32, u32) -> ProcessResult<()>>,
         difftest_skip: Box<dyn Fn()>,
-        decode_failed: Box<dyn Fn(u32, u32)>,
         trap: Box<dyn Fn()>,
     ) -> Self {
         Self {
             instruction_complete,
             difftest_skip,
-            decode_failed,
             trap,
         }
     }
@@ -188,11 +184,6 @@ impl Simulator {
             })
         };
 
-        let decode_failed_callback = Box::new(|pc: u32, inst: u32| {
-            Logger::show("Decode Failed", Logger::ERROR);
-            println!("0x{:08x}: 0x{:08x}", pc.blue(), inst.purple());
-        });
-
         let trap_callback = {
             let states_dut = states_dut.clone();
             let simulator_state = simulator_state.clone();
@@ -208,7 +199,6 @@ impl Simulator {
         let dut_callback = SimulatorCallback::new(
             instruction_complete_callback,
             difftest_skip_callback,
-            decode_failed_callback,
             trap_callback,
         );
         let dut = SimulatorEnum::new(option, states_dut.clone(), dut_callback);
