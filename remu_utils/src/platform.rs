@@ -183,7 +183,7 @@ impl DifftestRef {
         if Path::new(path).exists() {
             Ok(DifftestRef::FFI(path))
         } else {
-            Err(format!("FFI path: {} not found", path))
+            Err(format!("FFI path: {} not found while not an valid buildin ref", path))
         }
     }
 }
