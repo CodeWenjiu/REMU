@@ -4,7 +4,6 @@ version = "0.1.0"
 edition = "2024"
 license = "MIT"
 authors = [ "wenjiu <27843087979@qq.com>" ]
-build = "build.rs"
 
 [dependencies]
 remu_macro = { path = "../remu_macro" }
@@ -22,6 +21,3 @@ petgraph = {workspace = true}
 dlopen2 = "0.8.0"
 once_cell = "1.21.3"
 ctrlc = "3.4.5"
-
-[build-dependencies]
-bindgen = "0.71.1"
