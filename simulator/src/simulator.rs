@@ -11,7 +11,7 @@ use logger::Logger;
 use option_parser::OptionParser;
 use remu_buildin::get_buildin_img;
 use remu_macro::{log_err, log_error, log_todo};
-use remu_utils::{DifftestRef, EmuSimulators, ProcessError, ProcessResult, Simulators};
+use remu_utils::{DifftestRef, EmuSimulators, ItraceConfigtionalWrapper, ProcessError, ProcessResult, Simulators};
 use state::{reg::RegfileIo, States};
 
 use crate::{
@@ -93,7 +93,6 @@ pub enum SimulatorState {
 cfg_if! {
     if #[cfg(feature = "ITRACE")] {
         use crate::TraceFunction;
-        use remu_utils::Disassembler;
     } else {
         use logger::FeatureState;
     }
@@ -109,8 +108,7 @@ pub struct Simulator {
     pub difftest_manager: Option<Rc<RefCell<DifftestManager>>>,
     pub tracer: Rc<RefCell<Tracer>>,
 
-    #[cfg(feature = "ITRACE")]
-    pub disassembler: Rc<RefCell<Disassembler>>,
+    pub conditional: ItraceConfigtionalWrapper,
     pub debug_config: SimulatorDebugConfig,
 }
 
@@ -125,18 +123,15 @@ impl Simulator {
 
         states_ref: States,
 
-        #[cfg(feature = "ITRACE")]
-        disasm: Rc<RefCell<Disassembler>>,
+        conditional: ItraceConfigtionalWrapper,
     ) -> Result<Self, SimulatorError> {
         let debug_config = &option.cfg.debug_config;
-
-        #[cfg(feature = "ITRACE")]
-        let itrace = debug_config.itrace_enable;
         
         let wavetrace = debug_config.wave_trace_enable;
 
         cfg_if!{
             if #[cfg(feature = "ITRACE")] {
+                let itrace = debug_config.itrace_enable;
                 Logger::function("ITrace", itrace.into());
             } else {
                 Logger::function("ITrace", FeatureState::Disabled);
@@ -151,8 +146,7 @@ impl Simulator {
         let tracer = Rc::new(RefCell::new(Tracer::new(
             #[cfg(feature = "ITRACE")]
             itrace,
-            #[cfg(feature = "ITRACE")]
-            disasm.clone(),
+            conditional.clone(),
         )));
 
         let difftest_manager = option.cli.differtest.as_ref().map(|_| {
@@ -246,8 +240,7 @@ impl Simulator {
             states_ref,
             difftest_manager,
             tracer,
-            #[cfg(feature = "ITRACE")]
-            disassembler: disasm,
+            conditional,
             debug_config,
         })
     }

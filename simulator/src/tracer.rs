@@ -1,11 +1,9 @@
 use cfg_if::cfg_if;
 use owo_colors::OwoColorize;
-use remu_utils::{ProcessError, ProcessResult};
+use remu_utils::{ItraceConfigtionalWrapper, ProcessError, ProcessResult};
 
 cfg_if! {
     if #[cfg(feature = "ITRACE")] {
-        use remu_utils::Disassembler;
-        use std::{cell::RefCell, rc::Rc};
     }
 }
 
@@ -19,31 +17,23 @@ pub enum TraceFunction {
 pub struct Tracer {
     #[cfg(feature = "ITRACE")]
     pub instruction_trace_enable: bool,
-    #[cfg(feature = "ITRACE")]
-    pub disassembler: Rc<RefCell<Disassembler>>,
+    
+    pub conditional: ItraceConfigtionalWrapper,
 
     pub breakpoints: Vec<u32>,
 }
 
 impl Tracer {
-    cfg_if! {
-        if #[cfg(feature = "ITRACE")] {
-            pub fn new(
-                instruction_trace_enable: bool,
-                disassembler: Rc<RefCell<Disassembler>>
-            ) -> Self {
-                Self {
-                    instruction_trace_enable,
-                    disassembler,
-                    breakpoints: Vec::new(),
-                }
-            }
-        } else {
-            pub fn new() -> Self {
-                Self {
-                    breakpoints: Vec::new(),
-                }
-            }
+    pub fn new(
+        #[cfg(feature = "ITRACE")]
+        instruction_trace_enable: bool,
+        conditional: ItraceConfigtionalWrapper,
+    ) -> Self {
+        Self {
+            #[cfg(feature = "ITRACE")]
+            instruction_trace_enable,
+            conditional,
+            breakpoints: Vec::new(),
         }
     }
 
@@ -53,7 +43,7 @@ impl Tracer {
             println!(
                 "0x{:08x}: {}",
                 pc.blue(),
-                self.disassembler.borrow().try_analize(inst, pc).purple()
+                self.conditional.disassembler.borrow().try_analize(inst, pc).purple()
             );
         }
     }
@@ -106,8 +96,8 @@ impl Tracer {
         }
     }
 
-    #[cfg(feature = "ITRACE")]
     pub fn trace(&self, pc: u32, inst: u32) -> ProcessResult<()> {
+        #[cfg(feature = "ITRACE")]
         self.instruction_trace(pc, inst);
 
         Ok(())

@@ -41,8 +41,7 @@ impl SimpleDebugger {
                     print!("{:#010x}: {:#010x}\t",
                         (addr + i).blue(), data.green());
                     
-                    #[cfg(feature = "ITRACE")]
-                    print!("{}", self.disassembler.borrow().try_analize(data, addr + i).magenta());
+                    self.conditional.try_analize(data, addr + i);
 
                     println!();
                 }
@@ -230,9 +229,8 @@ impl SimpleDebugger {
                     print!("{:#010x}: {:#010x}\t",
                         (addr + i).blue(), data.green());
                     
-                    #[cfg(feature = "ITRACE")]
-                    print!("{}", self.disassembler.borrow().try_analize(data, addr + i).magenta());
-
+                    self.conditional.try_analize(data, addr + i);
+                    
                     println!();
                 }
             }
