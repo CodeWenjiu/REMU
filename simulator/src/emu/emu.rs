@@ -6,7 +6,7 @@ use remu_macro::log_error;
 use remu_utils::{ProcessResult, ISA};
 use state::States;
 
-use crate::SimulatorCallback;
+use crate::{emu::isa::riscv::Pipeline, SimulatorCallback};
 
 use super::isa::riscv::instruction::RISCV;
 
@@ -89,6 +89,9 @@ pub struct Emu {
 
     /// Emulator times
     pub times: EmuTimes,
+
+    /// Pipeline
+    pub pipeline: Pipeline
 }
 
 impl Emu {
@@ -104,6 +107,7 @@ impl Emu {
                 cycles: 0,
                 instructions: 0,
             },
+            pipeline: Pipeline::new(),
         }
     }
 

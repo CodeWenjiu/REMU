@@ -15,7 +15,7 @@ pub enum WbCtrl{
     Csr,
 }
 
-#[derive(Default)]
+#[derive(Default, Clone)]
 pub struct ToWbStage {
     pub pc: u32,
     pub result: u32,

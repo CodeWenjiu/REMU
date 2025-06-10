@@ -22,7 +22,7 @@ pub enum LsCtrl {
     Sw,
 }
 
-#[derive(Default)]
+#[derive(Default, Clone)]
 pub struct ToLsStage {
     pub pc: u32,
     pub ls_ctrl: LsCtrl,

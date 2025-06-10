@@ -15,7 +15,7 @@ use remu_utils::{DifftestRef, EmuSimulators, ItraceConfigtionalWrapper, ProcessE
 use state::{reg::RegfileIo, States};
 
 use crate::{
-    difftest_ref::DifftestManager, emu::EmuWrapper, nzea::Nzea, DirectlyMap, SingleCycle, Tracer
+    difftest_ref::DifftestManager, emu::EmuWrapper, nzea::Nzea, DirectlyMap, Pipeline, SingleCycle, Tracer
 };
 
 #[derive(Debug, Subcommand)]
@@ -39,6 +39,7 @@ pub trait SimulatorItem {
 pub enum SimulatorEnum {
     EmuDirectMap(EmuWrapper<DirectlyMap>),
     EmuSingleCycle(EmuWrapper<SingleCycle>),
+    EmuPipeline(EmuWrapper<Pipeline>),
     NZEA(Nzea),
 }
 

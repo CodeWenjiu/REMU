@@ -47,7 +47,7 @@ pub enum AlCtrl {
     Remu,
 }
 
-#[derive(Default)]
+#[derive(Default, Clone)]
 pub struct ToAlStage {
     pub pc: u32,
 
