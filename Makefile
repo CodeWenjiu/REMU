@@ -13,6 +13,9 @@ Platform_rv32im_emu_dm_alias = riscv32-emu-dm
 Platform_rv32im_emu_sc = rv32im-emu-sc
 Platform_rv32im_emu_sc_alias = riscv32-emu-sc
 
+Platform_rv32im_emu_pl = rv32im-emu-pl
+Platform_rv32im_emu_pl_alias = riscv32-emu-pl
+
 Platform_rv32e_emu = rv32e-emu-dm
 Platform_emu_default = $(Platform_rv32im_emu_dm)
 
@@ -22,7 +25,9 @@ Platform_Nzea_jyd_remote = rv32i-nzea-jyd_remote
 
 Platform ?= $(Platform_emu_default)
 
-PLATFORMS = $(Platform_rv32im_emu_dm) $(Platform_rv32im_emu_dm_alias) $(Platform_rv32im_emu_sc) $(Platform_rv32im_emu_sc_alias) $(Platform_rv32e_emu) $(Platform_Nzea_npc) $(Platform_Nzea_ysyxsoc) $(Platform_Nzea_jyd_remote)
+PLATFORMS = $(Platform_rv32im_emu_dm) $(Platform_rv32im_emu_dm_alias) $(Platform_rv32im_emu_sc) \
+	$(Platform_rv32im_emu_sc_alias) $(Platform_rv32im_emu_pl) $(Platform_rv32im_emu_pl_alias) \
+	$(Platform_rv32e_emu) $(Platform_Nzea_npc) $(Platform_Nzea_ysyxsoc) $(Platform_Nzea_jyd_remote)
 
 # Config
 

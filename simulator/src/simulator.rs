@@ -58,6 +58,7 @@ impl SimulatorEnum {
                 match target {
                     EmuSimulators::DM => SimulatorEnum::EmuDirectMap(EmuWrapper::<DirectlyMap>::new(option, states, callback)),
                     EmuSimulators::SC => SimulatorEnum::EmuSingleCycle(EmuWrapper::<SingleCycle>::new(option, states, callback)),
+                    EmuSimulators::PL => SimulatorEnum::EmuPipeline(EmuWrapper::<Pipeline>::new(option, states, callback)),
                 },
             Simulators::NZEA(_) => SimulatorEnum::NZEA(Nzea::new(option, states, callback)),
         }

@@ -41,6 +41,7 @@ impl FromStr for ISA {
 pub enum EmuSimulators {
     DM,
     SC,
+    PL,
 }
 
 impl From<EmuSimulators> for &str {
@@ -48,6 +49,7 @@ impl From<EmuSimulators> for &str {
         match sim {
             EmuSimulators::DM => "Dm",
             EmuSimulators::SC => "Sc",
+            EmuSimulators::PL => "Pl",
         }
     }
 }
@@ -59,6 +61,7 @@ impl FromStr for EmuSimulators {
         match s {
             "dm" => Ok(EmuSimulators::DM),
             "sc" => Ok(EmuSimulators::SC),
+            "pl" => Ok(EmuSimulators::PL),
             _ => Err("Unknown Remu Simulator".into()),
         }
     }
