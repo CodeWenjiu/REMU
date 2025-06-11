@@ -5,11 +5,11 @@ use remu_macro::log_err;
 use remu_utils::{ProcessError, ProcessResult};
 use state::{reg::{AnyRegfile, RegfileIo}, CheckFlags4reg, States};
 
-use crate::SimulatorCallback;
+use crate::{difftest_ref::DifftestRefPipelineApi, SimulatorCallback};
 
 use super::{AnyDifftestRef, DifftestRefSingleCycleApi, DifftestRefFfiApi};
 
-pub struct DifftestManager {
+pub struct DifftestSingleCycleManager {
     pub reference: AnyDifftestRef,
     pub states_ref: States,
     pub states_dut: States,
@@ -18,7 +18,11 @@ pub struct DifftestManager {
     is_diff_skip: bool,
 }
 
-impl DifftestManager {
+pub enum DifftestManager {
+    SingleCycle(DifftestSingleCycleManager),
+}
+
+impl DifftestSingleCycleManager {
     pub fn new(
         option: &OptionParser,
         states_dut: States,
@@ -68,6 +72,12 @@ impl DifftestManager {
                 reference.test_mem(mem_diff_msg)?;
             }
 
+            AnyDifftestRef::Pipeline(reference) => {
+                reference.step_cycle()?;
+                reference.instruction_fetch_enable();
+                reference.load_store_enable();
+            }
+
         }
 
         Ok(())
@@ -84,12 +94,16 @@ impl DifftestManager {
     pub fn step_skip(&mut self) {
         self.is_diff_skip = false;
         match &mut self.reference {
+            AnyDifftestRef::FFI(reference) => {
+                reference.set_ref(&self.states_dut.regfile);
+            }
+
             AnyDifftestRef::SingleCycle(_reference) => {
                 self.states_ref.regfile.sync_reg(&self.states_dut.regfile);
             }
 
-            AnyDifftestRef::FFI(reference) => {
-                reference.set_ref(&self.states_dut.regfile);
+            AnyDifftestRef::Pipeline(_reference) => {
+                self.states_ref.regfile.sync_reg(&self.states_dut.regfile);
             }
         }
     }

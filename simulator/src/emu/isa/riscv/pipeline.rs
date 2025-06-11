@@ -1,4 +1,4 @@
-use remu_macro::{log_debug, log_error};
+use remu_macro::log_error;
 use logger::Logger;
 use remu_utils::{ProcessError, ProcessResult};
 use state::model::BaseStageCell;
@@ -80,7 +80,7 @@ impl Pipeline {
         false
     }
 
-    fn flush_if_need(&self, next_pc: u32) -> bool {
+    fn is_flush_need(&self, next_pc: u32) -> bool {
         let (to_al, al_valid) = &self.stages.is_al;
         let (to_ls, ls_valid) = &self.stages.is_ls;
         let (to_is, is_valid) = &self.stages.id_is;
@@ -104,6 +104,22 @@ impl Pipeline {
 
         false
     }
+
+    fn flush_if_need(&mut self, next_pc: u32) -> bool {
+        let need = self.is_flush_need(next_pc);
+
+        if need {
+            self.stages.ex_wb.1 = false;
+            self.stages.is_ls.1 = false;
+            self.stages.is_al.1 = false;
+            self.stages.id_is.1 = false;
+            self.stages.if_id.1 = false;
+
+            self.pipeline_pc = next_pc;
+        }
+
+        need
+    }
 }
 
 impl Emu {
@@ -118,8 +134,15 @@ impl Emu {
     pub fn self_step_cycle_pipeline(&mut self) -> ProcessResult<()> {
         self.self_pipeline_ifena();
         self.self_pipeline_lsena();
+
+        self.self_step_cycle_pipeline_without_enable()
+    }
+
+    pub fn self_step_cycle_pipeline_without_enable(&mut self) -> ProcessResult<()> {
         self.self_pipeline_update()?;
         self.states.pipe_state.update()?;
+
+        self.times.cycles += 1;
 
         Ok(())
     }
@@ -134,12 +157,13 @@ impl Emu {
 
             if self.pipeline.flush_if_need(next_pc) {
                 self.states.pipe_state.flush();
-                log_debug!("flush");
+                (self.callback.instruction_complete)(pc, next_pc, inst)?;
                 return Ok(());
             }
 
             self.pipeline.stages.ex_wb.1 = false;
             
+            self.times.instructions += 1;
             (self.callback.instruction_complete)(pc, next_pc, inst)?;
         }
 

@@ -1,10 +1,10 @@
 use option_parser::OptionParser;
 use logger::Logger;
 use remu_macro::log_todo;
-use remu_utils::{DifftestBuildIn, DifftestRef, ProcessResult};
+use remu_utils::{DifftestPipeline, DifftestRef, DifftestSingleCycle, ProcessResult};
 use state::{reg::AnyRegfile, States};
 
-use crate::{emu::EmuWrapper, DirectlyMap, SimulatorCallback};
+use crate::{emu::EmuWrapper, DirectlyMap, Pipeline, SimulatorCallback};
 
 use enum_dispatch::enum_dispatch;
 
@@ -44,17 +44,34 @@ pub trait DifftestRefSingleCycleApi {
     fn instruction_compelete(&mut self) -> ProcessResult<()>;
 }
 
+#[enum_dispatch]
+pub enum AnyDifftestPipelineRef {
+    EMU(EmuWrapper<Pipeline>),
+}
+
+#[enum_dispatch(AnyDifftestPipelineRef)]
+pub trait DifftestRefPipelineApi {
+    fn step_cycle(&mut self) -> ProcessResult<()>;
+
+    fn instruction_fetch_enable(&mut self);
+    fn load_store_enable(&mut self);
+}
+
 pub enum AnyDifftestRef {
     FFI(AnyDifftestFfiRef),
     SingleCycle(AnyDifftestSingleCycleRef),
+    Pipeline(AnyDifftestPipelineRef),
 }
 
 impl AnyDifftestRef {
     pub fn new(option: &OptionParser, states: States, callback: SimulatorCallback) -> Self {
         let r#ref = option.cli.differtest.unwrap();
         match r#ref {
-            DifftestRef::BuildIn(ref r#ref) => match r#ref {
-                DifftestBuildIn::EMU => AnyDifftestRef::SingleCycle(AnyDifftestSingleCycleRef::EMU(EmuWrapper::<DirectlyMap>::new(option, states, callback))),
+            DifftestRef::SingleCycle(ref r#ref) => match r#ref {
+                DifftestSingleCycle::EMU => AnyDifftestRef::SingleCycle(AnyDifftestSingleCycleRef::EMU(EmuWrapper::<DirectlyMap>::new(option, states, callback))),
+            },
+            DifftestRef::Pipeline(ref r#ref) => match r#ref {
+                DifftestPipeline::EMU => AnyDifftestRef::Pipeline(AnyDifftestPipelineRef::EMU(EmuWrapper::<Pipeline>::new(option, states, callback))),
             },
             DifftestRef::FFI(so_path) => AnyDifftestRef::FFI(AnyDifftestFfiRef::TARGET(FFI::new(&so_path))),
         }

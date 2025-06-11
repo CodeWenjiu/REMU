@@ -2,7 +2,7 @@ use logger::Logger;
 use owo_colors::OwoColorize;
 use remu_macro::{log_err, log_todo, log_warn};
 use remu_utils::{ProcessError, ProcessResult};
-use simulator::SimulatorItem;
+use simulator::{difftest_ref::DifftestManager, SimulatorItem};
 use state::{mmu::Mask, reg::RegfileIo};
 
 use crate::{cmd_parser::{BreakPointCmds, Cmds, DiffertestCmds, FunctionCmds, InfoCmds, MemorySetCmds, RegisterInfoCmds, RegisterSetCmds, SetCmds, StepCmds}, SimpleDebugger};
@@ -175,13 +175,17 @@ impl SimpleDebugger {
                     Some(addr) => {
                         let addr = log_err!(self.eval_expr(&addr), ProcessError::Recoverable)?;
                         self.simulator.difftest_manager.as_ref().map(|man| {
-                            man.borrow_mut().push_memory_watch_point(addr);
+                            match &mut *man.borrow_mut() {
+                                DifftestManager::SingleCycle(mgr) => mgr.push_memory_watch_point(addr),
+                            }
                         });
                     }
 
                     None => {
                         self.simulator.difftest_manager.as_ref().map(|man| {
-                            man.borrow_mut().show_memory_watch_point();
+                            match &mut *man.borrow_mut() {
+                                DifftestManager::SingleCycle(mgr) => mgr.show_memory_watch_point(),
+                            }
                         });
                     }
                 }

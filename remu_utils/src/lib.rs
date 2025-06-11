@@ -26,6 +26,12 @@ impl ItraceConfigtionalWrapper {
 
     pub fn try_analize(&self, _data: u32, _addr: u32) {
         #[cfg(feature = "ITRACE")]
-        print!("{}", self.disassembler.borrow().try_analize(_data, _addr).magenta());
+        print!(
+            "{}",
+            self.disassembler
+                .borrow()
+                .try_analize(_data, _addr)
+                .magenta()
+        );
     }
 }

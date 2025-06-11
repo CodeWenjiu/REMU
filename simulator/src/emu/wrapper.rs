@@ -2,7 +2,7 @@ use option_parser::OptionParser;
 use remu_utils::ProcessResult;
 use state::States;
 
-use crate::{difftest_ref::DifftestRefSingleCycleApi, DirectlyMap, Pipeline, SimulatorCallback, SimulatorItem, SingleCycle};
+use crate::{difftest_ref::{DifftestRefPipelineApi, DifftestRefSingleCycleApi}, DirectlyMap, Pipeline, SimulatorCallback, SimulatorItem, SingleCycle};
 
 use super::Emu;
 
@@ -44,9 +44,30 @@ impl DifftestRefSingleCycleDrive for SingleCycle {
     }
 }
 
+pub trait DifftestRefPipelineDrive {
+    fn step_cycle(emu: &mut Emu) -> ProcessResult<()>;
+
+    fn instruction_fetch_enable(emu: &mut Emu);
+    fn load_store_enable(emu: &mut Emu);
+}
+
+impl DifftestRefPipelineDrive for Pipeline {
+    fn step_cycle(emu: &mut Emu) -> ProcessResult<()> {
+        emu.self_step_cycle_pipeline_without_enable()
+    }
+
+    fn instruction_fetch_enable(emu: &mut Emu) {
+        emu.self_pipeline_ifena();
+    }
+
+    fn load_store_enable(emu: &mut Emu) {
+        emu.self_pipeline_lsena();
+    }
+}
+
 pub trait SimulatorDriver {}
 
-impl<T: SimulatorDrive + DifftestRefSingleCycleDrive> SimulatorDriver for T {}
+impl<T: SimulatorDrive + DifftestRefSingleCycleDrive + DifftestRefPipelineDrive> SimulatorDriver for T {}
 
 pub struct EmuWrapper<V> {
     emu: Emu,
@@ -70,6 +91,20 @@ impl<V: SimulatorDrive> SimulatorItem for EmuWrapper<V> {
 impl<V: DifftestRefSingleCycleDrive> DifftestRefSingleCycleApi for EmuWrapper<V> {
     fn instruction_compelete(&mut self) -> ProcessResult<()> {
         V::instruction_compelete(&mut self.emu)
+    }
+}
+
+impl<V: DifftestRefPipelineDrive> DifftestRefPipelineApi for EmuWrapper<V> {
+    fn step_cycle(&mut self) -> ProcessResult<()> {
+        V::step_cycle(&mut self.emu)
+    }
+
+    fn instruction_fetch_enable(&mut self) {
+        V::instruction_fetch_enable(&mut self.emu)
+    }
+
+    fn load_store_enable(&mut self) {
+        V::load_store_enable(&mut self.emu)
     }
 }
 

@@ -15,7 +15,7 @@ use remu_utils::{DifftestRef, EmuSimulators, ItraceConfigtionalWrapper, ProcessE
 use state::{reg::RegfileIo, States};
 
 use crate::{
-    difftest_ref::DifftestManager, emu::EmuWrapper, nzea::Nzea, DirectlyMap, Pipeline, SingleCycle, Tracer
+    difftest_ref::{DifftestManager, DifftestSingleCycleManager}, emu::EmuWrapper, nzea::Nzea, DirectlyMap, Pipeline, SingleCycle, Tracer
 };
 
 #[derive(Debug, Subcommand)]
@@ -153,10 +153,12 @@ impl Simulator {
 
         let difftest_manager = option.cli.differtest.as_ref().map(|_| {
             Rc::new(RefCell::new(
-                DifftestManager::new(
-                    option,
-                    states_dut.clone(),
-                    states_ref.clone(),
+                DifftestManager::SingleCycle(
+                    DifftestSingleCycleManager::new(
+                        option,
+                        states_dut.clone(),
+                        states_ref.clone(),
+                    )
                 )
             ))
         });
@@ -180,9 +182,12 @@ impl Simulator {
 
                 difftest_manager
                     .as_ref()
-                    .map(|mgr| 
-                        mgr.borrow_mut().step()
-                    ).transpose()?;
+                    .map(|mgr| {
+                        let mut mgr = mgr.borrow_mut();
+                        match &mut *mgr {
+                            DifftestManager::SingleCycle(mgr) => mgr.step(),
+                        }
+                    }).transpose()?;
 
                 tracer.borrow().check_breakpoint(next_pc)?;
 
@@ -202,7 +207,10 @@ impl Simulator {
             let difftest_manager = difftest_manager.clone();
             Box::new(move || {
                 if let Some(mgr) = difftest_manager.as_ref() {
-                    mgr.borrow_mut().skip();
+                    let mut mgr = mgr.borrow_mut();
+                    match &mut *mgr {
+                        DifftestManager::SingleCycle(mgr) => mgr.skip(),
+                    }
                 }
             })
         };
@@ -260,7 +268,7 @@ impl Simulator {
             log_err!(self.states_dut.mmu.load(bin.load_addr, &bytes)).unwrap();
 
             match cli_result.cli.differtest {
-                Some(DifftestRef::BuildIn(_)) => {
+                Some(DifftestRef::SingleCycle(_)) => {
                     log_err!(self.states_ref.mmu.load(0x80100000, &bytes)).unwrap();
                 }
 
@@ -305,11 +313,16 @@ impl Simulator {
         log_err!(self.states_dut.mmu.load(reset_vector, &bytes)).unwrap();
 
         match cli_result.cli.differtest {
-            Some(DifftestRef::BuildIn(_)) => {
+            Some(DifftestRef::SingleCycle(_)) => {
+                log_err!(self.states_ref.mmu.load(reset_vector, &bytes)).unwrap();
+            }
+            Some(DifftestRef::Pipeline(_)) => {
                 log_err!(self.states_ref.mmu.load(reset_vector, &bytes)).unwrap();
             }
             Some(DifftestRef::FFI(_)) => {
-                self.difftest_manager.as_ref().unwrap().borrow_mut().init(&self.states_dut.regfile, bytes, reset_vector);
+                match &mut *self.difftest_manager.as_ref().unwrap().borrow_mut() {
+                    DifftestManager::SingleCycle(mgr) => mgr.init(&self.states_dut.regfile, bytes, reset_vector),
+                }
             }
             None => ()
         }

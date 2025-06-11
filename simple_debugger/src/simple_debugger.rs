@@ -74,7 +74,7 @@ impl SimpleDebugger {
         let mut state = States::new(isa, reset_vector, StageModel::default()).unwrap();
         let mut state_ref = state.clone();
 
-        if let Some(DifftestRef::BuildIn(_)) = cli_result.cli.differtest {
+        if let Some(DifftestRef::SingleCycle(_)) = cli_result.cli.differtest {
             state_ref = States::new(isa, reset_vector, StageModel::default()).unwrap();
         }
 
@@ -88,7 +88,7 @@ impl SimpleDebugger {
             ))
             .unwrap();
 
-            if let Some(DifftestRef::BuildIn(_)) = cli_result.cli.differtest {
+            if let Some(DifftestRef::SingleCycle(_)) = cli_result.cli.differtest {
                 log_err!(state_ref.mmu.add_region(
                     region.base,
                     region.size,

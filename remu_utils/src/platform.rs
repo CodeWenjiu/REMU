@@ -134,22 +134,45 @@ impl FromStr for Simulators {
 }
 
 #[derive(Debug, Clone, Copy)]
-pub enum DifftestBuildIn {
+pub enum DifftestSingleCycle {
     EMU,
 }
 
-impl std::fmt::Display for DifftestBuildIn {
+impl std::fmt::Display for DifftestSingleCycle {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            DifftestBuildIn::EMU => write!(f, "emu"),
+            DifftestSingleCycle::EMU => write!(f, "emu-sc"),
         }
     }
 }
 
-impl From<DifftestBuildIn> for &str {
-    fn from(sim: DifftestBuildIn) -> Self {
+impl From<DifftestSingleCycle> for &str {
+    fn from(sim: DifftestSingleCycle) -> Self {
         match sim {
-            DifftestBuildIn::EMU => "emu",
+            DifftestSingleCycle::EMU => "emu-sc",
+        }
+    }
+}
+
+#[derive(Debug, Clone, Copy)]
+pub enum DifftestPipeline {
+    EMU,
+}
+
+impl std::fmt::Display for DifftestPipeline {
+
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            DifftestPipeline::EMU => write!(f, "emu-pl"),
+        }
+    }
+}
+
+impl From<DifftestPipeline> for &str {
+
+    fn from(sim: DifftestPipeline) -> Self {
+        match sim {
+            DifftestPipeline::EMU => "emu-pl",
         }
     }
 }
@@ -177,7 +200,8 @@ impl From<DifftestFFI> for &str {
 
 #[derive(Debug, Clone, Copy)]
 pub enum DifftestRef {
-    BuildIn(DifftestBuildIn),
+    SingleCycle(DifftestSingleCycle),
+    Pipeline(DifftestPipeline),
     FFI(&'static str),
 }
 
@@ -194,7 +218,8 @@ impl DifftestRef {
 impl std::fmt::Display for DifftestRef {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            DifftestRef::BuildIn(sim) => write!(f, "{}", sim),
+            DifftestRef::SingleCycle(sim) => write!(f, "{}", sim),
+            DifftestRef::Pipeline(sim) => write!(f, "{}", sim),
             DifftestRef::FFI(sim) => write!(f, "{}", sim),
         }
     }
@@ -203,7 +228,8 @@ impl std::fmt::Display for DifftestRef {
 impl From<DifftestRef> for String {
     fn from(sim: DifftestRef) -> Self {
         match sim {
-            DifftestRef::BuildIn(sim) => Into::<&str>::into(sim).to_string(),
+            DifftestRef::SingleCycle(sim) => Into::<&str>::into(sim).to_string(),
+            DifftestRef::Pipeline(sim) => Into::<&str>::into(sim).to_string(),
             DifftestRef::FFI(sim) => sim.to_owned(),
         }
     }
@@ -214,7 +240,8 @@ impl FromStr for DifftestRef {
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         match s {
-            "emu" => Ok(DifftestRef::BuildIn(DifftestBuildIn::EMU)),
+            "emu-sc" => Ok(DifftestRef::SingleCycle(DifftestSingleCycle::EMU)),
+            "emu-pl" => Ok(DifftestRef::Pipeline(DifftestPipeline::EMU)),
             path => DifftestRef::new_ffi(path.to_string().leak())
                 .map_err(|e| e.into())
         }
