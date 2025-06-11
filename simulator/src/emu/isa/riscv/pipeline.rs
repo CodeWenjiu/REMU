@@ -87,23 +87,19 @@ impl Pipeline {
         let (to_id, id_valid) = &self.stages.if_id;
 
         if *al_valid {
-            log_debug!("flush if need al");
-            return to_al.pc == next_pc;
+            return to_al.pc != next_pc;
         }
 
         if *ls_valid {
-            log_debug!("flush if need ls");
-            return to_ls.pc == next_pc;
+            return to_ls.pc != next_pc;
         }
 
         if *is_valid {
-            log_debug!("flush if need is");
-            return to_is.pc == next_pc;
+            return to_is.pc != next_pc;
         }
 
         if *id_valid {
-            log_debug!("flush if need id");
-            return to_id.pc == next_pc;
+            return to_id.pc != next_pc;
         }
 
         false

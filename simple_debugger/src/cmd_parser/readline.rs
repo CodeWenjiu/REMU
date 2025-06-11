@@ -73,8 +73,6 @@ impl CmdCompleter {
                 })
                 .unwrap_or(vec![]);
         
-        // let parts: Vec<&str> = line[..pos].split_whitespace().collect();
-        
         if parts.is_empty() {
             return Ok((0, self.get_subcommands(0.into())));
         }
