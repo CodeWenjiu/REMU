@@ -107,7 +107,7 @@ impl Emu {
                 cycles: 0,
                 instructions: 0,
             },
-            pipeline: Pipeline::new(),
+            pipeline: Pipeline::new(option.cfg.platform_config.reset_vector),
         }
     }
 
