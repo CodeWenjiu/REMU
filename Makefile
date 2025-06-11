@@ -54,6 +54,8 @@ Default_FFI_Path = $(abspath ./remu_buildin/difftest_ref)
 
 Difftest_FFI_Spike = $(Default_FFI_Path)/riscv32-spike-so
 
+Difftest_BUILDIN_emu = emu
+
 # Mainargs
 
 Mainargs = $(BinCommand) $(AdditionalBinCommand) \
@@ -61,7 +63,7 @@ Mainargs = $(BinCommand) $(AdditionalBinCommand) \
     -c $(abspath $(ConfigFile))
     
 ExtraArgs ?=
-Debugargs = $(Mainargs) -d $(Difftest_FFI_Spike) #--log
+Debugargs = $(Mainargs) -d $(Difftest_BUILDIN_emu) #--log
 
 default: print_binfile run
 
