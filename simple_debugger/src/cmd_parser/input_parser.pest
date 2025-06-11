@@ -16,4 +16,4 @@ term = {(cmd | expr_full)+}
 
 term_cell = _{ term | "(" ~ term ~ ")" }
 
-cmd_full = _{ term_cell ~ ("&&" ~ term_cell)* }
+cmd_full = _{ (WHITESPACE)* ~ term_cell* ~ ("&&" ~ term_cell)* }

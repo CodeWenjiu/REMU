@@ -1,6 +1,6 @@
 use std::borrow::Cow::{self, Borrowed, Owned};
-
 use owo_colors::OwoColorize;
+use pest::Parser;
 use petgraph::graph::NodeIndex;
 use petgraph::Graph;
 use rustyline::completion::{Completer, Pair};
@@ -10,6 +10,9 @@ use rustyline::hint::HistoryHinter;
 use rustyline::validate::MatchingBracketValidator;
 use rustyline::Context;
 use rustyline::{Completer, Helper, Hinter, Validator};
+
+use crate::cmd_parser::server::InputParser;
+use crate::cmd_parser::server::Rule;
 
 pub struct CmdCompleter {
     cmds_tree: Graph<String, ()>,
@@ -51,7 +54,26 @@ impl CmdCompleter {
     }
 
     fn complete_path(&self, line: &str, pos: usize) -> Result<(usize, Vec<Pair>), ReadlineError> {
-        let parts: Vec<&str> = line[..pos].split_whitespace().collect();
+        let line_for_competion = &line[..pos];
+        let parts: Vec<&str> = 
+            InputParser::parse(Rule::cmd_full, line_for_competion)
+                .map(|pairs| {
+                    pairs
+                        .into_iter()
+                        .last()
+                        .map(|pair| {
+                            pair.into_inner()
+                                .map(|p| match p.as_rule() {
+                                    Rule::expr | Rule::cmd => p.as_str(),
+                                    _ => unreachable!("{}", p)
+                                })
+                                .collect::<Vec<&str>>()
+                        })
+                        .unwrap_or(vec![])
+                })
+                .unwrap_or(vec![]);
+        
+        // let parts: Vec<&str> = line[..pos].split_whitespace().collect();
         
         if parts.is_empty() {
             return Ok((0, self.get_subcommands(0.into())));
@@ -62,6 +84,7 @@ impl CmdCompleter {
         if ends_with_space {
             // All commands at the current path level
             let current_node = self.find_node_for_path(&parts);
+
             return Ok((pos, self.get_subcommands(current_node)));
         } else {
             // Filter commands that match partial input

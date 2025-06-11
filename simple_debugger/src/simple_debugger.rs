@@ -126,8 +126,8 @@ impl SimpleDebugger {
                 };
             }
 
-            let cmd = handle_result!(self.server.get_parse());
-            for cmd in cmd {
+            let cmds = handle_result!(self.server.get_parse());
+            for cmd in cmds {
                 handle_result!(self.execute(cmd));
             }
         }
