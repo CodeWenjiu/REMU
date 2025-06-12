@@ -185,7 +185,7 @@ impl Simulator {
                     .map(|mgr| {
                         let mut mgr = mgr.borrow_mut();
                         match &mut *mgr {
-                            DifftestManager::SingleCycle(mgr) => mgr.step(),
+                            DifftestManager::SingleCycle(mgr) => mgr.step_single_instruction(),
                         }
                     }).transpose()?;
 
@@ -209,7 +209,7 @@ impl Simulator {
                 if let Some(mgr) = difftest_manager.as_ref() {
                     let mut mgr = mgr.borrow_mut();
                     match &mut *mgr {
-                        DifftestManager::SingleCycle(mgr) => mgr.skip(),
+                        DifftestManager::SingleCycle(mgr) => mgr.skip_single_instruction(),
                     }
                 }
             })

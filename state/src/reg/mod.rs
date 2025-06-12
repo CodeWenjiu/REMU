@@ -3,7 +3,7 @@ use logger::Logger;
 use owo_colors::OwoColorize;
 use remu_macro::{log_error, log_todo};
 use remu_utils::{ProcessError, ProcessResult, ISA};
-use riscv::{Rv32eGprEnum, Rv32eRegFile, Rv32iGprEnum, Rv32iRegFile, RvCsrEnum};
+use riscv::{Rv32eGprEnum, Rv32eRegFile, Rv32iGprEnum, Rv32iRegFile, RvCsrEnum, new_rv32e_regfile, new_rv32i_regfile};
 
 use crate::CheckFlags4reg;
 
@@ -175,8 +175,8 @@ type RegResult<T> = Result<T, RegError>;
 
 pub fn regfile_io_factory(isa: ISA, reset_vector: u32) -> Result<AnyRegfile, ()> {
     match isa {
-        ISA::RV32E => Ok(Rv32eRegFile::new(reset_vector).into()),
-        ISA::RV32I => Ok(Rv32iRegFile::new(reset_vector).into()),
-        ISA::RV32IM => Ok(Rv32iRegFile::new(reset_vector).into()),
+        ISA::RV32E => Ok(new_rv32e_regfile(reset_vector).into()),
+        ISA::RV32I => Ok(new_rv32i_regfile(reset_vector).into()),
+        ISA::RV32IM => Ok(new_rv32i_regfile(reset_vector).into()),
     }
 }

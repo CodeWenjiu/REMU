@@ -5,7 +5,7 @@ use remu_macro::log_err;
 use remu_utils::{ProcessError, ProcessResult};
 use state::{reg::{AnyRegfile, RegfileIo}, CheckFlags4reg, States};
 
-use crate::{difftest_ref::DifftestRefPipelineApi, SimulatorCallback};
+use crate::SimulatorCallback;
 
 use super::{AnyDifftestRef, DifftestRefSingleCycleApi, DifftestRefFfiApi};
 
@@ -47,7 +47,15 @@ impl DifftestSingleCycleManager {
         }
     }
 
-    pub fn step_run(&mut self) -> ProcessResult<()> {
+    pub fn init(&mut self, regfile: &AnyRegfile, bin: Vec<u8>, reset_vector: u32) {
+        match &mut self.reference {
+            AnyDifftestRef::FFI(reference) => reference.init(regfile, bin, reset_vector),
+                    
+            _ => ()
+        }
+    }
+
+    fn single_instruction_compelete(&mut self) -> ProcessResult<()> {
         let mem_diff_msg = self.memory_watch_point.iter()
         .map(|addr| {
             let dut_data = log_err!(
@@ -72,26 +80,14 @@ impl DifftestSingleCycleManager {
                 reference.test_mem(mem_diff_msg)?;
             }
 
-            AnyDifftestRef::Pipeline(reference) => {
-                reference.step_cycle()?;
-                reference.instruction_fetch_enable();
-                reference.load_store_enable();
-            }
+            _ => unreachable!()
 
         }
 
         Ok(())
     }
 
-    pub fn init(&mut self, regfile: &AnyRegfile, bin: Vec<u8>, reset_vector: u32) {
-        match &mut self.reference {
-            AnyDifftestRef::FFI(reference) => reference.init(regfile, bin, reset_vector),
-                    
-            _ => ()
-        }
-    }
-
-    pub fn step_skip(&mut self) {
+    fn single_instruction_skip(&mut self) {
         self.is_diff_skip = false;
         match &mut self.reference {
             AnyDifftestRef::FFI(reference) => {
@@ -102,26 +98,24 @@ impl DifftestSingleCycleManager {
                 self.states_ref.regfile.sync_reg(&self.states_dut.regfile);
             }
 
-            AnyDifftestRef::Pipeline(_reference) => {
-                self.states_ref.regfile.sync_reg(&self.states_dut.regfile);
-            }
+            _ => unreachable!()
         }
     }
 
-    pub fn step(&mut self) -> ProcessResult<()> {
+    pub fn step_single_instruction(&mut self) -> ProcessResult<()> {
         match self.is_diff_skip {
             true => {
-                self.step_skip();
+                self.single_instruction_skip();
                 Ok(())
             }
 
             false => {
-                self.step_run()
+                self.single_instruction_compelete()
             }
         }
     }
 
-    pub fn skip(&mut self) {
+    pub fn skip_single_instruction(&mut self) {
         self.is_diff_skip = true;
     }
 
