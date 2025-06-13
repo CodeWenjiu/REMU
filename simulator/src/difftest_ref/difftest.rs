@@ -1,28 +1,23 @@
 use option_parser::OptionParser;
-use logger::Logger;
 use owo_colors::OwoColorize;
-use remu_macro::log_err;
-use remu_utils::{ProcessError, ProcessResult};
-use state::{reg::{AnyRegfile, RegfileIo}, CheckFlags4reg, States};
+use remu_utils::ProcessResult;
+use state::{reg::AnyRegfile, States};
 
 use crate::SimulatorCallback;
 
-use super::{AnyDifftestRef, DifftestRefSingleCycleApi, DifftestRefFfiApi};
+use super::{AnyDifftestRef, DifftestRefFfiApi};
 
-pub struct DifftestSingleCycleManager {
+pub struct DifftestManager {
     pub reference: AnyDifftestRef,
     pub states_ref: States,
     pub states_dut: States,
 
-    memory_watch_point: Vec<u32>,
-    is_diff_skip: bool,
+    pub memory_watch_point: Vec<u32>,
+    pub skip_count: usize,
+    pub is_instruction_complete: bool,
 }
 
-pub enum DifftestManager {
-    SingleCycle(DifftestSingleCycleManager),
-}
-
-impl DifftestSingleCycleManager {
+impl DifftestManager {
     pub fn new(
         option: &OptionParser,
         states_dut: States,
@@ -43,7 +38,8 @@ impl DifftestSingleCycleManager {
             states_dut,
 
             memory_watch_point: vec!(),
-            is_diff_skip: false,
+            skip_count: 0,
+            is_instruction_complete: false,
         }
     }
 
@@ -55,68 +51,8 @@ impl DifftestSingleCycleManager {
         }
     }
 
-    fn single_instruction_compelete(&mut self) -> ProcessResult<()> {
-        let mem_diff_msg = self.memory_watch_point.iter()
-        .map(|addr| {
-            let dut_data = log_err!(
-                self.states_dut.mmu.read(*addr, state::mmu::Mask::Word),
-                ProcessError::Recoverable
-            )?.1;
-            Ok((*addr, dut_data))
-        })
-        .collect::<ProcessResult<Vec<_>>>()?;
-
-        match &mut self.reference {
-
-            AnyDifftestRef::SingleCycle(reference) => {
-                reference.instruction_compelete()?;
-                self.states_ref.regfile.check(&self.states_dut.regfile, CheckFlags4reg::pc.union(CheckFlags4reg::gpr).union(CheckFlags4reg::csr))?;
-                self.states_ref.mmu.check(mem_diff_msg)?;
-            }
-
-            AnyDifftestRef::FFI(reference) => {
-                reference.step_cycle()?;
-                reference.test_reg(&self.states_dut.regfile)?;
-                reference.test_mem(mem_diff_msg)?;
-            }
-
-            _ => unreachable!()
-
-        }
-
-        Ok(())
-    }
-
-    fn single_instruction_skip(&mut self) {
-        self.is_diff_skip = false;
-        match &mut self.reference {
-            AnyDifftestRef::FFI(reference) => {
-                reference.set_ref(&self.states_dut.regfile);
-            }
-
-            AnyDifftestRef::SingleCycle(_reference) => {
-                self.states_ref.regfile.sync_reg(&self.states_dut.regfile);
-            }
-
-            _ => unreachable!()
-        }
-    }
-
-    pub fn step_single_instruction(&mut self) -> ProcessResult<()> {
-        match self.is_diff_skip {
-            true => {
-                self.single_instruction_skip();
-                Ok(())
-            }
-
-            false => {
-                self.single_instruction_compelete()
-            }
-        }
-    }
-
-    pub fn skip_single_instruction(&mut self) {
-        self.is_diff_skip = true;
+    pub fn step_skip(&mut self) {
+        self.skip_count += 1;
     }
 
     pub fn push_memory_watch_point(&mut self, addr: u32) {
@@ -127,5 +63,21 @@ impl DifftestSingleCycleManager {
         for addr in &self.memory_watch_point {
             println!("{:#010x}", addr.blue());
         }
+    }
+
+    pub fn step_cycle(&mut self) -> ProcessResult<()> {
+        match &mut self.reference {
+            AnyDifftestRef::FFI(_) | 
+            AnyDifftestRef::SingleCycle(_) => {
+                    if self.is_instruction_complete {
+                        self.step_single_instruction()?;
+                        self.is_instruction_complete = false;
+                    }
+                }
+
+            AnyDifftestRef::Pipeline(_) => {}
+        }
+
+        Ok(())
     }
 }
