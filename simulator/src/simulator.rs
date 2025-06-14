@@ -69,6 +69,9 @@ pub struct SimulatorCallback {
     pub instruction_complete: Box<dyn FnMut(u32, u32, u32) -> ProcessResult<()>>,
     pub difftest_skip: Box<dyn Fn()>,
     pub trap: Box<dyn Fn()>,
+
+    pub instruction_fetch: Box<dyn Fn()>,
+    pub load_store: Box<dyn Fn()>,
 }
 
 impl SimulatorCallback {
@@ -76,11 +79,15 @@ impl SimulatorCallback {
         instruction_complete: Box<dyn FnMut(u32, u32, u32) -> ProcessResult<()>>,
         difftest_skip: Box<dyn Fn()>,
         trap: Box<dyn Fn()>,
+        instruction_fetch: Box<dyn Fn()>,
+        load_store: Box<dyn Fn()>,
     ) -> Self {
         Self {
             instruction_complete,
             difftest_skip,
             trap,
+            instruction_fetch,
+            load_store,
         }
     }
 }
@@ -181,7 +188,7 @@ impl Simulator {
                 difftest_manager
                     .as_ref()
                     .map(|mgr| {
-                        mgr.borrow_mut().is_instruction_complete = true;
+                        mgr.borrow_mut().instruction_complete();
                     });
 
                 tracer.borrow().check_breakpoint(next_pc)?;
@@ -219,10 +226,26 @@ impl Simulator {
             }
         )};
 
+        let instruction_fetch_callback = {
+            let difftest_manager = difftest_manager.clone();
+            Box::new(move || {
+                difftest_manager.as_ref().map(|mgr| mgr.borrow_mut().instruction_fetch());
+            })
+        };
+
+        let load_store_callback = {
+            let difftest_manager = difftest_manager.clone();
+            Box::new(move || {
+                difftest_manager.as_ref().map(|mgr| mgr.borrow_mut().load_store());
+            })
+        };
+
         let dut_callback = SimulatorCallback::new(
             instruction_complete_callback,
             difftest_skip_callback,
             trap_callback,
+            instruction_fetch_callback,
+            load_store_callback,
         );
         let dut = SimulatorEnum::new(option, states_dut.clone(), dut_callback);
         dut.init()?;

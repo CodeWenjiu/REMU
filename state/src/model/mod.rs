@@ -185,6 +185,24 @@ impl StageModel {
             channel.channel.flush();
         }
     }
+
+    pub fn check(&self, dut_models: &StageModel) -> ProcessResult<()> {
+        for (cell_type, dut_cell) in dut_models.cells.iter() {
+            let dut_channel = dut_cell.channel.buffer.borrow();
+            let ref_channel = self.cells.get(cell_type).unwrap().channel.buffer.borrow();
+            if dut_channel.len() != ref_channel.len() {
+                log_error!(format!("Cell {:?} buffer length mismatch: dut: {}, ref: {}", cell_type, dut_channel.len(), ref_channel.len()));
+                return Err(ProcessError::Recoverable);
+            }
+            for (dut_data, ref_data) in dut_channel.iter().zip(ref_channel.iter()) {
+                if dut_data != ref_data {
+                    log_error!(format!("Cell {:?} buffer data mismatch: dut: {:?}, ref: {:?}", cell_type, dut_data, ref_data));
+                    return Err(ProcessError::Recoverable);
+                }
+            }
+        }
+        Ok(())
+    }
 }
 
 impl Default for StageModel {

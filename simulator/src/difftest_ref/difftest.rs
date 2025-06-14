@@ -1,9 +1,11 @@
 use option_parser::OptionParser;
 use owo_colors::OwoColorize;
-use remu_utils::ProcessResult;
-use state::{reg::AnyRegfile, States};
+use remu_macro::log_err;
+use remu_utils::{ProcessError, ProcessResult};
+use state::{reg::{AnyRegfile, RegfileIo}, CheckFlags4reg, States};
+use logger::Logger;
 
-use crate::SimulatorCallback;
+use crate::{difftest_ref::{DifftestRefPipelineApi, DifftestRefSingleCycleApi}, SimulatorCallback};
 
 use super::{AnyDifftestRef, DifftestRefFfiApi};
 
@@ -13,8 +15,11 @@ pub struct DifftestManager {
     pub states_dut: States,
 
     pub memory_watch_point: Vec<u32>,
-    pub skip_count: usize,
-    pub is_instruction_complete: bool,
+    ls_skip_count: usize,
+    is_instruction_complete: bool,
+
+    is_instruction_fetch: bool,
+    is_load_store: bool,
 }
 
 impl DifftestManager {
@@ -28,6 +33,8 @@ impl DifftestManager {
             Box::new(|_: u32, _: u32, _: u32| Ok(())),
             Box::new(|| {}),
             Box::new(|| {}),
+            Box::new(|| {}),
+            Box::new(|| {}),
         );
 
         let reference = AnyDifftestRef::new(option, states_ref.clone(), ref_callback);
@@ -38,8 +45,11 @@ impl DifftestManager {
             states_dut,
 
             memory_watch_point: vec!(),
-            skip_count: 0,
+            ls_skip_count: 0,
             is_instruction_complete: false,
+
+            is_instruction_fetch: false,
+            is_load_store: false,
         }
     }
 
@@ -52,7 +62,19 @@ impl DifftestManager {
     }
 
     pub fn step_skip(&mut self) {
-        self.skip_count += 1;
+        self.ls_skip_count += 1;
+    }
+
+    pub fn instruction_complete(&mut self) {
+        self.is_instruction_complete = true;
+    }
+
+    pub fn instruction_fetch(&mut self) {
+        self.is_instruction_fetch = true;
+    }
+
+    pub fn load_store(&mut self) {
+        self.is_load_store = true;
     }
 
     pub fn push_memory_watch_point(&mut self, addr: u32) {
@@ -66,16 +88,72 @@ impl DifftestManager {
     }
 
     pub fn step_cycle(&mut self) -> ProcessResult<()> {
+        let mem_diff_msg = self.memory_watch_point.iter()
+        .map(|addr| {
+            let dut_data = log_err!(
+                self.states_dut.mmu.read(*addr, state::mmu::Mask::Word),
+                ProcessError::Recoverable
+            )?.1;
+            Ok((*addr, dut_data))
+        })
+        .collect::<ProcessResult<Vec<_>>>()?;
+
         match &mut self.reference {
-            AnyDifftestRef::FFI(_) | 
-            AnyDifftestRef::SingleCycle(_) => {
-                    if self.is_instruction_complete {
-                        self.step_single_instruction()?;
-                        self.is_instruction_complete = false;
+
+            AnyDifftestRef::FFI(reference) => {
+                if self.is_instruction_complete {
+                    if self.ls_skip_count > 0 {
+                        reference.set_ref(&self.states_dut.regfile);
+                        self.ls_skip_count -= 1;
+                    } else {
+                        reference.step_cycle()?;
                     }
+                    self.is_instruction_complete = false;
                 }
 
-            AnyDifftestRef::Pipeline(_) => {}
+                reference.test_reg(&self.states_dut.regfile)?;
+                reference.test_mem(mem_diff_msg)?;
+            }
+
+            AnyDifftestRef::SingleCycle(reference) => {
+                if self.is_instruction_complete {
+                    if self.ls_skip_count > 0 {
+                        self.states_ref.regfile.sync_reg(&self.states_dut.regfile);
+                        self.ls_skip_count -= 1;
+                    } else {
+                        reference.instruction_compelete()?;
+                    }
+                    self.is_instruction_complete = false;
+                }
+
+                self.states_ref.regfile.check(&self.states_dut.regfile, CheckFlags4reg::pc.union(CheckFlags4reg::gpr).union(CheckFlags4reg::csr))?;
+                self.states_ref.mmu.check(mem_diff_msg)?;
+            }
+            
+            AnyDifftestRef::Pipeline(reference) => {
+                if self.is_instruction_fetch {
+                    reference.instruction_fetch_enable();
+                    self.is_instruction_fetch = false;
+                }
+
+                if self.is_load_store {
+                    reference.load_store_enable();
+                    self.is_load_store = false;
+                }
+
+                if self.ls_skip_count > 0 {
+                    self.states_ref.regfile.sync_reg(&self.states_dut.regfile);
+                    reference.step_cycle(true)?;
+                    self.ls_skip_count -= 1;
+                } else {
+                    reference.step_cycle(false)?;
+                }
+
+                self.states_ref.regfile.check(&self.states_dut.regfile, CheckFlags4reg::pc.union(CheckFlags4reg::gpr).union(CheckFlags4reg::csr))?;
+                // self.states_ref.pipe_state.check(&self.states_dut.pipe_state)?;
+                self.states_ref.mmu.check(mem_diff_msg)?;
+            }
+
         }
 
         Ok(())

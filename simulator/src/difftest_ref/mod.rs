@@ -8,7 +8,7 @@ use crate::{emu::EmuWrapper, DirectlyMap, Pipeline, SimulatorCallback};
 
 use enum_dispatch::enum_dispatch;
 
-remu_macro::mod_flat!(difftest_ffi, difftest, single_cycle);
+remu_macro::mod_flat!(difftest_ffi, difftest);
 
 #[enum_dispatch]
 pub enum AnyDifftestFfiRef {
@@ -24,7 +24,7 @@ pub trait DifftestRefFfiApi {
     fn test_reg(&self, dut: &AnyRegfile) -> ProcessResult<()>;
 
     fn test_mem(&mut self, watchpoint: Vec<(u32, u32)>) -> ProcessResult<()>;
-
+    
     fn set_ref(&self, _target: &AnyRegfile) {
         log_todo!();
     }
@@ -51,7 +51,7 @@ pub enum AnyDifftestPipelineRef {
 
 #[enum_dispatch(AnyDifftestPipelineRef)]
 pub trait DifftestRefPipelineApi {
-    fn step_cycle(&mut self) -> ProcessResult<()>;
+    fn step_cycle(&mut self, skip: bool) -> ProcessResult<()>;
 
     fn instruction_fetch_enable(&mut self);
     fn load_store_enable(&mut self);

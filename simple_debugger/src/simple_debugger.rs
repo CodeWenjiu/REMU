@@ -74,8 +74,12 @@ impl SimpleDebugger {
         let mut state = States::new(isa, reset_vector, StageModel::default()).unwrap();
         let mut state_ref = state.clone();
 
-        if let Some(DifftestRef::SingleCycle(_)) = cli_result.cli.differtest {
-            state_ref = States::new(isa, reset_vector, StageModel::default()).unwrap();
+        match cli_result.cli.differtest {
+            Some(DifftestRef::Pipeline(_)) | Some(DifftestRef::SingleCycle(_)) => {
+                state_ref = States::new(isa, reset_vector, StageModel::default()).unwrap();
+            }
+
+            _ => {},
         }
 
         for region in &cli_result.cfg.platform_config.regions {
@@ -88,15 +92,19 @@ impl SimpleDebugger {
             ))
             .unwrap();
 
-            if let Some(DifftestRef::SingleCycle(_)) = cli_result.cli.differtest {
-                log_err!(state_ref.mmu.add_region(
-                    region.base,
-                    region.size,
-                    &region.name,
-                    region.flag.clone(),
-                    region.mmtype
-                ))
-                .unwrap();
+            match cli_result.cli.differtest {
+                Some(DifftestRef::Pipeline(_)) | Some(DifftestRef::SingleCycle(_)) => {
+                        log_err!(state_ref.mmu.add_region(
+                            region.base,
+                            region.size,
+                            &region.name,
+                            region.flag.clone(),
+                            region.mmtype
+                        ))
+                        .unwrap();
+                }
+
+                _ => {},
             }
         }
 

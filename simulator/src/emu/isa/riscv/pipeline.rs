@@ -3,7 +3,7 @@ use logger::Logger;
 use remu_utils::{ProcessError, ProcessResult};
 use state::model::BaseStageCell;
 
-use crate::emu::{extract_bits, isa::riscv::{backend::{ToAlStage, ToLsStage, ToWbStage}, frontend::{IsOutStage, ToIdStage, ToIfStage, ToIsStage}}, Emu};
+use crate::emu::{extract_bits, isa::riscv::{backend::{ToAlStage, ToLsStage, ToWbStage, WbCtrl}, frontend::{IsOutStage, ToIdStage, ToIfStage, ToIsStage}}, Emu};
 
 struct PipelineStage {
     ex_wb: (ToWbStage, bool),
@@ -109,7 +109,6 @@ impl Pipeline {
         let need = self.is_flush_need(next_pc);
 
         if need {
-            self.stages.ex_wb.1 = false;
             self.stages.is_ls.1 = false;
             self.stages.is_al.1 = false;
             self.stages.id_is.1 = false;
@@ -135,11 +134,11 @@ impl Emu {
         self.self_pipeline_ifena();
         self.self_pipeline_lsena();
 
-        self.self_step_cycle_pipeline_without_enable()
+        self.self_step_cycle_pipeline_without_enable(false)
     }
 
-    pub fn self_step_cycle_pipeline_without_enable(&mut self) -> ProcessResult<()> {
-        self.self_pipeline_update()?;
+    pub fn self_step_cycle_pipeline_without_enable(&mut self, skip: bool) -> ProcessResult<()> {
+        self.self_pipeline_update(skip)?;
         self.states.pipe_state.update()?;
 
         self.times.cycles += 1;
@@ -147,7 +146,7 @@ impl Emu {
         Ok(())
     }
 
-    pub fn self_pipeline_update(&mut self) -> ProcessResult<()> {
+    pub fn self_pipeline_update(&mut self, skip: bool) -> ProcessResult<()> {
         let (to_wb, wb_valid) = &self.pipeline.stages.ex_wb;
 
         if *wb_valid {
@@ -155,14 +154,14 @@ impl Emu {
 
             let next_pc = self.write_back_rv32i(to_wb.clone())?;
 
+            self.pipeline.stages.ex_wb.1 = false;
+
             if self.pipeline.flush_if_need(next_pc) {
                 self.states.pipe_state.flush();
                 (self.callback.instruction_complete)(pc, next_pc, inst)?;
                 return Ok(());
             }
 
-            self.pipeline.stages.ex_wb.1 = false;
-            
             self.times.instructions += 1;
             (self.callback.instruction_complete)(pc, next_pc, inst)?;
         }
@@ -174,7 +173,19 @@ impl Emu {
             if *ls_valid {
                 let (pc, _inst) = self.states.pipe_state.fetch(BaseStageCell::IsLs)?; // need to used to check
 
-                let to_wb = self.load_store_rv32i(to_ls.clone())?;
+                let to_wb = if skip {
+                    ToWbStage{
+                        pc: to_ls.pc,
+                        result: 0,
+                        csr_rdata: 0,
+                        gpr_waddr: 0,
+                        csr_waddr: 0,
+                        wb_ctrl: WbCtrl::WriteGpr,
+                        trap: None,
+                    }
+                } else {
+                    self.load_store_rv32i(to_ls.clone())?
+                };
 
                 if pc != to_wb.pc {
                     log_error!(format!("LS 2 WB PC mismatch: fetched {:#08x}, expected {:#08x}", pc, to_wb.pc));
@@ -261,6 +272,8 @@ impl Emu {
             self.pipeline.stages.id_is.0 = to_is;
             self.pipeline.stages.id_is.1 = true;
 
+            self.pipeline.stages.if_id.1 = false;
+
             self.states.pipe_state.trans(BaseStageCell::IfId, BaseStageCell::IdIs)?;
         }
 
@@ -282,9 +295,11 @@ impl Emu {
 
     pub fn self_pipeline_ifena(&mut self) {
         self.pipeline.if_ena = true;
+        (self.callback.instruction_fetch)();
     }
 
     pub fn self_pipeline_lsena(&mut self) {
         self.pipeline.ls_ena = true;
+        (self.callback.load_store)();
     }
 }
