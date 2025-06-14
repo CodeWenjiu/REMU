@@ -1,6 +1,6 @@
 use option_parser::OptionParser;
 use owo_colors::OwoColorize;
-use remu_macro::log_err;
+use remu_macro::{log_debug, log_err};
 use remu_utils::{ProcessError, ProcessResult};
 use state::{reg::{AnyRegfile, RegfileIo}, CheckFlags4reg, States};
 use logger::Logger;
@@ -142,15 +142,16 @@ impl DifftestManager {
                 }
 
                 if self.ls_skip_count > 0 {
-                    self.states_ref.regfile.sync_reg(&self.states_dut.regfile);
                     reference.step_cycle(true)?;
+                    self.states_ref.regfile.sync_reg(&self.states_dut.regfile);
+                    // log_debug!(format!("ref gpr[15]: {:08x}, dut gpr[15]: {:08x}", self.states_ref.regfile.read_gpr(15)?, self.states_dut.regfile.read_gpr(15)?));
                     self.ls_skip_count -= 1;
                 } else {
                     reference.step_cycle(false)?;
                 }
 
                 self.states_ref.regfile.check(&self.states_dut.regfile, CheckFlags4reg::pc.union(CheckFlags4reg::gpr).union(CheckFlags4reg::csr))?;
-                // self.states_ref.pipe_state.check(&self.states_dut.pipe_state)?;
+                self.states_ref.pipe_state.check(&self.states_dut.pipe_state)?;
                 self.states_ref.mmu.check(mem_diff_msg)?;
             }
 

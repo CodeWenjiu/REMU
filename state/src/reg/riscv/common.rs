@@ -176,15 +176,15 @@ where
         Ok(())
     }
 
-    fn check(&self, regfile: &AnyRegfile, flags: CheckFlags4reg) -> ProcessResult<()> {
+    fn check(&self, dut_regfile: &AnyRegfile, flags: CheckFlags4reg) -> ProcessResult<()> {
         let mut errors = Vec::new();
 
         // 检查 PC
         if flags.contains(CheckFlags4reg::pc) {
-            if self.read_pc() != regfile.read_pc() {
+            if self.read_pc() != dut_regfile.read_pc() {
                 errors.push(format!(
                     "Dut PC: {:#010x}, Ref PC: {:#010x}",
-                    regfile.read_pc(),
+                    dut_regfile.read_pc(),
                     self.read_pc()
                 ));
             }
@@ -192,7 +192,7 @@ where
 
         // 检查 GPR
         if flags.contains(CheckFlags4reg::gpr) {
-            let ref_gprs = regfile.get_gprs();
+            let ref_gprs = dut_regfile.get_gprs();
             let gprs = self.get_gprs();
             
             for (i, (a, b)) in gprs.iter().zip(ref_gprs.iter()).enumerate() {
@@ -211,14 +211,14 @@ where
                 .filter_map(|csr| {
                     let index = csr as u32;
                     if self.csrs.borrow()[index as usize] != 
-                       match regfile {
+                       match dut_regfile {
                            AnyRegfile::Rv32e(rf) => rf.csrs.borrow()[index as usize],
                            AnyRegfile::Rv32i(rf) => rf.csrs.borrow()[index as usize],
                        } {
                         Some(format!(
                             "Dut CSR[{}]: {:#010x}, Ref CSR[{}]: {:#010x}",
                             index, 
-                            match regfile {
+                            match dut_regfile {
                                 AnyRegfile::Rv32e(rf) => rf.csrs.borrow()[index as usize],
                                 AnyRegfile::Rv32i(rf) => rf.csrs.borrow()[index as usize],
                             },

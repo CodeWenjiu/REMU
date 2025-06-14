@@ -1,4 +1,4 @@
-use remu_macro::log_error;
+use remu_macro::{log_debug, log_error};
 use logger::Logger;
 use remu_utils::{ProcessError, ProcessResult};
 use state::model::BaseStageCell;
@@ -174,13 +174,14 @@ impl Emu {
                 let (pc, _inst) = self.states.pipe_state.fetch(BaseStageCell::IsLs)?; // need to used to check
 
                 let to_wb = if skip {
+                    log_debug!();
                     ToWbStage{
                         pc: to_ls.pc,
                         result: 0,
                         csr_rdata: 0,
-                        gpr_waddr: 0,
+                        gpr_waddr: to_ls.gpr_waddr,
                         csr_waddr: 0,
-                        wb_ctrl: WbCtrl::WriteGpr,
+                        wb_ctrl: WbCtrl::DontWrite,
                         trap: None,
                     }
                 } else {
