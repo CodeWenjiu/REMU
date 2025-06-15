@@ -29,6 +29,19 @@ macro_rules! log_level {
 }
 
 #[macro_export]
+macro_rules! log_info {
+    () => {
+        $crate::log_level!(Logger::INFO)
+    };
+    ($msg:expr) => {
+        $crate::log_level!($msg, Logger::INFO)
+    };
+    ($fmt:expr, $($arg:expr),+) => {
+        $crate::log_level!($fmt, $($arg),+, Logger::INFO)
+    };
+}
+
+#[macro_export]
 macro_rules! log_debug {
     () => {
         $crate::log_level!(Logger::DEBUG)

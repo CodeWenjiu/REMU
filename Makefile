@@ -18,16 +18,22 @@ Alternate_jyd_remote = 0x80100000:./simulator/src/nzea/on_board/NZ-jyd/tools/bin
 # EMU Platforms
 Platform_rv32im_emu_dm       = rv32im-emu-dm
 Platform_rv32im_emu_dm_alias = riscv32-emu-dm
+
 Platform_rv32im_emu_sc       = rv32im-emu-sc
 Platform_rv32im_emu_sc_alias = riscv32-emu-sc
+
 Platform_rv32im_emu_pl       = rv32im-emu-pl
 Platform_rv32im_emu_pl_alias = riscv32-emu-pl
+
 Platform_rv32e_emu           = rv32e-emu-dm
 
 # NZEA Platforms
 Platform_Nzea_npc        = rv32e-nzea-npc
 Platform_Nzea_npc_alias  = riscv32e-nzea-npc
-Platform_Nzea_ysyxsoc    = rv32e-nzea-ysyxsoc
+
+Platform_Nzea_ysyxsoc    		= rv32e-nzea-ysyxsoc
+Platform_Nzea_ysyxsoc_alias    	= riscv32e-nzea-ysyxsoc
+
 Platform_Nzea_jyd_remote = rv32i-nzea-jyd_remote
 
 # Default Platform
@@ -41,7 +47,7 @@ PLATFORMS = \
 	$(Platform_rv32im_emu_pl) $(Platform_rv32im_emu_pl_alias) \
 	$(Platform_rv32e_emu) \
 	$(Platform_Nzea_npc) $(Platform_Nzea_npc_alias) \
-	$(Platform_Nzea_ysyxsoc) \
+	$(Platform_Nzea_ysyxsoc) $(Platform_Nzea_ysyxsoc_alias)\
 	$(Platform_Nzea_jyd_remote)
 
 # ==============================================================================
