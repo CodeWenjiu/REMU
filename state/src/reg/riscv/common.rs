@@ -192,10 +192,10 @@ where
 
         // 检查 GPR
         if flags.contains(CheckFlags4reg::gpr) {
-            let ref_gprs = dut_regfile.get_gprs();
+            let dut_gprs = dut_regfile.get_gprs();
             let gprs = self.get_gprs();
             
-            for (i, (a, b)) in gprs.iter().zip(ref_gprs.iter()).enumerate() {
+            for (i, (a, b)) in gprs.iter().zip(dut_gprs.iter()).enumerate() {
                 if a != b {
                     errors.push(format!(
                         "Dut GPR[{}]: {:#010x}, Ref GPR[{}]: {:#010x}",

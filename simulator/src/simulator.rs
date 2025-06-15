@@ -67,7 +67,7 @@ impl SimulatorEnum {
 
 pub struct SimulatorCallback {
     pub instruction_complete: Box<dyn FnMut(u32, u32, u32) -> ProcessResult<()>>,
-    pub difftest_skip: Box<dyn Fn()>,
+    pub difftest_skip: Box<dyn Fn(u32)>,
     pub trap: Box<dyn Fn()>,
 
     pub instruction_fetch: Box<dyn Fn()>,
@@ -77,7 +77,7 @@ pub struct SimulatorCallback {
 impl SimulatorCallback {
     pub fn new(
         instruction_complete: Box<dyn FnMut(u32, u32, u32) -> ProcessResult<()>>,
-        difftest_skip: Box<dyn Fn()>,
+        difftest_skip: Box<dyn Fn(u32)>,
         trap: Box<dyn Fn()>,
         instruction_fetch: Box<dyn Fn()>,
         load_store: Box<dyn Fn()>,
@@ -207,9 +207,9 @@ impl Simulator {
 
         let difftest_skip_callback = {
             let difftest_manager = difftest_manager.clone();
-            Box::new(move || {
+            Box::new(move |val: u32| {
                 if let Some(mgr) = difftest_manager.as_ref() {
-                    mgr.borrow_mut().step_skip();
+                    mgr.borrow_mut().step_skip(val);
                 }
             })
         };
@@ -367,12 +367,15 @@ impl Simulator {
             }
             state_check_count += 1;
 
-            self.dut.step_cycle()?;
-            self.difftest_manager
-                .as_ref()
-                .map(|mgr| 
-                    mgr.borrow_mut().step_cycle()
-                ).transpose()?;
+            self.dut.step_cycle().and(
+            
+        self.difftest_manager
+            .as_ref()
+            .map(|mgr| 
+                mgr.borrow_mut().step_cycle()
+            ).transpose()
+            
+            )?;
         }
         Ok(())
     }

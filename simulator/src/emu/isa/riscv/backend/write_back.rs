@@ -5,7 +5,7 @@ use state::reg::{riscv::{RvCsrEnum, Trap}, RegfileIo};
 
 use crate::emu::Emu;
 
-#[derive(Default, Clone, Copy)] 
+#[derive(Default, Clone, Copy, Debug)] 
 pub enum WbCtrl{
     #[default]
     DontCare,
@@ -18,7 +18,7 @@ pub enum WbCtrl{
     DontWrite,
 }
 
-#[derive(Default, Clone)]
+#[derive(Default, Clone, Debug)]
 pub struct ToWbStage {
     pub pc: u32,
     pub result: u32,

@@ -33,6 +33,61 @@ pub struct ToLsStage {
 }
 
 impl Emu {
+    // just for pipeline ref difftest
+    pub fn load_store_rv32i_with_skip(&mut self, stage: ToLsStage, skip_val: u32) -> ProcessResult<ToWbStage> {
+        let result;
+
+        let pc = stage.pc;
+        let mut gpr_waddr = stage.gpr_waddr;
+
+        let ctrl = stage.ls_ctrl;
+
+        match ctrl {
+            LsCtrl::Lb => {
+                result = skip_val;
+            }
+
+            LsCtrl::Lh => {
+                result = skip_val;
+            }
+
+            LsCtrl::Lw => {
+                result = skip_val;
+            }
+
+            LsCtrl::Lbu => {
+                result = skip_val;
+            }
+
+            LsCtrl::Lhu => {
+                result = skip_val;
+            }
+
+            LsCtrl::Sb => {
+                gpr_waddr = 0;
+                result = 0;
+            }
+
+            LsCtrl::Sh => {
+                gpr_waddr = 0;
+                result = 0;
+            }
+
+            LsCtrl::Sw => {
+                gpr_waddr = 0;
+                result = 0;
+            }
+
+            LsCtrl::DontCare => {
+                log_error!(format!("LsCtrl::None should not be used at pc: {:#08x}", pc));
+                return Err(ProcessError::Recoverable);
+            },
+        }
+
+        Ok(ToWbStage { pc, result, csr_rdata: 0, gpr_waddr, csr_waddr: 0, wb_ctrl: WbCtrl::WriteGpr, trap: None })
+    }
+
+
     pub fn load_store_rv32i(&mut self, stage: ToLsStage) -> ProcessResult<ToWbStage> {
         let result;
 
@@ -102,7 +157,7 @@ impl Emu {
         }
 
         if is_difftest_skip {
-            (self.callback.difftest_skip)();
+            (self.callback.difftest_skip)(result);
         };
 
         Ok(ToWbStage { pc, result, csr_rdata: 0, gpr_waddr, csr_waddr: 0, wb_ctrl: WbCtrl::WriteGpr, trap: None })

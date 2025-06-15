@@ -1,6 +1,8 @@
+use std::collections::VecDeque;
+
 use option_parser::OptionParser;
 use owo_colors::OwoColorize;
-use remu_macro::{log_debug, log_err};
+use remu_macro::log_err;
 use remu_utils::{ProcessError, ProcessResult};
 use state::{reg::{AnyRegfile, RegfileIo}, CheckFlags4reg, States};
 use logger::Logger;
@@ -15,7 +17,7 @@ pub struct DifftestManager {
     pub states_dut: States,
 
     pub memory_watch_point: Vec<u32>,
-    ls_skip_count: usize,
+    ls_skip_val: VecDeque<u32>,
     is_instruction_complete: bool,
 
     is_instruction_fetch: bool,
@@ -31,7 +33,7 @@ impl DifftestManager {
         // Create a minimal callback for the reference simulator, may be useful in future
         let ref_callback = SimulatorCallback::new(
             Box::new(|_: u32, _: u32, _: u32| Ok(())),
-            Box::new(|| {}),
+            Box::new(|_u32| {}),
             Box::new(|| {}),
             Box::new(|| {}),
             Box::new(|| {}),
@@ -45,7 +47,7 @@ impl DifftestManager {
             states_dut,
 
             memory_watch_point: vec!(),
-            ls_skip_count: 0,
+            ls_skip_val: VecDeque::new(),
             is_instruction_complete: false,
 
             is_instruction_fetch: false,
@@ -61,8 +63,8 @@ impl DifftestManager {
         }
     }
 
-    pub fn step_skip(&mut self) {
-        self.ls_skip_count += 1;
+    pub fn step_skip(&mut self, val: u32) {
+        self.ls_skip_val.push_back(val);
     }
 
     pub fn instruction_complete(&mut self) {
@@ -102,9 +104,8 @@ impl DifftestManager {
 
             AnyDifftestRef::FFI(reference) => {
                 if self.is_instruction_complete {
-                    if self.ls_skip_count > 0 {
+                    if let Some(_) = self.ls_skip_val.pop_front() {
                         reference.set_ref(&self.states_dut.regfile);
-                        self.ls_skip_count -= 1;
                     } else {
                         reference.step_cycle()?;
                     }
@@ -117,9 +118,8 @@ impl DifftestManager {
 
             AnyDifftestRef::SingleCycle(reference) => {
                 if self.is_instruction_complete {
-                    if self.ls_skip_count > 0 {
+                    if let Some(_) = self.ls_skip_val.pop_front() {
                         self.states_ref.regfile.sync_reg(&self.states_dut.regfile);
-                        self.ls_skip_count -= 1;
                     } else {
                         reference.instruction_compelete()?;
                     }
@@ -141,14 +141,7 @@ impl DifftestManager {
                     self.is_load_store = false;
                 }
 
-                if self.ls_skip_count > 0 {
-                    reference.step_cycle(true)?;
-                    self.states_ref.regfile.sync_reg(&self.states_dut.regfile);
-                    // log_debug!(format!("ref gpr[15]: {:08x}, dut gpr[15]: {:08x}", self.states_ref.regfile.read_gpr(15)?, self.states_dut.regfile.read_gpr(15)?));
-                    self.ls_skip_count -= 1;
-                } else {
-                    reference.step_cycle(false)?;
-                }
+                reference.step_cycle(self.ls_skip_val.pop_front())?;
 
                 self.states_ref.regfile.check(&self.states_dut.regfile, CheckFlags4reg::pc.union(CheckFlags4reg::gpr).union(CheckFlags4reg::csr))?;
                 self.states_ref.pipe_state.check(&self.states_dut.pipe_state)?;

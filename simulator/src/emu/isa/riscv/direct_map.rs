@@ -187,7 +187,7 @@ impl Emu {
                         let data = log_err!(mmu.read(addr, Mask::Byte), ProcessError::Recoverable)?;
                         rd_val = data.1 as i8 as u32;
                         if data.0 == true {
-                            (self.callback.difftest_skip)();
+                            (self.callback.difftest_skip)(0);
                         }
                     }
         
@@ -196,7 +196,7 @@ impl Emu {
                         let data = log_err!(mmu.read(addr, Mask::Half), ProcessError::Recoverable)?;
                         rd_val = data.1 as i16 as u32;
                         if data.0 == true {
-                            (self.callback.difftest_skip)();
+                            (self.callback.difftest_skip)(0);
                         }
                     }
         
@@ -205,7 +205,7 @@ impl Emu {
                         let data = log_err!(mmu.read(addr, Mask::Word), ProcessError::Recoverable)?;
                         rd_val = data.1;
                         if data.0 == true {
-                            (self.callback.difftest_skip)();
+                            (self.callback.difftest_skip)(0);
                         }
                     }
         
@@ -214,7 +214,7 @@ impl Emu {
                         let data = log_err!(mmu.read(addr, Mask::Byte), ProcessError::Recoverable)?;
                         rd_val = data.1;
                         if data.0 == true {
-                            (self.callback.difftest_skip)();
+                            (self.callback.difftest_skip)(0);
                         }
                     }
         
@@ -223,7 +223,7 @@ impl Emu {
                         let data = log_err!(mmu.read(addr, Mask::Half), ProcessError::Recoverable)?;
                         rd_val = data.1;
                         if data.0 == true {
-                            (self.callback.difftest_skip)();
+                            (self.callback.difftest_skip)(0);
                         }
                     }
         
@@ -231,7 +231,7 @@ impl Emu {
                         msg.rd_addr = 0;
                         let addr = rs1.wrapping_add(imm);
                         if log_err!(mmu.write(addr, rs2, Mask::Byte), ProcessError::Recoverable)? == true {
-                            (self.callback.difftest_skip)();
+                            (self.callback.difftest_skip)(0);
                         }
                     }
         
@@ -239,7 +239,7 @@ impl Emu {
                         msg.rd_addr = 0;
                         let addr = rs1.wrapping_add(imm);
                         if log_err!(mmu.write(addr, rs2, Mask::Half), ProcessError::Recoverable)? == true {
-                            (self.callback.difftest_skip)();
+                            (self.callback.difftest_skip)(0);
                         }
                     }
         
@@ -247,7 +247,7 @@ impl Emu {
                         msg.rd_addr = 0;
                         let addr = rs1.wrapping_add(imm);
                         if log_err!(mmu.write(addr, rs2, Mask::Word), ProcessError::Recoverable)? == true {
-                            (self.callback.difftest_skip)();
+                            (self.callback.difftest_skip)(0);
                         }
                     }
                 }

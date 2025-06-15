@@ -6,7 +6,7 @@ use remu_utils::{ProcessError, ProcessResult};
 
 use crate::reg::{ALLCSRIdentifier, RegError, RegIdentifier, RegResult};
 
-#[derive(PartialEq, Clone, Copy, Default)]
+#[derive(PartialEq, Clone, Copy, Default, Debug)]
 pub enum Trap {
     #[default]
     IllegalInstruction = 2,

@@ -45,14 +45,14 @@ impl DifftestRefSingleCycleDrive for SingleCycle {
 }
 
 pub trait DifftestRefPipelineDrive {
-    fn step_cycle(emu: &mut Emu, skip: bool) -> ProcessResult<()>;
+    fn step_cycle(emu: &mut Emu, skip: Option<u32>) -> ProcessResult<()>;
 
     fn instruction_fetch_enable(emu: &mut Emu);
     fn load_store_enable(emu: &mut Emu);
 }
 
 impl DifftestRefPipelineDrive for Pipeline {
-    fn step_cycle(emu: &mut Emu, skip: bool) -> ProcessResult<()> {
+    fn step_cycle(emu: &mut Emu, skip: Option<u32>) -> ProcessResult<()> {
         emu.self_step_cycle_pipeline_without_enable(skip)
     }
 
@@ -95,7 +95,7 @@ impl<V: DifftestRefSingleCycleDrive> DifftestRefSingleCycleApi for EmuWrapper<V>
 }
 
 impl<V: DifftestRefPipelineDrive> DifftestRefPipelineApi for EmuWrapper<V> {
-    fn step_cycle(&mut self, skip: bool) -> ProcessResult<()> {
+    fn step_cycle(&mut self, skip: Option<u32>) -> ProcessResult<()> {
         V::step_cycle(&mut self.emu, skip)
     }
 

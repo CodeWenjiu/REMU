@@ -29,11 +29,11 @@ impl Emu {
         };
 
         let next_pc = self.write_back_rv32i(to_wb)?;
-        
-        (self.callback.instruction_complete)(pc, next_pc, inst)?;
 
         self.times.cycles += 1;
         self.times.instructions += 1;
+        
+        (self.callback.instruction_complete)(pc, next_pc, inst)?;
 
         Ok(())
     }

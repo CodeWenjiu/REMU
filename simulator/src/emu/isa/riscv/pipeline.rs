@@ -1,9 +1,9 @@
-use remu_macro::{log_debug, log_error};
+use remu_macro::log_error;
 use logger::Logger;
 use remu_utils::{ProcessError, ProcessResult};
 use state::model::BaseStageCell;
 
-use crate::emu::{extract_bits, isa::riscv::{backend::{ToAlStage, ToLsStage, ToWbStage, WbCtrl}, frontend::{IsOutStage, ToIdStage, ToIfStage, ToIsStage}}, Emu};
+use crate::emu::{extract_bits, isa::riscv::{backend::{ToAlStage, ToLsStage, ToWbStage}, frontend::{IsOutStage, ToIdStage, ToIfStage, ToIsStage}}, Emu};
 
 struct PipelineStage {
     ex_wb: (ToWbStage, bool),
@@ -122,48 +122,54 @@ impl Pipeline {
 }
 
 impl Emu {
-    fn self_pipeline_branch_predict(&mut self) -> ProcessResult<u32> {
+    fn self_pipeline_branch_predict(&mut self) -> u32 {
         let result = self.pipeline.pipeline_pc;
 
         self.pipeline.pipeline_pc += 4;
 
-        Ok(result)
+        result
     }
 
     pub fn self_step_cycle_pipeline(&mut self) -> ProcessResult<()> {
         self.self_pipeline_ifena();
         self.self_pipeline_lsena();
 
-        self.self_step_cycle_pipeline_without_enable(false)
+        self.self_step_cycle_pipeline_without_enable(None)
     }
 
-    pub fn self_step_cycle_pipeline_without_enable(&mut self, skip: bool) -> ProcessResult<()> {
-        self.self_pipeline_update(skip)?;
+    pub fn self_step_cycle_pipeline_without_enable(&mut self, skip: Option<u32>) -> ProcessResult<()> {
+        self.times.cycles += 1;
+
+        let wb_msg = self.self_pipeline_update(skip)?;
+
         self.states.pipe_state.update()?;
 
-        self.times.cycles += 1;
+        if let Some((pc, next_pc, inst)) = wb_msg {
+            (self.callback.instruction_complete)(pc, next_pc, inst)?;
+        }
 
         Ok(())
     }
 
-    pub fn self_pipeline_update(&mut self, skip: bool) -> ProcessResult<()> {
+    pub fn self_pipeline_update(&mut self, skip: Option<u32>) -> ProcessResult<Option<(u32, u32, u32)>> {
         let (to_wb, wb_valid) = &self.pipeline.stages.ex_wb;
+        
+        let mut wb_msg = None;
 
         if *wb_valid {
             let (pc, inst) = self.states.pipe_state.get()?;
 
             let next_pc = self.write_back_rv32i(to_wb.clone())?;
 
+            wb_msg = Some((pc, next_pc, inst));
+
             self.pipeline.stages.ex_wb.1 = false;
 
             if self.pipeline.flush_if_need(next_pc) {
                 self.states.pipe_state.flush();
-                (self.callback.instruction_complete)(pc, next_pc, inst)?;
-                return Ok(());
             }
 
             self.times.instructions += 1;
-            (self.callback.instruction_complete)(pc, next_pc, inst)?;
         }
 
         let ls_ena = self.pipeline.ls_ena;
@@ -173,17 +179,8 @@ impl Emu {
             if *ls_valid {
                 let (pc, _inst) = self.states.pipe_state.fetch(BaseStageCell::IsLs)?; // need to used to check
 
-                let to_wb = if skip {
-                    log_debug!();
-                    ToWbStage{
-                        pc: to_ls.pc,
-                        result: 0,
-                        csr_rdata: 0,
-                        gpr_waddr: to_ls.gpr_waddr,
-                        csr_waddr: 0,
-                        wb_ctrl: WbCtrl::DontWrite,
-                        trap: None,
-                    }
+                let to_wb = if let Some(skip_val) = skip {
+                    self.load_store_rv32i_with_skip(to_ls.clone(), skip_val)?
                 } else {
                     self.load_store_rv32i(to_ls.clone())?
                 };
@@ -257,7 +254,7 @@ impl Emu {
         let (to_id, id_valid) = &self.pipeline.stages.if_id;
 
         if self.pipeline.is_gpr_raw() {
-            return Ok(());
+            return Ok(wb_msg);
         }
 
         if *id_valid {
@@ -279,7 +276,7 @@ impl Emu {
         }
 
         if self.pipeline.if_ena {
-            let predict_pc = self.self_pipeline_branch_predict()?; // need to be implemented
+            let predict_pc = self.self_pipeline_branch_predict(); // need to be implemented
     
             let to_id = self.instruction_fetch_rv32i(ToIfStage{pc: predict_pc})?;
 
@@ -291,7 +288,7 @@ impl Emu {
             self.pipeline.if_ena = false;
         }
 
-        Ok(())
+        return Ok(wb_msg);
     }
 
     pub fn self_pipeline_ifena(&mut self) {
