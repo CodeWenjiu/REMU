@@ -1,0 +1,7 @@
+# Basic formatting
+tab_spaces = 4
+
+# Code structure
+reorder_imports = true
+reorder_modules = true
+merge_derives = true
