@@ -73,7 +73,7 @@ Mainargs = $(BinCommand) $(AdditionalBinCommand) \
 ExtraArgs ?=
 Debugargs = $(Mainargs) $(DifftestArgs) #--log
 
-default: print_binfile run
+default: run
 
 menuconfig-static:
 	@$(MAKE) -C ./config menuconfig-static
