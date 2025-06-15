@@ -1,4 +1,4 @@
-use remu_macro::{log_debug, log_error};
+use remu_macro::log_error;
 use logger::Logger;
 use remu_utils::{ProcessError, ProcessResult};
 use state::reg::riscv::Trap;
@@ -76,8 +76,6 @@ impl Emu {
 
         let wb_ctrl = stage.wb_ctrl;
         let trap: Option<Trap> = stage.trap;
-
-        log_debug!(format!("Al stage {:#?}", stage));
 
         if trap == None {
             match stage.al_ctrl {

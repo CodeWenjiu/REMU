@@ -13,9 +13,6 @@ pub enum WbCtrl{
     WriteGpr,
     Jump,
     Csr,
-
-    // Just for difftest, not need to implement in real hardware
-    DontWrite,
 }
 
 #[derive(Default, Clone, Debug)]
@@ -73,8 +70,6 @@ impl Emu {
                 log_error!(format!("WbCtrl::None should not be used at pc: {:#08x}", pc));
                 return Err(ProcessError::Recoverable);
             },
-
-            WbCtrl::DontWrite => {}
         }
 
         regfile.write_pc(next_pc);
