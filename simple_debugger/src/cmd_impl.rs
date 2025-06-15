@@ -209,8 +209,34 @@ impl SimpleDebugger {
         Ok(())
     }
 
-    fn cmd_differtest_set (&mut self, _subcmd: SetCmds) -> ProcessResult<()> {
-        log_todo!();
+    fn cmd_differtest_set (&mut self, subcmd: SetCmds) -> ProcessResult<()> {
+        match subcmd {
+            SetCmds::Register { subcmd } => {
+                self.cmd_differtest_register_set(subcmd)?;
+            }
+
+            _ => {
+                log_todo!();
+            }
+        }
+
+        log_warn!("Command `Set` is evil, carefully use it.");
+
+        Ok(())
+    }
+
+    fn cmd_differtest_register_set(&mut self, subcmd: RegisterSetCmds) -> ProcessResult<()> {
+        match subcmd {
+            RegisterSetCmds::GPR { index, value } => {
+                let value = self.eval_expr(&value)?;
+                self.state_ref.regfile.set_gpr(index, value)?;
+            }
+
+            _ => {
+                log_todo!();
+            }
+        }
+
         Ok(())
     }
 

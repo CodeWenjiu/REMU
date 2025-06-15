@@ -1,4 +1,4 @@
-use remu_macro::log_error;
+use remu_macro::{log_debug, log_error};
 use logger::Logger;
 use remu_utils::{ProcessError, ProcessResult};
 use state::reg::riscv::Trap;
@@ -19,7 +19,7 @@ impl Default for AlInst {
     }
 }
 
-#[derive(Default, Clone, Copy)]
+#[derive(Default, Clone, Copy, Debug)]
 pub enum AlCtrl {
     #[default]
     DontCare,
@@ -47,7 +47,7 @@ pub enum AlCtrl {
     Remu,
 }
 
-#[derive(Default, Clone)]
+#[derive(Default, Clone, Debug)]
 pub struct ToAlStage {
     pub pc: u32,
 
@@ -76,6 +76,8 @@ impl Emu {
 
         let wb_ctrl = stage.wb_ctrl;
         let trap: Option<Trap> = stage.trap;
+
+        log_debug!(format!("Al stage {:#?}", stage));
 
         if trap == None {
             match stage.al_ctrl {

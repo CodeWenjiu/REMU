@@ -20,14 +20,19 @@ Platform_rv32e_emu = rv32e-emu-dm
 Platform_emu_default = $(Platform_rv32im_emu_dm)
 
 Platform_Nzea_npc = rv32e-nzea-npc
+Platform_Nzea_npc_alias = riscv32e-nzea-npc
 Platform_Nzea_ysyxsoc = rv32e-nzea-ysyxsoc
 Platform_Nzea_jyd_remote = rv32i-nzea-jyd_remote
 
 Platform ?= $(Platform_emu_default)
 
-PLATFORMS = $(Platform_rv32im_emu_dm) $(Platform_rv32im_emu_dm_alias) $(Platform_rv32im_emu_sc) \
-	$(Platform_rv32im_emu_sc_alias) $(Platform_rv32im_emu_pl) $(Platform_rv32im_emu_pl_alias) \
-	$(Platform_rv32e_emu) $(Platform_Nzea_npc) $(Platform_Nzea_ysyxsoc) $(Platform_Nzea_jyd_remote)
+PLATFORMS = $(Platform_rv32im_emu_dm) $(Platform_rv32im_emu_dm_alias) \
+	$(Platform_rv32im_emu_sc) $(Platform_rv32im_emu_sc_alias) \
+	$(Platform_rv32im_emu_pl) $(Platform_rv32im_emu_pl_alias) \
+	$(Platform_rv32e_emu) \
+	$(Platform_Nzea_npc) $(Platform_Nzea_npc_alias)\
+	$(Platform_Nzea_ysyxsoc) \
+	$(Platform_Nzea_jyd_remote)
 
 # Config
 
@@ -57,7 +62,7 @@ Difftest_FFI_Spike = $(Default_FFI_Path)/riscv32-spike-so
 emu_SingleCycle = emu-sc
 emu_Pipeline = emu-pl
 
-DifftestArgs = -d $(emu_Pipeline)
+DifftestArgs = -d $(emu_SingleCycle)
 
 # Mainargs
 
