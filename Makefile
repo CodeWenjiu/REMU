@@ -111,7 +111,7 @@ debug : config_dependencies
 	@RUST_BACKTRACE=full cargo run $(Job) --bin core -- $(Debugargs)
 
 fmt :
-	@cargo fmt --all 
+	@cargo fmt --all --manifest-path ./Cargo.toml
 
 # chore
 fetch:

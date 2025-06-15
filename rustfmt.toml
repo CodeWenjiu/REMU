@@ -5,3 +5,6 @@ tab_spaces = 4
 reorder_imports = true
 reorder_modules = true
 merge_derives = true
+fn_params_layout = "Vertical"
+match_arm_leading_pipes = "Preserve"
+match_block_trailing_comma = true

@@ -13,17 +13,17 @@ macro_rules! generate_mask_and_value {
                 '1' => {
                     mask |= 1;
                     value |= 1;
-                }
+                },
                 '0' => {
                     mask |= 1;
-                }
+                },
                 '?' => {
                     mask |= 0;
-                }
+                },
                 _ => {
                     mask >>= 1;
                     value >>= 1;
-                }
+                },
             }
             i += 1;
         }

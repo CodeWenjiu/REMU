@@ -24,7 +24,11 @@ impl ItraceConfigtionalWrapper {
         }
     }
 
-    pub fn try_analize(&self, _data: u32, _addr: u32) {
+    pub fn try_analize(
+        &self,
+        _data: u32,
+        _addr: u32,
+    ) {
         #[cfg(feature = "ITRACE")]
         print!(
             "{}",
