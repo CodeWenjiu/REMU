@@ -1,5 +1,4 @@
 use enum_dispatch::enum_dispatch;
-use logger::Logger;
 use owo_colors::OwoColorize;
 use remu_macro::{log_error, log_todo};
 use remu_utils::{ProcessError, ProcessResult, ISA};
@@ -41,9 +40,9 @@ pub trait RegfileIo {
         log_todo!();
     }
 
-    fn read_gpr(&self, _index: u32) -> ProcessResult<u32> {
+    fn read_gpr(&self, _index: u32) -> RegResult<u32> {
         log_todo!();
-        Err(ProcessError::Recoverable)
+        Ok(0)
     }
 
     fn write_gpr(&mut self, _index: u32, _value: u32) -> ProcessResult<()> {

@@ -18,52 +18,52 @@ macro_rules! log_trace {
 #[macro_export]
 macro_rules! log_level {
     ($level:expr) => {
-        Logger::show(&$crate::log_trace!("Debug"), $level)
+        logger::Logger::show(&$crate::log_trace!("Debug"), $level)
     };
     ($msg:expr, $level:expr) => {
-        Logger::show(&$crate::log_trace!($msg), $level)
+        logger::Logger::show(&$crate::log_trace!($msg), $level)
     };
     ($fmt:expr, $($arg:expr),+, $level:expr) => {
-        Logger::show(&$crate::log_trace!($fmt, $($arg),+), $level)
+        logger::Logger::show(&$crate::log_trace!($fmt, $($arg),+), $level)
     };
 }
 
 #[macro_export]
 macro_rules! log_info {
     () => {
-        $crate::log_level!(Logger::INFO)
+        $crate::log_level!(logger::Logger::INFO)
     };
     ($msg:expr) => {
-        $crate::log_level!($msg, Logger::INFO)
+        $crate::log_level!($msg, logger::Logger::INFO)
     };
     ($fmt:expr, $($arg:expr),+) => {
-        $crate::log_level!($fmt, $($arg),+, Logger::INFO)
+        $crate::log_level!($fmt, $($arg),+, logger::Logger::INFO)
     };
 }
 
 #[macro_export]
 macro_rules! log_debug {
     () => {
-        $crate::log_level!(Logger::DEBUG)
+        $crate::log_level!(logger::Logger::DEBUG)
     };
     ($msg:expr) => {
-        $crate::log_level!($msg, Logger::DEBUG)
+        $crate::log_level!($msg, logger::Logger::DEBUG)
     };
     ($fmt:expr, $($arg:expr),+) => {
-        $crate::log_level!($fmt, $($arg),+, Logger::DEBUG)
+        $crate::log_level!($fmt, $($arg),+, logger::Logger::DEBUG)
     };
 }
 
 #[macro_export]
 macro_rules! log_error {
     () => {
-        $crate::log_level!(Logger::ERROR)
+        $crate::log_level!(logger::Logger::ERROR)
     };
     ($msg:expr) => {
-        $crate::log_level!($msg, Logger::ERROR)
+        $crate::log_level!($msg, logger::Logger::ERROR)
     };
     ($fmt:expr, $($arg:expr),+) => {
-        $crate::log_level!($fmt, $($arg),+, Logger::ERROR)
+        $crate::log_level!($fmt, $($arg),+, logger::Logger::ERROR)
     };
 }
 
@@ -90,12 +90,12 @@ macro_rules! log_todo {
 #[macro_export]
 macro_rules! log_warn {
     () => {
-        $crate::log_level!(Logger::WARN)
+        $crate::log_level!(logger::Logger::WARN)
     };
     ($msg:expr) => {
-        $crate::log_level!($msg, Logger::WARN)
+        $crate::log_level!($msg, logger::Logger::WARN)
     };
     ($fmt:expr, $($arg:expr),+) => {
-        $crate::log_level!($fmt, $($arg),+, Logger::WARN)
+        $crate::log_level!($fmt, $($arg),+, logger::Logger::WARN)
     };
 }

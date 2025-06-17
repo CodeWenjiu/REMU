@@ -1,5 +1,4 @@
 use remu_macro::log_error;
-use logger::Logger;
 use remu_utils::{ProcessError, ProcessResult};
 use state::model::BaseStageCell;
 

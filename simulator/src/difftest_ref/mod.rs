@@ -1,5 +1,4 @@
 use option_parser::OptionParser;
-use logger::Logger;
 use remu_macro::log_todo;
 use remu_utils::{DifftestPipeline, DifftestRef, DifftestSingleCycle, ProcessResult};
 use state::{reg::AnyRegfile, States};

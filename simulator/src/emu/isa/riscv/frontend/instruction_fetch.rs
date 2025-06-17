@@ -1,5 +1,4 @@
 use remu_macro::log_err;
-use logger::Logger;
 use remu_utils::{ProcessError, ProcessResult};
 
 use crate::emu::Emu;

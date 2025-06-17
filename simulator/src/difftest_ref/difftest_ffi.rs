@@ -5,7 +5,6 @@
 use std::{ffi::c_int, os::raw::c_void};
 
 use dlopen2::{wrapper::Container, wrapper::WrapperApi};
-use logger::Logger;
 use remu_macro::log_error;
 use remu_utils::ProcessResult;
 use state::reg::{AnyRegfile, RegfileIo};

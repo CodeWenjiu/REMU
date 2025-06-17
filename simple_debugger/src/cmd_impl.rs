@@ -1,4 +1,3 @@
-use logger::Logger;
 use owo_colors::OwoColorize;
 use remu_macro::{log_err, log_todo, log_warn};
 use remu_utils::{ProcessError, ProcessResult};

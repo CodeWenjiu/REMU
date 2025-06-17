@@ -1,7 +1,6 @@
 use std::str::FromStr;
 
 use remu_macro::log_err;
-use logger::Logger;
 use remu_utils::{ProcessError, ProcessResult};
 
 use crate::reg::{ALLCSRIdentifier, RegError, RegIdentifier, RegResult};

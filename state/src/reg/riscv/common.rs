@@ -1,6 +1,5 @@
 use std::{cell::RefCell, marker::PhantomData, rc::Rc, str::FromStr};
 
-use logger::Logger;
 use remu_macro::{log_err, log_error};
 use remu_utils::{ProcessError, ProcessResult};
 
@@ -67,8 +66,8 @@ where
         *self.pc.borrow_mut() = value;
     }
 
-    fn read_gpr(&self, index: u32) -> ProcessResult<u32> {
-        let index = log_err!(G::from_index(index), ProcessError::Recoverable)?;
+    fn read_gpr(&self, index: u32) -> RegResult<u32> {
+        let index = G::from_index(index)?;
         Ok(self.regs.borrow()[index.into()])
     }
 

@@ -86,7 +86,7 @@ Difftest_FFI_Spike = $(Default_FFI_Path)/riscv32-spike-so
 emu_SingleCycle = emu-sc
 emu_Pipeline = emu-pl
 
-DifftestArgs = -d $(emu_SingleCycle)
+DifftestArgs = -d $(emu_Pipeline)
 
 # ==============================================================================
 # Main Arguments
@@ -95,10 +95,11 @@ DifftestArgs = -d $(emu_SingleCycle)
 Mainargs = \
 	$(BinCommand) $(AdditionalBinCommand) \
 	-p $(Platform) \
-	-c $(abspath $(ConfigFile))
+	-c $(abspath $(ConfigFile)) \
+	$(DifftestArgs)
 
 ExtraArgs ?=
-Debugargs = $(Mainargs) $(DifftestArgs) #--log
+Debugargs = $(Mainargs) #--log
 
 # ==============================================================================
 # Targets

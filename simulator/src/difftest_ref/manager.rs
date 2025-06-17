@@ -5,7 +5,6 @@ use owo_colors::OwoColorize;
 use remu_macro::log_err;
 use remu_utils::{ProcessError, ProcessResult};
 use state::{reg::{AnyRegfile, RegfileIo}, CheckFlags4reg, States};
-use logger::Logger;
 
 use crate::{difftest_ref::{DifftestRefPipelineApi, DifftestRefSingleCycleApi}, SimulatorCallback};
 

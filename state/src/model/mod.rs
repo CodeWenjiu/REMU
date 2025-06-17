@@ -6,7 +6,6 @@ use std::fmt::{Debug, Error};
 
 use petgraph::{graph::NodeIndex, algo::toposort, Graph};
 use remu_macro::log_error;
-use logger::Logger;
 use remu_utils::{ProcessError, ProcessResult};
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]

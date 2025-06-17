@@ -2,7 +2,6 @@ use std::time::Instant;
 use std::io::{self, Write};
 
 use remu_macro::{log_error, log_todo};
-use logger::Logger;
 
 use super::Mask;
 

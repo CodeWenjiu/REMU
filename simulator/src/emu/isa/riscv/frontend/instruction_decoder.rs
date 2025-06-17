@@ -1,7 +1,8 @@
+use remu_macro::log_err;
 use remu_utils::{ProcessError, ProcessResult};
 use state::reg::{riscv::{RvCsrEnum, Trap}, RegfileIo};
 
-use crate::emu::{extract_bits, isa::riscv::{backend::{AlCtrl, LsCtrl, WbCtrl}, instruction::Priv}, sig_extend, Emu};
+use crate::emu::{extract_bits, isa::riscv::{backend::{AlCtrl, LsCtrl, WbCtrl}, instruction::Priv}, sig_extend, Emu, InstructionSetFlags};
 
 use super::{
     super::instruction::{ImmType, Zicsr, RISCV, RV32I, RV32IAL, RV32ILS, RV32M, }, InstType, IsCtrl, IsLogic, ToIsStage, SRCA, SRCB
@@ -64,20 +65,28 @@ impl Emu {
     /// Decode an instruction into its components
     pub fn instruction_decode(&self, msg: ToIdStage) -> ProcessResult<ToIsStage> {
         let pc = msg.pc;
-        let inst = msg.inst;
+        let instruction = msg.inst;
 
         // Extract register fields
-        let rs1_addr = extract_bits(inst, 15..19) as u8;
-        let rs2_addr = extract_bits(inst, 20..24) as u8;
+        let rs1_addr = if self.instruction_set.contains(InstructionSetFlags::RV32E) {
+            extract_bits(instruction, 16..19)
+        } else {
+            extract_bits(instruction, 15..19)
+        } as u8;
+        let rs2_addr = if self.instruction_set.contains(InstructionSetFlags::RV32E) {
+            extract_bits(instruction, 21..24)
+        } else {
+            extract_bits(instruction, 20..24)
+        } as u8;
 
-        let decode_result = self.instruction_parse(inst);
+        let decode_result = self.instruction_parse(instruction);
 
         let trap = match decode_result {
             None => Some(Trap::IllegalInstruction),
 
             Some((opcode, _)) => {
                 match opcode {
-                    RISCV::RV32I(RV32I::AL(inst)) => {
+                    RISCV::RV32I(RV32I::AL(inst)) | RISCV::RV32E(RV32I::AL(inst)) => {
                         match inst {
                             RV32IAL::Ecall => Some(Trap::EcallM),
                             RV32IAL::Ebreak => Some(Trap::Ebreak),
@@ -93,17 +102,17 @@ impl Emu {
         let (opcode, imm_type) = decode_result.unwrap_or((RISCV::RV32I(RV32I::AL(RV32IAL::Addi)), ImmType::I));
 
         let gpr_waddr = match opcode {
-            RISCV::RV32I(RV32I::AL(opcode)) => {
-                match opcode {
+            RISCV::RV32I(RV32I::AL(inst)) | RISCV::RV32E(RV32I::AL(inst)) => {
+                match inst {
                     RV32IAL::Beq | RV32IAL::Bne  | RV32IAL::Blt  | RV32IAL::Bge  | RV32IAL::Bltu | RV32IAL::Bgeu => 0,
 
                     RV32IAL::Fence => 0, // do nothing for now
 
-                    _ => extract_bits(inst, 7..11) as u8,
+                    _ => extract_bits(instruction, 7..11) as u8,
                 }
             }
 
-            _ => extract_bits(inst, 7..11) as u8,
+            _ => extract_bits(instruction, 7..11) as u8,
         };
             
         // Extract immediate value
@@ -114,15 +123,16 @@ impl Emu {
                 }
             }
 
-            _ => Self::get_imm(inst, imm_type)
+            _ => Self::get_imm(instruction, imm_type)
         };
 
         let regfile = &self.states.regfile;
-        let rs1_val: u32 = regfile.read_gpr(rs1_addr.into()).map_err(|_| ProcessError::Recoverable)?;
-        let rs2_val: u32 = regfile.read_gpr(rs2_addr.into()).map_err(|_| ProcessError::Recoverable)?;
+
+        let rs1_val = log_err!(regfile.read_gpr(rs1_addr as u32), ProcessError::Recoverable)?;
+        let rs2_val = log_err!(regfile.read_gpr(rs2_addr as u32), ProcessError::Recoverable)?;
 
         let logic = match opcode {
-            RISCV::RV32I(RV32I::AL(inst)) => {
+            RISCV::RV32I(RV32I::AL(inst)) | RISCV::RV32E(RV32I::AL(inst)) => {
                 match inst {
                     RV32IAL::Beq => IsLogic::EQ,
                     RV32IAL::Bne => IsLogic::NE,
@@ -140,13 +150,13 @@ impl Emu {
         };
 
         let inst_type = match opcode {
-            RISCV::RV32I(RV32I::AL(_)) => InstType::AL,
-            RISCV::RV32I(RV32I::LS(_)) => InstType::LS,
+            RISCV::RV32I(RV32I::AL(_)) | RISCV::RV32E(RV32I::AL(_)) => InstType::AL,
+            RISCV::RV32I(RV32I::LS(_)) | RISCV::RV32E(RV32I::LS(_)) => InstType::LS,
             _ => InstType::AL,
         };
 
         let srca = match opcode {
-            RISCV::RV32I(RV32I::AL(inst)) => {
+            RISCV::RV32I(RV32I::AL(inst)) | RISCV::RV32E(RV32I::AL(inst)) => {
                 match inst {
                     RV32IAL::Auipc | RV32IAL::Jal |
                     RV32IAL::Beq | RV32IAL::Bne  | RV32IAL::Blt  | RV32IAL::Bge  | RV32IAL::Bltu | RV32IAL::Bgeu => SRCA::PC,
@@ -162,7 +172,7 @@ impl Emu {
         };
 
         let srcb = match opcode {
-            RISCV::RV32I(RV32I::AL(inst)) => {
+            RISCV::RV32I(RV32I::AL(inst)) | RISCV::RV32E(RV32I::AL(inst)) => {
                 match inst {
                     RV32IAL::Lui  | RV32IAL::Auipc | RV32IAL::Jal | RV32IAL::Jalr | RV32IAL::Addi |
                     RV32IAL::Xori | RV32IAL::Ori   | RV32IAL::Andi| 
@@ -191,7 +201,7 @@ impl Emu {
         };
 
         let al_ctrl = match opcode {
-            RISCV::RV32I(RV32I::AL(inst)) => {
+            RISCV::RV32I(RV32I::AL(inst)) | RISCV::RV32E(RV32I::AL(inst)) => {
                 match inst {
                     RV32IAL::Xori | RV32IAL::Xor => AlCtrl::Xor,
                     RV32IAL::Ori  | RV32IAL::Or  => AlCtrl::Or,
@@ -243,7 +253,7 @@ impl Emu {
         };
 
         let ls_ctrl = match opcode {
-            RISCV::RV32I(RV32I::LS(inst)) => {
+            RISCV::RV32I(RV32I::LS(inst)) | RISCV::RV32E(RV32I::LS(inst)) => {
                 match inst {
                     RV32ILS::Lb => LsCtrl::Lb,
                     RV32ILS::Lh => LsCtrl::Lh,
@@ -262,7 +272,7 @@ impl Emu {
         };
 
         let wb_ctrl = match opcode {
-            RISCV::RV32I(RV32I::AL(inst)) => {
+            RISCV::RV32I(RV32I::AL(inst)) | RISCV::RV32E(RV32I::AL(inst)) => {
                 match inst {
                     RV32IAL::Jal | RV32IAL::Jalr | 
                     RV32IAL::Beq | RV32IAL::Bne  | RV32IAL::Blt  | RV32IAL::Bge  | RV32IAL::Bltu | RV32IAL::Bgeu => WbCtrl::Jump,

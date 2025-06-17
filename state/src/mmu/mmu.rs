@@ -2,7 +2,6 @@ use std::{cell::{RefCell, RefMut}, rc::Rc};
 
 use owo_colors::OwoColorize;
 use remu_macro::log_error;
-use logger::Logger;
 use remu_utils::{ProcessError, ProcessResult};
 
 use super::{MMTarget, MMTargetType, Mask, Memory, MemoryFlags, Device};

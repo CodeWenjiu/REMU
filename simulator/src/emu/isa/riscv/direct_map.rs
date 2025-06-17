@@ -1,5 +1,4 @@
 use remu_macro::{log_err, log_todo};
-use logger::Logger;
 use remu_utils::{ProcessError, ProcessResult};
 use state::{mmu::Mask, reg::{riscv::RvCsrEnum, RegfileIo}};
 

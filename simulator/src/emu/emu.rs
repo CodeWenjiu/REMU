@@ -1,5 +1,4 @@
 use bitflags::bitflags;
-use logger::Logger;
 use option_parser::OptionParser;
 use owo_colors::OwoColorize;
 use remu_macro::log_error;
