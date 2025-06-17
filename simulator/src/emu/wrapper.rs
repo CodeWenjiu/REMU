@@ -1,118 +1,177 @@
+use enum_dispatch::enum_dispatch;
 use option_parser::OptionParser;
 use remu_utils::ProcessResult;
 use state::States;
 
-use crate::{difftest_ref::{DifftestRefPipelineApi, DifftestRefSingleCycleApi}, DirectlyMap, Pipeline, SimulatorCallback, SimulatorItem, SingleCycle};
+use crate::{difftest_ref::{DifftestRefPipelineApi, DifftestRefSingleCycleApi}, SimulatorCallback, SimulatorItem};
 
 use super::Emu;
 
-pub trait SimulatorDrive {
-    fn step_cycle(emu: &mut Emu) -> ProcessResult<()>;
+#[enum_dispatch(SimulatorKind)]
+pub trait EmuSimulatorCore {
+    fn step_cycle(&mut self) -> ProcessResult<()>;
+    fn instruction_complete(&mut self) -> ProcessResult<()> { Ok(()) }
+    fn step_cycle_with_skip(&mut self, _skip: Option<u32>) -> ProcessResult<()> { Ok(()) }
+    fn instruction_fetch_enable(&mut self) {}
+    fn load_store_enable(&mut self) {}
+    fn times(&self) -> ProcessResult<()>;
+    fn function_wave_trace(&self, _enable: bool);
 }
 
-impl SimulatorDrive for DirectlyMap {
-    fn step_cycle(emu: &mut Emu) -> ProcessResult<()> {
-        emu.self_step_cycle_dm()
-    }
-}
-
-impl SimulatorDrive for SingleCycle {
-    fn step_cycle(emu: &mut Emu) -> ProcessResult<()> {
-        emu.self_step_cycle_singlecycle()
-    }
-}
-
-impl SimulatorDrive for Pipeline {
-    fn step_cycle(emu: &mut Emu) -> ProcessResult<()> {
-        emu.self_step_cycle_pipeline()
-    }
-}
-
-pub trait DifftestRefSingleCycleDrive {
-    fn instruction_compelete(emu: &mut Emu) -> ProcessResult<()>;
-}
-
-impl DifftestRefSingleCycleDrive for DirectlyMap {
-    fn instruction_compelete(emu: &mut Emu) -> ProcessResult<()> {
-        emu.self_step_cycle_dm()
-    }
-}
-
-impl DifftestRefSingleCycleDrive for SingleCycle {
-    fn instruction_compelete(emu: &mut Emu) -> ProcessResult<()> {
-        emu.self_step_cycle_singlecycle()
-    }
-}
-
-pub trait DifftestRefPipelineDrive {
-    fn step_cycle(emu: &mut Emu, skip: Option<u32>) -> ProcessResult<()>;
-
-    fn instruction_fetch_enable(emu: &mut Emu);
-    fn load_store_enable(emu: &mut Emu);
-}
-
-impl DifftestRefPipelineDrive for Pipeline {
-    fn step_cycle(emu: &mut Emu, skip: Option<u32>) -> ProcessResult<()> {
-        emu.self_step_cycle_pipeline_without_enable(skip)
-    }
-
-    fn instruction_fetch_enable(emu: &mut Emu) {
-        emu.self_pipeline_ifena();
-    }
-
-    fn load_store_enable(emu: &mut Emu) {
-        emu.self_pipeline_lsena();
-    }
-}
-
-pub trait SimulatorDriver {}
-
-impl<T: SimulatorDrive + DifftestRefSingleCycleDrive + DifftestRefPipelineDrive> SimulatorDriver for T {}
-
-pub struct EmuWrapper<V> {
+pub struct DirectlyMap {
     emu: Emu,
-    _marker: std::marker::PhantomData<V>,
+}
+pub struct SingleCycle {
+    emu: Emu,
+}
+pub struct Pipeline {
+    emu: Emu,
 }
 
-impl<V: SimulatorDrive> SimulatorItem for EmuWrapper<V> {
+impl EmuSimulatorCore for DirectlyMap {
     fn step_cycle(&mut self) -> ProcessResult<()> {
-        V::step_cycle(&mut self.emu)
+        self.emu.self_step_cycle_dm()
     }
-
+    fn instruction_complete(&mut self) -> ProcessResult<()> {
+        self.emu.self_step_cycle_dm()
+    }
     fn times(&self) -> ProcessResult<()> {
         self.emu.times()
     }
-
-    fn function_wave_trace(&self,_enable:bool) {
-        self.emu.function_wave_trace(_enable)
+    fn function_wave_trace(&self, enable: bool) {
+        self.emu.function_wave_trace(enable)
     }
 }
 
-impl<V: DifftestRefSingleCycleDrive> DifftestRefSingleCycleApi for EmuWrapper<V> {
-    fn instruction_compelete(&mut self) -> ProcessResult<()> {
-        V::instruction_compelete(&mut self.emu)
+impl EmuSimulatorCore for SingleCycle {
+    fn step_cycle(&mut self) -> ProcessResult<()> {
+        self.emu.self_step_cycle_singlecycle()
+    }
+    fn instruction_complete(&mut self) -> ProcessResult<()> {
+        self.emu.self_step_cycle_singlecycle()
+    }
+    fn times(&self) -> ProcessResult<()> {
+        self.emu.times()
+    }
+    fn function_wave_trace(&self, enable: bool) {
+        self.emu.function_wave_trace(enable)
     }
 }
 
-impl<V: DifftestRefPipelineDrive> DifftestRefPipelineApi for EmuWrapper<V> {
-    fn step_cycle(&mut self, skip: Option<u32>) -> ProcessResult<()> {
-        V::step_cycle(&mut self.emu, skip)
+impl EmuSimulatorCore for Pipeline {
+    fn step_cycle(&mut self) -> ProcessResult<()> {
+        self.emu.self_step_cycle_pipeline()
     }
-
+    fn step_cycle_with_skip(&mut self, skip: Option<u32>) -> ProcessResult<()> {
+        self.emu.self_step_cycle_pipeline_without_enable(skip)
+    }
     fn instruction_fetch_enable(&mut self) {
-        V::instruction_fetch_enable(&mut self.emu)
+        self.emu.self_pipeline_ifena();
     }
-
     fn load_store_enable(&mut self) {
-        V::load_store_enable(&mut self.emu)
+        self.emu.self_pipeline_lsena();
+    }
+    fn times(&self) -> ProcessResult<()> {
+        self.emu.times()
+    }
+    fn function_wave_trace(&self, enable: bool) {
+        self.emu.function_wave_trace(enable)
     }
 }
 
-impl<V> EmuWrapper<V> {
+#[enum_dispatch]
+pub enum SimulatorKind {
+    DirectlyMap(DirectlyMap),
+    SingleCycle(SingleCycle),
+    Pipeline(Pipeline),
+}
+
+impl DirectlyMap {
     pub fn new(option: &OptionParser, states: States, callback: SimulatorCallback) -> Self {
-        Self {
-            emu: Emu::new(option, states, callback),
-            _marker: std::marker::PhantomData,
-        }
+        Self { emu: Emu::new(option, states, callback) }
+    }
+}
+impl SingleCycle {
+    pub fn new(option: &OptionParser, states: States, callback: SimulatorCallback) -> Self {
+        Self { emu: Emu::new(option, states, callback) }
+    }
+}
+impl Pipeline {
+    pub fn new(option: &OptionParser, states: States, callback: SimulatorCallback) -> Self {
+        Self { emu: Emu::new(option, states, callback) }
+    }
+}
+
+pub struct EmuWrapper {
+    kind: SimulatorKind,
+}
+
+impl EmuWrapper {
+    pub fn new_dm(option: &OptionParser, states: States, callback: SimulatorCallback) -> Self {
+        Self { kind: SimulatorKind::DirectlyMap(DirectlyMap::new(option, states, callback)) }
+    }
+    pub fn new_sc(option: &OptionParser, states: States, callback: SimulatorCallback) -> Self {
+        Self { kind: SimulatorKind::SingleCycle(SingleCycle::new(option, states, callback)) }
+    }
+    pub fn new_pl(option: &OptionParser, states: States, callback: SimulatorCallback) -> Self {
+        Self { kind: SimulatorKind::Pipeline(Pipeline::new(option, states, callback)) }
+    }
+
+    pub fn step_cycle(&mut self) -> ProcessResult<()> {
+        self.kind.step_cycle()
+    }
+    pub fn instruction_complete(&mut self) -> ProcessResult<()> {
+        self.kind.instruction_complete()
+    }
+    pub fn step_cycle_with_skip(&mut self, skip: Option<u32>) -> ProcessResult<()> {
+        self.kind.step_cycle_with_skip(skip)
+    }
+    pub fn instruction_fetch_enable(&mut self) {
+        self.kind.instruction_fetch_enable()
+    }
+    pub fn load_store_enable(&mut self) {
+        self.kind.load_store_enable()
+    }
+    pub fn times(&self) -> ProcessResult<()> {
+        self.kind.times()
+    }
+    pub fn function_wave_trace(&self, enable: bool) {
+        self.kind.function_wave_trace(enable)
+    }
+}
+
+impl SimulatorItem for EmuWrapper {
+    fn init(&self) -> Result<(), crate::simulator::SimulatorError> {
+        Ok(())
+    }
+    fn step_cycle(&mut self) -> ProcessResult<()> {
+        self.step_cycle()
+    }
+    fn times(&self) -> ProcessResult<()> {
+        self.times()
+    }
+    fn function_wave_trace(&self, enable: bool) {
+        self.function_wave_trace(enable)
+    }
+    fn function_nvboard(&self, _enable: bool) {
+        // 如果有nvboard功能可在此实现
+    }
+}
+
+impl DifftestRefSingleCycleApi for EmuWrapper {
+    fn instruction_compelete(&mut self) -> ProcessResult<()> {
+        self.instruction_complete()
+    }
+}
+
+impl DifftestRefPipelineApi for EmuWrapper {
+    fn step_cycle(&mut self, skip: Option<u32>) -> ProcessResult<()> {
+        self.step_cycle_with_skip(skip)
+    }
+    fn instruction_fetch_enable(&mut self) {
+        self.instruction_fetch_enable()
+    }
+    fn load_store_enable(&mut self) {
+        self.load_store_enable()
     }
 }

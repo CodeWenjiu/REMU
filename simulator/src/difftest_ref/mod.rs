@@ -3,7 +3,7 @@ use remu_macro::log_todo;
 use remu_utils::{DifftestPipeline, DifftestRef, DifftestSingleCycle, ProcessResult};
 use state::{reg::AnyRegfile, States};
 
-use crate::{emu::EmuWrapper, DirectlyMap, Pipeline, SimulatorCallback};
+use crate::{emu::EmuWrapper, SimulatorCallback};
 
 use enum_dispatch::enum_dispatch;
 
@@ -35,7 +35,7 @@ pub trait DifftestRefFfiApi {
 
 #[enum_dispatch]
 pub enum AnyDifftestSingleCycleRef {
-    EMU(EmuWrapper<DirectlyMap>),
+    EMU(EmuWrapper),
 }
 
 #[enum_dispatch(AnyDifftestSingleCycleRef)]
@@ -45,7 +45,7 @@ pub trait DifftestRefSingleCycleApi {
 
 #[enum_dispatch]
 pub enum AnyDifftestPipelineRef {
-    EMU(EmuWrapper<Pipeline>),
+    EMU(EmuWrapper),
 }
 
 #[enum_dispatch(AnyDifftestPipelineRef)]
@@ -67,10 +67,10 @@ impl AnyDifftestRef {
         let r#ref = option.cli.differtest.unwrap();
         match r#ref {
             DifftestRef::SingleCycle(ref r#ref) => match r#ref {
-                DifftestSingleCycle::EMU => AnyDifftestRef::SingleCycle(AnyDifftestSingleCycleRef::EMU(EmuWrapper::<DirectlyMap>::new(option, states, callback))),
+                DifftestSingleCycle::EMU => AnyDifftestRef::SingleCycle(AnyDifftestSingleCycleRef::EMU(EmuWrapper::new_dm(option, states, callback))),
             },
             DifftestRef::Pipeline(ref r#ref) => match r#ref {
-                DifftestPipeline::EMU => AnyDifftestRef::Pipeline(AnyDifftestPipelineRef::EMU(EmuWrapper::<Pipeline>::new(option, states, callback))),
+                DifftestPipeline::EMU => AnyDifftestRef::Pipeline(AnyDifftestPipelineRef::EMU(EmuWrapper::new_pl(option, states, callback))),
             },
             DifftestRef::FFI(so_path) => AnyDifftestRef::FFI(AnyDifftestFfiRef::TARGET(FFI::new(&so_path))),
         }

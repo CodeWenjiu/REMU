@@ -15,7 +15,7 @@ use remu_utils::{DifftestRef, EmuSimulators, ItraceConfigtionalWrapper, ProcessE
 use state::{reg::RegfileIo, States};
 
 use crate::{
-    difftest_ref::DifftestManager, emu::EmuWrapper, nzea::Nzea, DirectlyMap, Pipeline, SingleCycle, Tracer
+    difftest_ref::DifftestManager, emu::EmuWrapper, nzea::Nzea, Tracer
 };
 
 #[derive(Debug, Subcommand)]
@@ -37,9 +37,7 @@ pub trait SimulatorItem {
 
 #[enum_dispatch]
 pub enum SimulatorEnum {
-    EmuDirectMap(EmuWrapper<DirectlyMap>),
-    EmuSingleCycle(EmuWrapper<SingleCycle>),
-    EmuPipeline(EmuWrapper<Pipeline>),
+    Emu(EmuWrapper),
     NZEA(Nzea),
 }
 
@@ -54,12 +52,14 @@ pub enum SimulatorError {
 impl SimulatorEnum {
     pub fn new(option: &OptionParser, states: States, callback: SimulatorCallback) -> Self {
         match option.cli.platform.simulator {
-            Simulators::EMU(target) => 
-                match target {
-                    EmuSimulators::DM => SimulatorEnum::EmuDirectMap(EmuWrapper::<DirectlyMap>::new(option, states, callback)),
-                    EmuSimulators::SC => SimulatorEnum::EmuSingleCycle(EmuWrapper::<SingleCycle>::new(option, states, callback)),
-                    EmuSimulators::PL => SimulatorEnum::EmuPipeline(EmuWrapper::<Pipeline>::new(option, states, callback)),
-                },
+            Simulators::EMU(target) => {
+                let emu = match target {
+                    EmuSimulators::DM => EmuWrapper::new_dm(option, states, callback),
+                    EmuSimulators::SC => EmuWrapper::new_sc(option, states, callback),
+                    EmuSimulators::PL => EmuWrapper::new_pl(option, states, callback),
+                };
+                SimulatorEnum::Emu(emu)
+            },
             Simulators::NZEA(_) => SimulatorEnum::NZEA(Nzea::new(option, states, callback)),
         }
     }
