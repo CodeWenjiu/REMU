@@ -111,6 +111,12 @@ pub enum InfoCmds {
     /// Get the state of the pipeline
     Pipeline {
     },
+
+    /// Get extention info
+    Extention {
+        /// The target extention name
+        key: Option<String>,
+    },
 }
 
 #[derive(Debug, Subcommand)]

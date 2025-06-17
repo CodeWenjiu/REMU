@@ -1,7 +1,7 @@
 use owo_colors::OwoColorize;
 use remu_macro::{log_err, log_todo, log_warn};
 use remu_utils::{ProcessError, ProcessResult};
-use simulator::SimulatorItem;
+use simulator::{difftest_ref::{AnyDifftestRef, DifftestRefPipelineApi}, SimulatorItem};
 use state::{mmu::Mask, reg::RegfileIo};
 
 use crate::{cmd_parser::{BreakPointCmds, Cmds, DiffertestCmds, FunctionCmds, InfoCmds, MemorySetCmds, RegisterInfoCmds, RegisterSetCmds, SetCmds, StepCmds}, SimpleDebugger};
@@ -19,6 +19,16 @@ impl SimpleDebugger {
 
             InfoCmds::Pipeline {  } => {
                 println!("{}", self.state.pipe_state)
+            }
+
+            InfoCmds::Extention { key } => {
+                if let Some(key) = key {
+                    self.simulator.dut.print_info(key.as_str());
+                } else {
+                    self.simulator.dut.get_keys().iter().for_each(|key| {
+                        println!("- {}", key.blue());
+                    });
+                }
             }
         }
 
@@ -202,6 +212,27 @@ impl SimpleDebugger {
 
             InfoCmds::Pipeline {  } => {
                 println!("{}", self.state_ref.pipe_state)
+            }
+
+            InfoCmds::Extention { key } => {
+                if let Some(manager) = &self.simulator.difftest_manager {
+                    let manager = &manager.borrow().reference;
+                    let AnyDifftestRef::Pipeline(manager) = manager else {
+                        log_todo!();
+                        return Ok(());
+                    };
+                    
+                    if let Some(key) = key {
+                        manager.print_info(key.as_str());
+                    } else {
+                        manager.get_keys().iter().for_each(|key| {
+                            println!("- {}", key.blue());
+                        });
+                    }
+                } else {
+                    log_todo!();
+                    return Ok(());
+                }
             }
         }
 

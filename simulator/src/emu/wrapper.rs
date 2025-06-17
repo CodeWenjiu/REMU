@@ -16,6 +16,9 @@ pub trait EmuSimulatorCore {
     fn load_store_enable(&mut self) {}
     fn times(&self) -> ProcessResult<()>;
     fn function_wave_trace(&self, _enable: bool);
+
+    fn get_keys(&self) -> Vec<&'static str> {vec![]}
+    fn print_info(&self, key: &str) { let _ = key; }
 }
 
 pub struct DirectlyMap {
@@ -76,6 +79,16 @@ impl EmuSimulatorCore for Pipeline {
     }
     fn function_wave_trace(&self, enable: bool) {
         self.emu.function_wave_trace(enable)
+    }
+
+    fn get_keys(&self) -> Vec<&'static str> {
+        vec!["pipeline"]
+    }
+    fn print_info(&self,key: &str) {
+        match key {
+            "pipeline" => println!("{}", self.emu.pipeline),
+            _ => println!("Unknown key: {}", key),
+        }
     }
 }
 
@@ -156,6 +169,13 @@ impl SimulatorItem for EmuWrapper {
     fn function_nvboard(&self, _enable: bool) {
         // 如果有nvboard功能可在此实现
     }
+
+    fn get_keys(&self) -> Vec<&'static str> {
+        self.kind.get_keys()
+    }
+    fn print_info(&self,key: &str) {
+        self.kind.print_info(key);
+    }
 }
 
 impl DifftestRefSingleCycleApi for EmuWrapper {
@@ -173,5 +193,12 @@ impl DifftestRefPipelineApi for EmuWrapper {
     }
     fn load_store_enable(&mut self) {
         self.load_store_enable()
+    }
+
+    fn get_keys(&self) -> Vec<&'static str> {
+        self.kind.get_keys()
+    }
+    fn print_info(&self,key: &str) {
+        self.kind.print_info(key);
     }
 }

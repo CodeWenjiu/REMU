@@ -6,7 +6,7 @@ use crate::emu::Emu;
 
 use super::{ToWbStage, WbCtrl, };
 
-#[derive(Default, Clone, Copy)]
+#[derive(Default, Clone, Copy, Debug)]
 pub enum LsCtrl {
     #[default]
     DontCare,
@@ -21,7 +21,7 @@ pub enum LsCtrl {
     Sw,
 }
 
-#[derive(Default, Clone)]
+#[derive(Default, Clone, Debug)]
 pub struct ToLsStage {
     pub pc: u32,
     pub ls_ctrl: LsCtrl,

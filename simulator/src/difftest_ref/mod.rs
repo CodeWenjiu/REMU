@@ -54,6 +54,9 @@ pub trait DifftestRefPipelineApi {
 
     fn instruction_fetch_enable(&mut self);
     fn load_store_enable(&mut self);
+
+    fn get_keys(&self) -> Vec<&'static str>;
+    fn print_info(&self,key: &str);
 }
 
 pub enum AnyDifftestRef {

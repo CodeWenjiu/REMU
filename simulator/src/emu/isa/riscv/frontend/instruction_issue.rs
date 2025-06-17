@@ -4,7 +4,7 @@ use state::reg::{riscv::Trap, RegfileIo};
 
 use crate::emu::{isa::riscv::{backend::{AlCtrl, LsCtrl, ToAlStage, ToLsStage, WbCtrl}}, Emu};
 
-#[derive(Default, Clone, Copy)]
+#[derive(Default, Clone, Copy, Debug)]
 pub struct ToIsStage {
     pub pc: u32,
 
@@ -26,14 +26,14 @@ pub struct ToIsStage {
     pub trap: Option<Trap>,
 }
 
-#[derive(Default, Clone, Copy)]
+#[derive(Default, Clone, Copy, Debug)]
 pub enum InstType {
     #[default]
     AL,
     LS,
 }
 
-#[derive(Default, Clone, Copy)]
+#[derive(Default, Clone, Copy, Debug)]
 pub enum IsLogic {
     #[default]
     DontCare,
@@ -51,7 +51,7 @@ pub enum IsLogic {
     SLTIU,
 }
 
-#[derive(Default, Clone, Copy)]
+#[derive(Default, Clone, Copy, Debug)]
 pub enum SRCA {
     #[default]
     DontCare,
@@ -61,7 +61,7 @@ pub enum SRCA {
     CSR,
 }
 
-#[derive(Default, Clone, Copy)]
+#[derive(Default, Clone, Copy, Debug)]
 pub enum SRCB {
     #[default]
     DontCare,
@@ -73,7 +73,7 @@ pub enum SRCB {
     LogicSet,
 }
 
-#[derive(Default, Clone, Copy)]
+#[derive(Default, Clone, Copy, Debug)]
 pub struct IsCtrl {
     pub inst_type: InstType,
     pub srca: SRCA,

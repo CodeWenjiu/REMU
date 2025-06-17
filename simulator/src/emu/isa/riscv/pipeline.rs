@@ -1,8 +1,11 @@
+use std::fmt::Display;
+
 use remu_macro::log_error;
 use remu_utils::{ProcessError, ProcessResult};
 use state::model::BaseStageCell;
 
 use crate::emu::{extract_bits, isa::riscv::{backend::{ToAlStage, ToLsStage, ToWbStage}, frontend::{IsOutStage, ToIdStage, ToIfStage, ToIsStage}}, Emu};
+use owo_colors::OwoColorize;
 
 struct PipelineStage {
     ex_wb: (ToWbStage, bool),
@@ -29,6 +32,39 @@ pub struct Pipeline {
     if_ena: bool,
     ls_ena: bool,
     pipeline_pc: u32,
+}
+
+impl Display for PipelineStage {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "PipelineStage {{\n")?;
+        
+        // Handle each stage separately
+        let stages_data = [
+            ("ex_wb", format!("{:?}", self.ex_wb.0), self.ex_wb.1),
+            ("is_ls", format!("{:?}", self.is_ls.0), self.is_ls.1),
+            ("is_al", format!("{:?}", self.is_al.0), self.is_al.1),
+            ("id_is", format!("{:?}", self.id_is.0), self.id_is.1),
+            ("if_id", format!("{:?}", self.if_id.0), self.if_id.1),
+        ];
+        
+        for (i, (name, data, valid)) in stages_data.iter().enumerate() {
+            let colored = if *valid { 
+                data.style(owo_colors::Style::new().green())
+            } else { 
+                data.style(owo_colors::Style::new().red())
+            };
+            let comma = if i == stages_data.len() - 1 { "" } else { "," };
+            write!(f, "  {}: {}{}\n", name, colored, comma)?;
+        }
+        
+        write!(f, "}}")
+    }
+}
+
+impl Display for Pipeline {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        self.stages.fmt(f)
+    }
 }
 
 impl Pipeline {

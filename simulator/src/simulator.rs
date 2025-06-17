@@ -33,6 +33,9 @@ pub trait SimulatorItem {
     fn times(&self) -> ProcessResult<()> { log_todo!(); Ok(()) }
     fn function_wave_trace(&self, _enable: bool) { log_todo!(); }
     fn function_nvboard(&self, _enable: bool) { log_todo!(); }
+
+    fn get_keys(&self) -> Vec<&'static str> { log_todo!(); vec![] }
+    fn print_info(&self, key: &str) {let _ = key; log_todo!(); }
 }
 
 #[enum_dispatch]
