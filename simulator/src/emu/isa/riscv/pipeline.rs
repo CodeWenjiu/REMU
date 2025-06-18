@@ -187,6 +187,8 @@ impl Emu {
     }
 
     pub fn self_pipeline_update(&mut self, skip: Option<u32>) -> ProcessResult<Option<(u32, u32, u32)>> {
+        let is_gpr_raw = self.pipeline.is_gpr_raw();
+
         let (to_wb, wb_valid) = &self.pipeline.stages.ex_wb;
         
         let mut wb_msg = None;
@@ -231,6 +233,8 @@ impl Emu {
                 self.pipeline.stages.ex_wb.1 = true;
 
                 self.states.pipe_state.trans(BaseStageCell::IsLs, BaseStageCell::ExWb)?;
+
+                self.pipeline.ls_ena = false; 
             }
 
             return Ok(wb_msg); // Ls Hazard
@@ -291,7 +295,7 @@ impl Emu {
 
         let (to_id, id_valid) = &self.pipeline.stages.if_id;
 
-        if self.pipeline.is_gpr_raw() {
+        if is_gpr_raw {
             return Ok(wb_msg);
         }
 
