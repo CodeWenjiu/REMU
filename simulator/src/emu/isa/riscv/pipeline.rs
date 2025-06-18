@@ -83,36 +83,24 @@ impl Pipeline {
         let (to_ls, ls_valid) = &self.stages.is_ls;
         let (to_is, is_valid) = &self.stages.id_is;
 
+        if !self.stages.if_id.1 {
+            return false; // If IF stage is not valid, no GPR conflict
+        }
+
         let inst = self.stages.if_id.0.inst;
 
         let rs1_addr = extract_bits(inst, 15..19) as u8;
         let rs2_addr = extract_bits(inst, 20..24) as u8;
 
-        if *wb_valid {
-            if rs1_addr == to_wb.gpr_waddr || rs2_addr == to_wb.gpr_waddr {
-                return true;
-            }
-        }
+        let conflict_gpr = |rd: u8| {
+            (rd != 0) && 
+            ((rd == rs1_addr) || (rd == rs2_addr))
+        };
 
-        if *al_valid {
-            if rs1_addr == to_al.gpr_waddr || rs2_addr == to_al.gpr_waddr {
-                return true;
-            }
-        }
-
-        if *ls_valid {
-            if rs1_addr == to_ls.gpr_waddr || rs2_addr == to_ls.gpr_waddr {
-                return true;
-            }
-        }
-
-        if *is_valid {
-            if rs1_addr == to_is.gpr_waddr || rs2_addr == to_is.gpr_waddr {
-                return true;
-            }
-        }
-
-        false
+        (*wb_valid && conflict_gpr(to_wb.gpr_waddr)) ||
+        (*al_valid && conflict_gpr(to_al.gpr_waddr)) ||
+        (*ls_valid && conflict_gpr(to_ls.gpr_waddr)) ||
+        (*is_valid && conflict_gpr(to_is.gpr_waddr))
     }
 
     fn is_flush_need(&self, next_pc: u32) -> bool {
@@ -187,7 +175,7 @@ impl Emu {
     }
 
     pub fn self_pipeline_update(&mut self, skip: Option<u32>) -> ProcessResult<Option<(u32, u32, u32)>> {
-        let is_gpr_raw = self.pipeline.is_gpr_raw();
+        let raw_hazard = self.pipeline.is_gpr_raw();
 
         let (to_wb, wb_valid) = &self.pipeline.stages.ex_wb;
         
@@ -295,7 +283,7 @@ impl Emu {
 
         let (to_id, id_valid) = &self.pipeline.stages.if_id;
 
-        if is_gpr_raw {
+        if raw_hazard {
             return Ok(wb_msg);
         }
 
