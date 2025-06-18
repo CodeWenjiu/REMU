@@ -40,11 +40,11 @@ impl Display for PipelineStage {
         
         // Handle each stage separately
         let stages_data = [
-            ("ex_wb", format!("{:?}", self.ex_wb.0), self.ex_wb.1),
-            ("is_ls", format!("{:?}", self.is_ls.0), self.is_ls.1),
-            ("is_al", format!("{:?}", self.is_al.0), self.is_al.1),
-            ("id_is", format!("{:?}", self.id_is.0), self.id_is.1),
-            ("if_id", format!("{:?}", self.if_id.0), self.if_id.1),
+            ("if_id", format!("{:08x?}", self.if_id.0), self.if_id.1),
+            ("id_is", format!("{:08x?}", self.id_is.0), self.id_is.1),
+            ("is_al", format!("{:08x?}", self.is_al.0), self.is_al.1),
+            ("is_ls", format!("{:08x?}", self.is_ls.0), self.is_ls.1),
+            ("ex_wb", format!("{:08x?}", self.ex_wb.0), self.ex_wb.1),
         ];
         
         for (i, (name, data, valid)) in stages_data.iter().enumerate() {
@@ -115,6 +115,10 @@ impl Pipeline {
         false
     }
 
+    fn is_ls(&self) -> bool {
+        self.stages.is_ls.1
+    }
+
     fn is_flush_need(&self, next_pc: u32) -> bool {
         let (to_al, al_valid) = &self.stages.is_al;
         let (to_ls, ls_valid) = &self.stages.is_ls;
@@ -137,7 +141,7 @@ impl Pipeline {
             return to_id.pc != next_pc;
         }
 
-        false
+        self.pipeline_pc != next_pc
     }
 
     fn flush_if_need(&mut self, next_pc: u32) -> bool {
@@ -231,6 +235,10 @@ impl Emu {
 
                 self.states.pipe_state.trans(BaseStageCell::IsLs, BaseStageCell::ExWb)?;
             }
+        }
+
+        if self.pipeline.is_ls() {
+            return Ok(wb_msg);
         }
 
         let (to_al, al_valid) = &self.pipeline.stages.is_al;

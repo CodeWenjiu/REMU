@@ -69,12 +69,12 @@ impl Emu {
 
         // Extract register fields
         let rs1_addr = if self.instruction_set.contains(InstructionSetFlags::RV32E) {
-            extract_bits(instruction, 16..19)
+            extract_bits(instruction, 15..18)
         } else {
             extract_bits(instruction, 15..19)
         } as u8;
         let rs2_addr = if self.instruction_set.contains(InstructionSetFlags::RV32E) {
-            extract_bits(instruction, 21..24)
+            extract_bits(instruction, 20..23)
         } else {
             extract_bits(instruction, 20..24)
         } as u8;
