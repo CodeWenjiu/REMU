@@ -115,10 +115,6 @@ impl Pipeline {
         false
     }
 
-    fn is_ls(&self) -> bool {
-        self.stages.is_ls.1
-    }
-
     fn is_flush_need(&self, next_pc: u32) -> bool {
         let (to_al, al_valid) = &self.stages.is_al;
         let (to_ls, ls_valid) = &self.stages.is_ls;
@@ -211,11 +207,12 @@ impl Emu {
             self.times.instructions += 1;
         }
 
-        let ls_ena = self.pipeline.ls_ena;
-        if ls_ena {
-            let (to_ls, ls_valid) = &self.pipeline.stages.is_ls;
-
-            if *ls_valid {
+        let (to_ls, ls_valid) = &self.pipeline.stages.is_ls;
+        
+        if *ls_valid {
+            let ls_ena = self.pipeline.ls_ena;
+            
+            if ls_ena {
                 let (pc, _inst) = self.states.pipe_state.fetch(BaseStageCell::IsLs)?; // need to used to check
 
                 let to_wb = if let Some(skip_val) = skip {
@@ -235,10 +232,8 @@ impl Emu {
 
                 self.states.pipe_state.trans(BaseStageCell::IsLs, BaseStageCell::ExWb)?;
             }
-        }
 
-        if self.pipeline.is_ls() {
-            return Ok(wb_msg);
+            return Ok(wb_msg); // Ls Hazard
         }
 
         let (to_al, al_valid) = &self.pipeline.stages.is_al;
