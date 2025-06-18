@@ -137,6 +137,8 @@ impl Pipeline {
             self.stages.id_is.1 = false;
             self.stages.if_id.1 = false;
 
+            self.if_ena = false;
+            
             self.pipeline_pc = next_pc;
         }
 

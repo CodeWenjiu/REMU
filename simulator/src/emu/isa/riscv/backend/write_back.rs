@@ -1,4 +1,4 @@
-use remu_macro::log_error;
+use remu_macro::{log_err, log_error};
 use remu_utils::{ProcessError, ProcessResult};
 use state::reg::{riscv::{RvCsrEnum, Trap}, RegfileIo};
 
@@ -35,10 +35,10 @@ impl Emu {
         let mut next_pc = pc.wrapping_add(4);
 
         if let Some(trap) = stage.trap {
-            regfile.write_csr(RvCsrEnum::MEPC.into(), pc)?;
-            regfile.write_csr(RvCsrEnum::MCAUSE.into(), trap as u32)?;
+            log_err!(regfile.write_csr(RvCsrEnum::MEPC.into(), pc), ProcessError::Recoverable)?;
+            log_err!(regfile.write_csr(RvCsrEnum::MCAUSE.into(), trap as u32), ProcessError::Recoverable)?;
 
-            next_pc = regfile.read_csr(RvCsrEnum::MTVEC.into())?;
+            next_pc = log_err!(regfile.read_csr(RvCsrEnum::MTVEC.into()), ProcessError::Recoverable)?;
 
             if trap == Trap::Ebreak {
                 (self.callback.trap)(); // just for now
@@ -62,7 +62,7 @@ impl Emu {
 
             WbCtrl::Csr => {
                 regfile.write_gpr(stage.gpr_waddr.into(), stage.csr_rdata)?;
-                regfile.write_csr(stage.csr_waddr.into(), stage.result)?;
+                log_err!(regfile.write_csr(stage.csr_waddr.into(), stage.result), ProcessError::Recoverable)?;
             }
 
             WbCtrl::DontCare => {

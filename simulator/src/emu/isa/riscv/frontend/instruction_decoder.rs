@@ -168,6 +168,10 @@ impl Emu {
                 match inst {
                     RV32IAL::Auipc | RV32IAL::Jal |
                     RV32IAL::Beq | RV32IAL::Bne  | RV32IAL::Blt  | RV32IAL::Bge  | RV32IAL::Bltu | RV32IAL::Bgeu => SRCA::PC,
+
+                    RV32IAL::Lui | RV32IAL::Slti | RV32IAL::Sltiu | RV32IAL::Slt | RV32IAL::Sltu => SRCA::ZERO, 
+                    // 为什么不直接设置rs1addr为0，以免去该enum？ 因为这样做在硬件上相当于要译码后才能获取rsaddr，然后访问寄存器文件，这可能会造成时序上的性能下降
+
                     _ => SRCA::RS1,
                 }
             }

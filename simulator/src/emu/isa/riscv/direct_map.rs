@@ -162,9 +162,9 @@ impl Emu {
         
                     RV32IAL::Ecall => {
                         msg.rd_addr = 0;
-                        regfile.write_csr(RvCsrEnum::MEPC.into(), pc)?;
-                        regfile.write_csr(RvCsrEnum::MCAUSE.into(), 0x0000000b)?;
-                        next_pc = regfile.read_csr(RvCsrEnum::MTVEC.into())?;
+                        log_err!(regfile.write_csr(RvCsrEnum::MEPC.into(), pc), ProcessError::Recoverable)?;
+                        log_err!(regfile.write_csr(RvCsrEnum::MCAUSE.into(), 0x0000000b), ProcessError::Recoverable)?;
+                        next_pc = log_err!(regfile.read_csr(RvCsrEnum::MTVEC.into()), ProcessError::Recoverable)?;
                     }
         
                     RV32IAL::Ebreak => {
@@ -341,7 +341,7 @@ impl Emu {
         
         match _name {
             Priv::Mret => {
-                next_pc = regfile.read_csr(RvCsrEnum::MEPC.into())?;
+                next_pc = log_err!(regfile.read_csr(RvCsrEnum::MEPC.into()), ProcessError::Recoverable)?;
             }
         }
 
@@ -361,7 +361,7 @@ impl Emu {
 
         let imm: u32 = msg.imm;
         let csr_addr = imm & 0x3FF;
-        let csr_val = regfile.read_csr(csr_addr)?;
+        let csr_val = log_err!(regfile.read_csr(csr_addr), ProcessError::Recoverable)?;
         let mut csr_wdata = rs1;
 
         match _name {
@@ -378,7 +378,7 @@ impl Emu {
         }
         
         regfile.write_gpr(msg.rd_addr.into(), rd_val)?;
-        regfile.write_csr(csr_addr, csr_wdata)?;
+        log_err!(regfile.write_csr(csr_addr, csr_wdata), ProcessError::Recoverable)?;
 
         regfile.write_pc(next_pc);
 

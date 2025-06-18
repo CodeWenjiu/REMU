@@ -1,8 +1,8 @@
-use remu_macro::log_error;
+use remu_macro::{log_err, log_error};
 use remu_utils::{ProcessError, ProcessResult};
 use state::reg::{riscv::Trap, RegfileIo};
 
-use crate::emu::{isa::riscv::{backend::{AlCtrl, LsCtrl, ToAlStage, ToLsStage, WbCtrl}}, Emu};
+use crate::emu::{isa::riscv::backend::{AlCtrl, LsCtrl, ToAlStage, ToLsStage, WbCtrl}, Emu};
 
 #[derive(Default, Clone, Copy, Debug)]
 pub struct ToIsStage {
@@ -59,6 +59,7 @@ pub enum SRCA {
     RS1,
     PC,
     CSR,
+    ZERO,
 }
 
 #[derive(Default, Clone, Copy, Debug)]
@@ -124,7 +125,10 @@ impl Emu {
                 let srca = match stage.is_ctrl.srca {
                     SRCA::RS1 => rs1_val,
                     SRCA::PC => pc,
-                    SRCA::CSR => self.states.regfile.read_csr(imm)?,
+                    SRCA::CSR => {
+                        log_err!(self.states.regfile.read_csr(imm & 0xFFF), ProcessError::Recoverable)?
+                    },
+                    SRCA::ZERO => 0,
                     SRCA::DontCare => {
                         log_error!(format!("SRCA::DontCare should not be used at pc: {:#08x}", pc));
                         return Err(ProcessError::Recoverable);
@@ -145,7 +149,7 @@ impl Emu {
 
                 let trap = stage.trap;
         
-                Ok(IsOutStage::AL(ToAlStage { pc, srca, srcb, al_ctrl, wb_ctrl, gpr_waddr, csr_waddr: imm as u16, trap }))
+                Ok(IsOutStage::AL(ToAlStage { pc, srca, srcb, al_ctrl, wb_ctrl, gpr_waddr, csr_waddr: (imm & 0xFFF) as u16, trap }))
             }
 
             InstType::LS => {

@@ -22,6 +22,7 @@ cfg-if = {workspace = true}
 dlopen2 = "0.8.0"
 once_cell = "1.21.3"
 ctrlc = "3.4.7"
+comfy-table = "7.1.4"
 
 [build-dependencies]
 remu_feature = { path = "../remu_feature" }

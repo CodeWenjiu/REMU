@@ -1,8 +1,5 @@
 use std::str::FromStr;
 
-use remu_macro::log_err;
-use remu_utils::{ProcessError, ProcessResult};
-
 use crate::reg::{ALLCSRIdentifier, RegError, RegIdentifier, RegResult};
 
 #[derive(PartialEq, Clone, Copy, Default, Debug)]
@@ -35,14 +32,14 @@ impl RvCsrEnum {
         [Self::MSTATUS, Self::MTVEC, Self::MSCRATCH, Self::MEPC, Self::MCAUSE, Self::MVENDORID, Self::MARCHID].iter().copied()
     }
 
-    pub fn csr_index_converter(index: u32) -> ProcessResult<Self> {
-        Ok(log_err!(RvCsrEnum::try_from(index), ProcessError::Recoverable)?)
+    pub fn csr_index_converter(index: u32) -> RegResult<Self> {
+        RvCsrEnum::try_from(index)
     }
 
-    pub fn csr_identifier_converter(index: RegIdentifier) -> ProcessResult<Self> {
+    pub fn csr_identifier_converter(index: RegIdentifier) -> RegResult<Self> {
         let index = match index {
             RegIdentifier::Index(index) => Self::csr_index_converter(index)?,
-            RegIdentifier::Name(name) => log_err!(Self::from_str(&name), ProcessError::Recoverable)?,
+            RegIdentifier::Name(name) => Self::from_str(&name)?,
         };
         Ok(index)
     }

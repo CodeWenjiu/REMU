@@ -63,7 +63,7 @@ impl SimpleDebugger {
     fn cmd_register_info (&mut self, subcmd: Option<RegisterInfoCmds>) -> ProcessResult<()> {
         match subcmd {
             Some(RegisterInfoCmds::CSR { index }) => {
-                self.state.regfile.print_csr(index)?;
+                log_err!(self.state.regfile.print_csr(index), ProcessError::Recoverable)?;
             }
 
             Some(RegisterInfoCmds::GPR { index }) => {
@@ -77,7 +77,7 @@ impl SimpleDebugger {
             None => {
                 self.state.regfile.print_pc();
                 self.state.regfile.print_gpr(None)?;
-                self.state.regfile.print_csr(None)?;
+                log_err!(self.state.regfile.print_csr(None), ProcessError::Recoverable)?;
             }
         }
 
@@ -116,7 +116,7 @@ impl SimpleDebugger {
 
             RegisterSetCmds::CSR { index, value } => {
                 let value = self.eval_expr(&value)?;
-                self.state.regfile.set_csr(index, value)?;
+                log_err!(self.state.regfile.set_csr(index, value), ProcessError::Recoverable)?;
             }
         }
 
@@ -298,7 +298,7 @@ impl SimpleDebugger {
     fn cmd_differtest_register (&mut self, subcmd: Option<RegisterInfoCmds>) -> ProcessResult<()> {
         match subcmd {
             Some(RegisterInfoCmds::CSR { index }) => {
-                self.state.regfile.print_csr(index)?;
+                log_err!(self.state.regfile.print_csr(index), ProcessError::Recoverable)?;
             }
 
             Some(RegisterInfoCmds::GPR { index }) => {
@@ -312,7 +312,7 @@ impl SimpleDebugger {
             None => {
                 self.state_ref.regfile.print_pc();
                 self.state_ref.regfile.print_gpr(None)?;
-                self.state_ref.regfile.print_csr(None)?;
+                log_err!(self.state_ref.regfile.print_csr(None), ProcessError::Recoverable)?;
             }
         }
 

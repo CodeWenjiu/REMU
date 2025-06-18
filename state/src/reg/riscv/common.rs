@@ -83,12 +83,12 @@ where
         self.regs.borrow().clone()
     }
 
-    fn read_csr(&self, index: u32) -> ProcessResult<u32> {
+    fn read_csr(&self, index: u32) -> RegResult<u32> {
         let index = RvCsrEnum::csr_index_converter(index)?;
         Ok(self.csrs.borrow()[index as usize])
     }
 
-    fn write_csr(&mut self, index: u32, value: u32) -> ProcessResult<()> {
+    fn write_csr(&mut self, index: u32, value: u32) -> RegResult<()> {
         let index = RvCsrEnum::csr_index_converter(index)?;
         self.csrs.borrow_mut()[index as usize] = value;
         Ok(())
@@ -150,7 +150,7 @@ where
         Ok(())
     }
 
-    fn print_csr(&self, index: Option<RegIdentifier>) -> ProcessResult<()> {
+    fn print_csr(&self, index: Option<RegIdentifier>) -> RegResult<()> {
         match index {
             Some(identifier) => {
                 let index = RvCsrEnum::csr_identifier_converter(identifier)?;
@@ -169,7 +169,7 @@ where
         Ok(())
     }
 
-    fn set_csr(&mut self, index: RegIdentifier, value: u32) -> ProcessResult<()> {
+    fn set_csr(&mut self, index: RegIdentifier, value: u32) -> RegResult<()> {
         let index = RvCsrEnum::csr_identifier_converter(index)?;
         self.csrs.borrow_mut()[index as usize] = value;
         Ok(())

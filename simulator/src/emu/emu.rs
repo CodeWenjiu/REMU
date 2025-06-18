@@ -1,6 +1,6 @@
 use bitflags::bitflags;
+use comfy_table::{Cell, Color, Table};
 use option_parser::OptionParser;
-use owo_colors::OwoColorize;
 use remu_macro::log_error;
 use remu_utils::{ProcessResult, ISA};
 use state::States;
@@ -75,6 +75,26 @@ pub struct EmuTimes {
     pub instructions: u64,
 }
 
+impl EmuTimes {
+    pub fn print(&self) {
+        let mut table = Table::new();
+
+        table
+            .add_row(vec![
+                Cell::new("IPC").fg(Color::Blue),
+                Cell::new("Cycles").fg(Color::Blue),
+                Cell::new("Instructions").fg(Color::Blue),
+            ])
+            .add_row(vec![
+                Cell::new((self.instructions as f64 / self.cycles as f64).to_string()).fg(Color::Green),
+                Cell::new(self.cycles.to_string()).fg(Color::Green),
+                Cell::new(self.instructions.to_string()).fg(Color::Green),
+            ]);
+
+        println!("{table}");
+    }
+}
+
 /// RISC-V Emulator implementation
 pub struct Emu {
     /// Enabled instruction set extensions
@@ -141,8 +161,7 @@ impl Emu {
     }
 
     pub fn times(&self) -> ProcessResult<()> {
-        println!("{}: {}", "Cycles".purple(), self.times.cycles.blue());
-        println!("{}: {}", "Instructions".purple(), self.times.instructions.blue());
+        self.times.print();
         Ok(())
     }
 

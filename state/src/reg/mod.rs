@@ -55,14 +55,14 @@ pub trait RegfileIo {
         Vec::new()
     }
 
-    fn read_csr(&self, _index: u32) -> ProcessResult<u32> {
+    fn read_csr(&self, _index: u32) -> RegResult<u32> {
         log_todo!();
-        Err(ProcessError::Recoverable)
+        Ok(0)
     }
 
-    fn write_csr(&mut self, _index: u32, _value: u32) -> ProcessResult<()> {
+    fn write_csr(&mut self, _index: u32, _value: u32) -> RegResult<()> {
         log_todo!();
-        Err(ProcessError::Recoverable)
+        Ok(())
     }
 
     fn read_reg(&self, _name: &str) -> ProcessResult<u32> {
@@ -89,14 +89,14 @@ pub trait RegfileIo {
         Err(ProcessError::Recoverable)
     }
 
-    fn print_csr(&self, _index: Option<RegIdentifier>) -> ProcessResult<()> {
+    fn print_csr(&self, _index: Option<RegIdentifier>) -> RegResult<()> {
         log_todo!();
-        Err(ProcessError::Recoverable)
+        Ok(())
     }
 
-    fn set_csr(&mut self, _index: RegIdentifier, _value: u32) -> ProcessResult<()> {
+    fn set_csr(&mut self, _index: RegIdentifier, _value: u32) -> RegResult<()> {
         log_todo!();
-        Err(ProcessError::Recoverable)
+        Ok(())
     }
 
     fn sync_reg(&mut self, _target: &AnyRegfile) {
