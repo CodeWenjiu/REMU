@@ -6,7 +6,7 @@ use std::fmt::{Debug, Error};
 
 use petgraph::{graph::NodeIndex, algo::toposort, Graph};
 use remu_macro::log_error;
-use remu_utils::{ProcessError, ProcessResult};
+use remu_utils::{ItraceConfigtionalWrapper, ProcessError, ProcessResult};
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub enum BaseStageCell {
@@ -72,6 +72,9 @@ pub struct ModelCell {
 pub struct StageModel { 
     pub cells: HashMap<BaseStageCell, ModelCell>, 
     graph: Graph<BaseStageCell, ()>, 
+    conditional: ItraceConfigtionalWrapper,
+
+    is_flush: bool,
 }
 
 impl StageModel {
@@ -176,13 +179,22 @@ impl StageModel {
             }
         }
 
+        if self.is_flush {
+            self.do_flush();
+            self.is_flush = false;
+        }
+
         Ok(())
     }
 
-    pub fn flush(&mut self) {
+    fn do_flush(&mut self) {
         for (_, channel) in self.cells.iter_mut() {
             channel.channel.flush();
         }
+    }
+
+    pub fn flush(&mut self) {
+        self.is_flush = true;
     }
 
     pub fn check(&self, dut_models: &StageModel) -> ProcessResult<()> {
@@ -202,10 +214,8 @@ impl StageModel {
         }
         Ok(())
     }
-}
 
-impl Default for StageModel {
-    fn default() -> Self {
+    pub fn default(conditional: ItraceConfigtionalWrapper) -> Self {
         let mut graph = Graph::new();
         let mut cells = HashMap::new();
 
@@ -278,6 +288,9 @@ impl Default for StageModel {
         Self {
             cells,
             graph,
+            conditional,
+
+            is_flush: false,
         }
     }
 }
@@ -298,7 +311,7 @@ impl Display for StageModel {
                 let buffer = model_cell.channel.buffer
                     .borrow()
                     .iter()
-                    .map(|&(a, b)| format!("(0x{:08x}, 0x{:08x})", a, b))
+                    .map(|&(a, b)| format!("(0x{:08x}, {})", a, self.conditional.try_analize_fmt(b, a)))
                     .collect::<Vec<_>>()
                     .join(", ");
                 cells_str.push_str(&format!("  {}: [{}]\n", 

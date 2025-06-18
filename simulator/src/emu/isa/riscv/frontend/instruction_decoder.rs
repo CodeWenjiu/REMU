@@ -67,18 +67,6 @@ impl Emu {
         let pc = msg.pc;
         let instruction = msg.inst;
 
-        // Extract register fields
-        let rs1_addr = if self.instruction_set.contains(InstructionSetFlags::RV32E) {
-            extract_bits(instruction, 15..18)
-        } else {
-            extract_bits(instruction, 15..19)
-        } as u8;
-        let rs2_addr = if self.instruction_set.contains(InstructionSetFlags::RV32E) {
-            extract_bits(instruction, 20..23)
-        } else {
-            extract_bits(instruction, 20..24)
-        } as u8;
-
         let decode_result = self.instruction_parse(instruction);
 
         let trap = match decode_result {
@@ -100,20 +88,6 @@ impl Emu {
         };
 
         let (opcode, imm_type) = decode_result.unwrap_or((RISCV::RV32I(RV32I::AL(RV32IAL::Addi)), ImmType::I));
-
-        let gpr_waddr = match opcode {
-            RISCV::RV32I(RV32I::AL(inst)) | RISCV::RV32E(RV32I::AL(inst)) => {
-                match inst {
-                    RV32IAL::Beq | RV32IAL::Bne  | RV32IAL::Blt  | RV32IAL::Bge  | RV32IAL::Bltu | RV32IAL::Bgeu => 0,
-
-                    RV32IAL::Fence => 0, // do nothing for now
-
-                    _ => extract_bits(instruction, 7..11) as u8,
-                }
-            }
-
-            _ => extract_bits(instruction, 7..11) as u8,
-        };
             
         // Extract immediate value
         let imm = match opcode {
@@ -125,6 +99,40 @@ impl Emu {
 
             _ => Self::get_imm(instruction, imm_type)
         };
+
+        // Extract register fields
+        let rs1_addr = match imm_type {
+            ImmType::I | ImmType::S | ImmType::R | ImmType::B => 
+                if self.instruction_set.contains(InstructionSetFlags::RV32E) {
+                    extract_bits(instruction, 15..18)
+                } else {
+                    extract_bits(instruction, 15..19)
+                },
+
+            _ => 0,
+        } as u8;
+
+        let rs2_addr = match imm_type {
+            ImmType::S | ImmType::R | ImmType::B => 
+                if self.instruction_set.contains(InstructionSetFlags::RV32E) {
+                    extract_bits(instruction, 20..23)
+                } else {
+                    extract_bits(instruction, 20..24)
+                },
+
+            _ => 0,
+        } as u8;
+
+        let gpr_waddr = match imm_type {
+            ImmType::I | ImmType::R | ImmType::J | ImmType::U => 
+                if self.instruction_set.contains(InstructionSetFlags::RV32E) {
+                    extract_bits(instruction, 7..10)
+                } else {
+                    extract_bits(instruction, 7..11)
+                },
+
+            _ => 0,
+        } as u8;
 
         let regfile = &self.states.regfile;
 

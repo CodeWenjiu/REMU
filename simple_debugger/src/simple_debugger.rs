@@ -42,7 +42,7 @@ impl SimpleDebugger {
             .debug_config
             .rl_history_size;
 
-        let (state, state_ref) = Self::state_init(&cli_result);
+        let (state, state_ref) = Self::state_init(&cli_result, conditional.clone());
 
         let mut simulator = log_err!(Simulator::new(
             &cli_result,
@@ -66,17 +66,17 @@ impl SimpleDebugger {
         })
     }
 
-    fn state_init(cli_result: &OptionParser) -> (States, States) {
+    fn state_init(cli_result: &OptionParser, conditional: ItraceConfigtionalWrapper) -> (States, States) {
         let isa = cli_result.cli.platform.isa;
 
         let reset_vector = cli_result.cfg.platform_config.reset_vector;
 
-        let mut state = States::new(isa, reset_vector, StageModel::default()).unwrap();
+        let mut state = States::new(isa, reset_vector, StageModel::default(conditional.clone())).unwrap();
         let mut state_ref = state.clone();
 
         match cli_result.cli.differtest {
             Some(DifftestRef::Pipeline(_)) | Some(DifftestRef::SingleCycle(_)) => {
-                state_ref = States::new(isa, reset_vector, StageModel::default()).unwrap();
+                state_ref = States::new(isa, reset_vector, StageModel::default(conditional)).unwrap();
             }
 
             _ => {},

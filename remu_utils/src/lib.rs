@@ -26,16 +26,29 @@ impl ItraceConfigtionalWrapper {
 
     pub fn try_analize(
         &self,
-        _data: u32,
-        _addr: u32,
+        data: u32,
+        addr: u32,
     ) {
-        #[cfg(feature = "ITRACE")]
         print!(
             "{}",
-            self.disassembler
-                .borrow()
-                .try_analize(_data, _addr)
-                .magenta()
+            self.try_analize_fmt(data, addr)
         );
+    }
+
+    pub fn try_analize_fmt(
+        &self,
+        _data: u32,
+        _addr: u32,
+    ) -> String {
+        #[cfg(feature = "ITRACE")]
+        return self.disassembler
+            .borrow()
+            .try_analize(_data, _addr)
+            .magenta()
+            .to_string();
+
+        // If ITRACE is not enabled, return an empty string
+        #[cfg(not(feature = "ITRACE"))]
+        return format!("0x{:08x}", _data).to_string();
     }
 }
