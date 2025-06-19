@@ -101,27 +101,43 @@ impl Emu {
         };
 
         // Extract register fields
-        let rs1_addr = match imm_type {
-            ImmType::I | ImmType::S | ImmType::R | ImmType::B => 
+        // let rs1_addr = match imm_type {
+        //     ImmType::I | ImmType::S | ImmType::R | ImmType::B => 
+        //         if self.instruction_set.contains(InstructionSetFlags::RV32E) {
+        //             extract_bits(instruction, 15..18)
+        //         } else {
+        //             extract_bits(instruction, 15..19)
+        //         },
+
+        //     _ => 0,
+        // } as u8;
+
+        // let rs2_addr = match imm_type {
+        //     ImmType::S | ImmType::R | ImmType::B => 
+        //         if self.instruction_set.contains(InstructionSetFlags::RV32E) {
+        //             extract_bits(instruction, 20..23)
+        //         } else {
+        //             extract_bits(instruction, 20..24)
+        //         },
+
+        //     _ => 0,
+        // } as u8;
+
+        // should only used for gpr hazard test
+
+        let rs1_addr = 
                 if self.instruction_set.contains(InstructionSetFlags::RV32E) {
                     extract_bits(instruction, 15..18)
                 } else {
                     extract_bits(instruction, 15..19)
-                },
+                } as u8;
 
-            _ => 0,
-        } as u8;
-
-        let rs2_addr = match imm_type {
-            ImmType::S | ImmType::R | ImmType::B => 
+        let rs2_addr =
                 if self.instruction_set.contains(InstructionSetFlags::RV32E) {
                     extract_bits(instruction, 20..23)
                 } else {
                     extract_bits(instruction, 20..24)
-                },
-
-            _ => 0,
-        } as u8;
+                } as u8;
 
         let gpr_waddr = match imm_type {
             ImmType::I | ImmType::R | ImmType::J | ImmType::U => 
@@ -133,6 +149,8 @@ impl Emu {
 
             _ => 0,
         } as u8;
+
+        // 在硬件上来说，rs读取需要经过寄存器堆，如果再加一重译码的话也许会造成时序性能下滑，修正后的地址应当仅用于pipeline hazard stall，不过gpr_waddr不需要经过额外阶段，可以直接parse为0
 
         let regfile = &self.states.regfile;
 
