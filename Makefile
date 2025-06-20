@@ -98,7 +98,7 @@ Mainargs = \
 	-c $(abspath $(ConfigFile)) \
 	$(DifftestArgs)
 
-ExtraCmd ?=
+ExtraComand ?= $(if $(ExtraCmd),-e $(ExtraCmd), )
 Debugargs = $(Mainargs) #--log
 
 # ==============================================================================
@@ -137,7 +137,7 @@ clean-all: clean clean-config
 # Build and Run Targets
 run: config_dependencies
 	@echo $(ExtraCmd)
-	@cargo run $(Job) --release --bin core -- $(Mainargs) -e $(ExtraCmd)
+	@cargo run $(Job) --release --bin core -- $(Mainargs) $(ExtraComand)
 
 DEFAULT_PERF_PATH = $(abspath ../am-kernels/benchmarks/microbench/)
 
@@ -145,7 +145,7 @@ perf:
 	@$(MAKE) -C $(DEFAULT_PERF_PATH) ARCH=riscv32e-ysyxsoc mainargs=test perf
 
 debug: config_dependencies
-	@RUST_BACKTRACE=full cargo run $(Job) --bin core -- $(Debugargs) -e $(ExtraCmd)
+	@RUST_BACKTRACE=full cargo run $(Job) --bin core -- $(Debugargs) $(ExtraComand)
 
 # Development Targets
 fmt:
@@ -162,6 +162,12 @@ $(CommitMsg):
 
 gource: $(CommitMsg)
 	@gource --load-config ./gource.ini
+
+CHECK_HASH ?=
+
+checkout:
+	@git checkout $(CHECK_HASH)
+	@git submodule update --recursive
 
 # ==============================================================================
 # Phony Targets
