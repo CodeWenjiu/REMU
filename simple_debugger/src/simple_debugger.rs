@@ -3,7 +3,7 @@ use cfg_if::cfg_if;
 use clap::Parser;
 use logger::Logger;
 use option_parser::OptionParser;
-use remu_macro::log_err;
+use remu_macro::{log_err, log_info};
 use simulator::Simulator;
 use state::{model::StageModel, States};
 
@@ -140,38 +140,32 @@ impl SimpleDebugger {
     }
 
     fn get_parse(&mut self, lines: String) -> ProcessResult<Vec<Cmds>> {
-        loop {
-            use pest::Parser;
-            let pairs = log_err!(InputParser::parse(Rule::cmd_full, &lines), ProcessError::Recoverable)?;
-            let lines = input_parse(pairs);
+        use pest::Parser;
+        let pairs = log_err!(InputParser::parse(Rule::cmd_full, &lines), ProcessError::Recoverable)?;
+        let lines = input_parse(pairs);
 
-            if lines.is_empty() {
-                continue;
-            }
-
-            let result: Vec<Cmds> = lines
-                .into_iter()
-                .map(|mut v| {
-                    v.insert(0, "".to_owned());
-                    v
-                })
-                .map(|line| {
-                    match CmdParser::try_parse_from(line) {
-                        Ok(cmd) => Ok(cmd.command),
-                        Err(e) if (e.kind() == clap::error::ErrorKind::DisplayHelp || e.kind() == clap::error::ErrorKind::DisplayVersion) => {
-                            let _ = e.print();
-                            Err(ProcessError::Recoverable)
-                        }
-                        Err(e) => {
-                            let _ = e.print();
-                            Err(ProcessError::Recoverable)
-                        }
+        let result: Vec<Cmds> = lines
+            .into_iter()
+            .map(|mut v| {
+                v.insert(0, "".to_owned());
+                v
+            })
+            .map(|line| {
+                match CmdParser::try_parse_from(line) {
+                    Ok(cmd) => Ok(cmd.command),
+                    Err(e) if (e.kind() == clap::error::ErrorKind::DisplayHelp || e.kind() == clap::error::ErrorKind::DisplayVersion) => {
+                        let _ = e.print();
+                        Err(ProcessError::Recoverable)
                     }
-                })
-                .collect::<Result<Vec<Cmds>, ProcessError>>()?;
+                    Err(e) => {
+                        let _ = e.print();
+                        Err(ProcessError::Recoverable)
+                    }
+                }
+            })
+            .collect::<Result<Vec<Cmds>, ProcessError>>()?;
 
-            return Ok(result);
-        }
+        return Ok(result);
     }
 
     pub fn mainloop(mut self, pre_exec: Option<String>) -> Result<(), ()> {
@@ -187,8 +181,8 @@ impl SimpleDebugger {
         }
 
         if let Some(exec) = pre_exec {
+            log_info!("Executing pre-command");
             let cmds = handle_result!(self.get_parse(exec));
-            println!("{:?}", cmds);
             let combined_result = cmds.into_iter()
                 .fold(Ok(()), |acc_result, cmd| {
                     acc_result.and(self.execute(cmd))

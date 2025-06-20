@@ -98,7 +98,7 @@ Mainargs = \
 	-c $(abspath $(ConfigFile)) \
 	$(DifftestArgs)
 
-ExtraArgs ?=
+ExtraCmd ?=
 Debugargs = $(Mainargs) #--log
 
 # ==============================================================================
@@ -136,13 +136,16 @@ clean-all: clean clean-config
 
 # Build and Run Targets
 run: config_dependencies
-	@cargo run $(Job) --release --bin core -- $(Mainargs) $(ExtraArgs)
+	@echo $(ExtraCmd)
+	@cargo run $(Job) --release --bin core -- $(Mainargs) -e $(ExtraCmd)
 
-perf: config_dependencies
-	@cargo run $(Job) --release --bin core -- $(Mainargs) -e 'continue && times'
+DEFAULT_PERF_PATH = $(abspath ../am-kernels/benchmarks/microbench/)
+
+perf: 
+	@$(MAKE) -C $(DEFAULT_PERF_PATH) ARCH=riscv32e-ysyxsoc mainargs=test perf
 
 debug: config_dependencies
-	@RUST_BACKTRACE=full cargo run $(Job) --bin core -- $(Debugargs)
+	@RUST_BACKTRACE=full cargo run $(Job) --bin core -- $(Debugargs) -e $(ExtraCmd)
 
 # Development Targets
 fmt:
