@@ -360,7 +360,7 @@ impl Emu {
         let next_pc = pc.wrapping_add(4);
 
         let imm: u32 = msg.imm;
-        let csr_addr = imm & 0x3FF;
+        let csr_addr = imm & 0xFFF;
         let csr_val = log_err!(regfile.read_csr(csr_addr), ProcessError::Recoverable)?;
         let mut csr_wdata = rs1;
 
