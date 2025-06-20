@@ -1,4 +1,5 @@
-use crate::emu::{isa::riscv::frontend::{RV32_IAL_PATTERN_ITER, RV32_ILS_PATTERN_ITER, RV32_M_PATTERN_ITER, RV_PRIV_PATTERN_ITER, RV_ZICSR_PATTERN_ITER}, Emu, InstructionSetFlags};
+
+use crate::emu::{isa::riscv::instruction::{RV32_IAL_PATTERN_ITER, RV32_ILS_PATTERN_ITER, RV32_M_PATTERN_ITER, RV_PRIV_PATTERN_ITER, RV_ZICSR_PATTERN_ITER}, Emu, InstructionSetFlags};
 
 use super::{ImmType, Priv, Zicsr, RISCV, RV32I, RV32IAL, RV32ILS, RV32M};
 
