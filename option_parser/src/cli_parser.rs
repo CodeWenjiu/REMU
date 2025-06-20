@@ -45,9 +45,9 @@ pub struct CLI {
     #[arg(short, long, default_value("rv32im-emu-dm"), value_parser = value_parser!(Platform))]
     pub platform: Platform,
 
-    /// Enable Batch mode
+    /// Pre execute Commands
     #[arg(short, long)]
-    pub batch: bool,
+    pub exec: Option<String>,
 
     /// Enable Log
     #[arg(short, long)]

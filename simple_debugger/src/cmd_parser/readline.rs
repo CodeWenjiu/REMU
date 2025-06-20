@@ -11,8 +11,8 @@ use rustyline::validate::MatchingBracketValidator;
 use rustyline::Context;
 use rustyline::{Completer, Helper, Hinter, Validator};
 
-use crate::cmd_parser::server::InputParser;
-use crate::cmd_parser::server::Rule;
+use crate::Rule;
+use crate::InputParser;
 
 pub struct CmdCompleter {
     cmds_tree: Graph<String, ()>,

@@ -20,11 +20,11 @@ async fn main() -> Result<(), ()> {
 
     init()?;
 
-    let batch = option.cli.batch.clone();
+    let exec = option.cli.exec.clone();
 
     let debugger = SimpleDebugger::new(option)?;
 
-    debugger.mainloop(batch)?;
+    debugger.mainloop(exec)?;
 
     Ok(())
 }

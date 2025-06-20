@@ -138,8 +138,8 @@ clean-all: clean clean-config
 run: config_dependencies
 	@cargo run $(Job) --release --bin core -- $(Mainargs) $(ExtraArgs)
 
-batch: config_dependencies
-	@cargo flamegraph --release --bin core -- $(Mainargs) $(ExtraArgs)
+perf: config_dependencies
+	@cargo run $(Job) --release --bin core -- $(Mainargs) -e 'continue && times'
 
 debug: config_dependencies
 	@RUST_BACKTRACE=full cargo run $(Job) --bin core -- $(Debugargs)
@@ -167,4 +167,4 @@ gource: $(CommitMsg)
 .PHONY: default config_dependencies \
 	menuconfig-static menuconfig-dynamic menuconfig \
 	clean clean-config clean-all \
-	run batch debug fmt fetch gource
+	run perf debug fmt fetch gource

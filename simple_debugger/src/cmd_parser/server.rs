@@ -1,12 +1,10 @@
-use clap::Parser;
 use logger::Logger;
-use remu_macro::log_err;
 use rustyline::{error::ReadlineError, highlight::MatchingBracketHighlighter, hint::HistoryHinter, history::{FileHistory, History}, validate::MatchingBracketValidator, CompletionType, Config, EditMode, Editor};
 
 use remu_utils::{ProcessError, ProcessResult, Simulators};
-use crate::cmd_parser::{get_cmd_tree, Cmds};
+use crate::cmd_parser::get_cmd_tree;
 
-use super::{CmdCompleter, CmdParser, MyHelper};
+use super::{CmdCompleter, MyHelper};
 
 pub struct Server {
     prompt: String,
@@ -14,33 +12,6 @@ pub struct Server {
     rl: Editor<MyHelper, FileHistory>,
 
     rl_history_length: usize,
-}
-
-#[derive(pest_derive::Parser)]
-#[grammar = "cmd_parser/input_parser.pest"]
-pub struct InputParser;
-
-fn term_parse(pairs: pest::iterators::Pairs<Rule>) -> Vec<String> {
-    pairs
-        .into_iter()
-        .map(|pair| 
-            match pair.as_rule() {
-                Rule::expr | Rule::cmd => pair.as_str().to_string(),
-                _ => unreachable!()
-            }
-        )
-        .collect()
-}
-
-fn input_parse(pairs: pest::iterators::Pairs<Rule>) -> Vec<Vec<String>> {
-    pairs
-        .into_iter()
-        .map(|pair| 
-            match pair.as_rule() {
-                Rule::term => term_parse(pair.into_inner()),
-                _ => unreachable!()
-            }
-        ).collect()
 }
 
 impl Server {
@@ -78,44 +49,7 @@ impl Server {
         )
     }
 
-    pub fn get_parse(&mut self) -> ProcessResult<Vec<Cmds>> {
-        loop {
-            let lines = self.readline()?;
-
-            use pest::Parser;
-            let pairs = log_err!(InputParser::parse(Rule::cmd_full, &lines), ProcessError::Recoverable)?;
-            let lines = input_parse(pairs);
-
-            if lines.is_empty() {
-                continue;
-            }
-
-            let result: Vec<Cmds> = lines
-                .into_iter()
-                .map(|mut v| {
-                    v.insert(0, "".to_owned());
-                    v
-                })
-                .map(|line| {
-                    match CmdParser::try_parse_from(line) {
-                        Ok(cmd) => Ok(cmd.command),
-                        Err(e) if (e.kind() == clap::error::ErrorKind::DisplayHelp || e.kind() == clap::error::ErrorKind::DisplayVersion) => {
-                            let _ = e.print();
-                            Err(ProcessError::Recoverable)
-                        }
-                        Err(e) => {
-                            let _ = e.print();
-                            Err(ProcessError::Recoverable)
-                        }
-                    }
-                })
-                .collect::<Result<Vec<Cmds>, ProcessError>>()?;
-
-            return Ok(result);
-        }
-    }
-
-    fn readline(&mut self) -> ProcessResult<String> {
+    pub fn readline(&mut self) -> ProcessResult<String> {
         let readline = self.rl.readline(&self.prompt);
 
         match readline {
