@@ -195,6 +195,7 @@ impl Emu {
         let mut next_pc = None;
 
         let mut gpr_raw_hazard = false;
+        let mut ls_hazard = false;
 
         if self.pipeline.if_ena {
             let predict_pc = self.self_pipeline_branch_predict(); // need to be implemented
@@ -231,6 +232,7 @@ impl Emu {
             to_wb = Some(ToWb::FromAl(self.arithmetic_logic_rv32(is_al)?));
         } else if self.pipeline.stages.is_ls.1 {
             let is_ls = self.pipeline.stages.is_ls.0.clone();
+            ls_hazard = true;
             if self.pipeline.ls_ena {
                 to_wb = Some(ToWb::FromLs(
                     if let Some(skip_val) = skip {
@@ -298,6 +300,10 @@ impl Emu {
             self.times.instructions += 1;
         }
 
+        if ls_hazard {
+            return Ok(wb_msg); // LS Hazardx
+        }
+
         if let Some(to_ls) = to_ls {
             let (pc, _inst) = self.states.pipe_state.fetch(BaseStageCell::IdIs)?; // need to used to check
             if pc != to_ls.pc {
@@ -313,10 +319,6 @@ impl Emu {
 
             self.states.pipe_state.trans(BaseStageCell::IdIs, BaseStageCell::IsLs)?;
 
-        }
-
-        if self.pipeline.stages.is_ls.1 {
-            return Ok(wb_msg); // LS Hazardx
         }
 
         if let Some(to_al) = to_al {
@@ -354,7 +356,7 @@ impl Emu {
             self.pipeline.stages.if_id.1 = true;
 
             self.states.pipe_state.send((to_id.pc, to_id.inst), BaseStageCell::IfId)?;
-            
+
             self.self_pipeline_branch_predict_update();
         }
 
