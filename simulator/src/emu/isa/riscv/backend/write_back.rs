@@ -50,6 +50,7 @@ impl Emu {
             return Ok(next_pc);
         }
 
+
         match stage.wb_ctrl {
             WbCtrl::WriteGpr => {
                 regfile.write_gpr(stage.gpr_waddr.into(), stage.result)?;

@@ -242,14 +242,6 @@ impl StageModel {
 
         let isu = BaseStageCell::IdIs;
         let isu_node = graph.add_node(isu);
-        graph.add_edge(idu_node, isu_node, ());
-        cells.insert(
-            isu,
-            ModelCell {
-                channel: MessageChannel::new(1),
-                node_index: isu_node,
-            },
-        );
 
         let alu = BaseStageCell::IsAl;
         let alu_node = graph.add_node(alu);
@@ -259,6 +251,15 @@ impl StageModel {
             ModelCell {
                 channel: MessageChannel::new(1),
                 node_index: alu_node,
+            },
+        );
+        
+        graph.add_edge(idu_node, isu_node, ());
+        cells.insert(
+            isu,
+            ModelCell {
+                channel: MessageChannel::new(1),
+                node_index: isu_node,
             },
         );
 
