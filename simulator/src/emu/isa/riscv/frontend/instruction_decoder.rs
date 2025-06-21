@@ -101,43 +101,41 @@ impl Emu {
         };
 
         // Extract register fields
-        // let rs1_addr = match imm_type {
-        //     ImmType::I | ImmType::S | ImmType::R | ImmType::B => 
-        //         if self.instruction_set.contains(InstructionSetFlags::RV32E) {
-        //             extract_bits(instruction, 15..18)
-        //         } else {
-        //             extract_bits(instruction, 15..19)
-        //         },
-
-        //     _ => 0,
-        // } as u8;
-
-        // let rs2_addr = match imm_type {
-        //     ImmType::S | ImmType::R | ImmType::B => 
-        //         if self.instruction_set.contains(InstructionSetFlags::RV32E) {
-        //             extract_bits(instruction, 20..23)
-        //         } else {
-        //             extract_bits(instruction, 20..24)
-        //         },
-
-        //     _ => 0,
-        // } as u8;
-
-        // should only used for gpr hazard test
-
-        let rs1_addr = 
+        let rs1_addr = match imm_type {
+            ImmType::I | ImmType::S | ImmType::R | ImmType::B => 
                 if self.instruction_set.contains(InstructionSetFlags::RV32E) {
                     extract_bits(instruction, 15..18)
                 } else {
                     extract_bits(instruction, 15..19)
-                } as u8;
+                },
 
-        let rs2_addr =
+            _ => 0,
+        } as u8;
+
+        let rs2_addr = match imm_type {
+            ImmType::S | ImmType::R | ImmType::B => 
                 if self.instruction_set.contains(InstructionSetFlags::RV32E) {
                     extract_bits(instruction, 20..23)
                 } else {
                     extract_bits(instruction, 20..24)
-                } as u8;
+                },
+
+            _ => 0,
+        } as u8;
+
+        // let rs1_addr = 
+        //         if self.instruction_set.contains(InstructionSetFlags::RV32E) {
+        //             extract_bits(instruction, 15..18)
+        //         } else {
+        //             extract_bits(instruction, 15..19)
+        //         } as u8;
+
+        // let rs2_addr =
+        //         if self.instruction_set.contains(InstructionSetFlags::RV32E) {
+        //             extract_bits(instruction, 20..23)
+        //         } else {
+        //             extract_bits(instruction, 20..24)
+        //         } as u8;
 
         let gpr_waddr = match imm_type {
             ImmType::I | ImmType::R | ImmType::J | ImmType::U => 

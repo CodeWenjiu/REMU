@@ -4,7 +4,7 @@ use remu_macro::log_error;
 use remu_utils::{ProcessError, ProcessResult};
 use state::model::BaseStageCell;
 
-use crate::emu::{extract_bits, isa::riscv::{backend::{ToAlStage, ToLsStage, ToWbStage}, frontend::{IsOutStage, ToIdStage, ToIfStage, ToIsStage}}, Emu};
+use crate::emu::{isa::riscv::{backend::{ToAlStage, ToLsStage, ToWbStage}, frontend::{IsOutStage, ToIdStage, ToIfStage, ToIsStage}}, Emu};
 use owo_colors::OwoColorize;
 
 struct PipelineStage {
@@ -77,20 +77,11 @@ impl Pipeline {
         }
     }
 
-    fn is_gpr_raw(&self) -> bool {
+    fn is_gpr_raw(&self, rs1_addr: u8, rs2_addr: u8) -> bool {
         let (to_wb, wb_valid) = &self.stages.ex_wb;
         let (to_al, al_valid) = &self.stages.is_al;
         let (to_ls, ls_valid) = &self.stages.is_ls;
         let (to_is, is_valid) = &self.stages.id_is;
-
-        if !self.stages.if_id.1 {
-            return false; // If IF stage is not valid, no GPR conflict
-        }
-
-        let inst = self.stages.if_id.0.inst;
-
-        let rs1_addr = extract_bits(inst, 15..19) as u8;
-        let rs2_addr = extract_bits(inst, 20..24) as u8;
 
         let conflict_gpr = |rd: u8| {
             (rd != 0) && 
@@ -177,7 +168,15 @@ impl Emu {
     }
 
     pub fn self_pipeline_update(&mut self, skip: Option<u32>) -> ProcessResult<Option<(u32, u32, u32)>> {
-        let raw_hazard = self.pipeline.is_gpr_raw();
+        let mut pre_to_is = None;
+        let mut raw_hazard = false;
+
+        if self.pipeline.stages.if_id.1 {
+            let mit = self.pipeline.stages.if_id.0.clone();
+            let mit = self.instruction_decode(mit)?;
+            raw_hazard = self.pipeline.is_gpr_raw(mit.rs1_addr, mit.rs2_addr);
+            pre_to_is = Some(mit);
+        } 
 
         let (to_wb, wb_valid) = &self.pipeline.stages.ex_wb;
         
@@ -283,7 +282,7 @@ impl Emu {
             }
         }
 
-        let (to_id, id_valid) = &self.pipeline.stages.if_id;
+        let (to_id, id_valid) = &self.pipeline.stages.if_id; 
 
         if raw_hazard {
             return Ok(wb_msg);
@@ -292,7 +291,7 @@ impl Emu {
         if *id_valid {
             let (pc, _inst) = self.states.pipe_state.fetch(BaseStageCell::IfId)?; // need to used to check
 
-            let to_is = self.instruction_decode(to_id.clone())?;
+            let to_is = pre_to_is.unwrap();
 
             if pc != to_id.pc {
                 log_error!(format!("IF 2 ID PC mismatch: fetched {:#08x}, expected {:#08x}", pc, to_id.pc));
