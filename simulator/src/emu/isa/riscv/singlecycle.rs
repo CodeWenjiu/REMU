@@ -28,7 +28,7 @@ impl Emu {
             }
         };
 
-        let next_pc = self.write_back_rv32i(to_wb)?;
+        let next_pc = self.write_back_rv32i(to_wb)?.next_pc;
 
         self.times.cycles += 1;
         self.times.instructions += 1;

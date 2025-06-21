@@ -80,7 +80,7 @@ impl Pipeline {
     }
 
     fn is_gpr_raw(&self, rs1_addr: u8, rs2_addr: u8) -> bool {
-        let (to_wb, wb_valid) = &self.stages.ex_wb;
+        // let (to_wb, wb_valid) = &self.stages.ex_wb;
         let (to_al, al_valid) = &self.stages.is_al;
         let (to_ls, ls_valid) = &self.stages.is_ls;
         let (to_is, is_valid) = &self.stages.id_is;
@@ -90,7 +90,7 @@ impl Pipeline {
             ((rd == rs1_addr) || (rd == rs2_addr))
         };
 
-        (*wb_valid && conflict_gpr(to_wb.gpr_waddr)) ||
+        // (*wb_valid && conflict_gpr(to_wb.gpr_waddr)) ||
         (*al_valid && conflict_gpr(to_al.gpr_waddr)) ||
         (*ls_valid && conflict_gpr(to_ls.gpr_waddr)) ||
         (*is_valid && conflict_gpr(to_is.gpr_waddr))
@@ -192,39 +192,16 @@ impl Emu {
         let mut to_wb: Option<ToWb> = None;
 
         let mut wb_msg = None;
-        let mut next_pc = None;
+        let mut is_out = None;
 
         let mut gpr_raw_hazard = false;
         let mut ls_hazard = false;
 
-        if self.pipeline.if_ena {
-            let predict_pc = self.self_pipeline_branch_predict(); // need to be implemented
-            
-            let _id = self.instruction_fetch_rv32i(ToIfStage { pc: predict_pc })?;
+        // calculate
 
-            to_id = Some(_id);
-        }
-
-        if self.pipeline.stages.if_id.1 {
-            let if_id = self.pipeline.stages.if_id.0.clone();
-            let id_is = self.instruction_decode(if_id)?;
-            to_is = Some(id_is);
-
-            gpr_raw_hazard = self.pipeline.is_gpr_raw(id_is.rs1_addr, id_is.rs2_addr);
-        }
-
-        if self.pipeline.stages.id_is.1 {
-            let id_is = self.pipeline.stages.id_is.0.clone();
-            let is_out = self.instruction_issue(id_is)?;
-
-            match is_out {
-                IsOutStage::LS(is_ls) => {
-                    to_ls = Some(is_ls);
-                },
-                IsOutStage::AL(is_al) => {
-                    to_al = Some(is_al);
-                },
-            }
+        if self.pipeline.stages.ex_wb.1 {
+            let ex_wb = self.pipeline.stages.ex_wb.0.clone();
+            is_out = Some(self.write_back_rv32i(ex_wb)?);
         }
 
         if self.pipeline.stages.is_al.1 {
@@ -244,12 +221,55 @@ impl Emu {
             }
         }
 
-        if self.pipeline.stages.ex_wb.1 {
-            let ex_wb = self.pipeline.stages.ex_wb.0.clone();
-            next_pc = Some(self.write_back_rv32i(ex_wb)?);
+        if self.pipeline.stages.id_is.1 {
+            let id_is = self.pipeline.stages.id_is.0.clone();
+            let is_out = self.instruction_issue(id_is)?;
+
+            match is_out {
+                IsOutStage::LS(is_ls) => {
+                    to_ls = Some(is_ls);
+                },
+                IsOutStage::AL(is_al) => {
+                    to_al = Some(is_al);
+                },
+            }
         }
 
-        if let Some(next_pc) = next_pc {
+        if self.pipeline.stages.if_id.1 {
+            let if_id = self.pipeline.stages.if_id.0.clone();
+            let mut id_is = self.instruction_decode(if_id)?;
+
+            if let Some(is_out) = &is_out {
+                let (gpr_waddr, gpr_wdata) = is_out.wb_bypass;
+                if gpr_waddr != 0 {
+                    if gpr_waddr == id_is.rs1_addr {
+                        id_is.rs1_val = gpr_wdata;
+                    }
+                    if gpr_waddr == id_is.rs2_addr {
+                        id_is.rs2_val = gpr_wdata;
+                    }
+                }
+            }
+
+            to_is = Some(id_is);
+
+            gpr_raw_hazard = self.pipeline.is_gpr_raw(id_is.rs1_addr, id_is.rs2_addr);
+        }
+
+        if self.pipeline.if_ena {
+            let predict_pc = self.self_pipeline_branch_predict(); // need to be implemented
+            
+            let _id = self.instruction_fetch_rv32i(ToIfStage { pc: predict_pc })?;
+
+            to_id = Some(_id);
+        }
+
+        // mid process
+        
+
+        // register update
+
+        if let Some(is_out) = is_out {
             let (pc, inst) = self.states.pipe_state.get()?; // need to used to check
 
             if pc != self.pipeline.stages.ex_wb.0.pc {
@@ -259,9 +279,9 @@ impl Emu {
 
             self.pipeline.stages.ex_wb.1 = false;
 
-            wb_msg = Some((pc, next_pc, inst));
+            wb_msg = Some((pc, is_out.next_pc, inst));
 
-            if self.pipeline.flush_if_need(next_pc) {
+            if self.pipeline.flush_if_need(is_out.next_pc) {
                 self.states.pipe_state.flush();
                 return Ok(wb_msg);
             }

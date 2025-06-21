@@ -28,8 +28,19 @@ pub struct ToWbStage {
     pub trap: Option<Trap>,
 }
 
+#[derive(Default, Clone, Debug)]
+pub struct IsOut {
+    pub next_pc: u32,
+    pub wb_bypass: (u8, u32),
+}
+
 impl Emu {
-    pub fn write_back_rv32i(&mut self, stage: ToWbStage) -> ProcessResult<u32> {
+    pub fn write_back_rv32i(&mut self, stage: ToWbStage) -> ProcessResult<IsOut> {
+        let mut out = IsOut {
+            next_pc: 0,
+            wb_bypass: (0, 0),
+        };
+
         let regfile = &mut self.states.regfile;
         let pc = stage.pc;
         let mut next_pc = pc.wrapping_add(4);
@@ -47,21 +58,27 @@ impl Emu {
 
             regfile.write_pc(next_pc);
             
-            return Ok(next_pc);
+            out.next_pc = next_pc;
+
+            return Ok(out);
         }
 
+        out.wb_bypass.0 = stage.gpr_waddr;
 
         match stage.wb_ctrl {
             WbCtrl::WriteGpr => {
+                out.wb_bypass.1 = stage.result;
                 regfile.write_gpr(stage.gpr_waddr.into(), stage.result)?;
             }
 
             WbCtrl::Jump => {
+                out.wb_bypass.1 = next_pc;
                 regfile.write_gpr(stage.gpr_waddr.into(), next_pc)?;
                 next_pc = stage.result;
             }
 
             WbCtrl::Csr => {
+                out.wb_bypass.1 = stage.result;
                 regfile.write_gpr(stage.gpr_waddr.into(), stage.csr_rdata)?;
                 log_err!(regfile.write_csr(stage.csr_waddr.into(), stage.result), ProcessError::Recoverable)?;
             }
@@ -73,7 +90,9 @@ impl Emu {
         }
 
         regfile.write_pc(next_pc);
+            
+        out.next_pc = next_pc;
         
-        Ok(next_pc)
+        Ok(out)
     }
 }
