@@ -94,6 +94,12 @@ where
         Ok(())
     }
 
+    fn trap(&mut self, epc:u32, cause:u32) -> ProcessResult<u32> {
+        self.csrs.borrow_mut()[RvCsrEnum::MEPC as usize] = epc;
+        self.csrs.borrow_mut()[RvCsrEnum::MCAUSE as usize] = cause;
+        Ok(self.csrs.borrow_mut()[RvCsrEnum::MTVEC as usize])
+    }
+
     fn read_reg(&self, name: &str) -> ProcessResult<u32> {
         if name == "pc" {
             return Ok(self.read_pc());

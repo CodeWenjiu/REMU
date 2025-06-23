@@ -245,8 +245,10 @@ impl SimpleDebugger {
                 self.cmd_differtest_register_set(subcmd)?;
             }
 
-            _ => {
-                log_todo!();
+            SetCmds::Memory { addr, value } => {
+                let addr = self.eval_expr(&addr)?;
+                let value = self.eval_expr(&value)?;
+                log_err!(self.state_ref.mmu.write(addr, value, Mask::None), ProcessError::Recoverable)?;
             }
         }
 

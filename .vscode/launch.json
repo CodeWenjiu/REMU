@@ -11,9 +11,9 @@
             "args": [
                 "--primary-bin", "/home/wenjiu/ysyx-workbench/am-kernels/benchmarks/microbench/build/microbench-riscv32-nemu.bin",
                 
-                "-p", "riscv32-emu-pl",
+                "-p", "riscv32-emu-dm",
                 
-                "-d", "emu-pl",
+                "-d", "emu-sc",
                 
                 "-c", "/home/wenjiu/ysyx-workbench/remu/config/dynamic/.config"
             ],

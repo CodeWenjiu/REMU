@@ -71,7 +71,7 @@ impl SimulatorEnum {
 pub struct SimulatorCallback {
     pub instruction_complete: Box<dyn FnMut(u32, u32, u32) -> ProcessResult<()>>,
     pub difftest_skip: Box<dyn Fn(u32)>,
-    pub trap: Box<dyn Fn()>,
+    pub yield_: Box<dyn Fn()>,
 
     pub instruction_fetch: Box<dyn Fn()>,
     pub load_store: Box<dyn Fn()>,
@@ -88,7 +88,7 @@ impl SimulatorCallback {
         Self {
             instruction_complete,
             difftest_skip,
-            trap,
+            yield_: trap,
             instruction_fetch,
             load_store,
         }

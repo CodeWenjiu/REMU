@@ -1,6 +1,6 @@
 use remu_macro::{log_err, log_error};
 use remu_utils::{ProcessError, ProcessResult};
-use state::reg::{riscv::{RvCsrEnum, Trap}, RegfileIo};
+use state::reg::{riscv::Trap, RegfileIo};
 
 use crate::emu::Emu;
 
@@ -46,15 +46,15 @@ impl Emu {
         let mut next_pc = pc.wrapping_add(4);
 
         if let Some(trap) = stage.trap {
-            log_err!(regfile.write_csr(RvCsrEnum::MEPC.into(), pc), ProcessError::Recoverable)?;
-            log_err!(regfile.write_csr(RvCsrEnum::MCAUSE.into(), trap as u32), ProcessError::Recoverable)?;
-
-            next_pc = log_err!(regfile.read_csr(RvCsrEnum::MTVEC.into()), ProcessError::Recoverable)?;
-
             if trap == Trap::Ebreak {
-                (self.callback.trap)(); // just for now
+                (self.callback.yield_)(); // just for now
                 return Err(ProcessError::Recoverable);
             }
+            
+            // log_err!(regfile.write_csr(RvCsrEnum::MEPC.into(), pc), ProcessError::Recoverable)?;
+            // log_err!(regfile.write_csr(RvCsrEnum::MCAUSE.into(), trap as u32), ProcessError::Recoverable)?;
+
+            next_pc = regfile.trap(pc, trap as u32)?;
 
             regfile.write_pc(next_pc);
             
@@ -68,18 +68,18 @@ impl Emu {
         match stage.wb_ctrl {
             WbCtrl::WriteGpr => {
                 out.wb_bypass.1 = stage.result;
-                regfile.write_gpr(stage.gpr_waddr.into(), stage.result)?;
+                // regfile.write_gpr(stage.gpr_waddr.into(), stage.result)?;
             }
 
             WbCtrl::Jump => {
                 out.wb_bypass.1 = next_pc;
-                regfile.write_gpr(stage.gpr_waddr.into(), next_pc)?;
+                // regfile.write_gpr(stage.gpr_waddr.into(), next_pc)?;
                 next_pc = stage.result;
             }
 
             WbCtrl::Csr => {
-                out.wb_bypass.1 = stage.result;
-                regfile.write_gpr(stage.gpr_waddr.into(), stage.csr_rdata)?;
+                out.wb_bypass.1 = stage.csr_rdata;
+                // regfile.write_gpr(stage.gpr_waddr.into(), stage.csr_rdata)?;
                 log_err!(regfile.write_csr(stage.csr_waddr.into(), stage.result), ProcessError::Recoverable)?;
             }
 
@@ -89,6 +89,7 @@ impl Emu {
             },
         }
 
+        regfile.write_gpr(out.wb_bypass.0.into(), out.wb_bypass.1)?;
         regfile.write_pc(next_pc);
             
         out.next_pc = next_pc;

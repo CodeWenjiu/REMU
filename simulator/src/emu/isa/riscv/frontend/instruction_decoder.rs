@@ -1,8 +1,8 @@
 use remu_macro::log_err;
 use remu_utils::{ProcessError, ProcessResult};
-use state::reg::{riscv::{RvCsrEnum, Trap}, RegfileIo};
+use state::reg::{riscv::{RvCsrEnum}, RegfileIo};
 
-use crate::emu::{extract_bits, isa::riscv::{backend::{AlCtrl, LsCtrl, WbCtrl}, instruction::Priv}, sig_extend, Emu, InstructionSetFlags};
+use crate::emu::{extract_bits, isa::riscv::{backend::{AlCtrl, LsCtrl, WbCtrl}, instruction::{DecodeResult, Priv}}, sig_extend, Emu, InstructionSetFlags};
 
 use super::{
     super::instruction::{ImmType, Zicsr, RISCV, RV32I, RV32IAL, RV32ILS, RV32M, }, InstType, IsCtrl, IsLogic, ToIsStage, SRCA, SRCB
@@ -69,25 +69,35 @@ impl Emu {
 
         let decode_result = self.instruction_parse(instruction);
 
-        let trap = match decode_result {
-            None => Some(Trap::IllegalInstruction),
+        // let trap = match decode_result {
+        //     None => Some(Trap::IllegalInstruction),
 
-            Some((opcode, _)) => {
-                match opcode {
-                    RISCV::RV32I(RV32I::AL(inst)) | RISCV::RV32E(RV32I::AL(inst)) => {
-                        match inst {
-                            RV32IAL::Ecall => Some(Trap::EcallM),
-                            RV32IAL::Ebreak => Some(Trap::Ebreak),
-                            _ => None,
-                        }
-                    }
+        //     Some((opcode, _)) => {
+        //         match opcode {
+        //             RISCV::RV32I(RV32I::AL(inst)) | RISCV::RV32E(RV32I::AL(inst)) => {
+        //                 match inst {
+        //                     RV32IAL::Ecall => Some(Trap::EcallM),
+        //                     RV32IAL::Ebreak => Some(Trap::Ebreak),
+        //                     _ => None,
+        //                 }
+        //             }
 
-                    _ => None,
-                }
+        //             _ => None,
+        //         }
+        //     }
+        // };
+
+        let (opcode, imm_type, trap) = match decode_result {
+            // decode_result.unwrap_or((RISCV::RV32I(RV32I::AL(RV32IAL::Addi)), ImmType::I));
+            DecodeResult::Trap(trap) => {
+                (RISCV::default(), ImmType::default(), Some(trap))
+            }
+
+            DecodeResult::Result((opcode, imm_type)) => {
+                (opcode, imm_type, None)
             }
         };
-
-        let (opcode, imm_type) = decode_result.unwrap_or((RISCV::RV32I(RV32I::AL(RV32IAL::Addi)), ImmType::I));
+            
             
         // Extract immediate value
         let imm = match opcode {

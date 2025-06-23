@@ -1,6 +1,6 @@
 use enum_dispatch::enum_dispatch;
 use owo_colors::OwoColorize;
-use remu_macro::{log_error, log_todo};
+use remu_macro::log_todo;
 use remu_utils::{ProcessError, ProcessResult, ISA};
 use riscv::{Rv32eGprEnum, Rv32eRegFile, Rv32iGprEnum, Rv32iRegFile, RvCsrEnum, new_rv32e_regfile, new_rv32i_regfile};
 
@@ -65,6 +65,12 @@ pub trait RegfileIo {
         Ok(())
     }
 
+    fn trap(&mut self, epc: u32, cause: u32) -> ProcessResult<u32> {
+        let _ = (epc, cause);
+        log_todo!();
+        Err(ProcessError::Recoverable)
+    }
+
     fn read_reg(&self, _name: &str) -> ProcessResult<u32> {
         log_todo!();
         Err(ProcessError::Recoverable)
@@ -104,34 +110,9 @@ pub trait RegfileIo {
     }
 
     fn check(&self, regfile: &AnyRegfile, flags: CheckFlags4reg) -> ProcessResult<()> {
-        if flags.contains(CheckFlags4reg::pc) {
-            if self.read_pc() != regfile.read_pc() {
-                log_error!(format!(
-                    "Dut PC: {:#010x}, Ref PC: {:#010x}",
-                    self.read_pc(),
-                    regfile.read_pc()
-                ));
-                return Err(ProcessError::Recoverable);
-            }
-        }
-        if flags.contains(CheckFlags4reg::gpr) {
-            let gprs = self.get_gprs();
-            let ref_gprs = regfile.get_gprs();
-
-            for (i, (a, b)) in gprs.iter().zip(ref_gprs.iter()).enumerate() {
-                if a != b {
-                    log_error!(format!(
-                        "Dut GPR[{}]: {:#010x}, Ref GPR[{}]: {:#010x}",
-                        i, a, i, b
-                    ));
-                    return Err(ProcessError::Recoverable);
-                }
-            }
-        }
-        if flags.contains(CheckFlags4reg::csr) {
-            log_todo!();
-        }
-        Ok(())
+        let _ = (regfile, flags);
+        log_todo!();
+        Err(ProcessError::Recoverable)
     }
 }
 

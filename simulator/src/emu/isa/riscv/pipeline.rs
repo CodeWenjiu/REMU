@@ -192,7 +192,7 @@ impl Emu {
         let mut to_wb: Option<ToWb> = None;
 
         let mut wb_msg = None;
-        let mut is_out = None;
+        let mut wb_out = None;
 
         let mut gpr_raw_hazard = false;
         let mut ls_hazard = false;
@@ -201,7 +201,7 @@ impl Emu {
 
         if self.pipeline.stages.ex_wb.1 {
             let ex_wb = self.pipeline.stages.ex_wb.0.clone();
-            is_out = Some(self.write_back_rv32i(ex_wb)?);
+            wb_out = Some(self.write_back_rv32i(ex_wb)?);
         }
 
         if self.pipeline.stages.is_al.1 {
@@ -239,8 +239,8 @@ impl Emu {
             let if_id = self.pipeline.stages.if_id.0.clone();
             let mut id_is = self.instruction_decode(if_id)?;
 
-            if let Some(is_out) = &is_out {
-                let (gpr_waddr, gpr_wdata) = is_out.wb_bypass;
+            if let Some(wb_out) = &wb_out {
+                let (gpr_waddr, gpr_wdata) = wb_out.wb_bypass;
                 if gpr_waddr != 0 {
                     if gpr_waddr == id_is.rs1_addr {
                         id_is.rs1_val = gpr_wdata;
@@ -269,7 +269,7 @@ impl Emu {
 
         // register update
 
-        if let Some(is_out) = is_out {
+        if let Some(is_out) = wb_out {
             let (pc, inst) = self.states.pipe_state.get()?; // need to used to check
 
             if pc != self.pipeline.stages.ex_wb.0.pc {
@@ -338,7 +338,6 @@ impl Emu {
             self.pipeline.stages.is_ls.1 = true;
 
             self.states.pipe_state.trans(BaseStageCell::IdIs, BaseStageCell::IsLs)?;
-
         }
 
         if let Some(to_al) = to_al {

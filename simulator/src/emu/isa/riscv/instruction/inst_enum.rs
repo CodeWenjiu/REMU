@@ -1,3 +1,5 @@
+use state::reg::riscv::Trap;
+
 #[derive(Debug, PartialEq, Copy, Clone, Default)]
 pub enum ImmType {
     #[default]
@@ -141,22 +143,22 @@ pub struct InstMsg {
     pub imm: u32,
 }
 
-#[derive(Debug, PartialEq, Clone, Default)]
-pub struct InstPattern {
-    pub name: RISCV,
-    pub msg: InstMsg,
+#[derive(Debug, PartialEq, Clone)]
+pub enum InstPattern {
+    Normal {
+        name: RISCV,
+        msg: InstMsg,
+    },
+
+    Trap(Trap),
 }
 
-impl InstPattern {
-    pub fn new(name: RISCV, rs1: u32, rs2: u32, rd: u8, imm: u32) -> Self {
-        Self {
-            name,
-            msg: InstMsg {
-                rs1,
-                rs2,
-                rd_addr: rd,
-                imm,
-            }
+impl Default for InstPattern {
+    fn default() -> Self {
+        InstPattern::Normal {
+            name: RISCV::default(),
+            msg: InstMsg::default(),
         }
     }
 }
+

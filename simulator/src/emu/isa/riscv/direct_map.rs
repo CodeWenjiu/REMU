@@ -1,8 +1,8 @@
 use remu_macro::{log_err, log_todo};
 use remu_utils::{ProcessError, ProcessResult};
-use state::{mmu::Mask, reg::{riscv::RvCsrEnum, RegfileIo}};
+use state::{mmu::Mask, reg::{riscv::{RvCsrEnum, Trap}, RegfileIo}};
 
-use crate::emu::{extract_bits, Emu};
+use crate::emu::{extract_bits, isa::riscv::instruction::DecodeResult, Emu};
 
 use super::instruction::{InstMsg, InstPattern, Priv, Zicsr, RISCV, RV32I, RV32IAL, RV32ILS, RV32M};
 
@@ -167,10 +167,7 @@ impl Emu {
                         next_pc = log_err!(regfile.read_csr(RvCsrEnum::MTVEC.into()), ProcessError::Recoverable)?;
                     }
         
-                    RV32IAL::Ebreak => {
-                        (self.callback.trap)();
-                        return Err(ProcessError::Recoverable);
-                    }
+                    RV32IAL::Ebreak => unreachable!("WTF"),
         
                     RV32IAL::Fence => {
                         msg.rd_addr = 0;
@@ -386,52 +383,80 @@ impl Emu {
     }
     
     fn rv32_decode_dm(&mut self, inst: u32) -> ProcessResult<InstPattern> {
-        let decode = self.instruction_parse(inst).ok_or(ProcessError::Recoverable)?;
+        let decode = self.instruction_parse(inst);
+
+        Ok(match decode {
+            DecodeResult::Result((name, msg)) => {
+                // Extract register fields
+                let rs1_addr = extract_bits(inst, 15..19);
+                let rs2_addr = extract_bits(inst, 20..24);
+                let rd_addr  = extract_bits(inst, 7..11) as u8;
+
+                // Extract immediate value
+                let imm = Self::get_imm(inst, msg );
         
-        // Extract register fields
-        let rs1_addr = extract_bits(inst, 15..19);
-        let rs2_addr = extract_bits(inst, 20..24);
-        let rd_addr  = extract_bits(inst, 7..11) as u8;
+                InstPattern::Normal { 
+                    name, 
+                    msg: InstMsg {
+                        rs1: rs1_addr,
+                        rs2: rs2_addr,
+                        rd_addr,
+                        imm,
+                    } }
+            }
 
-        // Extract immediate value
-        let imm = Self::get_imm(inst, decode.1 );
-
-        Ok(InstPattern { 
-            name: decode.0, 
-            msg: InstMsg {
-                rs1: rs1_addr,
-                rs2: rs2_addr,
-                rd_addr,
-                imm,
+            DecodeResult::Trap(trap) => {
+                InstPattern::Trap(trap)
             }
         })
     }
 
     pub fn rv32_execute_dm(&mut self, inst: InstPattern) -> ProcessResult<u32> {
-        let belongs_to = inst.name;
-        if !self.instruction_set.enable(belongs_to) {
-            return Err(ProcessError::Recoverable)
-        }
+        match inst {
+            InstPattern::Normal { name, msg } => {
+                let belongs_to = name;
+                if !self.instruction_set.enable(belongs_to) {
+                    return Err(ProcessError::Recoverable)
+                }
 
-        match belongs_to {
-            RISCV::RV32I(name) => {
-                return self.rv32_i_execute_dm(name, inst.msg);
+                match belongs_to {
+                    RISCV::RV32I(name) => {
+                        return self.rv32_i_execute_dm(name, msg);
+                    }
+
+                    RISCV::RV32E(name) => {
+                        return self.rv32_e_execute_dm(name, msg);
+                    }
+
+                    RISCV::RV32M(name) => {
+                        return self.rv32_m_execute_dm(name, msg);
+                    }
+
+                    RISCV::Priv(name) => {
+                        return self.rv32_priv_execute_dm(name, msg);
+                    }
+
+                    RISCV::Zicsr(name) => {
+                        return self.rv32_zicsr_execute_dm(name, msg);
+                    }
+                }
             }
 
-            RISCV::RV32E(name) => {
-                return self.rv32_e_execute_dm(name, inst.msg);
-            }
+            InstPattern::Trap(trap) => {
+                if trap == Trap::Ebreak {
+                    (self.callback.yield_)(); // just for now
+                    return Err(ProcessError::Recoverable);
+                }
+                
+                let regfile = &mut self.states.regfile;
+                
+                let pc = regfile.read_pc();
+            
+                let next_pc = regfile.trap(pc, trap as u32)?;
 
-            RISCV::RV32M(name) => {
-                return self.rv32_m_execute_dm(name, inst.msg);
-            }
+                regfile.write_pc(next_pc);
 
-            RISCV::Priv(name) => {
-                return self.rv32_priv_execute_dm(name, inst.msg);
-            }
-
-            RISCV::Zicsr(name) => {
-                return self.rv32_zicsr_execute_dm(name, inst.msg);
+                Ok(next_pc)
             }
         }
     }

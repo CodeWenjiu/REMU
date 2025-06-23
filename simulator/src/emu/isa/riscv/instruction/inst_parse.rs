@@ -1,7 +1,14 @@
 
+use state::reg::riscv::Trap;
+
 use crate::emu::{isa::riscv::instruction::{RV32_IAL_PATTERN_ITER, RV32_ILS_PATTERN_ITER, RV32_M_PATTERN_ITER, RV_PRIV_PATTERN_ITER, RV_ZICSR_PATTERN_ITER}, Emu, InstructionSetFlags};
 
 use super::{ImmType, Priv, Zicsr, RISCV, RV32I, RV32IAL, RV32ILS, RV32M};
+
+pub enum DecodeResult {
+    Result((RISCV, ImmType)),
+    Trap(Trap),
+}
 
 impl Emu {
     /// Decode an instruction as RV32I
@@ -64,44 +71,46 @@ impl Emu {
     }
 
     /// Decode an instruction based on the enabled instruction set extensions
-    pub fn instruction_parse(&self, inst: u32) -> Option<(RISCV, ImmType)> {
+    pub fn instruction_parse(&self, inst: u32) -> DecodeResult {
         let isa = self.instruction_set;
         
         // Try to decode as RV32I first (most common)
         if isa.contains(InstructionSetFlags::RV32I) {
             if let Some((opcode, imm_type)) = Self::rv32_i_parse(inst) {
-                return Some((RISCV::RV32I(opcode), imm_type));
+                if opcode == RV32I::AL(RV32IAL::Ebreak) {
+                    return DecodeResult::Trap(Trap::Ebreak);
+                }
+                return DecodeResult::Result((RISCV::RV32I(opcode), imm_type));
             }
         }
 
         if isa.contains(InstructionSetFlags::RV32E) {
             if let Some((opcode, imm_type)) = Self::rv32_i_parse(inst) {
-                return Some((RISCV::RV32E(opcode), imm_type));
+                return DecodeResult::Result((RISCV::RV32E(opcode), imm_type));
             }
         }
 
         // Try to decode as RV32M
         if isa.contains(InstructionSetFlags::RV32M) {
             if let Some((opcode, imm_type)) = Self::rv32_m_parse(inst) {
-                return Some((RISCV::RV32M(opcode), imm_type));
+                return DecodeResult::Result((RISCV::RV32M(opcode), imm_type));
             }
         }
 
         // Try to decode as Zicsr
         if isa.contains(InstructionSetFlags::ZICSR) {
             if let Some((opcode, imm_type)) = Self::rv_zicsr_parse(inst) {
-                return Some((RISCV::Zicsr(opcode), imm_type));
+                return DecodeResult::Result((RISCV::Zicsr(opcode), imm_type));
             }
         }
 
         // Try to decode as privileged
         if isa.contains(InstructionSetFlags::PRIV) {
             if let Some((opcode, imm_type)) = Self::rv_priv_parse(inst) {
-                return Some((RISCV::Priv(opcode), imm_type));
+                return DecodeResult::Result((RISCV::Priv(opcode), imm_type));
             }
         }
 
-        // Failed to decode
-        None
+        DecodeResult::Trap(Trap::IllegalInstruction)
     }
 }
