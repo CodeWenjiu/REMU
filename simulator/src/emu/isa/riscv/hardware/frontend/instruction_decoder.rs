@@ -2,10 +2,10 @@ use remu_macro::log_err;
 use remu_utils::{ProcessError, ProcessResult};
 use state::reg::{riscv::{RvCsrEnum}, RegfileIo};
 
-use crate::emu::{extract_bits, isa::riscv::{backend::{AlCtrl, LsCtrl, WbCtrl}, instruction::{DecodeResult, Priv}, BasicStageMsg}, sig_extend, Emu, InstructionSetFlags};
+use crate::emu::{extract_bits, isa::riscv::{hardware::backend::{AlCtrl, LsCtrl, WbCtrl}, instruction::{DecodeResult, Priv}, BasicStageMsg}, sig_extend, Emu, InstructionSetFlags};
 
 use super::{
-    super::instruction::{ImmType, Zicsr, RISCV, RV32I, RV32IAL, RV32ILS, RV32M, }, InstType, IsCtrl, IsLogic, ToIsStage, SRCA, SRCB
+    super::super::instruction::{ImmType, Zicsr, RISCV, RV32I, RV32IAL, RV32ILS, RV32M, }, InstType, IsCtrl, IsLogic, ToIsStage, SRCA, SRCB
 };
 
 #[derive(Default, Clone, Copy, Debug)]

@@ -4,7 +4,7 @@ use remu_macro::log_error;
 use remu_utils::{ProcessError, ProcessResult};
 use state::model::BaseStageCell;
 
-use crate::emu::{isa::riscv::{backend::{WbControl, ToAlStage, ToLsStage, ToWbStage}, frontend::{IsOutStage, ToIdStage, ToIfStage, ToIsStage}}, Emu};
+use crate::emu::{isa::riscv::hardware::{backend::{WbControl, ToAlStage, ToLsStage, ToWbStage}, frontend::{IsOutStage, ToIdStage, ToIfStage, ToIsStage}}, Emu};
 use owo_colors::OwoColorize;
 
 struct PipelineStage {

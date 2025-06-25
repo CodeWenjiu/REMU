@@ -1,13 +1,68 @@
+use comfy_table::{Cell, Color, Table};
 use remu_macro::{log_err, log_todo};
 use remu_utils::{ProcessError, ProcessResult};
-use state::{mmu::Mask, reg::{riscv::{RvCsrEnum, Trap}, RegfileIo}};
+use state::{mmu::Mask, reg::{riscv::{RvCsrEnum, Trap}, RegfileIo}, States};
 
-use crate::emu::{extract_bits, isa::riscv::instruction::DecodeResult, Emu};
+use crate::{emu::{extract_bits, isa::riscv::instruction::{DecodeResult, ImmGet}, InstructionSetFlags}, SimulatorCallback};
 
 use super::instruction::{InstMsg, InstPattern, Priv, Zicsr, RISCV, RV32I, RV32IAL, RV32ILS, RV32M};
 
-impl Emu {
-    fn rv32_i_execute_dm(&mut self, name: RV32I, mut msg: InstMsg) -> ProcessResult<u32> {
+pub struct EmuDmTimes {
+    pub instructions: u64,
+}
+
+impl EmuDmTimes {
+    pub fn print(&self) {
+        let mut table = Table::new();
+
+        table
+            .add_row(vec![
+                Cell::new("Instructions").fg(Color::Blue),
+            ])
+            .add_row(vec![
+                Cell::new(self.instructions.to_string()).fg(Color::Green),
+            ]);
+
+        println!("{table}");
+    }
+}
+
+/// RISC-V Emulator implementation
+pub struct EmuDirectMap {
+    /// Enabled instruction set extensions
+    pub instruction_set: InstructionSetFlags,
+    
+    /// Emulator state (registers, memory, etc.)
+    pub states: States,
+    
+    /// Callbacks for emulator events
+    pub callback: SimulatorCallback,
+
+    /// Emulator times
+    pub times: EmuDmTimes,
+}
+
+impl ImmGet for EmuDirectMap {}
+
+impl EmuDirectMap {
+    pub fn new(
+        instruction_set: InstructionSetFlags,
+        states: States,
+        callback: SimulatorCallback,
+    ) -> Self {
+        Self {
+            instruction_set,
+            states,
+            callback,
+            times: EmuDmTimes {
+                instructions: 0,
+            },
+        }
+    }
+}
+
+impl EmuDirectMap {
+    fn rv32_i_execute(&mut self, name: RV32I, mut msg: InstMsg) -> ProcessResult<u32> {
         let regfile = &mut self.states.regfile;
         let rs1: u32 = regfile.read_gpr(msg.rs1.into()).map_err(|_| ProcessError::Recoverable)?;
         let rs2: u32 = regfile.read_gpr(msg.rs2.into()).map_err(|_| ProcessError::Recoverable)?;
@@ -257,14 +312,14 @@ impl Emu {
         Ok(next_pc)
     }
 
-    fn rv32_e_execute_dm(&mut self, name: RV32I, mut msg: InstMsg) -> ProcessResult<u32> {
+    fn rv32_e_execute(&mut self, name: RV32I, mut msg: InstMsg) -> ProcessResult<u32> {
         msg.rs1 &= 0xF;
         msg.rs2 &= 0xF;
         msg.rd_addr &= 0xF;
-        self.rv32_i_execute_dm(name, msg)
+        self.rv32_i_execute(name, msg)
     }
 
-    fn rv32_m_execute_dm(&mut self, _name: RV32M, msg: InstMsg) -> ProcessResult<u32> {
+    fn rv32_m_execute(&mut self, _name: RV32M, msg: InstMsg) -> ProcessResult<u32> {
         let regfile = &mut self.states.regfile;
         let rs1: u32 = regfile.read_gpr(msg.rs1.into()).map_err(|_| ProcessError::Recoverable)?;
         let rs2: u32 = regfile.read_gpr(msg.rs2.into()).map_err(|_| ProcessError::Recoverable)?;
@@ -331,7 +386,7 @@ impl Emu {
         Ok(next_pc)
     }
 
-    fn rv32_priv_execute_dm(&mut self, _name: Priv, _msg: InstMsg) -> ProcessResult<u32> {
+    fn rv32_priv_execute(&mut self, _name: Priv, _msg: InstMsg) -> ProcessResult<u32> {
         let regfile = &mut self.states.regfile;
 
         let next_pc;
@@ -347,7 +402,7 @@ impl Emu {
         Ok(next_pc)
     }
 
-    fn rv32_zicsr_execute_dm(&mut self, _name: Zicsr, msg: InstMsg) -> ProcessResult<u32> {
+    fn rv32_zicsr_execute(&mut self, _name: Zicsr, msg: InstMsg) -> ProcessResult<u32> {
         let regfile = &mut self.states.regfile;
         let rs1: u32 = regfile.read_gpr(msg.rs1.into()).map_err(|_| ProcessError::Recoverable)?;
         
@@ -382,8 +437,8 @@ impl Emu {
         Ok(next_pc)
     }
     
-    fn rv32_decode_dm(&mut self, inst: u32) -> ProcessResult<InstPattern> {
-        let decode = self.instruction_parse(inst);
+    fn rv32_decode(&mut self, inst: u32) -> ProcessResult<InstPattern> {
+        let decode = self.instruction_set.instruction_parse(inst);
 
         Ok(match decode {
             DecodeResult::Result((name, msg)) => {
@@ -411,7 +466,7 @@ impl Emu {
         })
     }
 
-    pub fn rv32_execute_dm(&mut self, inst: InstPattern) -> ProcessResult<u32> {
+    pub fn rv32_execute(&mut self, inst: InstPattern) -> ProcessResult<u32> {
         match inst {
             InstPattern::Normal { name, msg } => {
                 let belongs_to = name;
@@ -421,23 +476,23 @@ impl Emu {
 
                 match belongs_to {
                     RISCV::RV32I(name) => {
-                        return self.rv32_i_execute_dm(name, msg);
+                        return self.rv32_i_execute(name, msg);
                     }
 
                     RISCV::RV32E(name) => {
-                        return self.rv32_e_execute_dm(name, msg);
+                        return self.rv32_e_execute(name, msg);
                     }
 
                     RISCV::RV32M(name) => {
-                        return self.rv32_m_execute_dm(name, msg);
+                        return self.rv32_m_execute(name, msg);
                     }
 
                     RISCV::Priv(name) => {
-                        return self.rv32_priv_execute_dm(name, msg);
+                        return self.rv32_priv_execute(name, msg);
                     }
 
                     RISCV::Zicsr(name) => {
-                        return self.rv32_zicsr_execute_dm(name, msg);
+                        return self.rv32_zicsr_execute(name, msg);
                     }
                 }
             }
@@ -462,7 +517,7 @@ impl Emu {
     }
 
     /// Execute a single cycle in the emulator
-    pub fn self_step_cycle_dm(&mut self) -> ProcessResult<()> {
+    pub fn step_instruction(&mut self) -> ProcessResult<()> {
         // 1. Fetch: Read the PC and fetch the instruction
         let pc = self.states.regfile.read_pc();
         let inst = log_err!(
@@ -471,17 +526,20 @@ impl Emu {
         )?;
 
         // 2. Decode: Decode the instruction
-        let decode = self.rv32_decode_dm(inst.1)?;
+        let decode = self.rv32_decode(inst.1)?;
         
         // 3. Execute: Execute the instruction
-        let next_pc = self.rv32_execute_dm(decode)?;
+        let next_pc = self.rv32_execute(decode)?;
 
         // 4. Notify completion and return
         (self.callback.instruction_complete)(pc, next_pc, inst.1)?;
 
-        self.times.cycles += 1;
         self.times.instructions += 1;
 
         Ok(())
+    }
+
+    pub fn times(&self) {
+        self.times.print();
     }
 }

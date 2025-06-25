@@ -5,7 +5,7 @@ use remu_macro::log_error;
 use remu_utils::{ProcessResult, ISA};
 use state::States;
 
-use crate::{emu::isa::riscv::Pipeline, SimulatorCallback};
+use crate::{emu::isa::riscv::hardware::Pipeline, SimulatorCallback};
 
 use super::isa::riscv::instruction::RISCV;
 

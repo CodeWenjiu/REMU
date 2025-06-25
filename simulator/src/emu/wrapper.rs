@@ -1,9 +1,10 @@
 use enum_dispatch::enum_dispatch;
 use option_parser::OptionParser;
+use remu_macro::log_todo;
 use remu_utils::ProcessResult;
 use state::States;
 
-use crate::{difftest_ref::{DifftestRefPipelineApi, DifftestRefSingleCycleApi}, SimulatorCallback, SimulatorItem};
+use crate::{difftest_ref::{DifftestRefPipelineApi, DifftestRefSingleCycleApi}, emu::isa::riscv::direct_map::EmuDirectMap, SimulatorCallback, SimulatorItem};
 
 use super::Emu;
 
@@ -15,15 +16,14 @@ pub trait EmuSimulatorCore {
     fn instruction_fetch_enable(&mut self) {}
     fn load_store_enable(&mut self) {}
     fn times(&self) -> ProcessResult<()>;
-    fn function_wave_trace(&self, _enable: bool);
+    fn function_wave_trace(&self, _enable: bool) {
+        log_todo!()
+    }
 
     fn get_keys(&self) -> Vec<&'static str> {vec![]}
     fn print_info(&self, key: &str) { let _ = key; }
 }
 
-pub struct DirectlyMap {
-    emu: Emu,
-}
 pub struct SingleCycle {
     emu: Emu,
 }
@@ -31,18 +31,16 @@ pub struct Pipeline {
     emu: Emu,
 }
 
-impl EmuSimulatorCore for DirectlyMap {
+impl EmuSimulatorCore for EmuDirectMap {
     fn step_cycle(&mut self) -> ProcessResult<()> {
-        self.emu.self_step_cycle_dm()
+        self.step_instruction()
     }
     fn instruction_complete(&mut self) -> ProcessResult<()> {
-        self.emu.self_step_cycle_dm()
+        self.step_instruction()
     }
     fn times(&self) -> ProcessResult<()> {
-        self.emu.times()
-    }
-    fn function_wave_trace(&self, enable: bool) {
-        self.emu.function_wave_trace(enable)
+        self.times();
+        Ok(())
     }
 }
 
@@ -94,16 +92,11 @@ impl EmuSimulatorCore for Pipeline {
 
 #[enum_dispatch]
 pub enum SimulatorKind {
-    DirectlyMap(DirectlyMap),
+    DirectlyMap(EmuDirectMap),
     SingleCycle(SingleCycle),
     Pipeline(Pipeline),
 }
 
-impl DirectlyMap {
-    pub fn new(option: &OptionParser, states: States, callback: SimulatorCallback) -> Self {
-        Self { emu: Emu::new(option, states, callback) }
-    }
-}
 impl SingleCycle {
     pub fn new(option: &OptionParser, states: States, callback: SimulatorCallback) -> Self {
         Self { emu: Emu::new(option, states, callback) }
@@ -121,7 +114,7 @@ pub struct EmuWrapper {
 
 impl EmuWrapper {
     pub fn new_dm(option: &OptionParser, states: States, callback: SimulatorCallback) -> Self {
-        Self { kind: SimulatorKind::DirectlyMap(DirectlyMap::new(option, states, callback)) }
+        Self { kind: SimulatorKind::DirectlyMap(EmuDirectMap::new(option.cli.platform.isa.into(), states, callback)) }
     }
     pub fn new_sc(option: &OptionParser, states: States, callback: SimulatorCallback) -> Self {
         Self { kind: SimulatorKind::SingleCycle(SingleCycle::new(option, states, callback)) }
