@@ -1,12 +1,12 @@
 use remu_macro::{log_err, log_error};
 use remu_utils::{ProcessError, ProcessResult};
-use state::reg::{riscv::Trap, RegfileIo};
+use state::reg::{RegfileIo};
 
-use crate::emu::{isa::riscv::backend::{AlCtrl, LsCtrl, ToAlStage, ToLsStage, WbCtrl}, Emu};
+use crate::emu::{isa::riscv::{backend::{AlCtrl, LsCtrl, ToAlStage, ToLsStage, WbCtrl}, BasicStageMsg}, Emu};
 
 #[derive(Default, Clone, Copy, Debug)]
 pub struct ToIsStage {
-    pub pc: u32,
+    pub msg: BasicStageMsg,
 
     pub rs1_addr: u8,
     pub rs1_val: u32,
@@ -22,8 +22,6 @@ pub struct ToIsStage {
     pub ls_ctrl: LsCtrl,
 
     pub wb_ctrl: WbCtrl,
-
-    pub trap: Option<Trap>,
 }
 
 #[derive(Default, Clone, Copy, Debug)]
@@ -103,7 +101,7 @@ impl Emu {
 
         let inst_type = stage.is_ctrl.inst_type;
 
-        let pc = stage.pc;
+        let msg = stage.msg;
         let wb_ctrl = stage.wb_ctrl;
 
         match inst_type {
@@ -124,13 +122,13 @@ impl Emu {
         
                 let srca = match stage.is_ctrl.srca {
                     SRCA::RS1 => rs1_val,
-                    SRCA::PC => pc,
+                    SRCA::PC => msg.pc,
                     SRCA::CSR => {
                         log_err!(self.states.regfile.read_csr(imm & 0xFFF), ProcessError::Recoverable)?
                     },
                     SRCA::ZERO => 0,
                     SRCA::DontCare => {
-                        log_error!(format!("SRCA::DontCare should not be used at pc: {:#08x}", pc));
+                        log_error!(format!("SRCA::DontCare should not be used at pc: {:#08x}", msg.pc));
                         return Err(ProcessError::Recoverable);
                     },
                 };
@@ -142,21 +140,19 @@ impl Emu {
                     SRCB::LogicBranch => if logic.unwrap() { imm } else { 4 },
                     SRCB::LogicSet => if logic.unwrap() { 1 } else { 0 },
                     SRCB::DontCare => {
-                        log_error!(format!("SRCB::DontCare should not be used at pc: {:#08x}", pc));
+                        log_error!(format!("SRCB::DontCare should not be used at pc: {:#08x}", msg.pc));
                         return Err(ProcessError::Recoverable);
                     },
                 };
-
-                let trap = stage.trap;
         
-                Ok(IsOutStage::AL(ToAlStage { pc, srca, srcb, al_ctrl, wb_ctrl, gpr_waddr, csr_waddr: (imm & 0xFFF) as u16, trap }))
+                Ok(IsOutStage::AL(ToAlStage { msg, srca, srcb, al_ctrl, wb_ctrl, gpr_waddr, csr_waddr: (imm & 0xFFF) as u16, }))
             }
 
             InstType::LS => {
                 let ls_ctrl = stage.ls_ctrl;
 
                 Ok(IsOutStage::LS(ToLsStage {
-                    pc, 
+                    msg, 
                     ls_ctrl,
                     gpr_waddr,
 

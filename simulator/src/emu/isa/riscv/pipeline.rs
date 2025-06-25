@@ -4,7 +4,7 @@ use remu_macro::log_error;
 use remu_utils::{ProcessError, ProcessResult};
 use state::model::BaseStageCell;
 
-use crate::emu::{isa::riscv::{backend::{ToAlStage, ToLsStage, ToWbStage}, frontend::{IsOutStage, ToIdStage, ToIfStage, ToIsStage}}, Emu};
+use crate::emu::{isa::riscv::{backend::{WbControl, ToAlStage, ToLsStage, ToWbStage}, frontend::{IsOutStage, ToIdStage, ToIfStage, ToIsStage}}, Emu};
 use owo_colors::OwoColorize;
 
 struct PipelineStage {
@@ -96,54 +96,23 @@ impl Pipeline {
         (*is_valid && conflict_gpr(to_is.gpr_waddr))
     }
 
-    fn is_flush_need(&self, next_pc: u32) -> bool {
-        let (to_al, al_valid) = &self.stages.is_al;
-        let (to_ls, ls_valid) = &self.stages.is_ls;
-        let (to_is, is_valid) = &self.stages.id_is;
-        let (to_id, id_valid) = &self.stages.if_id;
+    fn flush(&mut self, next_pc: u32) {
+        self.stages.is_ls.1 = false;
+        self.stages.is_al.1 = false;
+        self.stages.id_is.1 = false;
+        self.stages.if_id.1 = false;
 
-        if *al_valid {
-            return to_al.pc != next_pc;
-        }
-
-        if *ls_valid {
-            return to_ls.pc != next_pc;
-        }
-
-        if *is_valid {
-            return to_is.pc != next_pc;
-        }
-
-        if *id_valid {
-            return to_id.pc != next_pc;
-        }
-
-        self.pipeline_pc != next_pc
-    }
-
-    fn flush_if_need(&mut self, next_pc: u32) -> bool {
-        let need = self.is_flush_need(next_pc);
-
-        if need {
-            self.stages.is_ls.1 = false;
-            self.stages.is_al.1 = false;
-            self.stages.id_is.1 = false;
-            self.stages.if_id.1 = false;
-
-            self.if_ena = false;
-            
-            self.pipeline_pc = next_pc;
-        }
-
-        need
+        self.if_ena = false;
+        
+        self.pipeline_pc = next_pc;
     }
 }
 
 impl Emu {
-    fn self_pipeline_branch_predict(&self) -> u32 {
+    fn self_pipeline_branch_predict(&self) -> (u32, u32) {
         let result = self.pipeline.pipeline_pc;
 
-        result
+        (result, result.wrapping_add(4))
     }
 
     fn self_pipeline_branch_predict_update(&mut self) {
@@ -257,9 +226,11 @@ impl Emu {
         }
 
         if self.pipeline.if_ena {
-            let predict_pc = self.self_pipeline_branch_predict(); // need to be implemented
+            let predict_msg = self.self_pipeline_branch_predict(); // need to be implemented
             
-            let _id = self.instruction_fetch_rv32i(ToIfStage { pc: predict_pc })?;
+            let _id = self.instruction_fetch_rv32i(
+                ToIfStage::new(predict_msg.0, predict_msg.1)
+            )?;
 
             to_id = Some(_id);
         }
@@ -269,21 +240,26 @@ impl Emu {
 
         // register update
 
-        if let Some(is_out) = wb_out {
+        if let Some(wb_out) = wb_out {
             let (pc, inst) = self.states.pipe_state.get()?; // need to used to check
 
-            if pc != self.pipeline.stages.ex_wb.0.pc {
-                log_error!(format!("EX 2 WB PC mismatch: fetched {:#08x}, expected {:#08x}", pc, self.pipeline.stages.ex_wb.0.pc));
+            if pc != self.pipeline.stages.ex_wb.0.msg.pc {
+                log_error!(format!("EX 2 WB PC mismatch: fetched {:#08x}, expected {:#08x}", pc, self.pipeline.stages.ex_wb.0.msg.pc));
                 return Err(ProcessError::Recoverable);
             }
 
             self.pipeline.stages.ex_wb.1 = false;
 
-            wb_msg = Some((pc, is_out.next_pc, inst));
+            wb_msg = Some((pc, wb_out.next_pc, inst));
 
-            if self.pipeline.flush_if_need(is_out.next_pc) {
+            if wb_out.wb_ctrl != WbControl::Nope {
+                self.pipeline.flush(wb_out.next_pc);
                 self.states.pipe_state.flush();
                 return Ok(wb_msg);
+            }
+            
+            if wb_out.wb_ctrl == WbControl::BPError {
+                // TODO: update BPU
             }
         }
 
@@ -291,8 +267,8 @@ impl Emu {
             match to_wb {
                 ToWb::FromAl(from_al) => {
                     let (pc, _inst) = self.states.pipe_state.fetch(BaseStageCell::IsAl)?; // need to used to check
-                    if pc != from_al.pc {
-                        log_error!(format!("AL 2 WB PC mismatch: fetched {:#08x}, expected {:#08x}", pc, from_al.pc));
+                    if pc != from_al.msg.pc {
+                        log_error!(format!("AL 2 WB PC mismatch: fetched {:#08x}, expected {:#08x}", pc, from_al.msg.pc));
                         return Err(ProcessError::Recoverable);
                     }
 
@@ -305,8 +281,8 @@ impl Emu {
 
                 ToWb::FromLs(from_ls) => {
                     let (pc, _inst) = self.states.pipe_state.fetch(BaseStageCell::IsLs)?; // need to used to check
-                    if pc != from_ls.pc {
-                        log_error!(format!("LS 2 WB PC mismatch: fetched {:#08x}, expected {:#08x}", pc, from_ls.pc));
+                    if pc != from_ls.msg.pc {
+                        log_error!(format!("LS 2 WB PC mismatch: fetched {:#08x}, expected {:#08x}", pc, from_ls.msg.pc));
                         return Err(ProcessError::Recoverable);
                     }
 
@@ -326,8 +302,8 @@ impl Emu {
 
         if let Some(to_ls) = to_ls {
             let (pc, _inst) = self.states.pipe_state.fetch(BaseStageCell::IdIs)?; // need to used to check
-            if pc != to_ls.pc {
-                log_error!(format!("IS 2 LS PC mismatch: fetched {:#08x}, expected {:#08x}", pc, to_ls.pc));
+            if pc != to_ls.msg.pc {
+                log_error!(format!("IS 2 LS PC mismatch: fetched {:#08x}, expected {:#08x}", pc, to_ls.msg.pc));
                 return Err(ProcessError::Recoverable);
             }
 
@@ -342,8 +318,8 @@ impl Emu {
 
         if let Some(to_al) = to_al {
             let (pc, _inst) = self.states.pipe_state.fetch(BaseStageCell::IdIs)?; // need to used to check
-            if pc != to_al.pc {
-                log_error!(format!("IS 2 AL PC mismatch: fetched {:#08x}, expected {:#08x}", pc, to_al.pc));
+            if pc != to_al.msg.pc {
+                log_error!(format!("IS 2 AL PC mismatch: fetched {:#08x}, expected {:#08x}", pc, to_al.msg.pc));
                 return Err(ProcessError::Recoverable);
             }
 
@@ -374,165 +350,12 @@ impl Emu {
             self.pipeline.stages.if_id.0 = to_id;
             self.pipeline.stages.if_id.1 = true;
 
-            self.states.pipe_state.send((to_id.pc, to_id.inst), BaseStageCell::IfId)?;
+            self.states.pipe_state.send((to_id.msg.pc, to_id.inst), BaseStageCell::IfId)?;
 
             self.self_pipeline_branch_predict_update();
         }
 
         Ok(wb_msg)
-
-        // let mut pre_to_is = None;
-        // let mut raw_hazard = false;
-
-        // if self.pipeline.stages.if_id.1 {
-        //     let mit = self.pipeline.stages.if_id.0.clone();
-        //     let mit = self.instruction_decode(mit)?;
-        //     raw_hazard = self.pipeline.is_gpr_raw(mit.rs1_addr, mit.rs2_addr);
-        //     pre_to_is = Some(mit);
-        // } 
-
-        // let (to_wb, wb_valid) = &self.pipeline.stages.ex_wb;
-        
-        // let mut wb_msg = None;
-
-        // if *wb_valid {
-        //     let (pc, inst) = self.states.pipe_state.get()?;
-
-        //     let next_pc = self.write_back_rv32i(to_wb.clone())?;
-
-        //     wb_msg = Some((pc, next_pc, inst));
-
-        //     self.pipeline.stages.ex_wb.1 = false;
-
-        //     if self.pipeline.flush_if_need(next_pc) {
-        //         self.states.pipe_state.flush();
-        //     }
-
-        //     self.times.instructions += 1;
-        // }
-
-        // let (to_ls, ls_valid) = &self.pipeline.stages.is_ls;
-        
-        // if *ls_valid {
-        //     let ls_ena = self.pipeline.ls_ena;
-            
-        //     if ls_ena {
-        //         let (pc, _inst) = self.states.pipe_state.fetch(BaseStageCell::IsLs)?; // need to used to check
-
-        //         let to_wb = if let Some(skip_val) = skip {
-        //             self.load_store_rv32i_with_skip(to_ls.clone(), skip_val)?
-        //         } else {
-        //             self.load_store_rv32i(to_ls.clone())?
-        //         };
-
-        //         if pc != to_wb.pc {
-        //             log_error!(format!("LS 2 WB PC mismatch: fetched {:#08x}, expected {:#08x}", pc, to_wb.pc));
-        //             return Err(ProcessError::Recoverable);
-        //         }
-
-        //         self.pipeline.stages.is_ls.1 = false;
-        //         self.pipeline.stages.ex_wb.0 = to_wb;
-        //         self.pipeline.stages.ex_wb.1 = true;
-
-        //         self.states.pipe_state.trans(BaseStageCell::IsLs, BaseStageCell::ExWb)?;
-
-        //         self.pipeline.ls_ena = false; 
-        //     }
-
-        //     return Ok(wb_msg); // Ls Hazard
-        // }
-
-        // let (to_al, al_valid) = &self.pipeline.stages.is_al;
-
-        // if *al_valid {
-        //     let (pc, _inst) = self.states.pipe_state.fetch(BaseStageCell::IsAl)?; // need to used to check
-
-        //     let to_wb = self.arithmetic_logic_rv32(to_al.clone())?;
-
-        //     if pc != to_wb.pc {
-        //         log_error!(format!("AL 2 WB PC mismatch: fetched {:#08x}, expected {:#08x}", pc, to_wb.pc));
-        //         return Err(ProcessError::Recoverable);
-        //     }
-
-        //     self.pipeline.stages.is_al.1 = false;
-        //     self.pipeline.stages.ex_wb.0 = to_wb;
-        //     self.pipeline.stages.ex_wb.1 = true;
-
-        //     self.states.pipe_state.trans(BaseStageCell::IsAl, BaseStageCell::ExWb)?;
-        // }
-
-        // let (to_is, is_valid) = &self.pipeline.stages.id_is;
-
-        // if *is_valid {
-        //     let (pc, _inst) = self.states.pipe_state.fetch(BaseStageCell::IdIs)?; // need to used to check
-
-        //     let to_ex = self.instruction_issue(to_is.clone())?;
-
-        //     self.pipeline.stages.id_is.1 = false;
-        //     match to_ex {
-        //         IsOutStage::AL(to_al) => {
-        //             if pc != to_al.pc {
-        //                 log_error!(format!("IS 2 AL PC mismatch: fetched {:#08x}, expected {:#08x}", pc, to_al.pc));
-        //                 return Err(ProcessError::Recoverable);
-        //             }
-
-        //             self.pipeline.stages.is_al.0 = to_al;
-        //             self.pipeline.stages.is_al.1 = true;
-
-        //             self.states.pipe_state.trans(BaseStageCell::IdIs, BaseStageCell::IsAl)?;
-        //         },
-        //         IsOutStage::LS(to_ls) => {
-        //             if pc != to_ls.pc {
-        //                 log_error!(format!("IS 2 LS PC mismatch: fetched {:#08x}, expected {:#08x}", pc, to_ls.pc));
-        //                 return Err(ProcessError::Recoverable);
-        //             }
-
-        //             self.pipeline.stages.is_ls.0 = to_ls;
-        //             self.pipeline.stages.is_ls.1 = true;
-
-        //             self.states.pipe_state.trans(BaseStageCell::IdIs, BaseStageCell::IsLs)?;
-        //         },
-        //     }
-        // }
-
-        // let (to_id, id_valid) = &self.pipeline.stages.if_id; 
-
-        // if raw_hazard {
-        //     return Ok(wb_msg);
-        // }
-
-        // if *id_valid {
-        //     let (pc, _inst) = self.states.pipe_state.fetch(BaseStageCell::IfId)?; // need to used to check
-
-        //     let to_is = pre_to_is.unwrap();
-
-        //     if pc != to_id.pc {
-        //         log_error!(format!("IF 2 ID PC mismatch: fetched {:#08x}, expected {:#08x}", pc, to_id.pc));
-        //         return Err(ProcessError::Recoverable);
-        //     }
-
-        //     self.pipeline.stages.id_is.0 = to_is;
-        //     self.pipeline.stages.id_is.1 = true;
-
-        //     self.pipeline.stages.if_id.1 = false;
-
-        //     self.states.pipe_state.trans(BaseStageCell::IfId, BaseStageCell::IdIs)?;
-        // }
-
-        // if self.pipeline.if_ena {
-        //     let predict_pc = self.self_pipeline_branch_predict(); // need to be implemented
-    
-        //     let to_id = self.instruction_fetch_rv32i(ToIfStage{pc: predict_pc})?;
-
-        //     self.pipeline.stages.if_id.0 = to_id;
-        //     self.pipeline.stages.if_id.1 = true;
-
-        //     self.states.pipe_state.send((predict_pc, to_id.inst), BaseStageCell::IfId)?;
-
-        //     self.pipeline.if_ena = false;
-        // }
-
-        // return Ok(wb_msg);
     }
 
     pub fn self_pipeline_ifena(&mut self) {

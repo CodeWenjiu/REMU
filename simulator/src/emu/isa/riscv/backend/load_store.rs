@@ -2,7 +2,7 @@ use remu_macro::{log_err, log_error};
 use remu_utils::{ProcessError, ProcessResult};
 use state::mmu::Mask;
 
-use crate::emu::Emu;
+use crate::emu::{isa::riscv::BasicStageMsg, Emu};
 
 use super::{ToWbStage, WbCtrl, };
 
@@ -23,7 +23,8 @@ pub enum LsCtrl {
 
 #[derive(Default, Clone, Debug)]
 pub struct ToLsStage {
-    pub pc: u32,
+    pub msg: BasicStageMsg,
+
     pub ls_ctrl: LsCtrl,
     pub gpr_waddr: u8,
 
@@ -36,7 +37,7 @@ impl Emu {
     pub fn load_store_rv32i_with_skip(&mut self, stage: ToLsStage, skip_val: u32) -> ProcessResult<ToWbStage> {
         let result;
 
-        let pc = stage.pc;
+        let msg = stage.msg;
         let mut gpr_waddr = stage.gpr_waddr;
 
         let ctrl = stage.ls_ctrl;
@@ -78,19 +79,25 @@ impl Emu {
             }
 
             LsCtrl::DontCare => {
-                log_error!(format!("LsCtrl::None should not be used at pc: {:#08x}", pc));
+                log_error!(format!("LsCtrl::None should not be used at pc: {:#08x}", msg.pc));
                 return Err(ProcessError::Recoverable);
             },
         }
 
-        Ok(ToWbStage { pc, result, csr_rdata: 0, gpr_waddr, csr_waddr: 0, wb_ctrl: WbCtrl::WriteGpr, trap: None })
+        let to_msg = BasicStageMsg {
+            pc: msg.pc,
+            npc: msg.pc.wrapping_add(4),
+            trap: None,
+        }; // wb's next pc is always pc + 4, in chisel will automatically optimize out
+
+        Ok(ToWbStage { msg: to_msg, result, csr_rdata: 0, gpr_waddr, csr_waddr: 0, wb_ctrl: WbCtrl::WriteGpr })
     }
 
 
     pub fn load_store_rv32i(&mut self, stage: ToLsStage) -> ProcessResult<ToWbStage> {
         let result;
 
-        let pc = stage.pc;
+        let msg = stage.msg;
         let mut gpr_waddr = stage.gpr_waddr;
 
         let ctrl = stage.ls_ctrl;
@@ -150,7 +157,7 @@ impl Emu {
             }
 
             LsCtrl::DontCare => {
-                log_error!(format!("LsCtrl::None should not be used at pc: {:#08x}", pc));
+                log_error!(format!("LsCtrl::None should not be used at pc: {:#08x}", msg.pc));
                 return Err(ProcessError::Recoverable);
             },
         }
@@ -159,6 +166,12 @@ impl Emu {
             (self.callback.difftest_skip)(result);
         };
 
-        Ok(ToWbStage { pc, result, csr_rdata: 0, gpr_waddr, csr_waddr: 0, wb_ctrl: WbCtrl::WriteGpr, trap: None })
+        let to_msg = BasicStageMsg {
+            pc: msg.pc,
+            npc: msg.pc.wrapping_add(4),
+            trap: None,
+        };
+
+        Ok(ToWbStage { msg: to_msg, result, csr_rdata: 0, gpr_waddr, csr_waddr: 0, wb_ctrl: WbCtrl::WriteGpr })
     }
 }

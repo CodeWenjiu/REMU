@@ -9,7 +9,7 @@ impl Emu {
     pub fn self_step_cycle_singlecycle(&mut self) -> ProcessResult<()> {
         let pc = self.states.regfile.read_pc();
 
-        let to_if = ToIfStage { pc };
+        let to_if = ToIfStage::new(pc, pc.wrapping_add(4));
 
         let to_id = self.instruction_fetch_rv32i(to_if)?;
 

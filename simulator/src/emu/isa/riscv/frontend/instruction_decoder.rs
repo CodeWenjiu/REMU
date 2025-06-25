@@ -2,7 +2,7 @@ use remu_macro::log_err;
 use remu_utils::{ProcessError, ProcessResult};
 use state::reg::{riscv::{RvCsrEnum}, RegfileIo};
 
-use crate::emu::{extract_bits, isa::riscv::{backend::{AlCtrl, LsCtrl, WbCtrl}, instruction::{DecodeResult, Priv}}, sig_extend, Emu, InstructionSetFlags};
+use crate::emu::{extract_bits, isa::riscv::{backend::{AlCtrl, LsCtrl, WbCtrl}, instruction::{DecodeResult, Priv}, BasicStageMsg}, sig_extend, Emu, InstructionSetFlags};
 
 use super::{
     super::instruction::{ImmType, Zicsr, RISCV, RV32I, RV32IAL, RV32ILS, RV32M, }, InstType, IsCtrl, IsLogic, ToIsStage, SRCA, SRCB
@@ -10,7 +10,7 @@ use super::{
 
 #[derive(Default, Clone, Copy, Debug)]
 pub struct ToIdStage {
-    pub pc: u32,
+    pub msg: BasicStageMsg,
     pub inst: u32,
 }
 
@@ -63,29 +63,11 @@ impl Emu {
     }
 
     /// Decode an instruction into its components
-    pub fn instruction_decode(&self, msg: ToIdStage) -> ProcessResult<ToIsStage> {
-        let pc = msg.pc;
-        let instruction = msg.inst;
+    pub fn instruction_decode(&self, stage: ToIdStage) -> ProcessResult<ToIsStage> {
+        let msg = stage.msg;
+        let instruction = stage.inst;
 
         let decode_result = self.instruction_parse(instruction);
-
-        // let trap = match decode_result {
-        //     None => Some(Trap::IllegalInstruction),
-
-        //     Some((opcode, _)) => {
-        //         match opcode {
-        //             RISCV::RV32I(RV32I::AL(inst)) | RISCV::RV32E(RV32I::AL(inst)) => {
-        //                 match inst {
-        //                     RV32IAL::Ecall => Some(Trap::EcallM),
-        //                     RV32IAL::Ebreak => Some(Trap::Ebreak),
-        //                     _ => None,
-        //                 }
-        //             }
-
-        //             _ => None,
-        //         }
-        //     }
-        // };
 
         let (opcode, imm_type, trap) = match decode_result {
             // decode_result.unwrap_or((RISCV::RV32I(RV32I::AL(RV32IAL::Addi)), ImmType::I));
@@ -132,20 +114,6 @@ impl Emu {
 
             _ => 0,
         } as u8;
-
-        // let rs1_addr = 
-        //         if self.instruction_set.contains(InstructionSetFlags::RV32E) {
-        //             extract_bits(instruction, 15..18)
-        //         } else {
-        //             extract_bits(instruction, 15..19)
-        //         } as u8;
-
-        // let rs2_addr =
-        //         if self.instruction_set.contains(InstructionSetFlags::RV32E) {
-        //             extract_bits(instruction, 20..23)
-        //         } else {
-        //             extract_bits(instruction, 20..24)
-        //         } as u8;
 
         let gpr_waddr = match imm_type {
             ImmType::I | ImmType::R | ImmType::J | ImmType::U => 
@@ -328,7 +296,13 @@ impl Emu {
             _ => WbCtrl::DontCare,
         };
 
-        Ok(ToIsStage { pc, rs1_addr, rs1_val, rs2_addr, rs2_val, gpr_waddr, imm, is_ctrl, al_ctrl, ls_ctrl, wb_ctrl, trap })
+        let msg = if msg.trap.is_some() {
+            msg
+        } else {
+            BasicStageMsg { trap, ..msg }
+        };
+
+        Ok(ToIsStage { msg, rs1_addr, rs1_val, rs2_addr, rs2_val, gpr_waddr, imm, is_ctrl, al_ctrl, ls_ctrl, wb_ctrl })
     }
 
 }

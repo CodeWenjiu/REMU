@@ -1,7 +1,7 @@
 use remu_macro::log_error;
 use remu_utils::{ProcessError, ProcessResult};
-use state::reg::riscv::Trap;
 
+use crate::emu::isa::riscv::BasicStageMsg;
 use crate::emu::Emu;
 
 use super::{ToWbStage, WbCtrl, };
@@ -48,7 +48,7 @@ pub enum AlCtrl {
 
 #[derive(Default, Clone, Debug)]
 pub struct ToAlStage {
-    pub pc: u32,
+    pub msg: BasicStageMsg,
 
     pub srca: u32,
     pub srcb: u32,
@@ -58,13 +58,11 @@ pub struct ToAlStage {
 
     pub gpr_waddr: u8,
     pub csr_waddr: u16,
-
-    pub trap: Option<Trap>,
 }
 
 impl Emu {
     pub fn arithmetic_logic_rv32(&self, stage: ToAlStage) -> ProcessResult<ToWbStage> {
-        let pc = stage.pc;
+        let msg = stage.msg;
 
         let mut result =  0;
         let srca = stage.srca;
@@ -74,9 +72,8 @@ impl Emu {
         let csr_waddr = stage.csr_waddr;
 
         let wb_ctrl = stage.wb_ctrl;
-        let trap: Option<Trap> = stage.trap;
 
-        if trap == None {
+        if msg.trap == None {
             match stage.al_ctrl {
                 AlCtrl::B => {
                     result = srcb;
@@ -163,12 +160,12 @@ impl Emu {
                 }
 
                 AlCtrl::DontCare => {
-                    log_error!(format!("AlCtrl::None should not be used at pc: {:#08x}", pc));
+                    log_error!(format!("AlCtrl::None should not be used at pc: {:#08x}", msg.pc));
                     return Err(ProcessError::Recoverable);
                 },
             };
         }
 
-        Ok(ToWbStage { pc, result, csr_rdata: srca, gpr_waddr, csr_waddr, wb_ctrl, trap })
+        Ok(ToWbStage { msg, result, csr_rdata: srca, gpr_waddr, csr_waddr, wb_ctrl })
     }
 }

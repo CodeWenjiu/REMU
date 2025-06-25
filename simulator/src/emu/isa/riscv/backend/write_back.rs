@@ -2,7 +2,7 @@ use remu_macro::{log_err, log_error};
 use remu_utils::{ProcessError, ProcessResult};
 use state::reg::{riscv::Trap, RegfileIo};
 
-use crate::emu::Emu;
+use crate::emu::{isa::riscv::BasicStageMsg, Emu};
 
 #[derive(Default, Clone, Copy, Debug)] 
 pub enum WbCtrl{
@@ -16,7 +16,8 @@ pub enum WbCtrl{
 
 #[derive(Default, Clone, Debug)]
 pub struct ToWbStage {
-    pub pc: u32,
+    pub msg: BasicStageMsg,
+
     pub result: u32,
     pub csr_rdata: u32,
 
@@ -24,41 +25,48 @@ pub struct ToWbStage {
     pub csr_waddr: u16,
 
     pub wb_ctrl: WbCtrl,
+}
 
-    pub trap: Option<Trap>,
+#[derive(Default, Clone, Debug, PartialEq)]
+pub enum WbControl {
+    #[default]
+    BPError,
+    Nope,
+    Trap,
 }
 
 #[derive(Default, Clone, Debug)]
-pub struct IsOut {
+pub struct Wbout {
     pub next_pc: u32,
+    pub wb_ctrl: WbControl,
     pub wb_bypass: (u8, u32),
 }
 
 impl Emu {
-    pub fn write_back_rv32i(&mut self, stage: ToWbStage) -> ProcessResult<IsOut> {
-        let mut out = IsOut {
+    pub fn write_back_rv32i(&mut self, stage: ToWbStage) -> ProcessResult<Wbout> {
+        let mut out = Wbout {
             next_pc: 0,
+            wb_ctrl: WbControl::Nope,
             wb_bypass: (0, 0),
         };
 
         let regfile = &mut self.states.regfile;
-        let pc = stage.pc;
+        let pc: u32 = stage.msg.pc;
         let mut next_pc = pc.wrapping_add(4);
 
-        if let Some(trap) = stage.trap {
+        if let Some(trap) = stage.msg.trap {
             if trap == Trap::Ebreak {
                 (self.callback.yield_)(); // just for now
                 return Err(ProcessError::Recoverable);
             }
             
-            // log_err!(regfile.write_csr(RvCsrEnum::MEPC.into(), pc), ProcessError::Recoverable)?;
-            // log_err!(regfile.write_csr(RvCsrEnum::MCAUSE.into(), trap as u32), ProcessError::Recoverable)?;
-
             next_pc = regfile.trap(pc, trap as u32)?;
 
             regfile.write_pc(next_pc);
             
             out.next_pc = next_pc;
+
+            out.wb_ctrl = WbControl::Trap;
 
             return Ok(out);
         }
@@ -68,18 +76,15 @@ impl Emu {
         match stage.wb_ctrl {
             WbCtrl::WriteGpr => {
                 out.wb_bypass.1 = stage.result;
-                // regfile.write_gpr(stage.gpr_waddr.into(), stage.result)?;
             }
 
             WbCtrl::Jump => {
                 out.wb_bypass.1 = next_pc;
-                // regfile.write_gpr(stage.gpr_waddr.into(), next_pc)?;
                 next_pc = stage.result;
             }
 
             WbCtrl::Csr => {
                 out.wb_bypass.1 = stage.csr_rdata;
-                // regfile.write_gpr(stage.gpr_waddr.into(), stage.csr_rdata)?;
                 log_err!(regfile.write_csr(stage.csr_waddr.into(), stage.result), ProcessError::Recoverable)?;
             }
 
@@ -93,6 +98,9 @@ impl Emu {
         regfile.write_pc(next_pc);
             
         out.next_pc = next_pc;
+        if stage.msg.npc != next_pc {
+            out.wb_ctrl = WbControl::BPError;
+        }
         
         Ok(out)
     }
