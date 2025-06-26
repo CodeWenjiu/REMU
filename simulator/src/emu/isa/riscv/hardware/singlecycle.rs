@@ -1,11 +1,11 @@
 use remu_utils::ProcessResult;
 use state::reg::RegfileIo;
 
-use crate::emu::Emu;
+use crate::emu::EmuHardware;
 
 use super::frontend::{IsOutStage, ToIfStage};
 
-impl Emu {
+impl EmuHardware {
     pub fn self_step_cycle_singlecycle(&mut self) -> ProcessResult<()> {
         let pc = self.states.regfile.read_pc();
 

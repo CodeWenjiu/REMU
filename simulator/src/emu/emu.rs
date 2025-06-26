@@ -5,7 +5,7 @@ use remu_macro::log_error;
 use remu_utils::{ProcessResult, ISA};
 use state::States;
 
-use crate::{emu::isa::riscv::hardware::Pipeline, SimulatorCallback};
+use crate::{emu::isa::riscv::{hardware::Pipeline, instruction::ImmGet}, SimulatorCallback};
 
 use super::isa::riscv::instruction::RISCV;
 
@@ -96,7 +96,7 @@ impl EmuTimes {
 }
 
 /// RISC-V Emulator implementation
-pub struct Emu {
+pub struct EmuHardware {
     /// Enabled instruction set extensions
     pub instruction_set: InstructionSetFlags,
     
@@ -113,7 +113,9 @@ pub struct Emu {
     pub pipeline: Pipeline
 }
 
-impl Emu {
+impl ImmGet for EmuHardware {}
+
+impl EmuHardware {
     /// Create a new Emu instance
     pub fn new(option: &OptionParser, states: States, callback: SimulatorCallback) -> Self {
         let isa = option.cli.platform.isa;

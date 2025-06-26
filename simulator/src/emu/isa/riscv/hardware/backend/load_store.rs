@@ -2,7 +2,7 @@ use remu_macro::{log_err, log_error};
 use remu_utils::{ProcessError, ProcessResult};
 use state::mmu::Mask;
 
-use crate::emu::{isa::riscv::BasicStageMsg, Emu};
+use crate::emu::{isa::riscv::BasicStageMsg, EmuHardware};
 
 use super::{ToWbStage, WbCtrl, };
 
@@ -32,7 +32,7 @@ pub struct ToLsStage {
     pub data: u32,
 }
 
-impl Emu {
+impl EmuHardware {
     // just for pipeline ref difftest
     pub fn load_store_rv32i_with_skip(&mut self, stage: ToLsStage, skip_val: u32) -> ProcessResult<ToWbStage> {
         let result;

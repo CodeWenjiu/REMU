@@ -4,7 +4,7 @@ use remu_macro::log_error;
 use remu_utils::{ProcessError, ProcessResult};
 use state::model::BaseStageCell;
 
-use crate::emu::{isa::riscv::hardware::{backend::{WbControl, ToAlStage, ToLsStage, ToWbStage}, frontend::{IsOutStage, ToIdStage, ToIfStage, ToIsStage}}, Emu};
+use crate::emu::{isa::riscv::hardware::{backend::{WbControl, ToAlStage, ToLsStage, ToWbStage}, frontend::{IsOutStage, ToIdStage, ToIfStage, ToIsStage}}, EmuHardware};
 use owo_colors::OwoColorize;
 
 struct PipelineStage {
@@ -13,6 +13,7 @@ struct PipelineStage {
     is_al: (ToAlStage, bool),
     id_is: (ToIsStage, bool),
     if_id: (ToIdStage, bool),
+    bp_if: (ToIfStage, bool),
 }
 
 impl PipelineStage {
@@ -23,6 +24,7 @@ impl PipelineStage {
             is_al: (ToAlStage::default(), false),
             id_is: (ToIsStage::default(), false),
             if_id: (ToIdStage::default(), false),
+            bp_if: (ToIfStage::default(), false),
         }
     }
 }
@@ -41,6 +43,7 @@ impl Display for PipelineStage {
         
         // Handle each stage separately
         let stages_data = [
+            ("bp_if", format!("{:08x?}", self.bp_if.0), self.bp_if.1),
             ("if_id", format!("{:08x?}", self.if_id.0), self.if_id.1),
             ("id_is", format!("{:08x?}", self.id_is.0), self.id_is.1),
             ("is_ls", format!("{:08x?}", self.is_ls.0), self.is_ls.1),
@@ -101,6 +104,7 @@ impl Pipeline {
         self.stages.is_al.1 = false;
         self.stages.id_is.1 = false;
         self.stages.if_id.1 = false;
+        self.stages.bp_if.1 = false;
 
         self.if_ena = false;
         
@@ -108,7 +112,7 @@ impl Pipeline {
     }
 }
 
-impl Emu {
+impl EmuHardware {
     fn self_pipeline_branch_predict(&self) -> (u32, u32) {
         let result = self.pipeline.pipeline_pc;
 
@@ -149,6 +153,7 @@ impl Emu {
     }
 
     pub fn self_pipeline_update(&mut self, skip: Option<u32>) -> ProcessResult<Option<(u32, u32, u32)>> {
+        let mut to_if = None;
         let mut to_id = None;
         let mut to_is = None;
         let mut to_ls = None;
@@ -226,13 +231,18 @@ impl Emu {
         }
 
         if self.pipeline.if_ena {
-            let predict_msg = self.self_pipeline_branch_predict(); // need to be implemented
-            
-            let _id = self.instruction_fetch_rv32i(
-                ToIfStage::new(predict_msg.0, predict_msg.1)
-            )?;
+            if self.pipeline.stages.bp_if.1 {
+                // let predict_msg = self.self_pipeline_branch_predict(); // need to be implemented
+                let predict_msg = self.pipeline.stages.bp_if.0.clone();
+                
+                let _id = self.instruction_fetch_rv32i(predict_msg)?;
 
-            to_id = Some(_id);
+                to_id = Some(_id);
+            }
+
+            let (pc, next_pc) = self.self_pipeline_branch_predict();
+
+            to_if = Some(ToIfStage::new(pc, next_pc));
         }
 
         // mid process
@@ -345,12 +355,23 @@ impl Emu {
         }
         
         if let Some(to_id) = to_id {
+            self.pipeline.stages.bp_if.1 = false;
             self.pipeline.if_ena = false;
+
+            let inst = to_id.inst;
 
             self.pipeline.stages.if_id.0 = to_id;
             self.pipeline.stages.if_id.1 = true;
+            
+            self.states.pipe_state.instruction_fetch(inst)?;
+        }
 
-            self.states.pipe_state.send((to_id.msg.pc, to_id.inst), BaseStageCell::IfId)?;
+        if let Some(to_if) = to_if {
+            let pc = to_if.pc;
+            self.pipeline.stages.bp_if.0 = to_if;
+            self.pipeline.stages.bp_if.1 = true;
+
+            self.states.pipe_state.cell_input((pc, 0), BaseStageCell::BpIf)?;
 
             self.self_pipeline_branch_predict_update();
         }

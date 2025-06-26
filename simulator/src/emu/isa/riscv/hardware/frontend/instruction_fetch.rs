@@ -1,13 +1,13 @@
 use remu_macro::log_err;
 use remu_utils::{ProcessError, ProcessResult};
 
-use crate::emu::{isa::riscv::BasicStageMsg, Emu};
+use crate::emu::{isa::riscv::BasicStageMsg, EmuHardware};
 
 use super::ToIdStage;
 
-#[derive(Default)]
+#[derive(Default, Debug, Clone)]
 pub struct ToIfStage {
-    pc: u32,
+    pub pc: u32,
     npc: u32,
 }
 
@@ -17,7 +17,7 @@ impl ToIfStage {
     }
 }
 
-impl Emu {
+impl EmuHardware {
     pub fn instruction_fetch_rv32i(&mut self, stage: ToIfStage) -> ProcessResult<ToIdStage> {
         let msg = BasicStageMsg { pc: stage.pc, npc: stage.npc, trap: None };
         let inst = log_err!(

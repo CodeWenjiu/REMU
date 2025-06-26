@@ -6,7 +6,7 @@ use state::States;
 
 use crate::{difftest_ref::{DifftestRefPipelineApi, DifftestRefSingleCycleApi}, emu::isa::riscv::direct_map::EmuDirectMap, SimulatorCallback, SimulatorItem};
 
-use super::Emu;
+use super::EmuHardware;
 
 #[enum_dispatch(SimulatorKind)]
 pub trait EmuSimulatorCore {
@@ -25,10 +25,10 @@ pub trait EmuSimulatorCore {
 }
 
 pub struct SingleCycle {
-    emu: Emu,
+    emu: EmuHardware,
 }
 pub struct Pipeline {
-    emu: Emu,
+    emu: EmuHardware,
 }
 
 impl EmuSimulatorCore for EmuDirectMap {
@@ -99,12 +99,12 @@ pub enum SimulatorKind {
 
 impl SingleCycle {
     pub fn new(option: &OptionParser, states: States, callback: SimulatorCallback) -> Self {
-        Self { emu: Emu::new(option, states, callback) }
+        Self { emu: EmuHardware::new(option, states, callback) }
     }
 }
 impl Pipeline {
     pub fn new(option: &OptionParser, states: States, callback: SimulatorCallback) -> Self {
-        Self { emu: Emu::new(option, states, callback) }
+        Self { emu: EmuHardware::new(option, states, callback) }
     }
 }
 

@@ -7,7 +7,7 @@ use remu_macro::{log_err, log_info};
 use simulator::Simulator;
 use state::{model::StageModel, States};
 
-use remu_utils::{DifftestRef, ItraceConfigtionalWrapper, ProcessError, ProcessResult};
+use remu_utils::{DifftestPipeline, DifftestRef, EmuSimulators, ItraceConfigtionalWrapper, ProcessError, ProcessResult, Simulators};
 
 cfg_if! {
     if #[cfg(feature = "ITRACE")] {
@@ -99,12 +99,30 @@ impl SimpleDebugger {
 
         let reset_vector = cli_result.cfg.platform_config.reset_vector;
 
-        let mut state = States::new(isa, reset_vector, StageModel::default(conditional.clone())).unwrap();
+        let pipe_state = match cli_result.cli.platform.simulator {
+            Simulators::NZEA(_) | Simulators::EMU(EmuSimulators::PL) => {
+                StageModel::with_branchpredict(conditional.clone())
+            }
+
+            _ => {
+                StageModel::default(conditional.clone())
+            }
+        };
+
+        let mut state = States::new(isa, reset_vector, pipe_state).unwrap();
         let mut state_ref = state.clone();
 
         match cli_result.cli.differtest {
-            Some(DifftestRef::Pipeline(_)) | Some(DifftestRef::SingleCycle(_)) => {
+            Some(DifftestRef::SingleCycle(_)) => {
                 state_ref = States::new(isa, reset_vector, StageModel::default(conditional)).unwrap();
+            }
+
+            Some(DifftestRef::Pipeline(platform)) => {
+                match platform {
+                    DifftestPipeline::EMU => {
+                        state_ref = States::new(isa, reset_vector, StageModel::with_branchpredict(conditional)).unwrap();
+                    }
+                }
             }
 
             _ => {},
@@ -122,14 +140,14 @@ impl SimpleDebugger {
 
             match cli_result.cli.differtest {
                 Some(DifftestRef::Pipeline(_)) | Some(DifftestRef::SingleCycle(_)) => {
-                        log_err!(state_ref.mmu.add_region(
-                            region.base,
-                            region.size,
-                            &region.name,
-                            region.flag.clone(),
-                            region.mmtype
-                        ))
-                        .unwrap();
+                    log_err!(state_ref.mmu.add_region(
+                        region.base,
+                        region.size,
+                        &region.name,
+                        region.flag.clone(),
+                        region.mmtype
+                    ))
+                    .unwrap();
                 }
 
                 _ => {},

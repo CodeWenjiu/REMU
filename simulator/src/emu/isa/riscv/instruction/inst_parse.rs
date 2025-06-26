@@ -1,7 +1,7 @@
 
 use state::reg::riscv::Trap;
 
-use crate::emu::{isa::riscv::instruction::{RV32_IAL_PATTERN_ITER, RV32_ILS_PATTERN_ITER, RV32_M_PATTERN_ITER, RV_PRIV_PATTERN_ITER, RV_ZICSR_PATTERN_ITER}, Emu, InstructionSetFlags};
+use crate::emu::{isa::riscv::instruction::{RV32_IAL_PATTERN_ITER, RV32_ILS_PATTERN_ITER, RV32_M_PATTERN_ITER, RV_PRIV_PATTERN_ITER, RV_ZICSR_PATTERN_ITER}, EmuHardware, InstructionSetFlags};
 
 use super::{ImmType, Priv, Zicsr, RISCV, RV32I, RV32IAL, RV32ILS, RV32M};
 
@@ -10,7 +10,7 @@ pub enum DecodeResult {
     Trap(Trap),
 }
 
-impl Emu {
+impl EmuHardware {
     /// Decode an instruction as RV32I
     fn rv32_i_al_decode(inst: u32) -> Option<(RV32IAL, ImmType)> {
         for (opcode, imm_type, (mask, value)) in RV32_IAL_PATTERN_ITER {

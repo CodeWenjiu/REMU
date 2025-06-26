@@ -11,6 +11,7 @@ use remu_utils::{ItraceConfigtionalWrapper, ProcessError, ProcessResult};
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub enum BaseStageCell {
     Input,
+    BpIf,
     IfId,
     IdIs,
     IsAl,
@@ -22,6 +23,7 @@ impl Display for BaseStageCell {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match *self {
             BaseStageCell::Input => write!(f, "Input"),
+            BaseStageCell::BpIf => write!(f, "BpIf"),
             BaseStageCell::IfId => write!(f, "IfId"),
             BaseStageCell::IdIs => write!(f, "IdIs"),
             BaseStageCell::IsAl => write!(f, "IsAl"),
@@ -87,7 +89,16 @@ impl StageModel {
         })
     }
 
-    pub fn send(&mut self, data: (u32, u32), to: BaseStageCell) -> ProcessResult<()> {
+    pub fn instruction_fetch(&mut self, inst: u32) -> ProcessResult<()> {
+        self.find_cell(BaseStageCell::BpIf)?
+            .channel
+            .buffer
+            .borrow_mut()[0].1 = inst;
+            
+        self.trans(BaseStageCell::BpIf, BaseStageCell::IfId)
+    }
+
+    pub fn cell_input(&mut self, data: (u32, u32), to: BaseStageCell) -> ProcessResult<()> {
         self.find_cell(BaseStageCell::Input)?
             .channel
             .push(data)
@@ -215,12 +226,34 @@ impl StageModel {
         Ok(())
     }
 
-    pub fn default(conditional: ItraceConfigtionalWrapper) -> Self {
+    pub fn with_branchpredict(conditional: ItraceConfigtionalWrapper) -> Self {
         let mut graph = Graph::new();
         let mut cells = HashMap::new();
 
         let input = BaseStageCell::Input;
+        let bpif = BaseStageCell::BpIf;
+        let ifid = BaseStageCell::IfId;
+        let idis = BaseStageCell::IdIs;
+        let isal = BaseStageCell::IsAl;
+        let isls = BaseStageCell::IsLs;
+        let exwb = BaseStageCell::ExWb;
+
         let input_node = graph.add_node(input);
+        let bpif_node = graph.add_node(bpif);
+        let ifid_node = graph.add_node(ifid);
+        let idis_node = graph.add_node(idis);
+        let isal_node = graph.add_node(isal);
+        let isls_node = graph.add_node(isls);
+        let exwb_node = graph.add_node(exwb);
+
+        graph.add_edge(input_node, bpif_node, ());
+        graph.add_edge(bpif_node, ifid_node, ());
+        graph.add_edge(idis_node, isal_node, ());
+        graph.add_edge(ifid_node, idis_node, ());
+        graph.add_edge(idis_node, isls_node, ());
+        graph.add_edge(isal_node, exwb_node, ());
+        graph.add_edge(isls_node, exwb_node, ());
+
         cells.insert(
             input,
             ModelCell {
@@ -229,60 +262,51 @@ impl StageModel {
             },
         );
 
-        let idu = BaseStageCell::IfId;
-        let idu_node = graph.add_node(idu);
-        graph.add_edge(input_node, idu_node, ());
         cells.insert(
-            idu,
+            bpif,
             ModelCell {
                 channel: MessageChannel::new(1),
-                node_index: idu_node,
+                node_index: bpif_node,
             },
         );
 
-        let isu = BaseStageCell::IdIs;
-        let isu_node = graph.add_node(isu);
-
-        let alu = BaseStageCell::IsAl;
-        let alu_node = graph.add_node(alu);
-        graph.add_edge(isu_node, alu_node, ());
         cells.insert(
-            alu,
+            ifid,
             ModelCell {
                 channel: MessageChannel::new(1),
-                node_index: alu_node,
+                node_index: ifid_node,
+            },
+        );
+
+        cells.insert(
+            isal,
+            ModelCell {
+                channel: MessageChannel::new(1),
+                node_index: isal_node,
             },
         );
         
-        graph.add_edge(idu_node, isu_node, ());
         cells.insert(
-            isu,
+            idis,
             ModelCell {
                 channel: MessageChannel::new(1),
-                node_index: isu_node,
+                node_index: idis_node,
             },
         );
 
-        let lsu = BaseStageCell::IsLs;
-        let lsu_node = graph.add_node(lsu);
-        graph.add_edge(isu_node, lsu_node, ());
         cells.insert(
-            lsu,
+            isls,
             ModelCell {
                 channel: MessageChannel::new(1),
-                node_index: lsu_node,
+                node_index: isls_node,
             },
         );
 
-        let output = BaseStageCell::ExWb;
-        let output_node = graph.add_node(output);
-        graph.add_edge(alu_node, output_node, ());
-        graph.add_edge(lsu_node, output_node, ());
         cells.insert(
-            output,
+            exwb,
             ModelCell {
                 channel: MessageChannel::new(1),
-                node_index: output_node,
+                node_index: exwb_node,
             },
         );
 
@@ -294,6 +318,90 @@ impl StageModel {
             is_flush: false,
         }
     }
+
+    pub fn default(conditional: ItraceConfigtionalWrapper) -> Self {
+        let mut graph = Graph::new();
+        let mut cells = HashMap::new();
+
+        let input = BaseStageCell::Input;
+        let ifid = BaseStageCell::IfId;
+        let idis = BaseStageCell::IdIs;
+        let isal = BaseStageCell::IsAl;
+        let isls = BaseStageCell::IsLs;
+        let exwb = BaseStageCell::ExWb;
+
+        let input_node = graph.add_node(input);
+        let ifid_node = graph.add_node(ifid);
+        let idis_node = graph.add_node(idis);
+        let isal_node = graph.add_node(isal);
+        let isls_node = graph.add_node(isls);
+        let exwb_node = graph.add_node(exwb);
+
+        graph.add_edge(input_node, ifid_node, ());
+        graph.add_edge(idis_node, isal_node, ());
+        graph.add_edge(ifid_node, idis_node, ());
+        graph.add_edge(idis_node, isls_node, ());
+        graph.add_edge(isal_node, exwb_node, ());
+        graph.add_edge(isls_node, exwb_node, ());
+
+        cells.insert(
+            input,
+            ModelCell {
+                channel: MessageChannel::new(1),
+                node_index: input_node,
+            },
+        );
+
+        cells.insert(
+            ifid,
+            ModelCell {
+                channel: MessageChannel::new(1),
+                node_index: ifid_node,
+            },
+        );
+
+        cells.insert(
+            isal,
+            ModelCell {
+                channel: MessageChannel::new(1),
+                node_index: isal_node,
+            },
+        );
+        
+        cells.insert(
+            idis,
+            ModelCell {
+                channel: MessageChannel::new(1),
+                node_index: idis_node,
+            },
+        );
+
+        cells.insert(
+            isls,
+            ModelCell {
+                channel: MessageChannel::new(1),
+                node_index: isls_node,
+            },
+        );
+
+        cells.insert(
+            exwb,
+            ModelCell {
+                channel: MessageChannel::new(1),
+                node_index: exwb_node,
+            },
+        );
+
+        Self {
+            cells,
+            graph,
+            conditional,
+
+            is_flush: false,
+        }
+    }
+
+    // pub fn with_branchpredition
 }
 
 impl Display for StageModel {

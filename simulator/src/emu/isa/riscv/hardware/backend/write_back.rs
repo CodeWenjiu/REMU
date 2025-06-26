@@ -2,7 +2,7 @@ use remu_macro::{log_err, log_error};
 use remu_utils::{ProcessError, ProcessResult};
 use state::reg::{riscv::Trap, RegfileIo};
 
-use crate::emu::{isa::riscv::BasicStageMsg, Emu};
+use crate::emu::{isa::riscv::BasicStageMsg, EmuHardware};
 
 #[derive(Default, Clone, Copy, Debug)] 
 pub enum WbCtrl{
@@ -42,7 +42,7 @@ pub struct Wbout {
     pub wb_bypass: (u8, u32),
 }
 
-impl Emu {
+impl EmuHardware {
     pub fn write_back_rv32i(&mut self, stage: ToWbStage) -> ProcessResult<Wbout> {
         let mut out = Wbout {
             next_pc: 0,

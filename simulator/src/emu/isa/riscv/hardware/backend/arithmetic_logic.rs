@@ -2,7 +2,7 @@ use remu_macro::log_error;
 use remu_utils::{ProcessError, ProcessResult};
 
 use crate::emu::isa::riscv::BasicStageMsg;
-use crate::emu::Emu;
+use crate::emu::EmuHardware;
 
 use super::{ToWbStage, WbCtrl, };
 use super::super::super::instruction::{RV32IAL, RV32M};
@@ -60,7 +60,7 @@ pub struct ToAlStage {
     pub csr_waddr: u16,
 }
 
-impl Emu {
+impl EmuHardware {
     pub fn arithmetic_logic_rv32(&self, stage: ToAlStage) -> ProcessResult<ToWbStage> {
         let msg = stage.msg;
 

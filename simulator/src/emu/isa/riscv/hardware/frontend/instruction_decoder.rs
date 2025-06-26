@@ -2,7 +2,7 @@ use remu_macro::log_err;
 use remu_utils::{ProcessError, ProcessResult};
 use state::reg::{riscv::{RvCsrEnum}, RegfileIo};
 
-use crate::emu::{extract_bits, isa::riscv::{hardware::backend::{AlCtrl, LsCtrl, WbCtrl}, instruction::{DecodeResult, Priv}, BasicStageMsg}, sig_extend, Emu, InstructionSetFlags};
+use crate::emu::{extract_bits, isa::riscv::{hardware::{backend::{AlCtrl, LsCtrl, WbCtrl}}, instruction::{DecodeResult, Priv}, BasicStageMsg}, sig_extend, EmuHardware, InstructionSetFlags};
 
 use super::{
     super::super::instruction::{ImmType, Zicsr, RISCV, RV32I, RV32IAL, RV32ILS, RV32M, }, InstType, IsCtrl, IsLogic, ToIsStage, SRCA, SRCB
@@ -14,7 +14,7 @@ pub struct ToIdStage {
     pub inst: u32,
 }
 
-impl Emu {
+impl EmuHardware {
     /// Extract and sign-extend immediate value based on instruction type
     pub fn get_imm(inst: u32, imm_type: ImmType) -> u32 {
         match imm_type {

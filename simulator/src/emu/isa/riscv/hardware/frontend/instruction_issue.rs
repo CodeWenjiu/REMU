@@ -2,7 +2,7 @@ use remu_macro::{log_err, log_error};
 use remu_utils::{ProcessError, ProcessResult};
 use state::reg::{RegfileIo};
 
-use crate::emu::{isa::riscv::{hardware::backend::{AlCtrl, LsCtrl, ToAlStage, ToLsStage, WbCtrl}, BasicStageMsg}, Emu};
+use crate::emu::{isa::riscv::{hardware::backend::{AlCtrl, LsCtrl, ToAlStage, ToLsStage, WbCtrl}, BasicStageMsg}, EmuHardware};
 
 #[derive(Default, Clone, Copy, Debug)]
 pub struct ToIsStage {
@@ -91,7 +91,7 @@ impl Default for IsOutStage {
     }
 }
 
-impl Emu {
+impl EmuHardware {
     
     pub fn instruction_issue(&mut self, stage: ToIsStage) -> ProcessResult<IsOutStage> {
         let rs1_val = stage.rs1_val;
