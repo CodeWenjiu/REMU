@@ -31,7 +31,7 @@ pub struct ToWbStage {
 pub enum WbControl {
     #[default]
     BPError,
-    Nope,
+    BPRight,
     Trap,
 }
 
@@ -46,7 +46,7 @@ impl EmuHardware {
     pub fn write_back_rv32i(&mut self, stage: ToWbStage) -> ProcessResult<Wbout> {
         let mut out = Wbout {
             next_pc: 0,
-            wb_ctrl: WbControl::Nope,
+            wb_ctrl: WbControl::BPRight,
             wb_bypass: (0, 0),
         };
 

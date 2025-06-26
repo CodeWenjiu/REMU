@@ -94,7 +94,7 @@ impl StageModel {
             .channel
             .buffer
             .borrow_mut()[0].1 = inst;
-            
+
         self.trans(BaseStageCell::BpIf, BaseStageCell::IfId)
     }
 

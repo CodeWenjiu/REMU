@@ -230,16 +230,16 @@ impl EmuHardware {
             gpr_raw_hazard = self.pipeline.is_gpr_raw(id_is.rs1_addr, id_is.rs2_addr);
         }
 
-        if self.pipeline.if_ena {
-            if self.pipeline.stages.bp_if.1 {
-                // let predict_msg = self.self_pipeline_branch_predict(); // need to be implemented
-                let predict_msg = self.pipeline.stages.bp_if.0.clone();
-                
-                let _id = self.instruction_fetch_rv32i(predict_msg)?;
+        if self.pipeline.stages.bp_if.1 && self.pipeline.if_ena {
+            // let predict_msg = self.self_pipeline_branch_predict(); // need to be implemented
+            let predict_msg = self.pipeline.stages.bp_if.0.clone();
+            
+            let _id = self.instruction_fetch_rv32i(predict_msg)?;
 
-                to_id = Some(_id);
-            }
+            to_id = Some(_id);
+        }
 
+        if !self.pipeline.stages.bp_if.1 || self.pipeline.if_ena {
             let (pc, next_pc) = self.self_pipeline_branch_predict();
 
             to_if = Some(ToIfStage::new(pc, next_pc));
@@ -262,7 +262,7 @@ impl EmuHardware {
 
             wb_msg = Some((pc, wb_out.next_pc, inst));
 
-            if wb_out.wb_ctrl != WbControl::Nope {
+            if wb_out.wb_ctrl != WbControl::BPRight {
                 self.pipeline.flush(wb_out.next_pc);
                 self.states.pipe_state.flush();
                 return Ok(wb_msg);
