@@ -31,6 +31,7 @@ impl PipelineStage {
 
 pub struct Pipeline {
     stages: PipelineStage,
+    bp_ena:bool, // Dut IFU not ready some time, blame burst transfer
     if_ena: bool,
     ls_ena_pre: bool,
     ls_ena: bool,
@@ -75,6 +76,7 @@ impl Pipeline {
     pub fn new(reset_vector: u32) -> Self {
         Self {
             stages: PipelineStage::new(),
+            bp_ena: false, 
             if_ena: false,
             ls_ena_pre: false,
             ls_ena: false,
@@ -106,7 +108,10 @@ impl Pipeline {
         self.stages.if_id.1 = false;
         self.stages.bp_if.1 = false;
 
+        self.bp_ena = false;
         self.if_ena = false;
+        self.ls_ena = false;
+        self.ls_ena_pre = false;
         
         self.pipeline_pc = next_pc;
     }
@@ -124,6 +129,7 @@ impl EmuHardware {
     }
 
     pub fn self_step_cycle_pipeline(&mut self) -> ProcessResult<()> {
+        self.self_pipeline_bp_ena();
         self.self_pipeline_ifena();
 
         if self.pipeline.ls_ena_pre {
@@ -239,7 +245,7 @@ impl EmuHardware {
             to_id = Some(_id);
         }
 
-        if !self.pipeline.stages.bp_if.1 || self.pipeline.if_ena {
+        if self.pipeline.bp_ena {
             let (pc, next_pc) = self.self_pipeline_branch_predict();
 
             to_if = Some(ToIfStage::new(pc, next_pc));
@@ -370,6 +376,7 @@ impl EmuHardware {
             let pc = to_if.pc;
             self.pipeline.stages.bp_if.0 = to_if;
             self.pipeline.stages.bp_if.1 = true;
+            self.pipeline.bp_ena = false;
 
             self.states.pipe_state.cell_input((pc, 0), BaseStageCell::BpIf)?;
 
@@ -377,6 +384,11 @@ impl EmuHardware {
         }
 
         Ok(wb_msg)
+    }
+
+    pub fn self_pipeline_bp_ena(&mut self) {
+        self.pipeline.bp_ena = true;
+        (self.callback.branch_predict)();
     }
 
     pub fn self_pipeline_ifena(&mut self) {

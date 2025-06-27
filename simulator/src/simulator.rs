@@ -73,6 +73,7 @@ pub struct SimulatorCallback {
     pub difftest_skip: Box<dyn Fn(u32)>,
     pub yield_: Box<dyn Fn()>,
 
+    pub branch_predict: Box<dyn Fn()>,
     pub instruction_fetch: Box<dyn Fn()>,
     pub load_store: Box<dyn Fn()>,
 }
@@ -82,6 +83,7 @@ impl SimulatorCallback {
         instruction_complete: Box<dyn FnMut(u32, u32, u32) -> ProcessResult<()>>,
         difftest_skip: Box<dyn Fn(u32)>,
         trap: Box<dyn Fn()>,
+        branch_predict: Box<dyn Fn()>,
         instruction_fetch: Box<dyn Fn()>,
         load_store: Box<dyn Fn()>,
     ) -> Self {
@@ -89,6 +91,7 @@ impl SimulatorCallback {
             instruction_complete,
             difftest_skip,
             yield_: trap,
+            branch_predict,
             instruction_fetch,
             load_store,
         }
@@ -229,6 +232,13 @@ impl Simulator {
             }
         )};
 
+        let branch_prediction_callback = {
+            let difftest_manager = difftest_manager.clone();
+            Box::new(move || {
+                difftest_manager.as_ref().map(|mgr| mgr.borrow_mut().branch_prediction());
+            })
+        };
+
         let instruction_fetch_callback = {
             let difftest_manager = difftest_manager.clone();
             Box::new(move || {
@@ -247,6 +257,7 @@ impl Simulator {
             instruction_complete_callback,
             difftest_skip_callback,
             trap_callback,
+            branch_prediction_callback,
             instruction_fetch_callback,
             load_store_callback,
         );

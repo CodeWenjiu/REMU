@@ -90,10 +90,18 @@ impl StageModel {
     }
 
     pub fn instruction_fetch(&mut self, inst: u32) -> ProcessResult<()> {
-        self.find_cell(BaseStageCell::BpIf)?
+        let mut buffer = self.find_cell(BaseStageCell::BpIf)?
             .channel
             .buffer
-            .borrow_mut()[0].1 = inst;
+            .borrow_mut();
+        
+        if buffer.is_empty() {
+            log_error!(format!("{:?}: buffer is empty", BaseStageCell::BpIf));
+            return Err(ProcessError::Recoverable);
+        }
+        
+        buffer[0].1 = inst;
+        drop(buffer);
 
         self.trans(BaseStageCell::BpIf, BaseStageCell::IfId)
     }
@@ -156,43 +164,43 @@ impl StageModel {
         let order = toposort(&self.graph, None)
             .map_err(|_| {log_error!("WTF"); ProcessError::Fatal})?;
 
-        for &node in order.iter().rev() {
-            let channel = self.graph[node];
-            let transmit_target;
-            let from_node;
-            {
-                let channel_obj = self.find_cell(channel)?;
-                transmit_target = channel_obj.channel.transmit_target.take();
-                from_node = channel_obj.node_index;
-            }
-            if let Some(to) = transmit_target {
-                let to_node = self.find_cell(to)?.node_index;
-                if !self.graph.contains_edge(from_node, to_node) {
-                    log_error!(format!("{:?} and {:?} are not connected", channel, to));
-                    return Err(ProcessError::Fatal);
-                }
-                
-                let channel_obj = self.find_cell(channel)?;
-                let data = {
-                    channel_obj.channel.buffer.borrow_mut().pop().ok_or({
-                        ProcessError::Recoverable
-                    })
-                }.map_err(|e| {
-                    log_error!(format!("{:?} buffer is empty to {:?}", channel, to));
-                    e
-                })?;
-                
-                let target_channel = self.find_cell(to)?;
-                target_channel.channel.push(data).map_err(|e| {
-                    log_error!(format!("Buffer {:?} overflow from {:?}", to, channel));
-                    e
-                })?;
-            }
-        }
-
         if self.is_flush {
             self.do_flush();
             self.is_flush = false;
+        } else {
+            for &node in order.iter().rev() {
+                let channel = self.graph[node];
+                let transmit_target;
+                let from_node;
+                {
+                    let channel_obj = self.find_cell(channel)?;
+                    transmit_target = channel_obj.channel.transmit_target.take();
+                    from_node = channel_obj.node_index;
+                }
+                if let Some(to) = transmit_target {
+                    let to_node = self.find_cell(to)?.node_index;
+                    if !self.graph.contains_edge(from_node, to_node) {
+                        log_error!(format!("{:?} and {:?} are not connected", channel, to));
+                        return Err(ProcessError::Fatal);
+                    }
+                    
+                    let channel_obj = self.find_cell(channel)?;
+                    let data = {
+                        channel_obj.channel.buffer.borrow_mut().pop().ok_or({
+                            ProcessError::Recoverable
+                        })
+                    }.map_err(|e| {
+                        log_error!(format!("{:?} buffer is empty to {:?}", channel, to));
+                        e
+                    })?;
+                    
+                    let target_channel = self.find_cell(to)?;
+                    target_channel.channel.push(data).map_err(|e| {
+                        log_error!(format!("Buffer {:?} overflow from {:?}", to, channel));
+                        e
+                    })?;
+                }
+            }
         }
 
         Ok(())

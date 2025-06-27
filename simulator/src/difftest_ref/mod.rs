@@ -52,6 +52,7 @@ pub enum AnyDifftestPipelineRef {
 pub trait DifftestRefPipelineApi {
     fn step_cycle(&mut self, skip_val: Option<u32>) -> ProcessResult<()>;
 
+    fn branch_prediction_enable(&mut self);
     fn instruction_fetch_enable(&mut self);
     fn load_store_enable(&mut self);
 

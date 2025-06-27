@@ -19,6 +19,7 @@ pub struct DifftestManager {
     ls_skip_val: VecDeque<u32>,
     is_instruction_complete: bool,
 
+    is_branch_prediction: bool,
     is_instruction_fetch: bool,
     is_load_store: bool,
 }
@@ -36,6 +37,7 @@ impl DifftestManager {
             Box::new(|| {}),
             Box::new(|| {}),
             Box::new(|| {}),
+            Box::new(|| {}),
         );
 
         let reference = AnyDifftestRef::new(option, states_ref.clone(), ref_callback);
@@ -49,6 +51,7 @@ impl DifftestManager {
             ls_skip_val: VecDeque::new(),
             is_instruction_complete: false,
 
+            is_branch_prediction: false,
             is_instruction_fetch: false,
             is_load_store: false,
         }
@@ -68,6 +71,10 @@ impl DifftestManager {
 
     pub fn instruction_complete(&mut self) {
         self.is_instruction_complete = true;
+    }
+
+    pub fn branch_prediction(&mut self) {
+        self.is_branch_prediction = true;
     }
 
     pub fn instruction_fetch(&mut self) {
@@ -130,6 +137,11 @@ impl DifftestManager {
             }
             
             AnyDifftestRef::Pipeline(reference) => {
+                if self.is_branch_prediction {
+                    reference.branch_prediction_enable();
+                    self.is_branch_prediction = false;
+                }
+
                 if self.is_instruction_fetch {
                     reference.instruction_fetch_enable();
                     self.is_instruction_fetch = false;

@@ -13,6 +13,7 @@ pub trait EmuSimulatorCore {
     fn step_cycle(&mut self) -> ProcessResult<()>;
     fn instruction_complete(&mut self) -> ProcessResult<()> { Ok(()) }
     fn step_cycle_with_skip(&mut self, _skip: Option<u32>) -> ProcessResult<()> { Ok(()) }
+    fn branch_prediction_enable(&mut self) {}
     fn instruction_fetch_enable(&mut self) {}
     fn load_store_enable(&mut self) {}
     fn times(&self) -> ProcessResult<()>;
@@ -65,6 +66,9 @@ impl EmuSimulatorCore for Pipeline {
     }
     fn step_cycle_with_skip(&mut self, skip: Option<u32>) -> ProcessResult<()> {
         self.emu.self_step_cycle_pipeline_without_enable(skip)
+    }
+    fn branch_prediction_enable(&mut self) {
+        self.emu.self_pipeline_bp_ena();
     }
     fn instruction_fetch_enable(&mut self) {
         self.emu.self_pipeline_ifena();
@@ -132,6 +136,9 @@ impl EmuWrapper {
     pub fn step_cycle_with_skip(&mut self, skip: Option<u32>) -> ProcessResult<()> {
         self.kind.step_cycle_with_skip(skip)
     }
+    pub fn branch_prediction_enable(&mut self) {
+        self.kind.branch_prediction_enable()
+    }
     pub fn instruction_fetch_enable(&mut self) {
         self.kind.instruction_fetch_enable()
     }
@@ -180,6 +187,9 @@ impl DifftestRefSingleCycleApi for EmuWrapper {
 impl DifftestRefPipelineApi for EmuWrapper {
     fn step_cycle(&mut self, skip: Option<u32>) -> ProcessResult<()> {
         self.step_cycle_with_skip(skip)
+    }
+    fn branch_prediction_enable(&mut self) {
+        self.branch_prediction_enable()
     }
     fn instruction_fetch_enable(&mut self) {
         self.instruction_fetch_enable()
