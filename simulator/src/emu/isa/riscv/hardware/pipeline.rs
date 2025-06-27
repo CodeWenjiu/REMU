@@ -35,7 +35,7 @@ pub struct Pipeline {
     if_ena: bool,
     ls_ena_pre: bool,
     ls_ena: bool,
-    pipeline_pc: u32,
+    pub pipeline_pc: u32,
 }
 
 impl Display for PipelineStage {
@@ -101,7 +101,7 @@ impl Pipeline {
         (*is_valid && conflict_gpr(to_is.gpr_waddr))
     }
 
-    fn flush(&mut self, next_pc: u32) {
+    fn flush(&mut self) {
         self.stages.is_ls.1 = false;
         self.stages.is_al.1 = false;
         self.stages.id_is.1 = false;
@@ -112,21 +112,10 @@ impl Pipeline {
         self.if_ena = false;
         self.ls_ena = false;
         self.ls_ena_pre = false;
-        
-        self.pipeline_pc = next_pc;
     }
 }
 
 impl EmuHardware {
-    fn self_pipeline_branch_predict(&self) -> (u32, u32) {
-        let result = self.pipeline.pipeline_pc;
-
-        (result, result.wrapping_add(4))
-    }
-
-    fn self_pipeline_branch_predict_update(&mut self) {
-        self.pipeline.pipeline_pc += 4; // need to be implemented
-    }
 
     pub fn self_step_cycle_pipeline(&mut self) -> ProcessResult<()> {
         self.self_pipeline_bp_ena();
@@ -246,9 +235,7 @@ impl EmuHardware {
         }
 
         if self.pipeline.bp_ena {
-            let (pc, next_pc) = self.self_pipeline_branch_predict();
-
-            to_if = Some(ToIfStage::new(pc, next_pc));
+            to_if = Some(self.self_pipeline_branch_predict());
         }
 
         // mid process
@@ -269,8 +256,10 @@ impl EmuHardware {
             wb_msg = Some((pc, wb_out.next_pc, inst));
 
             if wb_out.wb_ctrl != WbControl::BPRight {
-                self.pipeline.flush(wb_out.next_pc);
+                self.pipeline.flush();
+                self.self_pipeline_branch_predict_flush(pc, wb_out.next_pc);
                 self.states.pipe_state.flush();
+                self.times.flushed_cycles += 1;
                 return Ok(wb_msg);
             }
             

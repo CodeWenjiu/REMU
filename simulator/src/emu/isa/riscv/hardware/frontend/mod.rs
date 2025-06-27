@@ -1,1 +1,1 @@
-remu_macro::mod_flat!(instruction_fetch, instruction_decoder, instruction_issue);
+remu_macro::mod_flat!(branch_predictor, instruction_fetch, instruction_decoder, instruction_issue);

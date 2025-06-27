@@ -5,7 +5,7 @@ use remu_macro::log_error;
 use remu_utils::{ProcessResult, ISA};
 use state::States;
 
-use crate::{emu::isa::riscv::{hardware::Pipeline, instruction::ImmGet}, SimulatorCallback};
+use crate::{emu::isa::riscv::{hardware::{frontend::BTB, Pipeline}, instruction::ImmGet}, SimulatorCallback};
 
 use super::isa::riscv::instruction::RISCV;
 
@@ -70,6 +70,12 @@ impl InstructionSetFlags {
 pub struct EmuTimes {
     /// Number of cycles to execute
     pub cycles: u64,
+
+    /// Number of cycles that branched
+    pub branched_cycles: u64,
+
+    /// Numver of cycles that flushed
+    pub flushed_cycles: u64,
     
     /// Number of instructions executed
     pub instructions: u64,
@@ -82,12 +88,16 @@ impl EmuTimes {
         table
             .add_row(vec![
                 Cell::new("IPC").fg(Color::Blue),
+                Cell::new("Branch Prediction Accuracy").fg(Color::Blue),
                 Cell::new("Cycles").fg(Color::Blue),
+                Cell::new("Flushed Cycles").fg(Color::Blue),
                 Cell::new("Instructions").fg(Color::Blue),
             ])
             .add_row(vec![
                 Cell::new((self.instructions as f64 / self.cycles as f64).to_string()).fg(Color::Green),
+                Cell::new(((self.branched_cycles - self.flushed_cycles) as f64 / self.cycles as f64).to_string()).fg(Color::Green), // Placeholder for branch prediction accuracy
                 Cell::new(self.cycles.to_string()).fg(Color::Green),
+                Cell::new(self.flushed_cycles.to_string()).fg(Color::Green),
                 Cell::new(self.instructions.to_string()).fg(Color::Green),
             ]);
 
@@ -110,7 +120,10 @@ pub struct EmuHardware {
     pub times: EmuTimes,
 
     /// Pipeline
-    pub pipeline: Pipeline
+    pub pipeline: Pipeline,
+
+    /// BTB
+    pub btb: BTB,
 }
 
 impl ImmGet for EmuHardware {}
@@ -126,9 +139,12 @@ impl EmuHardware {
             callback,
             times: EmuTimes {
                 cycles: 0,
+                branched_cycles: 0,
+                flushed_cycles: 0,
                 instructions: 0,
             },
             pipeline: Pipeline::new(option.cfg.platform_config.reset_vector),
+            btb: BTB::new(512),
         }
     }
 

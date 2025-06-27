@@ -81,6 +81,7 @@ impl EmuHardware {
             WbCtrl::Jump => {
                 out.wb_bypass.1 = next_pc;
                 next_pc = stage.result;
+                self.times.branched_cycles += 1;
             }
 
             WbCtrl::Csr => {
