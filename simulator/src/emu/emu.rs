@@ -144,7 +144,7 @@ impl EmuHardware {
                 instructions: 0,
             },
             pipeline: Pipeline::new(option.cfg.platform_config.reset_vector),
-            btb: BTB::new(512),
+            btb: BTB::new(16),
         }
     }
 

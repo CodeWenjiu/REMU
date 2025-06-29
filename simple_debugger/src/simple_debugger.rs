@@ -199,7 +199,7 @@ impl SimpleDebugger {
         }
 
         if let Some(exec) = pre_exec {
-            log_info!("Executing pre-command");
+            log_info!(format!("Executing pre-command {}", exec));
             let cmds = handle_result!(self.get_parse(exec));
             let combined_result = cmds.into_iter()
                 .fold(Ok(()), |acc_result, cmd| {

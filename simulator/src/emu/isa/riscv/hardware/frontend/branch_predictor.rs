@@ -1,6 +1,6 @@
 use std::fmt::{self, Display};
 
-use crate::emu::{isa::riscv::hardware::frontend::ToIfStage, EmuHardware};
+use crate::emu::{extract_bits, isa::riscv::hardware::frontend::ToIfStage, EmuHardware};
 
 // BTB条目
 #[derive(Clone)]
@@ -12,28 +12,29 @@ pub struct BTBEntry {
 // BTB结构
 pub struct BTB {
     entries: Vec<BTBEntry>,
-    index_bits: u8,
+    set_bits: u32,
 }
 
 impl BTB {
     pub fn new(size: usize) -> Self {
         assert!(size.is_power_of_two() && size > 0, "BTB size must be a power of two and > 0");
-        let index_bits = size.trailing_zeros() as u8;
+        let set_bits = size.trailing_zeros();
         Self {
             entries: vec![BTBEntry { tag: 0, target: 0 }; size],
-            index_bits,
+            set_bits,
         }
     }
-    fn index(&self, pc: u32) -> usize {
-        (pc & ((1 << self.index_bits) - 1)) as usize
+    fn set(&self, pc: u32) -> usize {
+        // (pc & ((1 << self.set_bits) - 1)) as usize
+        extract_bits(pc, 2..(self.set_bits + 1)) as usize
     }
     fn tag(&self, pc: u32) -> u32 {
-        pc >> self.index_bits
+        pc >> (self.set_bits + 2)
     }
     pub fn get(&self, pc: u32) -> Option<u32> {
-        let idx = self.index(pc);
+        let set = self.set(pc);
         let tag = self.tag(pc);
-        let entry = &self.entries[idx];
+        let entry = &self.entries[set];
         if entry.tag == tag {
             Some(entry.target)
         } else {
@@ -41,9 +42,9 @@ impl BTB {
         }
     }
     pub fn update(&mut self, pc: u32, target: u32) {
-        let idx = self.index(pc);
+        let set = self.set(pc);
         let tag = self.tag(pc);
-        self.entries[idx] = BTBEntry { tag, target };
+        self.entries[set] = BTBEntry { tag, target };
     }
 }
 
