@@ -5,7 +5,7 @@ use remu_macro::log_error;
 use remu_utils::{ProcessResult, ISA};
 use state::States;
 
-use crate::{emu::isa::riscv::{hardware::{frontend::BTB, Pipeline}, instruction::ImmGet}, SimulatorCallback};
+use crate::{emu::isa::riscv::{hardware::Pipeline, instruction::ImmGet}, SimulatorCallback};
 
 use super::isa::riscv::instruction::RISCV;
 
@@ -121,9 +121,6 @@ pub struct EmuHardware {
 
     /// Pipeline
     pub pipeline: Pipeline,
-
-    /// BTB
-    pub btb: BTB,
 }
 
 impl ImmGet for EmuHardware {}
@@ -144,7 +141,6 @@ impl EmuHardware {
                 instructions: 0,
             },
             pipeline: Pipeline::new(option.cfg.platform_config.reset_vector),
-            btb: BTB::new(16),
         }
     }
 

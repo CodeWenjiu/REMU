@@ -99,34 +99,35 @@ impl SimpleDebugger {
 
         let reset_vector = cli_result.cfg.platform_config.reset_vector;
 
-        let pipe_state = match cli_result.cli.platform.simulator {
-            Simulators::NZEA(_) | Simulators::EMU(EmuSimulators::PL) => {
-                StageModel::with_branchpredict(conditional.clone())
-            }
-
-            _ => {
-                StageModel::default(conditional.clone())
-            }
-        };
-
-        let mut state = States::new(isa, reset_vector, pipe_state).unwrap();
+        let mut state = States::new(isa, reset_vector).unwrap();
         let mut state_ref = state.clone();
 
         match cli_result.cli.differtest {
             Some(DifftestRef::SingleCycle(_)) => {
-                state_ref = States::new(isa, reset_vector, StageModel::default(conditional)).unwrap();
+                state_ref = States::new(isa, reset_vector).unwrap();
             }
 
             Some(DifftestRef::Pipeline(platform)) => {
                 match platform {
                     DifftestPipeline::EMU => {
-                        state_ref = States::new(isa, reset_vector, StageModel::with_branchpredict(conditional)).unwrap();
+                        state_ref = States::new(isa, reset_vector).unwrap();
+                        state_ref.init_pipe(Some(StageModel::with_branchpredict(conditional.clone())));
                     }
                 }
             }
 
             _ => {},
         }
+
+        match cli_result.cli.platform.simulator {
+            Simulators::NZEA(_) | Simulators::EMU(EmuSimulators::PL) => {
+                // Some(StageModel::with_branchpredict(conditional.clone()))
+                state.init_pipe(Some(StageModel::with_branchpredict(conditional.clone())));
+                state.cache.init_btb(16, 1, 1);
+            }
+
+            _ => ()
+        };
 
         for region in &cli_result.cfg.platform_config.regions {
             log_err!(state.mmu.add_region(

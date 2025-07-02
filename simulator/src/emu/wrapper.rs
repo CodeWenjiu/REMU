@@ -84,12 +84,11 @@ impl EmuSimulatorCore for Pipeline {
     }
 
     fn get_keys(&self) -> Vec<&'static str> {
-        vec!["pipeline", "btb"]
+        vec!["pipeline"]
     }
     fn print_info(&self,key: &str) {
         match key {
             "pipeline" => println!("{}", self.emu.pipeline),
-            "btb" => println!("{}", self.emu.btb),
             _ => println!("Unknown key: {}", key),
         }
     }

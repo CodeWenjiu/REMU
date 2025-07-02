@@ -18,7 +18,11 @@ impl SimpleDebugger {
             }
 
             InfoCmds::Pipeline {  } => {
-                println!("{}", self.state.pipe_state)
+                if let Some(pipe_state) = &self.state.pipe_state {
+                    println!("{}", pipe_state);
+                } else {
+                    log_warn!("Pipeline state is not available, please check if the simulator supports it.");
+                }
             }
 
             InfoCmds::Extention { key } => {
@@ -211,7 +215,11 @@ impl SimpleDebugger {
             }
 
             InfoCmds::Pipeline {  } => {
-                println!("{}", self.state_ref.pipe_state)
+                if let Some(pipe_state) = &self.state_ref.pipe_state {
+                    println!("{}", pipe_state);
+                } else {
+                    log_warn!("Pipeline state is not available, please check if the simulator supports it.");
+                }
             }
 
             InfoCmds::Extention { key } => {

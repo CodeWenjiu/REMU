@@ -138,7 +138,7 @@ impl EmuHardware {
 
         let wb_msg = self.self_pipeline_update(skip)?;
 
-        self.states.pipe_state.update()?;
+        self.states.pipe_state.as_mut().unwrap().update()?;
 
         if let Some((pc, next_pc, inst)) = wb_msg {
             (self.callback.instruction_complete)(pc, next_pc, inst)?;
@@ -244,7 +244,7 @@ impl EmuHardware {
         // register update
 
         if let Some(wb_out) = wb_out {
-            let (pc, inst) = self.states.pipe_state.get()?; // need to used to check
+            let (pc, inst) = self.states.pipe_state.as_mut().unwrap().get()?; // need to used to check
 
             if pc != self.pipeline.stages.ex_wb.0.msg.pc {
                 log_error!(format!("EX 2 WB PC mismatch: fetched {:#08x}, expected {:#08x}", pc, self.pipeline.stages.ex_wb.0.msg.pc));
@@ -258,7 +258,7 @@ impl EmuHardware {
             if wb_out.wb_ctrl != WbControl::BPRight {
                 self.pipeline.flush();
                 self.self_pipeline_branch_predict_flush(pc, wb_out.next_pc);
-                self.states.pipe_state.flush();
+                self.states.pipe_state.as_mut().unwrap().flush();
                 self.times.flushed_cycles += 1;
                 return Ok(wb_msg);
             }
@@ -271,7 +271,7 @@ impl EmuHardware {
         if let Some(to_wb) = to_wb {
             match to_wb {
                 ToWb::FromAl(from_al) => {
-                    let (pc, _inst) = self.states.pipe_state.fetch(BaseStageCell::IsAl)?; // need to used to check
+                    let (pc, _inst) = self.states.pipe_state.as_mut().unwrap().fetch(BaseStageCell::IsAl)?; // need to used to check
                     if pc != from_al.msg.pc {
                         log_error!(format!("AL 2 WB PC mismatch: fetched {:#08x}, expected {:#08x}", pc, from_al.msg.pc));
                         return Err(ProcessError::Recoverable);
@@ -281,11 +281,11 @@ impl EmuHardware {
                     self.pipeline.stages.ex_wb.0 = from_al;
                     self.pipeline.stages.ex_wb.1 = true;
 
-                    self.states.pipe_state.trans(BaseStageCell::IsAl, BaseStageCell::ExWb)?;
+                    self.states.pipe_state.as_mut().unwrap().trans(BaseStageCell::IsAl, BaseStageCell::ExWb)?;
                 }
 
                 ToWb::FromLs(from_ls) => {
-                    let (pc, _inst) = self.states.pipe_state.fetch(BaseStageCell::IsLs)?; // need to used to check
+                    let (pc, _inst) = self.states.pipe_state.as_mut().unwrap().fetch(BaseStageCell::IsLs)?; // need to used to check
                     if pc != from_ls.msg.pc {
                         log_error!(format!("LS 2 WB PC mismatch: fetched {:#08x}, expected {:#08x}", pc, from_ls.msg.pc));
                         return Err(ProcessError::Recoverable);
@@ -295,7 +295,7 @@ impl EmuHardware {
                     self.pipeline.stages.ex_wb.0 = from_ls;
                     self.pipeline.stages.ex_wb.1 = true;
 
-                    self.states.pipe_state.trans(BaseStageCell::IsLs, BaseStageCell::ExWb)?;
+                    self.states.pipe_state.as_mut().unwrap().trans(BaseStageCell::IsLs, BaseStageCell::ExWb)?;
                 },
             }
             self.times.instructions += 1;
@@ -306,7 +306,7 @@ impl EmuHardware {
         }
 
         if let Some(to_ls) = to_ls {
-            let (pc, _inst) = self.states.pipe_state.fetch(BaseStageCell::IdIs)?; // need to used to check
+            let (pc, _inst) = self.states.pipe_state.as_mut().unwrap().fetch(BaseStageCell::IdIs)?; // need to used to check
             if pc != to_ls.msg.pc {
                 log_error!(format!("IS 2 LS PC mismatch: fetched {:#08x}, expected {:#08x}", pc, to_ls.msg.pc));
                 return Err(ProcessError::Recoverable);
@@ -318,11 +318,11 @@ impl EmuHardware {
             self.pipeline.stages.is_ls.0 = to_ls;
             self.pipeline.stages.is_ls.1 = true;
 
-            self.states.pipe_state.trans(BaseStageCell::IdIs, BaseStageCell::IsLs)?;
+            self.states.pipe_state.as_mut().unwrap().trans(BaseStageCell::IdIs, BaseStageCell::IsLs)?;
         }
 
         if let Some(to_al) = to_al {
-            let (pc, _inst) = self.states.pipe_state.fetch(BaseStageCell::IdIs)?; // need to used to check
+            let (pc, _inst) = self.states.pipe_state.as_mut().unwrap().fetch(BaseStageCell::IdIs)?; // need to used to check
             if pc != to_al.msg.pc {
                 log_error!(format!("IS 2 AL PC mismatch: fetched {:#08x}, expected {:#08x}", pc, to_al.msg.pc));
                 return Err(ProcessError::Recoverable);
@@ -333,7 +333,7 @@ impl EmuHardware {
             self.pipeline.stages.is_al.0 = to_al;
             self.pipeline.stages.is_al.1 = true;
 
-            self.states.pipe_state.trans(BaseStageCell::IdIs, BaseStageCell::IsAl)?;
+            self.states.pipe_state.as_mut().unwrap().trans(BaseStageCell::IdIs, BaseStageCell::IsAl)?;
         }
 
         if gpr_raw_hazard {
@@ -346,7 +346,7 @@ impl EmuHardware {
             self.pipeline.stages.id_is.0 = to_is;
             self.pipeline.stages.id_is.1 = true;
             
-            self.states.pipe_state.trans(BaseStageCell::IfId, BaseStageCell::IdIs)?;
+            self.states.pipe_state.as_mut().unwrap().trans(BaseStageCell::IfId, BaseStageCell::IdIs)?;
         }
         
         if let Some(to_id) = to_id {
@@ -358,7 +358,7 @@ impl EmuHardware {
             self.pipeline.stages.if_id.0 = to_id;
             self.pipeline.stages.if_id.1 = true;
             
-            self.states.pipe_state.instruction_fetch(inst)?;
+            self.states.pipe_state.as_mut().unwrap().instruction_fetch(inst)?;
         }
 
         if let Some(to_if) = to_if {
@@ -367,7 +367,7 @@ impl EmuHardware {
             self.pipeline.stages.bp_if.1 = true;
             self.pipeline.bp_ena = false;
 
-            self.states.pipe_state.cell_input((pc, 0), BaseStageCell::BpIf)?;
+            self.states.pipe_state.as_mut().unwrap().cell_input((pc, 0), BaseStageCell::BpIf)?;
 
             self.self_pipeline_branch_predict_update();
         }
