@@ -95,7 +95,7 @@ impl EmuTimes {
             ])
             .add_row(vec![
                 Cell::new((self.instructions as f64 / self.cycles as f64).to_string()).fg(Color::Green),
-                Cell::new(((self.branched_cycles - self.flushed_cycles) as f64 / self.cycles as f64).to_string()).fg(Color::Green), // Placeholder for branch prediction accuracy
+                Cell::new(((self.branched_cycles - self.flushed_cycles) as f64 / self.branched_cycles as f64).to_string()).fg(Color::Green), // Placeholder for branch prediction accuracy
                 Cell::new(self.cycles.to_string()).fg(Color::Green),
                 Cell::new(self.flushed_cycles.to_string()).fg(Color::Green),
                 Cell::new(self.instructions.to_string()).fg(Color::Green),
