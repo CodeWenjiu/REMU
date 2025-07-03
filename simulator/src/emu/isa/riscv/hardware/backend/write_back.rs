@@ -37,6 +37,7 @@ pub enum WbControl {
 
 #[derive(Default, Clone, Debug)]
 pub struct Wbout {
+    pub pc: u32,
     pub next_pc: u32,
     pub wb_ctrl: WbControl,
     pub wb_bypass: (u8, u32),
@@ -45,6 +46,7 @@ pub struct Wbout {
 impl EmuHardware {
     pub fn write_back_rv32i(&mut self, stage: ToWbStage) -> ProcessResult<Wbout> {
         let mut out = Wbout {
+            pc: stage.msg.pc,
             next_pc: 0,
             wb_ctrl: WbControl::BPRight,
             wb_bypass: (0, 0),

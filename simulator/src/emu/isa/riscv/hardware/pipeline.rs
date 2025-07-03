@@ -246,8 +246,8 @@ impl EmuHardware {
         if let Some(wb_out) = wb_out {
             let (pc, inst) = self.states.pipe_state.as_mut().unwrap().get()?; // need to used to check
 
-            if pc != self.pipeline.stages.ex_wb.0.msg.pc {
-                log_error!(format!("EX 2 WB PC mismatch: fetched {:#08x}, expected {:#08x}", pc, self.pipeline.stages.ex_wb.0.msg.pc));
+            if pc != wb_out.pc {
+                log_error!(format!("EX 2 WB PC mismatch: fetched {:#08x}, expected {:#08x}", pc, wb_out.pc));
                 return Err(ProcessError::Recoverable);
             }
 
@@ -269,6 +269,7 @@ impl EmuHardware {
         }
 
         if let Some(to_wb) = to_wb {
+            
             match to_wb {
                 ToWb::FromAl(from_al) => {
                     let (pc, _inst) = self.states.pipe_state.as_mut().unwrap().fetch(BaseStageCell::IsAl)?; // need to used to check
@@ -341,6 +342,12 @@ impl EmuHardware {
         }
 
         if let Some(to_is) = to_is {
+            let (pc, _inst) = self.states.pipe_state.as_mut().unwrap().fetch(BaseStageCell::IfId)?; // need to used to check
+            if pc != to_is.msg.pc {
+                log_error!(format!("ID 2 IS PC mismatch: fetched {:#08x}, expected {:#08x}", pc, to_is.msg.pc));
+                return Err(ProcessError::Recoverable);
+            }
+
             self.pipeline.stages.if_id.1 = false;
             
             self.pipeline.stages.id_is.0 = to_is;
@@ -350,6 +357,12 @@ impl EmuHardware {
         }
         
         if let Some(to_id) = to_id {
+            let (pc, _inst) = self.states.pipe_state.as_mut().unwrap().fetch(BaseStageCell::BpIf)?; // need to used to check
+            if pc != to_id.msg.pc {
+                log_error!(format!("IF 2 ID PC mismatch: fetched {:#08x}, expected {:#08x}", pc, to_id.msg.pc));
+                return Err(ProcessError::Recoverable);
+            }
+            
             self.pipeline.stages.bp_if.1 = false;
             self.pipeline.if_ena = false;
 

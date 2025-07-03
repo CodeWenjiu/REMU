@@ -112,6 +112,9 @@ pub enum InfoCmds {
     Pipeline {
     },
 
+    /// Get the state of the cache
+    Cache {},
+
     /// Get extention info
     Extention {
         /// The target extention name

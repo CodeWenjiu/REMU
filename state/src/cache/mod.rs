@@ -1,5 +1,7 @@
 use std::{cell::RefCell, rc::Rc};
 
+use remu_macro::log_todo;
+
 remu_macro::mod_flat!(btb);
 
 #[derive(Clone, Debug)]
@@ -27,4 +29,8 @@ pub trait CacheTrait {
 
     fn read(&self, addr: u32) -> Option<&Self::CacheData>;
     fn replace(&mut self, addr: u32, data: Self::CacheData);
+
+    fn print(&self) {
+        log_todo!();
+    }
 }

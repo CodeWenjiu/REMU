@@ -2,27 +2,32 @@ use owo_colors::OwoColorize;
 use remu_macro::{log_err, log_todo, log_warn};
 use remu_utils::{ProcessError, ProcessResult};
 use simulator::{difftest_ref::{AnyDifftestRef, DifftestRefPipelineApi}, SimulatorItem};
-use state::{mmu::Mask, reg::RegfileIo};
+use state::{cache::CacheTrait, mmu::Mask, reg::RegfileIo};
 
 use crate::{cmd_parser::{BreakPointCmds, Cmds, DiffertestCmds, FunctionCmds, InfoCmds, MemorySetCmds, RegisterInfoCmds, RegisterSetCmds, SetCmds, StepCmds}, SimpleDebugger};
+
+enum StateTarget {
+    DUT,
+    REF,
+}
 
 impl SimpleDebugger {
     fn cmd_info (&mut self, subcmd: InfoCmds) -> ProcessResult<()> {
         match subcmd {
             InfoCmds::Memory { subcmd } => {
-                self.cmd_memory(subcmd)?;
+                self.cmd_info_memory(subcmd, StateTarget::DUT)?;
             }
 
             InfoCmds::Register { subcmd } => {
-                self.cmd_register_info(subcmd)?;
+                self.cmd_info_register(subcmd, StateTarget::DUT)?;
             }
 
             InfoCmds::Pipeline {  } => {
-                if let Some(pipe_state) = &self.state.pipe_state {
-                    println!("{}", pipe_state);
-                } else {
-                    log_warn!("Pipeline state is not available, please check if the simulator supports it.");
-                }
+                self.cmd_info_pipeline(StateTarget::DUT)?;
+            }
+
+            InfoCmds::Cache {  } => {
+                self.cmd_info_cache(StateTarget::DUT)?;
             }
 
             InfoCmds::Extention { key } => {
@@ -39,17 +44,26 @@ impl SimpleDebugger {
         Ok(())
     }
 
-    fn cmd_memory (&mut self, subcmd: MemorySetCmds) -> ProcessResult<()> {
+    fn cmd_info_memory(&mut self, subcmd: MemorySetCmds, target: StateTarget) -> ProcessResult<()> {
         match subcmd {
             MemorySetCmds::ShowMemoryMap {} => {
-                self.state.mmu.show_memory_map();
+                let target_state = match target {
+                    StateTarget::DUT => &mut self.state,
+                    StateTarget::REF => &mut self.state_ref,
+                };
+                target_state.mmu.show_memory_map()
             }
 
             MemorySetCmds::Examine { addr, length } => {
+                let addr = self.eval_expr(&addr)?;
+                let target_state = match target {
+                    StateTarget::DUT => &mut self.state,
+                    StateTarget::REF => &mut self.state_ref,
+                };
+                
                 for i in (0..(length * 4)).step_by(4) {
                     let i = i as u32;
-                    let addr = self.eval_expr(&addr)?;
-                    let data = log_err!(self.state.mmu.read_memory(addr + i, Mask::None), ProcessError::Recoverable)?;
+                    let data = log_err!(target_state.mmu.read_memory(addr + i, Mask::None), ProcessError::Recoverable)?;
 
                     print!("{:#010x}: {:#010x}\t",
                         (addr + i).blue(), data.green());
@@ -64,26 +78,59 @@ impl SimpleDebugger {
         Ok(())
     }
 
-    fn cmd_register_info (&mut self, subcmd: Option<RegisterInfoCmds>) -> ProcessResult<()> {
+    fn cmd_info_register(&mut self, subcmd: Option<RegisterInfoCmds>, target: StateTarget) -> ProcessResult<()> {
+        let target_state = match target {
+            StateTarget::DUT => &self.state,
+            StateTarget::REF => &self.state_ref,
+        };
+
         match subcmd {
             Some(RegisterInfoCmds::CSR { index }) => {
-                log_err!(self.state.regfile.print_csr(index), ProcessError::Recoverable)?;
+                log_err!(target_state.regfile.print_csr(index), ProcessError::Recoverable)?;
             }
 
             Some(RegisterInfoCmds::GPR { index }) => {
-                self.state.regfile.print_gpr(index)?;
+                target_state.regfile.print_gpr(index)?;
             }
 
             Some(RegisterInfoCmds::PC {}) => {
-                self.state.regfile.print_pc();
+                target_state.regfile.print_pc();
             }
 
             None => {
-                self.state.regfile.print_pc();
-                self.state.regfile.print_gpr(None)?;
-                log_err!(self.state.regfile.print_csr(None), ProcessError::Recoverable)?;
+                target_state.regfile.print_pc();
+                target_state.regfile.print_gpr(None)?;
+                log_err!(target_state.regfile.print_csr(None), ProcessError::Recoverable)?;
             }
         }
+
+        Ok(())
+    }
+
+    fn cmd_info_pipeline(&mut self, target: StateTarget) -> ProcessResult<()> {
+        let target_state = match target {
+            StateTarget::DUT => &self.state,
+            StateTarget::REF => &self.state_ref,
+        };
+
+        if let Some(pipe_state) = &target_state.pipe_state {
+            println!("{}", pipe_state);
+        } else {
+            log_warn!("Pipeline state is not available, please check if the simulator supports it.");
+        }
+
+        Ok(())
+    }
+
+    fn cmd_info_cache(&mut self, target: StateTarget) -> ProcessResult<()> {
+        let target_state = match target {
+            StateTarget::DUT => &self.state,
+            StateTarget::REF => &self.state_ref,
+        };
+
+        target_state.cache.btb.as_ref().map(|btb| {
+            btb.as_ref().borrow().print();
+        });
 
         Ok(())
     }
@@ -207,19 +254,19 @@ impl SimpleDebugger {
     fn cmd_differtest_info (&mut self, subcmd: InfoCmds) -> ProcessResult<()> {
         match subcmd {
             InfoCmds::Memory { subcmd } => {
-                self.cmd_differtest_memory(subcmd)?;
+                self.cmd_info_memory(subcmd, StateTarget::REF)?;
             }
 
             InfoCmds::Register { subcmd } => {
-                self.cmd_differtest_register(subcmd)?;
+                self.cmd_info_register(subcmd, StateTarget::REF)?;
             }
 
             InfoCmds::Pipeline {  } => {
-                if let Some(pipe_state) = &self.state_ref.pipe_state {
-                    println!("{}", pipe_state);
-                } else {
-                    log_warn!("Pipeline state is not available, please check if the simulator supports it.");
-                }
+                self.cmd_info_pipeline(StateTarget::REF)?;
+            }
+
+            InfoCmds::Cache {  } => {
+                self.cmd_info_cache(StateTarget::REF)?;
             }
 
             InfoCmds::Extention { key } => {
@@ -274,55 +321,6 @@ impl SimpleDebugger {
 
             _ => {
                 log_todo!();
-            }
-        }
-
-        Ok(())
-    }
-
-    fn cmd_differtest_memory (&mut self, subcmd: MemorySetCmds) -> ProcessResult<()> {
-        match subcmd {
-            MemorySetCmds::ShowMemoryMap {} => {
-                self.state_ref.mmu.show_memory_map();
-            }
-
-            MemorySetCmds::Examine { addr, length } => {
-                for i in (0..(length * 4)).step_by(4) {
-                    let i = i as u32;
-                    let addr = log_err!(self.eval_expr(&addr), ProcessError::Recoverable)?;
-                    let data = log_err!(self.state_ref.mmu.read_memory(addr + i, Mask::None), ProcessError::Recoverable)?;
-
-                    print!("{:#010x}: {:#010x}\t",
-                        (addr + i).blue(), data.green());
-                    
-                    self.conditional.try_analize(data, addr + i);
-                    
-                    println!();
-                }
-            }
-        }
-
-        Ok(())
-    }
-
-    fn cmd_differtest_register (&mut self, subcmd: Option<RegisterInfoCmds>) -> ProcessResult<()> {
-        match subcmd {
-            Some(RegisterInfoCmds::CSR { index }) => {
-                log_err!(self.state.regfile.print_csr(index), ProcessError::Recoverable)?;
-            }
-
-            Some(RegisterInfoCmds::GPR { index }) => {
-                self.state_ref.regfile.print_gpr(index)?;
-            }
-
-            Some(RegisterInfoCmds::PC {}) => {
-                self.state_ref.regfile.print_pc();
-            }
-
-            None => {
-                self.state_ref.regfile.print_pc();
-                self.state_ref.regfile.print_gpr(None)?;
-                log_err!(self.state_ref.regfile.print_csr(None), ProcessError::Recoverable)?;
             }
         }
 

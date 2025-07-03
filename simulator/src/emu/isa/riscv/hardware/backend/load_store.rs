@@ -168,7 +168,7 @@ impl EmuHardware {
 
         let to_msg = BasicStageMsg {
             pc: msg.pc,
-            npc: msg.pc.wrapping_add(4),
+            npc: msg.npc,
             trap: None,
         };
 
