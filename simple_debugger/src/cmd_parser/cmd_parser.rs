@@ -137,7 +137,28 @@ pub enum SetCmds {
 
         /// The target value
         value: String,
-    }
+    },
+
+    /// Set the state of the cache
+    Cache {
+        /// The target cache set
+        set: u32,
+
+        /// The target cache way
+        way: u32,
+
+        /// The target cache tag
+        tag: u32,
+
+        /// The target cache data
+        data: String,
+    },
+}
+
+#[derive(Debug, Subcommand)]
+pub enum TestCmds {
+    /// Test the state of the cache
+    Cache {}
 }
 
 #[derive(Debug, Subcommand)]
@@ -236,6 +257,12 @@ pub enum DiffertestCmds {
     Set {
         #[command(subcommand)]
         subcmd: SetCmds,
+    },
+
+    /// Test state(which will not tested when normal run)
+    Test {
+        #[command(subcommand)]
+        subcmd: TestCmds,
     },
 
     /// Set memory watch point

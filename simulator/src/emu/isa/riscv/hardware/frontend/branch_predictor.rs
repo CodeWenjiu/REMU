@@ -5,11 +5,16 @@ use crate::emu::{isa::riscv::hardware::frontend::ToIfStage, EmuHardware};
 impl EmuHardware {
     fn branch_predict(&self) -> u32 {
         let pc = self.pipeline.pipeline_pc;
-        if let Some(target) = self.states.cache.btb.as_ref().unwrap().borrow_mut().read(pc){
+
+        let snpc = pc.wrapping_add(4);
+
+        let npc = if let Some(target) = self.states.cache.btb.as_ref().unwrap().borrow_mut().read(pc){
             target.target
         } else {
-            pc.wrapping_add(4)
-        }
+            snpc
+        };
+
+        npc
     }
 
     pub fn self_pipeline_branch_predict(&self) -> ToIfStage {
@@ -25,6 +30,7 @@ impl EmuHardware {
 
     pub fn self_pipeline_branch_predict_flush(&mut self, pc: u32, target: u32) {
         self.states.cache.btb.as_ref().unwrap().borrow_mut().replace(pc, BtbData {target});
+
         self.pipeline.pipeline_pc = target;
     }
 }

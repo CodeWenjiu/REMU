@@ -2,16 +2,24 @@ use owo_colors::OwoColorize;
 use remu_macro::{log_err, log_todo, log_warn};
 use remu_utils::{ProcessError, ProcessResult};
 use simulator::{difftest_ref::{AnyDifftestRef, DifftestRefPipelineApi}, SimulatorItem};
-use state::{cache::CacheTrait, mmu::Mask, reg::RegfileIo};
+use state::{cache::{BtbData, CacheTrait}, mmu::Mask, reg::RegfileIo, States};
 
-use crate::{cmd_parser::{BreakPointCmds, Cmds, DiffertestCmds, FunctionCmds, InfoCmds, MemorySetCmds, RegisterInfoCmds, RegisterSetCmds, SetCmds, StepCmds}, SimpleDebugger};
+use crate::{cmd_parser::{BreakPointCmds, Cmds, DiffertestCmds, FunctionCmds, InfoCmds, MemorySetCmds, RegisterInfoCmds, RegisterSetCmds, SetCmds, StepCmds, TestCmds}, SimpleDebugger};
 
+#[derive(Clone, Copy)]
 enum StateTarget {
     DUT,
     REF,
 }
 
 impl SimpleDebugger {
+    fn get_state(&mut self, target: StateTarget) -> &mut States {
+        match target {
+            StateTarget::DUT => &mut self.state,
+            StateTarget::REF => &mut self.state_ref,
+        }
+    }
+
     fn cmd_info (&mut self, subcmd: InfoCmds) -> ProcessResult<()> {
         match subcmd {
             InfoCmds::Memory { subcmd } => {
@@ -44,26 +52,129 @@ impl SimpleDebugger {
         Ok(())
     }
 
+    fn cmd_set (&mut self, subcmd: SetCmds) -> ProcessResult<()> {
+        match subcmd {
+            SetCmds::Register { subcmd } => {
+                self.cmd_register_set(subcmd, StateTarget::DUT)?;
+            }
+
+            SetCmds::Memory { addr, value } => {
+                self.cmd_memory_set(&addr, &value, StateTarget::DUT)?;
+            }
+
+            SetCmds::Cache { set, way, tag, data } => {
+                self.cmd_cache_set(set, way, tag, data, StateTarget::DUT)?;
+            }
+        }
+
+        log_warn!("Command `Set` is evil, carefully use it.");
+
+        Ok(())
+    }
+
+    fn cmd_differtest_info (&mut self, subcmd: InfoCmds) -> ProcessResult<()> {
+        match subcmd {
+            InfoCmds::Memory { subcmd } => {
+                self.cmd_info_memory(subcmd, StateTarget::REF)?;
+            }
+
+            InfoCmds::Register { subcmd } => {
+                self.cmd_info_register(subcmd, StateTarget::REF)?;
+            }
+
+            InfoCmds::Pipeline {  } => {
+                self.cmd_info_pipeline(StateTarget::REF)?;
+            }
+
+            InfoCmds::Cache {  } => {
+                self.cmd_info_cache(StateTarget::REF)?;
+            }
+
+            InfoCmds::Extention { key } => {
+                if let Some(manager) = &self.simulator.difftest_manager {
+                    let manager = &manager.borrow().reference;
+                    let AnyDifftestRef::Pipeline(manager) = manager else {
+                        log_todo!();
+                        return Ok(());
+                    };
+                    
+                    if let Some(key) = key {
+                        manager.print_info(key.as_str());
+                    } else {
+                        manager.get_keys().iter().for_each(|key| {
+                            println!("- {}", key.blue());
+                        });
+                    }
+                } else {
+                    log_todo!();
+                    return Ok(());
+                }
+            }
+        }
+
+        Ok(())
+    }
+
+    fn cmd_differtest_set (&mut self, subcmd: SetCmds) -> ProcessResult<()> {
+        match subcmd {
+            SetCmds::Register { subcmd } => {
+                self.cmd_register_set(subcmd, StateTarget::REF)?;
+            }
+
+            SetCmds::Memory { addr, value } => {
+                self.cmd_memory_set(&addr, &value, StateTarget::REF)?;
+            }
+
+            SetCmds::Cache { set, way, tag, data } => {
+                self.cmd_cache_set(set, way, tag, data, StateTarget::REF)?;
+            }
+        }
+
+        log_warn!("Command `Set` is evil, carefully use it.");
+
+        Ok(())
+    }
+
+    fn cmd_differtest_test_cache(&mut self) -> ProcessResult<()> {
+        match self.state.cache.btb.as_ref() {
+            Some(btb) => {
+                btb.as_ref().borrow().test(&self.state_ref.cache.btb.as_ref().unwrap().borrow())?;
+            }
+
+            None => {
+                log_warn!("BTB is not initialized, please check if the simulator supports it.");
+            }
+        };
+
+        Ok(())
+    }
+
+    fn cmd_differtest_test(&mut self, subcmd: TestCmds) -> ProcessResult<()> {
+        match subcmd {
+            TestCmds::Cache {} => {
+                self.cmd_differtest_test_cache()?;
+            }
+        }
+
+        Ok(())
+    }
+
     fn cmd_info_memory(&mut self, subcmd: MemorySetCmds, target: StateTarget) -> ProcessResult<()> {
         match subcmd {
             MemorySetCmds::ShowMemoryMap {} => {
-                let target_state = match target {
-                    StateTarget::DUT => &mut self.state,
-                    StateTarget::REF => &mut self.state_ref,
-                };
+                let target_state = self.get_state(target);
                 target_state.mmu.show_memory_map()
             }
 
             MemorySetCmds::Examine { addr, length } => {
                 let addr = self.eval_expr(&addr)?;
-                let target_state = match target {
-                    StateTarget::DUT => &mut self.state,
-                    StateTarget::REF => &mut self.state_ref,
-                };
                 
                 for i in (0..(length * 4)).step_by(4) {
                     let i = i as u32;
-                    let data = log_err!(target_state.mmu.read_memory(addr + i, Mask::None), ProcessError::Recoverable)?;
+                    let data = {
+                        let target_state = self.get_state(target);
+                        log_err!(target_state.mmu.read_memory(addr + i, Mask::None), ProcessError::Recoverable)?
+                    };
 
                     print!("{:#010x}: {:#010x}\t",
                         (addr + i).blue(), data.green());
@@ -79,10 +190,7 @@ impl SimpleDebugger {
     }
 
     fn cmd_info_register(&mut self, subcmd: Option<RegisterInfoCmds>, target: StateTarget) -> ProcessResult<()> {
-        let target_state = match target {
-            StateTarget::DUT => &self.state,
-            StateTarget::REF => &self.state_ref,
-        };
+        let target_state = self.get_state(target);
 
         match subcmd {
             Some(RegisterInfoCmds::CSR { index }) => {
@@ -108,10 +216,7 @@ impl SimpleDebugger {
     }
 
     fn cmd_info_pipeline(&mut self, target: StateTarget) -> ProcessResult<()> {
-        let target_state = match target {
-            StateTarget::DUT => &self.state,
-            StateTarget::REF => &self.state_ref,
-        };
+        let target_state = self.get_state(target);
 
         if let Some(pipe_state) = &target_state.pipe_state {
             println!("{}", pipe_state);
@@ -123,10 +228,7 @@ impl SimpleDebugger {
     }
 
     fn cmd_info_cache(&mut self, target: StateTarget) -> ProcessResult<()> {
-        let target_state = match target {
-            StateTarget::DUT => &self.state,
-            StateTarget::REF => &self.state_ref,
-        };
+        let target_state = self.get_state(target);
 
         target_state.cache.btb.as_ref().map(|btb| {
             btb.as_ref().borrow().print();
@@ -135,41 +237,47 @@ impl SimpleDebugger {
         Ok(())
     }
 
-    fn cmd_set (&mut self, subcmd: SetCmds) -> ProcessResult<()> {
+    fn cmd_register_set (&mut self, subcmd: RegisterSetCmds, target: StateTarget) -> ProcessResult<()> {
+
         match subcmd {
-            SetCmds::Register { subcmd } => {
-                self.cmd_register_set(subcmd)?;
+            RegisterSetCmds::PC { value } => {
+                let value = &self.eval_expr(&value)?;
+                let target_state = self.get_state(target);
+                target_state.regfile.set_pc(*value)?;
             }
 
-            SetCmds::Memory { addr, value } => {
-                let addr = self.eval_expr(&addr)?;
-                let value = self.eval_expr(&value)?;
-                log_err!(self.state.mmu.write(addr, value, Mask::None), ProcessError::Recoverable)?;
+            RegisterSetCmds::GPR { index, value } => {
+                let value = &self.eval_expr(&value)?;
+                let target_state = self.get_state(target);
+                target_state.regfile.set_gpr(index, *value)?;
+            }
+
+            RegisterSetCmds::CSR { index, value } => {
+                let value = &self.eval_expr(&value)?;
+                let target_state = self.get_state(target);
+                log_err!(target_state.regfile.set_csr(index, *value), ProcessError::Recoverable)?;
             }
         }
-
-        log_warn!("Command `Set` is evil, carefully use it.");
 
         Ok(())
     }
 
-    fn cmd_register_set (&mut self, subcmd: RegisterSetCmds) -> ProcessResult<()> {
-        match subcmd {
-            RegisterSetCmds::PC { value } => {
-                let value = self.eval_expr(&value)?;
-                self.state.regfile.set_pc(value)?;
-            }
+    fn cmd_memory_set(&mut self, addr: &str, value: &str, target: StateTarget) -> ProcessResult<()> {
+        let addr = self.eval_expr(addr)?;
+        let value = self.eval_expr(value)?;
+        log_err!(self.get_state(target).mmu.write(addr, value, Mask::None), ProcessError::Recoverable)?;
 
-            RegisterSetCmds::GPR { index, value } => {
-                let value = self.eval_expr(&value)?;
-                self.state.regfile.set_gpr(index, value)?;
-            }
+        Ok(())
+    }
 
-            RegisterSetCmds::CSR { index, value } => {
-                let value = self.eval_expr(&value)?;
-                log_err!(self.state.regfile.set_csr(index, value), ProcessError::Recoverable)?;
-            }
-        }
+    fn cmd_cache_set(&mut self, set: u32, way: u32, tag: u32, data: String, target: StateTarget) -> ProcessResult<()> {
+        let data = &self.eval_expr(&data)?;
+        
+        let target_state = self.get_state(target);
+
+        target_state.cache.btb.as_ref().map(|btb| {
+            btb.borrow_mut().base_write(set, way, 0, tag, BtbData{target: *data});
+        });
 
         Ok(())
     }
@@ -230,6 +338,10 @@ impl SimpleDebugger {
                 self.cmd_differtest_set(subcmd)?;
             }
 
+            DiffertestCmds::Test { subcmd } => {
+                self.cmd_differtest_test(subcmd)?;
+            }
+
             DiffertestCmds::MemWatchPoint { addr } => {
                 match addr {
                     Some(addr) => {
@@ -245,82 +357,6 @@ impl SimpleDebugger {
                         });
                     }
                 }
-            }
-        }
-
-        Ok(())
-    }
-
-    fn cmd_differtest_info (&mut self, subcmd: InfoCmds) -> ProcessResult<()> {
-        match subcmd {
-            InfoCmds::Memory { subcmd } => {
-                self.cmd_info_memory(subcmd, StateTarget::REF)?;
-            }
-
-            InfoCmds::Register { subcmd } => {
-                self.cmd_info_register(subcmd, StateTarget::REF)?;
-            }
-
-            InfoCmds::Pipeline {  } => {
-                self.cmd_info_pipeline(StateTarget::REF)?;
-            }
-
-            InfoCmds::Cache {  } => {
-                self.cmd_info_cache(StateTarget::REF)?;
-            }
-
-            InfoCmds::Extention { key } => {
-                if let Some(manager) = &self.simulator.difftest_manager {
-                    let manager = &manager.borrow().reference;
-                    let AnyDifftestRef::Pipeline(manager) = manager else {
-                        log_todo!();
-                        return Ok(());
-                    };
-                    
-                    if let Some(key) = key {
-                        manager.print_info(key.as_str());
-                    } else {
-                        manager.get_keys().iter().for_each(|key| {
-                            println!("- {}", key.blue());
-                        });
-                    }
-                } else {
-                    log_todo!();
-                    return Ok(());
-                }
-            }
-        }
-
-        Ok(())
-    }
-
-    fn cmd_differtest_set (&mut self, subcmd: SetCmds) -> ProcessResult<()> {
-        match subcmd {
-            SetCmds::Register { subcmd } => {
-                self.cmd_differtest_register_set(subcmd)?;
-            }
-
-            SetCmds::Memory { addr, value } => {
-                let addr = self.eval_expr(&addr)?;
-                let value = self.eval_expr(&value)?;
-                log_err!(self.state_ref.mmu.write(addr, value, Mask::None), ProcessError::Recoverable)?;
-            }
-        }
-
-        log_warn!("Command `Set` is evil, carefully use it.");
-
-        Ok(())
-    }
-
-    fn cmd_differtest_register_set(&mut self, subcmd: RegisterSetCmds) -> ProcessResult<()> {
-        match subcmd {
-            RegisterSetCmds::GPR { index, value } => {
-                let value = self.eval_expr(&value)?;
-                self.state_ref.regfile.set_gpr(index, value)?;
-            }
-
-            _ => {
-                log_todo!();
             }
         }
 

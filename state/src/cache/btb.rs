@@ -1,3 +1,6 @@
+use remu_macro::log_error;
+use remu_utils::ProcessError;
+
 use crate::cache::CacheTrait;
 
 #[derive(Clone, Debug)]
@@ -55,14 +58,14 @@ impl CacheTrait for BTB {
     type CacheData = BtbData;
 
     fn new(set: u32, way: u32, block_num: u32) -> Self {
+        let _ = block_num;
+
         assert!(set.is_power_of_two(), "set must be a power of 2");
         assert!(way.is_power_of_two(), "way must be a power of 2");
-        assert!(block_num.is_power_of_two(), "block_num must be a power of 2");
-
+        
         let set_bits = set.trailing_zeros();
         let way_bits = way.trailing_zeros();
-        let base_idx = 2;
-        let idx_bits = block_num.trailing_zeros() + base_idx;
+        let idx_bits = 2;
 
         BTB {
             tag_bits: 32 - (set_bits + idx_bits),
@@ -75,7 +78,7 @@ impl CacheTrait for BTB {
         }
     }
 
-    fn base_write(&mut self, set: u32, way: u32, block_num: u32, data: BtbData) {
+    fn base_write(&mut self, set: u32, way: u32, block_num: u32, tag: u32, data: BtbData) {
         let _ = block_num;
 
         let meta = &mut self.meta[set as usize][way as usize];
@@ -84,7 +87,7 @@ impl CacheTrait for BTB {
         let data_block = &mut self.data[data_index as usize];
 
         // Update the metadata
-        meta.tag = data.target >> (32 - self.tag_bits);
+        meta.tag = tag;
 
         *data_block = data; 
     }
@@ -105,20 +108,19 @@ impl CacheTrait for BTB {
             .iter()
             .position(|meta_block| meta_block.tag == self.gat_tag(addr))
             .map(|way| {
-                let idx = self.get_idx(addr);
-                let block_num = idx >> 2;
-                self.base_read(set, way as u32, block_num)
+                self.base_read(set, way as u32, 0)
             })
     }
 
     fn replace(&mut self, addr: u32, data: BtbData) {
         let set = self.get_set(addr);
+        let tag = self.gat_tag(addr);
 
         // need to implement an way replacement algorithm
 
         let way = 0;
         let block_num = 0;
-        self.base_write(set, way, block_num, data);
+        self.base_write(set, way, block_num, tag, data);
     }
 
     fn print(&self) {
@@ -129,5 +131,26 @@ impl CacheTrait for BTB {
                 println!("Way {}:\t Tag: {:#08x}, \tData: {:#08x}", way_idx, meta_block.tag, data_block.target);
             }
         }
+    }
+
+    fn test(&self, dut: &Self) -> remu_utils::ProcessResult<()> {
+        for (set_idx, meta_line) in self.meta.iter().enumerate() {
+            for (way_idx, meta_block) in meta_line.iter().enumerate() {
+                let data_block = &self.data[(set_idx * self.meta[0].len()) + way_idx];
+                let dut_data_block = &dut.data[(set_idx * dut.meta[0].len()) + way_idx];
+
+                if meta_block.tag != dut.meta[set_idx][way_idx].tag ||
+                   data_block.target != dut_data_block.target {
+                    log_error!(format!(
+                        "BTB mismatch at Set {}, Way {}: Expected Tag: {:#08x}, Target: {:#08x}, Got Tag: {:#08x}, Target: {:#08x}",
+                        set_idx, way_idx, dut.meta[set_idx][way_idx].tag, dut_data_block.target,
+                        meta_block.tag, data_block.target
+                    ));
+                    return Err(ProcessError::Recoverable);
+                }
+            }
+        }
+
+        Ok(())
     }
 }

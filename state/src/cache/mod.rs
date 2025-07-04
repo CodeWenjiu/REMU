@@ -1,6 +1,7 @@
 use std::{cell::RefCell, rc::Rc};
 
 use remu_macro::log_todo;
+use remu_utils::ProcessResult;
 
 remu_macro::mod_flat!(btb);
 
@@ -24,7 +25,7 @@ pub trait CacheTrait {
 
     fn new(set: u32, way: u32, block_num: u32) -> Self;
 
-    fn base_write(&mut self, set: u32, way: u32, block_num: u32, data: Self::CacheData);
+    fn base_write(&mut self, set: u32, way: u32, block_num: u32, tag: u32, data: Self::CacheData);
     fn base_read(&self, set: u32, way: u32, block_num: u32) -> &Self::CacheData;
 
     fn read(&self, addr: u32) -> Option<&Self::CacheData>;
@@ -32,5 +33,11 @@ pub trait CacheTrait {
 
     fn print(&self) {
         log_todo!();
+    }
+
+    fn test(&self, dut: &Self) -> ProcessResult<()> {
+        let _ = dut;
+        log_todo!();
+        Ok(())
     }
 }

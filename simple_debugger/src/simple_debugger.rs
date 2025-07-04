@@ -112,6 +112,7 @@ impl SimpleDebugger {
                     DifftestPipeline::EMU => {
                         state_ref = States::new(isa, reset_vector).unwrap();
                         state_ref.init_pipe(Some(StageModel::with_branchpredict(conditional.clone())));
+                        state_ref.cache.init_btb(16, 1, 1);
                     }
                 }
             }
