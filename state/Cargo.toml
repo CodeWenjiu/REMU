@@ -14,3 +14,4 @@ snafu = {workspace = true}
 owo-colors = {workspace = true}
 bitflags = {workspace = true}
 petgraph = {workspace = true}
+comfy-table = {workspace = true}

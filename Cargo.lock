@@ -1389,6 +1389,7 @@ name = "state"
 version = "0.1.0"
 dependencies = [
  "bitflags",
+ "comfy-table",
  "enum_dispatch",
  "logger",
  "owo-colors",

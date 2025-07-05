@@ -1,7 +1,8 @@
+use comfy_table::Table;
 use remu_macro::log_error;
 use remu_utils::ProcessError;
 
-use crate::cache::CacheTrait;
+use crate::cache::{CacheTrait, Replacement};
 
 #[derive(Clone, Debug)]
 pub struct BtbMeta {
@@ -38,6 +39,8 @@ pub struct BTB {
 
     meta: Vec<Vec<BtbMeta>>,
     data: Vec<BtbData>,
+
+    replacement: Replacement,
 }
 
 impl BTB {
@@ -57,7 +60,7 @@ impl BTB {
 impl CacheTrait for BTB {
     type CacheData = BtbData;
 
-    fn new(set: u32, way: u32, block_num: u32) -> Self {
+    fn new(set: u32, way: u32, block_num: u32, replacement: &str) -> Self {
         let _ = block_num;
 
         assert!(set.is_power_of_two(), "set must be a power of 2");
@@ -75,6 +78,8 @@ impl CacheTrait for BTB {
 
             meta: vec![vec![BtbMeta::new(); way as usize]; set as usize],
             data: vec![BtbData::new(); (set * way) as usize], // BTB should not have block_num
+
+            replacement: Replacement::new(set, way, replacement),
         }
     }
 
@@ -100,7 +105,7 @@ impl CacheTrait for BTB {
         &data_block
     }
 
-    fn read(&self, addr: u32) -> Option<&BtbData> {
+    fn read(&mut self, addr: u32) -> Option<&BtbData> {
         let set = self.get_set(addr);
         let meta_line = &self.meta[set as usize];
 
@@ -108,6 +113,7 @@ impl CacheTrait for BTB {
             .iter()
             .position(|meta_block| meta_block.tag == self.gat_tag(addr))
             .map(|way| {
+                self.replacement.access(set, way as u32);
                 self.base_read(set, way as u32, 0)
             })
     }
@@ -116,21 +122,31 @@ impl CacheTrait for BTB {
         let set = self.get_set(addr);
         let tag = self.gat_tag(addr);
 
-        // need to implement an way replacement algorithm
+        let way = self.replacement.way(set);
+        self.replacement.access(set, way);
 
-        let way = 0;
         let block_num = 0;
         self.base_write(set, way, block_num, tag, data);
     }
 
     fn print(&self) {
+        let mut table = Table::new();
+
         for (set_idx, meta_line) in self.meta.iter().enumerate() {
-            print!("Set {}:\t", set_idx);
+            let mut row = vec![format!("Set {}", set_idx)];
+
             for (way_idx, meta_block) in meta_line.iter().enumerate() {
                 let data_block = &self.data[(set_idx * self.meta[0].len()) + way_idx];
-                println!("Way {}:\t Tag: {:#08x}, \tData: {:#08x}", way_idx, meta_block.tag, data_block.target);
+                row.push(format!(
+                    "Way {}: Tag: {:#08x}, Target: {:#08x}",
+                    way_idx, meta_block.tag, data_block.target
+                ));
             }
+
+            table.add_row(row);
         }
+
+        println!("{table}");
     }
 
     fn test(&self, dut: &Self) -> remu_utils::ProcessResult<()> {
