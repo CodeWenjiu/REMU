@@ -138,7 +138,7 @@ impl SimpleDebugger {
     fn cmd_differtest_test_cache(&mut self) -> ProcessResult<()> {
         match self.state.cache.btb.as_ref() {
             Some(btb) => {
-                btb.as_ref().borrow().test(&self.state_ref.cache.btb.as_ref().unwrap().borrow())?;
+                btb.test(&self.state_ref.cache.btb.as_ref().unwrap())?;
             }
 
             None => {
@@ -231,7 +231,7 @@ impl SimpleDebugger {
         let target_state = self.get_state(target);
 
         target_state.cache.btb.as_ref().map(|btb| {
-            btb.as_ref().borrow().print();
+            btb.print();
         });
 
         Ok(())
@@ -275,8 +275,8 @@ impl SimpleDebugger {
         
         let target_state = self.get_state(target);
 
-        target_state.cache.btb.as_ref().map(|btb| {
-            btb.borrow_mut().base_write(set, way, 0, tag, BtbData{target: *data});
+        target_state.cache.btb.as_mut().map(|btb| {
+            btb.base_write(set, way, 0, tag, BtbData{target: *data});
         });
 
         Ok(())

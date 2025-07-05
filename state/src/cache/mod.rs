@@ -1,13 +1,12 @@
-use std::{cell::RefCell, rc::Rc};
-
 use remu_macro::log_todo;
 use remu_utils::ProcessResult;
 
-remu_macro::mod_flat!(btb, replacement);
+remu_macro::mod_flat!(icache, btb, replacement);
 
 #[derive(Clone, Debug)]
 pub struct Cache {
-    pub btb: Option<Rc<RefCell<BTB>>>,
+    pub btb: Option<BTB>,
+    // pub icaceh: Option<Rc<RefCell<ICache>>>
 }
 
 impl Cache {
@@ -16,7 +15,52 @@ impl Cache {
     }
 
     pub fn init_btb(&mut self, set: u32, way: u32, block_num: u32, replacement: &str) {
-        self.btb = Some(Rc::new(RefCell::new(BTB::new(set, way, block_num, replacement))));
+        self.btb = Some(BTB::new(set, way, block_num, replacement));
+    }
+}
+
+#[derive(Clone, Debug)]
+pub struct CacheTable {
+    tag_bits: u32,
+    set_bits: u32,
+    way_bits: u32,
+    block_bits: u32,
+    idx_bits: u32,
+}
+
+impl CacheTable {
+    pub fn new(set: u32, way: u32, block_num: u32) -> Self {
+        assert!(set.is_power_of_two() && way.is_power_of_two() && block_num.is_power_of_two(),
+            "Set, way, and block_num must be powers of two");
+
+        let set_bits = set.trailing_zeros();
+        let way_bits = way.trailing_zeros();
+        let block_bits = block_num.trailing_zeros();
+        let idx_bits = 2; // Assuming a fixed index size for simplicity
+
+        Self {
+            tag_bits: 32 - (set_bits + block_bits + idx_bits),
+            set_bits,
+            way_bits,
+            block_bits,
+            idx_bits,
+        }
+    }
+
+    pub fn gat_tag(&self, addr: u32) -> u32 {
+        addr >> (32 - self.tag_bits)
+    }
+
+    pub fn get_set(&self, addr: u32) -> u32 {
+        (addr >> (self.idx_bits + self.block_bits)) & ((1 << self.set_bits) - 1)
+    }
+
+    pub fn get_block_num(&self, addr: u32) -> u32 {
+        (addr >> self.idx_bits) & ((1 << self.block_bits) - 1)
+    }
+
+    pub fn get_data_line_index(&self, set: u32, way: u32) -> usize {
+        ((set << self.way_bits) + way) as usize
     }
 }
 
@@ -54,9 +98,9 @@ pub trait CacheTrait {
     fn new(set: u32, way: u32, block_num: u32, replacement: &str) -> Self;
 
     fn base_write(&mut self, set: u32, way: u32, block_num: u32, tag: u32, data: Self::CacheData);
-    fn base_read(&self, set: u32, way: u32, block_num: u32) -> &Self::CacheData;
+    fn base_read(&self, set: u32, way: u32, block_num: u32) -> Self::CacheData;
 
-    fn read(&mut self, addr: u32) -> Option<&Self::CacheData>;
+    fn read(&mut self, addr: u32) -> Option<Self::CacheData>;
     fn replace(&mut self, addr: u32, data: Self::CacheData);
 
     fn print(&self) {

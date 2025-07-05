@@ -1,5 +1,4 @@
-use remu_macro::log_error;
-use remu_utils::{ProcessError, ProcessResult};
+use remu_utils::ProcessResult;
 
 use crate::emu::isa::riscv::BasicStageMsg;
 use crate::emu::EmuHardware;
@@ -160,8 +159,7 @@ impl EmuHardware {
                 }
 
                 AlCtrl::DontCare => {
-                    log_error!(format!("AlCtrl::None should not be used at pc: {:#08x}", msg.pc));
-                    return Err(ProcessError::Recoverable);
+                    // ALU will not change state, so we can ignore it
                 },
             };
         }

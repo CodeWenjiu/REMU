@@ -1,10 +1,12 @@
+use std::{cell::RefCell, rc::Rc};
+
 pub trait ReplacementTrait {
     fn new(set: u32, way: u32) -> Self;
     fn way(&self, set: u32) -> u32;
     fn access(&mut self, set: u32, way: u32);
 }
 
-#[derive(Clone, Debug)]
+#[derive( Debug)]
 struct LruSetQueue {
     queue: Vec<u32>,
 }
@@ -30,20 +32,20 @@ impl LruSetQueue {
 
 #[derive(Clone, Debug)]
 pub struct LRU {
-    sets: Vec<LruSetQueue>,
+    sets: Rc<RefCell<Vec<LruSetQueue>>>,
 }
 
 impl ReplacementTrait for LRU {
     fn new(set: u32, way: u32) -> Self {
-        let sets = (0..set).map(|_| LruSetQueue::new(way)).collect();
+        let sets = Rc::new(RefCell::new((0..set).map(|_| LruSetQueue::new(way)).collect()));
         Self { sets }
     }
 
     fn way(&self, set: u32) -> u32 {
-        self.sets[set as usize].way_to_replace()
+        self.sets.borrow()[set as usize].way_to_replace()
     }
 
     fn access(&mut self, set: u32, way: u32) {
-        self.sets[set as usize].access(way);
+        self.sets.borrow_mut()[set as usize].access(way);
     }
 }
