@@ -4,7 +4,7 @@ use remu_utils::{ProcessError, ProcessResult};
 use simulator::{difftest_ref::{AnyDifftestRef, DifftestRefPipelineApi}, SimulatorItem};
 use state::{cache::{BtbData, CacheTrait}, mmu::Mask, reg::RegfileIo, States};
 
-use crate::{cmd_parser::{BreakPointCmds, Cmds, DiffertestCmds, FunctionCmds, InfoCmds, MemorySetCmds, RegisterInfoCmds, RegisterSetCmds, SetCmds, StepCmds, TestCmds}, SimpleDebugger};
+use crate::{cmd_parser::{BreakPointCmds, CacheCmds, Cmds, DiffertestCmds, FunctionCmds, InfoCmds, MemorySetCmds, RegisterInfoCmds, RegisterSetCmds, SetCmds, StepCmds, TestCmds}, SimpleDebugger};
 
 #[derive(Clone, Copy)]
 enum StateTarget {
@@ -34,8 +34,8 @@ impl SimpleDebugger {
                 self.cmd_info_pipeline(StateTarget::DUT)?;
             }
 
-            InfoCmds::Cache {  } => {
-                self.cmd_info_cache(StateTarget::DUT)?;
+            InfoCmds::Cache { subcmd } => {
+                self.cmd_info_cache(subcmd, StateTarget::DUT)?;
             }
 
             InfoCmds::Extention { key } => {
@@ -86,8 +86,8 @@ impl SimpleDebugger {
                 self.cmd_info_pipeline(StateTarget::REF)?;
             }
 
-            InfoCmds::Cache {  } => {
-                self.cmd_info_cache(StateTarget::REF)?;
+            InfoCmds::Cache { subcmd } => {
+                self.cmd_info_cache(subcmd, StateTarget::REF)?;
             }
 
             InfoCmds::Extention { key } => {
@@ -227,12 +227,26 @@ impl SimpleDebugger {
         Ok(())
     }
 
-    fn cmd_info_cache(&mut self, target: StateTarget) -> ProcessResult<()> {
-        let target_state = self.get_state(target);
+    fn cmd_info_cache(&mut self, subcmd: CacheCmds, target: StateTarget) -> ProcessResult<()> {
+        let target_cache_state = &self.get_state(target).cache;
 
-        target_state.cache.btb.as_ref().map(|btb| {
-            btb.print();
-        });
+        match subcmd {
+            CacheCmds::BTB => {
+                if let Some(btb) = &target_cache_state.btb {
+                    btb.print();
+                } else {
+                    log_warn!("BTB is not initialized, please check if the simulator supports it.");
+                }
+            }
+
+            CacheCmds::ICache => {
+                if let Some(icache) = &target_cache_state.icache {
+                    icache.print();
+                } else {
+                    log_warn!("ICache is not initialized, please check if the simulator supports it.");
+                }
+            }
+        }
 
         Ok(())
     }

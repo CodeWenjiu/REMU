@@ -1,4 +1,3 @@
-// 配置项名称规则
 config_statement = { 
     "CONFIG_" ~ all_config_statement
 }
@@ -45,7 +44,8 @@ config_statement = {
 
         target_config = _{
             target_base |
-            target_region
+            target_region |
+            target_cache
         }
 
         target_base = {
@@ -73,18 +73,25 @@ config_statement = {
                 region_base = { config_value_hex }
                 region_size = { config_value_hex }
                 region_flag = { config_value_bin }
+        
+        target_cache = {
+            ("Cache_" ~ target_cache_name ~ "=" ~ target_cache_config)
+        }
+
+            target_cache_name = { ASCII_ALPHA+ }
+
+            target_cache_config = _{
+                "\"" ~ target_cache_set ~ " " ~ target_cache_way ~ " " ~ target_cache_blocknum ~ " " ~ target_cache_replacement ~ "\""
+            }
+                target_cache_set = { config_value_dec }
+                target_cache_way = { config_value_dec }
+                target_cache_blocknum = { config_value_dec }
+                target_cache_replacement = { "lru" | "plru" }
 
     config_value_bool = _{ "y" }
     config_value_hex  = _{ASCII_HEX_DIGIT+}
     config_value_bin  = _{ASCII_BIN_DIGIT+}
     config_value_dec  = _{ASCII_DIGIT+}
-
-    // all_config_value = _{
-    //     config_value_bool |
-    //     "0x" ~ config_value_hex | 
-    //     "0b" ~ config_value_bin |
-    //     config_value_dec
-    // }
 
     config_ignore = {
         (ASCII_ALPHA+ ~ ("_" ~ ASCII_ALPHA+)*) ~ "=" ~ config_value_bool

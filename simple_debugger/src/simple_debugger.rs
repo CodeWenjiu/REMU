@@ -102,7 +102,13 @@ impl SimpleDebugger {
         let mut state = States::new(isa, reset_vector).unwrap();
         let mut state_ref = state.clone();
 
-        let btb_base = (16, 1, 1, "lru"); // need to configurabled later
+        let cache_config = &cli_result
+            .cfg
+            .platform_config
+            .cache;
+
+        let btb_config = cache_config.btb.clone();
+        let icache_config = cache_config.icache.clone();
 
         match cli_result.cli.differtest {
             Some(DifftestRef::SingleCycle(_)) => {
@@ -114,7 +120,14 @@ impl SimpleDebugger {
                     DifftestPipeline::EMU => {
                         state_ref = States::new(isa, reset_vector).unwrap();
                         state_ref.init_pipe(Some(StageModel::with_branchpredict(conditional.clone())));
-                        state_ref.cache.init_btb(btb_base.0, btb_base.1, btb_base.2, btb_base.3);
+
+                        if let Some(config) = btb_config.clone() {
+                            state_ref.cache.init_btb(config);
+                        }
+
+                        if let Some(config) = icache_config.clone() {
+                            state_ref.cache.init_icache(config);
+                        }
                     }
                 }
             }
@@ -126,7 +139,14 @@ impl SimpleDebugger {
             Simulators::NZEA(_) | Simulators::EMU(EmuSimulators::PL) => {
                 // Some(StageModel::with_branchpredict(conditional.clone()))
                 state.init_pipe(Some(StageModel::with_branchpredict(conditional.clone())));
-                state.cache.init_btb(btb_base.0, btb_base.1, btb_base.2, btb_base.3);
+                
+                if let Some(config) = btb_config.clone() {
+                    state.cache.init_btb(config);
+                }
+
+                if let Some(config) = icache_config.clone() {
+                    state.cache.init_icache(config);
+                }
             }
 
             _ => ()

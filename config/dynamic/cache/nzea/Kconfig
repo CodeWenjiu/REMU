@@ -1,0 +1,26 @@
+menu "Nzea"
+    menu "Ysyxsoc Cache Config"
+
+        config Nzea_Ysyxsoc_Cache_BTB
+            string "Nzea BTB Cache Config"
+            default "16 1 1 lru"
+
+        config Nzea_Ysyxsoc_Cache_ICache
+            string "Nzea ICache Cache Config"
+            default "16 1 1 lru"
+
+    endmenu
+
+    menu "Npc Cache Config"
+
+        config Nzea_Npc_Cache_BTB
+            string "Nzea BTB Cache Config"
+            default "16 1 1 lru"
+
+        config Nzea_Npc_Cache_ICache
+            string "Nzea ICache Cache Config"
+            default "16 1 1 lru"
+        
+    endmenu
+
+endmenu

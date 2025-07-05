@@ -6,17 +6,32 @@ remu_macro::mod_flat!(icache, btb, replacement);
 #[derive(Clone, Debug)]
 pub struct Cache {
     pub btb: Option<BTB>,
-    // pub icaceh: Option<Rc<RefCell<ICache>>>
+    pub icache: Option<ICache>,
 }
 
 impl Cache {
     pub fn new() -> Self {
-        Cache { btb: None }
+        Cache { 
+            btb: None, 
+            icache: None,
+        }
     }
 
-    pub fn init_btb(&mut self, set: u32, way: u32, block_num: u32, replacement: &str) {
-        self.btb = Some(BTB::new(set, way, block_num, replacement));
+    pub fn init_btb(&mut self, config: CacheConfiguration) {
+        self.btb = Some(BTB::new(config));
     }
+
+    pub fn init_icache(&mut self, config: CacheConfiguration) {
+        self.icache = Some(ICache::new(config));
+    }
+}
+
+#[derive(Debug, Clone)]
+pub struct CacheConfiguration {
+    pub set: u32,
+    pub way: u32,
+    pub block_num: u32,
+    pub replacement: String,
 }
 
 #[derive(Clone, Debug)]
@@ -95,7 +110,7 @@ impl Replacement {
 pub trait CacheTrait {
     type CacheData;
 
-    fn new(set: u32, way: u32, block_num: u32, replacement: &str) -> Self;
+    fn new(config: CacheConfiguration) -> Self;
 
     fn base_write(&mut self, set: u32, way: u32, block_num: u32, tag: u32, data: Self::CacheData);
     fn base_read(&self, set: u32, way: u32, block_num: u32) -> Self::CacheData;

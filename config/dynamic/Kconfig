@@ -2,6 +2,8 @@ mainmenu "REMU Dynamic Configuratuion Menu"
 
 source "dynamic/region/Kconfig"
 
+source "dynamic/cache/Kconfig"
+
 source "dynamic/debug/Kconfig"
 
 source "dynamic/base/Kconfig"

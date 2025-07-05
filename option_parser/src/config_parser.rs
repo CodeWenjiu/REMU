@@ -4,7 +4,7 @@ use logger::Logger;
 use pest::Parser;
 use remu_macro::log_err;
 use remu_utils::Platform;
-use state::mmu::{MMTargetType, MemoryFlags};
+use state::{cache::CacheConfiguration, mmu::{MMTargetType, MemoryFlags}};
 use std::path::PathBuf;
 
 #[derive(Debug)]
@@ -14,6 +14,13 @@ pub struct RegionConfiguration {
     pub size: u32,
     pub flag: MemoryFlags,
     pub mmtype: MMTargetType,
+}
+
+#[derive(Debug)]
+pub struct AllCacheConfiguration {
+    pub btb: Option<CacheConfiguration>,
+
+    pub icache: Option<CacheConfiguration>,
 }
 
 #[derive(Debug, Default)]
@@ -35,6 +42,7 @@ fn parse_bool(s: &str) -> Result<bool, ()> {
 pub struct PlatformConfiguration {
     pub reset_vector: u32,
     pub regions: Vec<RegionConfiguration>,
+    pub cache: AllCacheConfiguration,
 }
 
 impl Default for PlatformConfiguration {
@@ -48,6 +56,10 @@ impl Default for PlatformConfiguration {
                 flag: MemoryFlags::all(),
                 mmtype: MMTargetType::Memory,
             }],
+            cache: AllCacheConfiguration {
+                btb: None,
+                icache: None,
+            },
         }
     }
 }
@@ -139,6 +151,42 @@ fn parse_region_config(pairs: pest::iterators::Pairs<'_, Rule>) -> Result<Region
     Ok(result)
 }
 
+fn parse_cache_config(pairs: pest::iterators::Pairs<'_, Rule>) -> Result<(String, CacheConfiguration), ()> {
+    let mut name = String::new();
+    let mut set = 0;
+    let mut way = 0;
+    let mut block_num = 0;
+    let mut replacement = String::new();
+
+    for pair in pairs {
+        match pair.as_rule() {
+            Rule::target_cache_name => {
+                name = pair.as_str().to_string();
+            }
+
+            Rule::target_cache_set => {
+                set = log_err!(u32::from_str_radix(pair.as_str(), 10))?;
+            }
+
+            Rule::target_cache_way => {
+                way = log_err!(u32::from_str_radix(pair.as_str(), 10))?;
+            }
+
+            Rule::target_cache_blocknum => {
+                block_num = log_err!(u32::from_str_radix(pair.as_str(), 10))?;
+            }
+
+            Rule::target_cache_replacement => {
+                replacement = pair.as_str().to_string();
+            }
+
+            _ => unreachable!()
+        }
+    }
+
+    Ok((name, CacheConfiguration { set, way, block_num, replacement }))
+}
+
 fn parse_platform_config(pairs: pest::iterators::Pairs<'_, Rule>, result: &mut PlatformConfiguration, platform: &Platform) -> Result<(), ()> {
     for pair in pairs {
         match pair.as_rule() {
@@ -160,6 +208,21 @@ fn parse_platform_config(pairs: pest::iterators::Pairs<'_, Rule>, result: &mut P
 
             Rule::target_region => result.regions.push(parse_region_config(pair.into_inner())?),
             
+            Rule::target_cache => {
+                let parse = parse_cache_config(pair.into_inner())?;
+                match parse.0.as_str() {
+                    "BTB" => {
+                        result.cache.btb = Some(parse.1);
+                    }
+
+                    "ICache" => {
+                        result.cache.icache = Some(parse.1);
+                    }
+
+                    _ => unreachable!(),
+                }
+            }
+
             _ => unreachable!()
         }
     }
@@ -196,6 +259,7 @@ pub fn parse_config(config_path: PathBuf, platform: &Platform) -> Result<Cfg, ()
         platform_config: PlatformConfiguration{
             reset_vector: 0x8000_0000,
             regions: vec![],
+            cache: AllCacheConfiguration { btb: None, icache: None },
         },
     };
     

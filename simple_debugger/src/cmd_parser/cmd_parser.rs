@@ -113,7 +113,10 @@ pub enum InfoCmds {
     },
 
     /// Get the state of the cache
-    Cache {},
+    Cache {
+        #[command(subcommand)]
+        subcmd: CacheCmds,
+    },
 
     /// Get extention info
     Extention {
@@ -243,6 +246,12 @@ pub enum MemorySetCmds {
         #[arg(default_value("1"))]
         length: u64,
     },
+}
+
+#[derive(Debug, Subcommand)]
+pub enum CacheCmds {
+    BTB,
+    ICache,
 }
 
 #[derive(Debug, Subcommand)]

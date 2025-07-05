@@ -1,0 +1,10 @@
+menu "Emu"
+    config Emu_Pl_Cache_BTB
+        string "Emu BTB Cache Config"
+        default "16 1 1 lru"
+
+    config Emu_Pl_Cache_ICache
+        string "Emu ICache Cache Config"
+        default "16 1 1 lru"
+
+endmenu
