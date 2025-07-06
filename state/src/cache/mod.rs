@@ -116,7 +116,7 @@ pub trait CacheTrait {
     fn base_read(&self, set: u32, way: u32, block_num: u32) -> Self::CacheData;
 
     fn read(&mut self, addr: u32) -> Option<Self::CacheData>;
-    fn replace(&mut self, addr: u32, data: Self::CacheData);
+    fn replace(&mut self, addr: u32, data: Vec<Self::CacheData>);
 
     fn print(&self) {
         log_todo!();
@@ -126,5 +126,10 @@ pub trait CacheTrait {
         let _ = dut;
         log_todo!();
         Ok(())
+    }
+
+    fn access(&mut self, addr: u32) {
+        let _ = addr;
+        log_todo!();
     }
 }

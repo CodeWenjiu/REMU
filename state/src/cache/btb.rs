@@ -103,7 +103,7 @@ impl CacheTrait for BTB {
         })
     }
 
-    fn replace(&mut self, addr: u32, data: BtbData) {
+    fn replace(&mut self, addr: u32, data: Vec<BtbData>) {
         let set = self.table.get_set(addr);
         let tag = self.table.gat_tag(addr);
 
@@ -111,7 +111,7 @@ impl CacheTrait for BTB {
         self.replacement.access(set, way);
 
         let block_num = 0;
-        self.base_write(set, way, block_num, tag, data);
+        self.base_write(set, way, block_num, tag, data[0].clone());
     }
 
     fn print(&self) {

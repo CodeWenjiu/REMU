@@ -29,7 +29,7 @@ impl EmuHardware {
     }
 
     pub fn self_pipeline_branch_predict_flush(&mut self, pc: u32, target: u32) {
-        self.states.cache.btb.as_mut().unwrap().replace(pc, BtbData {target});
+        self.states.cache.btb.as_mut().unwrap().replace(pc, vec![BtbData {target}]);
 
         self.pipeline.pipeline_pc = target;
     }

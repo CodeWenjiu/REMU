@@ -76,6 +76,12 @@ pub struct EmuTimes {
 
     /// Numver of cycles that flushed
     pub flushed_cycles: u64,
+
+    /// Number of instruction fetch
+    pub instruction_fetch: u64,
+
+    /// Number of instruction cache hit
+    pub instruction_cache_hit: u64,
     
     /// Number of instructions executed
     pub instructions: u64,
@@ -88,6 +94,7 @@ impl EmuTimes {
         table
             .add_row(vec![
                 Cell::new("IPC").fg(Color::Blue),
+                Cell::new("Instruction Cache Hit Rate").fg(Color::Blue),
                 Cell::new("Branch Prediction Accuracy").fg(Color::Blue),
                 Cell::new("Cycles").fg(Color::Blue),
                 Cell::new("Flushed Cycles").fg(Color::Blue),
@@ -95,6 +102,7 @@ impl EmuTimes {
             ])
             .add_row(vec![
                 Cell::new((self.instructions as f64 / self.cycles as f64).to_string()).fg(Color::Green),
+                Cell::new((self.instruction_cache_hit as f64 / self.instruction_fetch as f64).to_string()).fg(Color::Green),
                 Cell::new(((self.branched_cycles - self.flushed_cycles) as f64 / self.branched_cycles as f64).to_string()).fg(Color::Green), // Placeholder for branch prediction accuracy
                 Cell::new(self.cycles.to_string()).fg(Color::Green),
                 Cell::new(self.flushed_cycles.to_string()).fg(Color::Green),
@@ -138,6 +146,8 @@ impl EmuHardware {
                 cycles: 0,
                 branched_cycles: 0,
                 flushed_cycles: 0,
+                instruction_fetch: 0,
+                instruction_cache_hit: 0,
                 instructions: 0,
             },
             pipeline: Pipeline::new(option.cfg.platform_config.reset_vector),

@@ -1,3 +1,5 @@
+use comfy_table::Table;
+
 use crate::cache::{CacheConfiguration, CacheTable, CacheTrait, Replacement};
 use std::{cell::RefCell, rc::Rc};
 
@@ -27,6 +29,8 @@ impl ICacheData {
 pub struct ICache {
     table: CacheTable,
 
+    pub burst_byte: u32,
+
     meta: Rc<RefCell<Vec<Vec<ICacheMeta>>>>,
     data: Rc<RefCell<Vec<Vec<ICacheData>>>>,
 
@@ -51,6 +55,9 @@ impl CacheTrait for ICache {
 
         Self {
             table,
+
+            burst_byte: config.block_num,
+
             meta,
             data,
             replacement: Replacement::new(set, way, replacement),
@@ -74,6 +81,7 @@ impl CacheTrait for ICache {
     fn read(&mut self, addr: u32) -> Option<ICacheData> {
         let set = self.table.get_set(addr);
         let tag = self.table.gat_tag(addr);
+        let block_num = self.table.get_block_num(addr);
 
         let way = {
             self.meta.borrow()[set as usize]
@@ -83,18 +91,52 @@ impl CacheTrait for ICache {
 
         way.map(|way| {
             self.replacement.access(set, way as u32);
-            self.base_read(set, way as u32, 0)
+            self.base_read(set, way as u32, block_num)
         })
     }
 
-    fn replace(&mut self, addr: u32, data: ICacheData) {
+    fn access(&mut self, addr: u32) {
+        let set = self.table.get_set(addr);
+        let way = self.replacement.way(set);
+        self.replacement.access(set, way);
+    }
+
+    fn replace(&mut self, addr: u32, data: Vec<ICacheData>) {
         let set = self.table.get_set(addr);
         let tag = self.table.gat_tag(addr);
 
         let way = self.replacement.way(set);
         self.replacement.access(set, way);
 
-        let block_num = self.table.get_block_num(addr);
-        self.base_write(set, way, block_num, tag, data);
+        for block_num in 0..self.burst_byte {
+            self.base_write(set, way, block_num, tag, data[block_num as usize].clone());
+        }
+    }
+
+    fn print(&self) {
+        let table = Table::new();
+        let mut table = table;
+        table.set_header(vec!["Set", "Way", "Block", "Tag", "Inst"]);
+
+        let meta = self.meta.borrow();
+        let data = self.data.borrow();
+
+        for (set_idx, set) in meta.iter().enumerate() {
+            for (way_idx, meta_block) in set.iter().enumerate() {
+                let data_index = self.table.get_data_line_index(set_idx as u32, way_idx as u32);
+                let data_block = &data[data_index];
+                for (block_index, data) in data_block.iter().enumerate() {
+                    table.add_row(vec![
+                        set_idx.to_string(),
+                        way_idx.to_string(),
+                        block_index.to_string(),
+                        meta_block.tag.to_string(),
+                        data.inst.to_string(),
+                    ]);
+                }
+            }
+        }
+
+        println!("{table}");
     }
 }
