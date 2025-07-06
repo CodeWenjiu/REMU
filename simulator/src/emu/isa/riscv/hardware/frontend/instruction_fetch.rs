@@ -36,7 +36,7 @@ impl EmuHardware {
                 let base_addr = msg.pc & !((1 << icache.base_bits) - 1);
                 let mut replace_data = vec![];
                 
-                for i in 0..icache.base_bits {
+                for i in 0..icache.block_num {
                     let access_addr = base_addr + i * 4;
                     let data = log_err!(
                         self.states.mmu.read(access_addr, state::mmu::Mask::Word),

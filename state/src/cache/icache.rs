@@ -30,6 +30,7 @@ pub struct ICache {
     table: CacheTable,
 
     pub base_bits: u32,
+    pub block_num: u32,
 
     meta: Rc<RefCell<Vec<Vec<ICacheMeta>>>>,
     data: Rc<RefCell<Vec<Vec<ICacheData>>>>,
@@ -59,6 +60,7 @@ impl CacheTrait for ICache {
             table,
 
             base_bits,
+            block_num,
 
             meta,
             data,
@@ -110,8 +112,8 @@ impl CacheTrait for ICache {
         let way = self.replacement.way(set);
         self.replacement.access(set, way);
 
-        for block_num in 0..self.base_bits {
-            self.base_write(set, way, block_num, tag, data[block_num as usize].clone());
+        for (block_num, data) in data.iter().enumerate() {
+            self.base_write(set, way, block_num as u32, tag, data.clone());
         }
     }
 
