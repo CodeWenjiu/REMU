@@ -33,10 +33,10 @@ impl EmuHardware {
                 // burst transfer
                 let mut inst = 0;
 
-                let base_addr = msg.pc & !(icache.burst_byte - 1);
+                let base_addr = msg.pc & !((1 << icache.base_bits) - 1);
                 let mut replace_data = vec![];
                 
-                for i in 0..icache.burst_byte {
+                for i in 0..icache.base_bits {
                     let access_addr = base_addr + i * 4;
                     let data = log_err!(
                         self.states.mmu.read(access_addr, state::mmu::Mask::Word),

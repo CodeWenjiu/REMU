@@ -29,7 +29,7 @@ impl ICacheData {
 pub struct ICache {
     table: CacheTable,
 
-    pub burst_byte: u32,
+    pub base_bits: u32,
 
     meta: Rc<RefCell<Vec<Vec<ICacheMeta>>>>,
     data: Rc<RefCell<Vec<Vec<ICacheData>>>>,
@@ -50,13 +50,15 @@ impl CacheTrait for ICache {
 
         let table = CacheTable::new(set, way, block_num);
 
+        let base_bits = config.block_num.trailing_zeros() + 2;
+
         let meta = Rc::new(RefCell::new(vec![vec![ICacheMeta::new(); way as usize]; set as usize]));
         let data = Rc::new(RefCell::new(vec![vec![ICacheData::new(); block_num as usize]; (set * way) as usize]));
 
         Self {
             table,
 
-            burst_byte: config.block_num,
+            base_bits,
 
             meta,
             data,
@@ -108,7 +110,7 @@ impl CacheTrait for ICache {
         let way = self.replacement.way(set);
         self.replacement.access(set, way);
 
-        for block_num in 0..self.burst_byte {
+        for block_num in 0..self.base_bits {
             self.base_write(set, way, block_num, tag, data[block_num as usize].clone());
         }
     }
@@ -131,7 +133,7 @@ impl CacheTrait for ICache {
                         way_idx.to_string(),
                         block_index.to_string(),
                         meta_block.tag.to_string(),
-                        data.inst.to_string(),
+                        format!("{:#010x}", data.inst),
                     ]);
                 }
             }

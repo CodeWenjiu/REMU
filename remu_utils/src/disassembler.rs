@@ -1,97 +1,71 @@
-use std::ffi::CString;
+use remu_macro::log_err;
 
 cfg_if::cfg_if! {
 if #[cfg(feature = "ITRACE")] {
-    use llvm_sys::disassembler::*;
-    use llvm_sys::target::*;
-    
+    use capstone::prelude::*;
     use crate::ISA;
     
-    #[derive(Debug, Clone, Copy)]
+    #[derive(Debug)]
     pub struct Disassembler {
-        pub disasm: LLVMDisasmContextRef,
+        pub disasm: Capstone,
     }
     
     impl Disassembler {
-        fn isa2triple(isa: ISA) -> &'static str {
-            match isa {
-                ISA::RV32E => "riscv32-unknown-linux-gnu",
-                ISA::RV32I => "riscv32-unknown-linux-gnu",
-                ISA::RV32IM => "riscv32-unknown-linux-gnu",
-            }
-        }
-    
-        // https://llvm.org/docs/RISCVUsage.html#riscv-i2p1-note
-        fn isa2feature(isa: ISA) -> &'static str {
-            match isa {
-                ISA::RV32E => "+e",
-                ISA::RV32I => "+i",
-                ISA::RV32IM => "+i,+m",
-            }
-        }
     
         pub fn new(isa: ISA) -> Result<Self, ()> {
-            unsafe {
-                let triple: CString = CString::new(Self::isa2triple(isa)).unwrap();
-                let cpu: CString = CString::new("").unwrap();
-                let feature: CString = CString::new(Self::isa2feature(isa)).unwrap();
-    
-                LLVM_InitializeAllAsmPrinters();
-                LLVM_InitializeAllTargets();
-                LLVM_InitializeAllAsmParsers();
-                LLVM_InitializeAllTargetInfos();
-                LLVM_InitializeAllTargetMCs();
-                LLVM_InitializeAllDisassemblers();
-    
-                let disasm = LLVMCreateDisasmCPUFeatures(
-                    triple.as_ptr() as *const i8,
-                    cpu.as_ptr() as *const i8,
-                    feature.as_ptr() as *const i8,
-                    std::ptr::null_mut(),
-                    0,
-                    None as LLVMOpInfoCallback,
-                    None,
-                );
-    
-                if disasm.is_null() {
-                    Err(())
-                } else {
-                    Ok(Self { disasm })
-                }
-            }
+            let _ = isa;
+
+            let disasm = log_err!(
+                Capstone::new()
+                    .riscv()
+                    .mode(arch::riscv::ArchMode::RiscV32)
+                    .detail(true)
+                    .build(), 
+                
+                ()
+            )?;
+
+            Ok(Self { 
+                disasm
+            })
         }
     
         pub fn disasm(&self, code: &[u8], addr: u64) -> String {
-            unsafe {
-                let mut inst_str = [0u8; 50];
-    
-                LLVMDisasmInstruction(
-                    self.disasm,
-                    code.as_ptr() as *mut u8,
-                    4,
-                    addr,
-                    inst_str.as_mut_ptr() as *mut i8,
-                    50,
-                );
-    
-                String::from_utf8_lossy(&inst_str).to_string()
-            }
+            let inst = 
+                self.disasm.disasm_count(code, addr, 1).unwrap();
+
+            let inst = &inst[0];
+
+            let mnemonic = inst.mnemonic().unwrap_or("<unknown>");
+            let op_str = inst.op_str().unwrap_or("");
+
+            format!(
+                "{} {}",
+                mnemonic,
+                op_str
+            )
         }
     
         pub fn disasm_suit(&self, code: u32, addr: u64) -> Option<String> {
-            let result = self
-                .disasm(&code.to_le_bytes(), addr)
-                .replace("\0", "")
-                .trim()
-                .split_ascii_whitespace()
-                .map(|x| format!("{} ", x))
-                .collect::<String>();
-    
-            if result == "unimp " || result == "" {
-                None
-            } else {
-                Some(result)
-            }
+            let code = code.to_le_bytes();
+
+            let inst = 
+                self.disasm.disasm_count(&code, addr, 1).unwrap();
+
+            inst.get(0).map(|inst| {
+                let mnemonic = inst.mnemonic();
+                let op_str = inst.op_str();
+
+                if let Some(mnemonic) = mnemonic {
+                    if let Some(op_str) = op_str {
+                        format!("{} {}", mnemonic, op_str)
+                    } else {
+                        mnemonic.to_string()
+                    }
+                } else {
+                    "<unknown>".to_string()
+                }
+            })
         }
     
         pub fn try_analize(&self, code: u32, addr: u32) -> String {
