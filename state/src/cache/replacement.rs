@@ -21,12 +21,12 @@ impl LruSetQueue {
     fn access(&mut self, way: u32) {
         if let Some(pos) = self.queue.iter().position(|&x| x == way) {
             let accessed_way = self.queue.remove(pos);
-            self.queue.push(accessed_way);
+            self.queue.insert(0, accessed_way);
         }
     }
 
     fn way_to_replace(&self) -> u32 {
-        *self.queue.first().unwrap()
+        *self.queue.last().unwrap()
     }
 }
 

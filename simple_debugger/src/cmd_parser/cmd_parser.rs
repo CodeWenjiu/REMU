@@ -161,7 +161,10 @@ pub enum SetCmds {
 #[derive(Debug, Subcommand)]
 pub enum TestCmds {
     /// Test the state of the cache
-    Cache {}
+    Cache {
+        #[command(subcommand)]
+        subcmd: CacheCmds,
+    }
 }
 
 #[derive(Debug, Subcommand)]

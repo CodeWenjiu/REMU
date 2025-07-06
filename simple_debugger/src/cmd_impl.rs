@@ -1,5 +1,5 @@
 use owo_colors::OwoColorize;
-use remu_macro::{log_err, log_todo, log_warn};
+use remu_macro::{log_err, log_info, log_todo, log_warn};
 use remu_utils::{ProcessError, ProcessResult};
 use simulator::{difftest_ref::{AnyDifftestRef, DifftestRefPipelineApi}, SimulatorItem};
 use state::{cache::{BtbData, CacheTrait}, mmu::Mask, reg::RegfileIo, States};
@@ -135,24 +135,34 @@ impl SimpleDebugger {
         Ok(())
     }
 
-    fn cmd_differtest_test_cache(&mut self) -> ProcessResult<()> {
-        match self.state.cache.btb.as_ref() {
-            Some(btb) => {
-                btb.test(&self.state_ref.cache.btb.as_ref().unwrap())?;
+    fn cmd_differtest_test_cache(&mut self, subcmd: CacheCmds) -> ProcessResult<()> {
+        match subcmd {
+            CacheCmds::BTB => {
+                if let Some(btb) = &self.state.cache.btb {
+                    btb.test(&self.state_ref.cache.btb.as_ref().unwrap())?;
+                } else {
+                    log_warn!("BTB is not initialized, please check if the simulator supports it.");
+                }
             }
 
-            None => {
-                log_warn!("BTB is not initialized, please check if the simulator supports it.");
+            CacheCmds::ICache => {
+                if let Some(icache) = &self.state.cache.icache {
+                    icache.test(&self.state_ref.cache.icache.as_ref().unwrap())?;
+                } else {
+                    log_warn!("ICache is not initialized, please check if the simulator supports it.");
+                }
             }
-        };
+        }
+
+        log_info!("Cache Difftest Passed");
 
         Ok(())
     }
 
     fn cmd_differtest_test(&mut self, subcmd: TestCmds) -> ProcessResult<()> {
         match subcmd {
-            TestCmds::Cache {} => {
-                self.cmd_differtest_test_cache()?;
+            TestCmds::Cache { subcmd } => {
+                self.cmd_differtest_test_cache(subcmd)?;
             }
         }
 

@@ -1,16 +1,22 @@
 use comfy_table::Table;
+use remu_macro::log_error;
+use remu_utils::ProcessError;
 
 use crate::cache::{CacheConfiguration, CacheTable, CacheTrait, Replacement};
 use std::{cell::RefCell, rc::Rc};
 
 #[derive(Clone, Debug)]
 pub struct ICacheMeta {
+    valid: bool,
     tag: u32,
 }
 
 impl ICacheMeta {
     pub fn new() -> Self {
-        Self { tag: 0 }
+        Self {
+            valid: false, 
+            tag: 0,
+        }
     }
 }
 
@@ -71,6 +77,7 @@ impl CacheTrait for ICache {
     fn base_meta_write(&mut self, set: u32, way: u32, tag: u32) {
         let meta = &mut self.meta.borrow_mut()[set as usize][way as usize];
         meta.tag = tag;
+        meta.valid = true;
     }
 
     fn base_data_write(&mut self, set: u32, way: u32, block_num: u32, data: Self::CacheData) {
@@ -91,7 +98,7 @@ impl CacheTrait for ICache {
         let way = {
             self.meta.borrow()[set as usize]
                 .iter()
-                .position(|meta_block| meta_block.tag == tag)
+                .position(|meta_block| meta_block.valid && (meta_block.tag == tag))
         };
 
         way.map(|way| {
@@ -136,7 +143,7 @@ impl CacheTrait for ICache {
                         set_idx.to_string(),
                         way_idx.to_string(),
                         block_index.to_string(),
-                        meta_block.tag.to_string(),
+                        format!("{:#010x}", meta_block.tag),
                         format!("{:#010x}", data.inst),
                     ]);
                 }
@@ -144,5 +151,35 @@ impl CacheTrait for ICache {
         }
 
         println!("{table}");
+    }
+
+    fn test(&self, dut: &Self) -> remu_utils::ProcessResult<()> {
+        for (set_idx, set) in self.meta.borrow().iter().enumerate() {
+            for (way_idx, meta_block) in set.iter().enumerate() {
+                let data_index = self.table.get_data_line_index(set_idx as u32, way_idx as u32);
+                let data_block = &self.data.borrow()[data_index];
+
+                if meta_block.tag != dut.meta.borrow()[set_idx][way_idx].tag {
+                    log_error!(format!(
+                        "ICache test failed at Set {}, Way {}: Expected Tag {:#010x}, Found {:#010x}",
+                        set_idx, way_idx, meta_block.tag, dut.meta.borrow()[set_idx][way_idx].tag
+                    ));
+                    return Err(ProcessError::Recoverable);
+                }
+
+                for (block_index, data) in data_block.iter().enumerate() {
+                    let dut_data = dut.base_read(set_idx as u32, way_idx as u32, block_index as u32);
+                    if data.inst != dut_data.inst {
+                        log_error!(format!(
+                            "ICache test failed at Set {}, Way {}, Block {}: Expected {:#010x}, Found {:#010x}",
+                            set_idx, way_idx, block_index, dut_data.inst, data.inst
+                        ));
+                        return Err(ProcessError::Recoverable);
+                    }
+                }
+            }
+        }
+
+        Ok(())
     }
 }
