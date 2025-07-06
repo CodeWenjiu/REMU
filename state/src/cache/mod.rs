@@ -112,7 +112,8 @@ pub trait CacheTrait {
 
     fn new(config: CacheConfiguration) -> Self;
 
-    fn base_write(&mut self, set: u32, way: u32, block_num: u32, tag: u32, data: Self::CacheData);
+    fn base_meta_write(&mut self, set: u32, way: u32, tag: u32);
+    fn base_data_write(&mut self, set: u32, way: u32, block_num: u32, data: Self::CacheData);
     fn base_read(&self, set: u32, way: u32, block_num: u32) -> Self::CacheData;
 
     fn read(&mut self, addr: u32) -> Option<Self::CacheData>;

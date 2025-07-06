@@ -65,18 +65,20 @@ impl CacheTrait for BTB {
         }
     }
 
-    fn base_write(&mut self, set: u32, way: u32, block_num: u32, tag: u32, data: BtbData) {
-        let _ = block_num;
-
+    fn base_meta_write(&mut self, set: u32, way: u32, tag: u32) {
         let meta = &mut self.meta.borrow_mut()[set as usize][way as usize];
-
-        let data_index = self.table.get_data_line_index(set, way);
-        let data_block = &mut self.data.borrow_mut()[data_index as usize];
 
         // Update the metadata
         meta.tag = tag;
+    }
 
-        *data_block = data; 
+    fn base_data_write(&mut self, set: u32, way: u32, block_num: u32, data: Self::CacheData) {
+        let _ = block_num;
+        let data_index = self.table.get_data_line_index(set, way);
+        let data_block = &mut self.data.borrow_mut()[data_index as usize];
+
+        // Update the data block
+        *data_block = data;
     }
 
     fn base_read(&self, set: u32, way: u32, block_num: u32) -> BtbData {
@@ -109,9 +111,10 @@ impl CacheTrait for BTB {
 
         let way = self.replacement.way(set);
         self.replacement.access(set, way);
+        self.base_meta_write(set, way, tag);
 
         let block_num = 0;
-        self.base_write(set, way, block_num, tag, data[0].clone());
+        self.base_data_write(set, way, block_num, data[0].clone());
     }
 
     fn print(&self) {

@@ -285,12 +285,14 @@ impl SimpleDebugger {
     }
 
     fn cmd_cache_set(&mut self, set: u32, way: u32, tag: u32, data: String, target: StateTarget) -> ProcessResult<()> {
+        let _ = tag;
+
         let data = &self.eval_expr(&data)?;
         
         let target_state = self.get_state(target);
 
         target_state.cache.btb.as_mut().map(|btb| {
-            btb.base_write(set, way, 0, tag, BtbData{target: *data});
+            btb.base_data_write(set, way, 0, BtbData{target: *data});
         });
 
         Ok(())

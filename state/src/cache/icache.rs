@@ -68,13 +68,14 @@ impl CacheTrait for ICache {
         }
     }
 
-    fn base_write(&mut self, set: u32, way: u32, block_num: u32, tag: u32, data: ICacheData) {
+    fn base_meta_write(&mut self, set: u32, way: u32, tag: u32) {
         let meta = &mut self.meta.borrow_mut()[set as usize][way as usize];
-
-        let data_index = self.table.get_data_line_index(set, way);
-        self.data.borrow_mut()[data_index][block_num as usize] = data;
-
         meta.tag = tag;
+    }
+
+    fn base_data_write(&mut self, set: u32, way: u32, block_num: u32, data: Self::CacheData) {
+        let data_index = self.table.get_data_line_index(set, way) as u32;
+        self.data.borrow_mut()[data_index as usize][block_num as usize] = data;
     }
 
     fn base_read(&self, set: u32, way: u32, block_num: u32) -> ICacheData {
@@ -111,9 +112,10 @@ impl CacheTrait for ICache {
 
         let way = self.replacement.way(set);
         self.replacement.access(set, way);
+        self.base_meta_write(set, way, tag);
 
         for (block_num, data) in data.iter().enumerate() {
-            self.base_write(set, way, block_num as u32, tag, data.clone());
+            self.base_data_write(set, way, block_num as u32, data.clone());
         }
     }
 
