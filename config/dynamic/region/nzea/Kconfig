@@ -55,7 +55,7 @@ menu "Nzea Platform"
 
         config Nzea_JydRemote_MEM_DRAM
             string "Nzea JydRemote DRAM Base Region"
-            default "0x80100000 0x00040000 0b00000011"
+            default "0x80100000 0x00080000 0b00000011"
 
     endmenu
 endmenu

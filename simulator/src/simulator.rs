@@ -297,7 +297,7 @@ impl Simulator {
             log_err!(self.states_dut.mmu.load(bin.load_addr, &bytes)).unwrap();
 
             match cli_result.cli.differtest {
-                Some(DifftestRef::SingleCycle(_)) => {
+                Some(DifftestRef::SingleCycle(_)) | Some(DifftestRef::Pipeline(_)) => {
                     log_err!(self.states_ref.mmu.load(0x80100000, &bytes)).unwrap();
                 }
 

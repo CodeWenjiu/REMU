@@ -68,7 +68,7 @@ endif
 # ==============================================================================
 
 BinCommand ?= $(if $(Binfile),--primary-bin $(abspath $(Binfile)),)
-AdditionalBinCommand ?= $(if $(Alternate),--additional-bin $(abspath $(Alternate)),)
+AdditionalBinCommand ?= $(if $(Alternate),--additional-bin $(Alternate),)
 
 # Platform-specific binary configuration
 ifeq ($(Platform),$(Platform_Nzea_jyd_remote))
