@@ -11,7 +11,6 @@ use remu_utils::{ItraceConfigtionalWrapper, ProcessError, ProcessResult};
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub enum BaseStageCell {
     Input,
-    BpIf,
     IfId,
     IdIs,
     IsAl,
@@ -23,7 +22,6 @@ impl Display for BaseStageCell {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match *self {
             BaseStageCell::Input => write!(f, "Input"),
-            BaseStageCell::BpIf => write!(f, "BpIf"),
             BaseStageCell::IfId => write!(f, "IfId"),
             BaseStageCell::IdIs => write!(f, "IdIs"),
             BaseStageCell::IsAl => write!(f, "IsAl"),
@@ -89,22 +87,22 @@ impl StageModel {
         })
     }
 
-    pub fn instruction_fetch(&mut self, inst: u32) -> ProcessResult<()> {
-        let mut buffer = self.find_cell(BaseStageCell::BpIf)?
-            .channel
-            .buffer
-            .borrow_mut();
+    // pub fn instruction_fetch(&mut self, inst: u32) -> ProcessResult<()> {
+    //     let mut buffer = self.find_cell(BaseStageCell::BpIf)?
+    //         .channel
+    //         .buffer
+    //         .borrow_mut();
         
-        if buffer.is_empty() {
-            log_error!(format!("{:?}: buffer is empty", BaseStageCell::BpIf));
-            return Err(ProcessError::Recoverable);
-        }
+    //     if buffer.is_empty() {
+    //         log_error!(format!("{:?}: buffer is empty", BaseStageCell::BpIf));
+    //         return Err(ProcessError::Recoverable);
+    //     }
         
-        buffer[0].1 = inst;
-        drop(buffer);
+    //     buffer[0].1 = inst;
+    //     drop(buffer);
 
-        self.trans(BaseStageCell::BpIf, BaseStageCell::IfId)
-    }
+    //     self.trans(BaseStageCell::BpIf, BaseStageCell::IfId)
+    // }
 
     pub fn cell_input(&mut self, data: (u32, u32), to: BaseStageCell) -> ProcessResult<()> {
         self.find_cell(BaseStageCell::Input)?
@@ -239,7 +237,6 @@ impl StageModel {
         let mut cells = HashMap::new();
 
         let input = BaseStageCell::Input;
-        let bpif = BaseStageCell::BpIf;
         let ifid = BaseStageCell::IfId;
         let idis = BaseStageCell::IdIs;
         let isal = BaseStageCell::IsAl;
@@ -247,15 +244,13 @@ impl StageModel {
         let exwb = BaseStageCell::ExWb;
 
         let input_node = graph.add_node(input);
-        let bpif_node = graph.add_node(bpif);
         let ifid_node = graph.add_node(ifid);
         let idis_node = graph.add_node(idis);
         let isal_node = graph.add_node(isal);
         let isls_node = graph.add_node(isls);
         let exwb_node = graph.add_node(exwb);
 
-        graph.add_edge(input_node, bpif_node, ());
-        graph.add_edge(bpif_node, ifid_node, ());
+        graph.add_edge(input_node, ifid_node, ());
         graph.add_edge(idis_node, isal_node, ());
         graph.add_edge(ifid_node, idis_node, ());
         graph.add_edge(idis_node, isls_node, ());
@@ -269,15 +264,6 @@ impl StageModel {
                 node_index: input_node,
             },
         );
-
-        cells.insert(
-            bpif,
-            ModelCell {
-                channel: MessageChannel::new(1),
-                node_index: bpif_node,
-            },
-        );
-
         cells.insert(
             ifid,
             ModelCell {

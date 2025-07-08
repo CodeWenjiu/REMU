@@ -4,7 +4,7 @@ use remu_macro::log_error;
 use remu_utils::{ProcessError, ProcessResult};
 use state::model::BaseStageCell;
 
-use crate::emu::{isa::riscv::hardware::{backend::{WbControl, ToAlStage, ToLsStage, ToWbStage}, frontend::{IsOutStage, ToIdStage, ToIfStage, ToIsStage}}, EmuHardware};
+use crate::emu::{isa::riscv::hardware::{backend::{WbControl, ToAlStage, ToLsStage, ToWbStage}, frontend::{IsOutStage, ToIdStage, ToIsStage}}, EmuHardware};
 use owo_colors::OwoColorize;
 
 struct PipelineStage {
@@ -13,7 +13,6 @@ struct PipelineStage {
     is_al: (ToAlStage, bool),
     id_is: (ToIsStage, bool),
     if_id: (ToIdStage, bool),
-    bp_if: (ToIfStage, bool),
 }
 
 impl PipelineStage {
@@ -24,16 +23,13 @@ impl PipelineStage {
             is_al: (ToAlStage::default(), false),
             id_is: (ToIsStage::default(), false),
             if_id: (ToIdStage::default(), false),
-            bp_if: (ToIfStage::default(), false),
         }
     }
 }
 
 pub struct Pipeline {
     stages: PipelineStage,
-    bp_ena:bool, // Dut IFU not ready some time, blame burst transfer
     if_ena: bool,
-    ls_ena_pre: bool,
     ls_ena: bool,
     pub pipeline_pc: u32,
 }
@@ -44,7 +40,6 @@ impl Display for PipelineStage {
         
         // Handle each stage separately
         let stages_data = [
-            ("bp_if", format!("{:08x?}", self.bp_if.0), self.bp_if.1),
             ("if_id", format!("{:08x?}", self.if_id.0), self.if_id.1),
             ("id_is", format!("{:08x?}", self.id_is.0), self.id_is.1),
             ("is_ls", format!("{:08x?}", self.is_ls.0), self.is_ls.1),
@@ -76,9 +71,7 @@ impl Pipeline {
     pub fn new(reset_vector: u32) -> Self {
         Self {
             stages: PipelineStage::new(),
-            bp_ena: false, 
             if_ena: false,
-            ls_ena_pre: false,
             ls_ena: false,
             pipeline_pc: reset_vector,
         }
@@ -106,29 +99,17 @@ impl Pipeline {
         self.stages.is_al.1 = false;
         self.stages.id_is.1 = false;
         self.stages.if_id.1 = false;
-        self.stages.bp_if.1 = false;
 
-        self.bp_ena = false;
         self.if_ena = false;
         self.ls_ena = false;
-        self.ls_ena_pre = false;
     }
 }
 
 impl EmuHardware {
 
     pub fn self_step_cycle_pipeline(&mut self) -> ProcessResult<()> {
-        self.self_pipeline_bp_ena();
         self.self_pipeline_ifena();
-
-        if self.pipeline.ls_ena_pre {
-            self.self_pipeline_lsena();
-            self.pipeline.ls_ena_pre = false;
-        }
-
-        if self.pipeline.stages.is_ls.1 {
-            self.self_pipeline_lsena_pre(); 
-        }
+        self.self_pipeline_lsena();
 
         self.self_step_cycle_pipeline_without_enable(None)
     }
@@ -148,7 +129,6 @@ impl EmuHardware {
     }
 
     pub fn self_pipeline_update(&mut self, skip: Option<u32>) -> ProcessResult<Option<(u32, u32, u32)>> {
-        let mut to_if = None;
         let mut to_id = None;
         let mut to_is = None;
         let mut to_ls = None;
@@ -177,16 +157,18 @@ impl EmuHardware {
             let is_al = self.pipeline.stages.is_al.0.clone();
             to_wb = Some(ToWb::FromAl(self.arithmetic_logic_rv32(is_al)?));
         } else if self.pipeline.stages.is_ls.1 {
-            let is_ls = self.pipeline.stages.is_ls.0.clone();
-            ls_hazard = true;
-            if self.pipeline.ls_ena {
-                to_wb = Some(ToWb::FromLs(
-                    if let Some(skip_val) = skip {
-                        self.load_store_rv32i_with_skip(is_ls, skip_val)?
-                    } else {
-                        self.load_store_rv32i(is_ls)?
-                    }
-                ));
+            if wb_out.is_none() || (wb_out.as_ref().map_or(false, |out| out.wb_ctrl == WbControl::BPRight)) {
+                let is_ls = self.pipeline.stages.is_ls.0.clone();
+                ls_hazard = true;
+                if self.pipeline.ls_ena {
+                    to_wb = Some(ToWb::FromLs(
+                        if let Some(skip_val) = skip {
+                            self.load_store_rv32i_with_skip(is_ls, skip_val)?
+                        } else {
+                            self.load_store_rv32i(is_ls)?
+                        }
+                    ));
+                }
             }
         }
 
@@ -225,17 +207,12 @@ impl EmuHardware {
             gpr_raw_hazard = self.pipeline.is_gpr_raw(id_is.rs1_addr, id_is.rs2_addr);
         }
 
-        if self.pipeline.stages.bp_if.1 && self.pipeline.if_ena {
-            // let predict_msg = self.self_pipeline_branch_predict(); // need to be implemented
-            let predict_msg = self.pipeline.stages.bp_if.0.clone();
+        if self.pipeline.if_ena {
+            let predict_msg = self.self_pipeline_branch_predict(); // need to be implemented
             
             let _id = self.instruction_fetch_rv32i(predict_msg)?;
 
             to_id = Some(_id);
-        }
-
-        if self.pipeline.bp_ena {
-            to_if = Some(self.self_pipeline_branch_predict());
         }
 
         // mid process
@@ -357,13 +334,6 @@ impl EmuHardware {
         }
         
         if let Some(to_id) = to_id {
-            let (pc, _inst) = self.states.pipe_state.as_mut().unwrap().fetch(BaseStageCell::BpIf)?; // need to used to check
-            if pc != to_id.msg.pc {
-                log_error!(format!("IF 2 ID PC mismatch: fetched {:#08x}, expected {:#08x}", pc, to_id.msg.pc));
-                return Err(ProcessError::Recoverable);
-            }
-            
-            self.pipeline.stages.bp_if.1 = false;
             self.pipeline.if_ena = false;
 
             let inst = to_id.inst;
@@ -371,16 +341,7 @@ impl EmuHardware {
             self.pipeline.stages.if_id.0 = to_id;
             self.pipeline.stages.if_id.1 = true;
             
-            self.states.pipe_state.as_mut().unwrap().instruction_fetch(inst)?;
-        }
-
-        if let Some(to_if) = to_if {
-            let pc = to_if.pc;
-            self.pipeline.stages.bp_if.0 = to_if;
-            self.pipeline.stages.bp_if.1 = true;
-            self.pipeline.bp_ena = false;
-
-            self.states.pipe_state.as_mut().unwrap().cell_input((pc, 0), BaseStageCell::BpIf)?;
+            self.states.pipe_state.as_mut().unwrap().cell_input((to_id.msg.pc, inst), BaseStageCell::IfId)?;
 
             self.self_pipeline_branch_predict_update();
         }
@@ -388,18 +349,9 @@ impl EmuHardware {
         Ok(wb_msg)
     }
 
-    pub fn self_pipeline_bp_ena(&mut self) {
-        self.pipeline.bp_ena = true;
-        (self.callback.branch_predict)();
-    }
-
     pub fn self_pipeline_ifena(&mut self) {
         self.pipeline.if_ena = true;
         (self.callback.instruction_fetch)();
-    }
-
-    pub fn self_pipeline_lsena_pre(&mut self) {
-        self.pipeline.ls_ena_pre = true;
     }
 
     pub fn self_pipeline_lsena(&mut self) {

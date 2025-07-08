@@ -67,9 +67,6 @@ impl EmuSimulatorCore for Pipeline {
     fn step_cycle_with_skip(&mut self, skip: Option<u32>) -> ProcessResult<()> {
         self.emu.self_step_cycle_pipeline_without_enable(skip)
     }
-    fn branch_prediction_enable(&mut self) {
-        self.emu.self_pipeline_bp_ena();
-    }
     fn instruction_fetch_enable(&mut self) {
         self.emu.self_pipeline_ifena();
     }
