@@ -34,6 +34,7 @@ Platform_Nzea_npc_alias  = riscv32e-nzea-npc
 Platform_Nzea_ysyxsoc    		= rv32e-nzea-ysyxsoc
 Platform_Nzea_ysyxsoc_alias    	= riscv32e-nzea-ysyxsoc
 
+Platform_Nzea_jyd = rv32i-nzea-jyd
 Platform_Nzea_jyd_remote = rv32i-nzea-jyd_remote
 
 # Default Platform
@@ -48,6 +49,7 @@ PLATFORMS = \
 	$(Platform_rv32e_emu) \
 	$(Platform_Nzea_npc) $(Platform_Nzea_npc_alias) \
 	$(Platform_Nzea_ysyxsoc) $(Platform_Nzea_ysyxsoc_alias)\
+	$(Platform_Nzea_jyd)\
 	$(Platform_Nzea_jyd_remote)
 
 # ==============================================================================
@@ -71,7 +73,8 @@ BinCommand ?= $(if $(Binfile),--primary-bin $(abspath $(Binfile)),)
 AdditionalBinCommand ?= $(if $(Alternate),--additional-bin $(Alternate),)
 
 # Platform-specific binary configuration
-ifeq ($(Platform),$(Platform_Nzea_jyd_remote))
+ifeq ($(filter $(Platform_Nzea_jyd) $(Platform_Nzea_jyd_remote),$(Platform)),)
+else
 	Binfile ?= $(Binfile_jyd_remote)
 	Alternate ?= $(Alternate_jyd_remote)
 endif

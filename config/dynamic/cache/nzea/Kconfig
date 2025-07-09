@@ -23,6 +23,18 @@ menu "Nzea"
         
     endmenu
 
+    menu "jyd Cache Config"
+
+        config Nzea_Jyd_Cache_BTB
+            string "Nzea Jyd Cache Config"
+            default "16 1 1 lru"
+
+        config Nzea_Jyd_Cache_ICache
+            string "Nzea ICache Cache Config"
+            default "4 1 4 lru"
+        
+    endmenu
+
     menu "jyd remote Cache Config"
 
         config Nzea_JydRemote_Cache_BTB

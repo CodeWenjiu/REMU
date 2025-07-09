@@ -47,6 +47,18 @@ menu "Nzea Platform"
         
     endmenu
 
+    menu "jyd Regions"
+
+        config Nzea_Jyd_MEM_IROM
+            string "Nzea Jyd IROM Base Region"
+            default "0x80000000 0x00004000 0b00000111"
+
+        config Nzea_Jyd_MEM_DRAM
+            string "Nzea Jyd DRAM Base Region"
+            default "0x80100000 0x00080000 0b00000011"
+
+    endmenu
+
     menu "jyd remote Regions"
 
         config Nzea_JydRemote_MEM_IROM
