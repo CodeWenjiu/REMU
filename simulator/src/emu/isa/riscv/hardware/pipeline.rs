@@ -228,6 +228,7 @@ impl EmuHardware {
                 return Err(ProcessError::Recoverable);
             }
 
+            self.times.instructions += 1;
             self.pipeline.stages.ex_wb.1 = false;
 
             wb_msg = Some((pc, wb_out.next_pc, inst));
@@ -238,10 +239,6 @@ impl EmuHardware {
                 self.states.pipe_state.as_mut().unwrap().flush();
                 self.times.flushed_cycles += 1;
                 return Ok(wb_msg);
-            }
-            
-            if wb_out.wb_ctrl == WbControl::BPError {
-                // TODO: update BPU
             }
         }
 
@@ -276,7 +273,6 @@ impl EmuHardware {
                     self.states.pipe_state.as_mut().unwrap().trans(BaseStageCell::IsLs, BaseStageCell::ExWb)?;
                 },
             }
-            self.times.instructions += 1;
         }
 
         if ls_hazard {
