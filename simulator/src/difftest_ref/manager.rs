@@ -149,17 +149,20 @@ impl DifftestManager {
 
                 if self.is_load_store {
                     reference.load_store_enable();
-                    self.is_load_store = false;
                 }
 
                 reference.step_cycle(self.ls_skip_val.pop_front())?;
+
+                if self.is_load_store {
+                    self.states_ref.mmu.check(mem_diff_msg)?;
+                    self.is_load_store = false;
+                }
 
                 self.states_ref.regfile.check(&self.states_dut.regfile, CheckFlags4reg::pc.union(CheckFlags4reg::gpr).union(CheckFlags4reg::csr))?;
                 self.states_ref.pipe_state.as_ref()
                     .zip(self.states_dut.pipe_state.as_ref())
                     .map(|(ref_pipe, dut_pipe)| ref_pipe.check(dut_pipe))
                     .transpose()?;
-                self.states_ref.mmu.check(mem_diff_msg)?;
             }
 
         }
