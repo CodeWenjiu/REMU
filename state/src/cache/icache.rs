@@ -20,7 +20,7 @@ impl ICacheMeta {
     }
 }
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, PartialEq)]
 pub struct ICacheData {
     pub inst: u32
 }
@@ -33,7 +33,7 @@ impl ICacheData {
 
 #[derive(Clone, Debug)]
 pub struct ICache {
-    table: CacheTable,
+    pub table: CacheTable,
 
     pub base_bits: u32,
     pub block_num: u32,
@@ -85,15 +85,15 @@ impl CacheTrait for ICache {
         self.data.borrow_mut()[data_index as usize][block_num as usize] = data;
     }
 
-    fn base_read(&self, set: u32, way: u32, block_num: u32) -> ICacheData {
+    fn base_read(&self, set: u32, way: u32) -> Vec<ICacheData> {
         let data_index = self.table.get_data_line_index(set, way);
-        self.data.borrow()[data_index][block_num as usize].clone()
+        self.data.borrow()[data_index].clone()
     }
 
-    fn read(&mut self, addr: u32) -> Option<ICacheData> {
+    fn read(&mut self, addr: u32) -> Option<Vec<ICacheData>> {
         let set = self.table.get_set(addr);
         let tag = self.table.gat_tag(addr);
-        let block_num = self.table.get_block_num(addr);
+        // let block_num = self.table.get_block_num(addr);
 
         let way = {
             self.meta.borrow()[set as usize]
@@ -103,7 +103,7 @@ impl CacheTrait for ICache {
 
         way.map(|way| {
             self.replacement.access(set, way as u32);
-            self.base_read(set, way as u32, block_num)
+            self.base_read(set, way as u32)
         })
     }
 
@@ -167,15 +167,13 @@ impl CacheTrait for ICache {
                     return Err(ProcessError::Recoverable);
                 }
 
-                for (block_index, data) in data_block.iter().enumerate() {
-                    let dut_data = dut.base_read(set_idx as u32, way_idx as u32, block_index as u32);
-                    if data.inst != dut_data.inst {
-                        log_error!(format!(
-                            "ICache test failed at Set {}, Way {}, Block {}: Expected {:#010x}, Found {:#010x}",
-                            set_idx, way_idx, block_index, dut_data.inst, data.inst
-                        ));
-                        return Err(ProcessError::Recoverable);
-                    }
+                let dut_data = dut.base_read(set_idx as u32, way_idx as u32,);
+                if *data_block != dut_data {
+                    log_error!(format!(
+                        "ICache test failed at Set {}, Way {}: Expected {:?}, Found {:?}",
+                        set_idx, way_idx, dut_data, data_block
+                    ));
+                    return Err(ProcessError::Recoverable);
                 }
             }
         }

@@ -1,7 +1,7 @@
 use remu_macro::log_todo;
 use remu_utils::ProcessResult;
 
-remu_macro::mod_flat!(icache, btb, replacement);
+remu_macro::mod_flat!(icache, dcache, btb, replacement);
 
 #[derive(Clone, Debug)]
 pub struct Cache {
@@ -114,9 +114,9 @@ pub trait CacheTrait {
 
     fn base_meta_write(&mut self, set: u32, way: u32, tag: u32);
     fn base_data_write(&mut self, set: u32, way: u32, block_num: u32, data: Self::CacheData);
-    fn base_read(&self, set: u32, way: u32, block_num: u32) -> Self::CacheData;
+    fn base_read(&self, set: u32, way: u32) -> Vec<Self::CacheData>;
 
-    fn read(&mut self, addr: u32) -> Option<Self::CacheData>;
+    fn read(&mut self, addr: u32) -> Option<Vec<Self::CacheData>>;
     fn replace(&mut self, addr: u32, data: Vec<Self::CacheData>);
 
     fn print(&self) {

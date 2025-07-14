@@ -8,8 +8,8 @@ impl EmuHardware {
 
         let snpc = pc.wrapping_add(4);
 
-        let npc = if let Some(target) = self.states.cache.btb.as_mut().unwrap().read(pc){
-            target.target
+        let npc = if let Some(target_vec) = self.states.cache.btb.as_mut().unwrap().read(pc) {
+            target_vec[0].target
         } else {
             snpc
         };

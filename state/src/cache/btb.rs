@@ -81,15 +81,14 @@ impl CacheTrait for BTB {
         *data_block = data;
     }
 
-    fn base_read(&self, set: u32, way: u32, block_num: u32) -> BtbData {
-        let _ = block_num;
+    fn base_read(&self, set: u32, way: u32) -> Vec<BtbData> {
         let data_index = self.table.get_data_line_index(set, way);
         let data_block = self.data.borrow()[data_index as usize].clone();
 
-        data_block
+        vec![data_block]
     }
 
-    fn read(&mut self, addr: u32) -> Option<BtbData> {
+    fn read(&mut self, addr: u32) -> Option<Vec<BtbData>> {
         let set = self.table.get_set(addr);
         let tag = self.table.gat_tag(addr);
 
@@ -101,7 +100,7 @@ impl CacheTrait for BTB {
 
         way.map(|way| {
             self.replacement.access(set, way as u32);
-            self.base_read(set, way as u32, 0)
+            self.base_read(set, way as u32)
         })
     }
 

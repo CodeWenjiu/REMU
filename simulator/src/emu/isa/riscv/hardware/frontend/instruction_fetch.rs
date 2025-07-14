@@ -28,7 +28,8 @@ impl EmuHardware {
 
             if let Some(data) = icache.read(msg.pc) {
                 self.times.instruction_cache_hit += 1;
-                data.inst
+                let block_index = icache.table.get_block_num(msg.pc);
+                data[block_index as usize].inst
             } else {
                 // burst transfer
                 let mut inst = 0;
