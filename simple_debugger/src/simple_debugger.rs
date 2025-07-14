@@ -109,6 +109,7 @@ impl SimpleDebugger {
 
         let btb_config = cache_config.btb.clone();
         let icache_config = cache_config.icache.clone();
+        let dcache_config = cache_config.dcache.clone();
 
         match cli_result.cli.differtest {
             Some(DifftestRef::SingleCycle(_)) => {
@@ -128,6 +129,10 @@ impl SimpleDebugger {
                         if let Some(config) = icache_config.clone() {
                             state_ref.cache.init_icache(config);
                         }
+
+                        if let Some(config) = dcache_config.clone() {
+                            state_ref.cache.init_dcache(config);
+                        }
                     }
                 }
             }
@@ -146,6 +151,10 @@ impl SimpleDebugger {
 
                 if let Some(config) = icache_config.clone() {
                     state.cache.init_icache(config);
+                }
+
+                if let Some(config) = dcache_config.clone() {
+                    state.cache.init_dcache(config);
                 }
             }
 

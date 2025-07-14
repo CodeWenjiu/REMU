@@ -2,7 +2,7 @@ use owo_colors::OwoColorize;
 use remu_macro::{log_err, log_info, log_todo, log_warn};
 use remu_utils::{ProcessError, ProcessResult};
 use simulator::{difftest_ref::{AnyDifftestRef, DifftestRefPipelineApi}, SimulatorItem};
-use state::{cache::{BtbData, CacheTrait}, mmu::Mask, reg::RegfileIo, States};
+use state::{cache::{BtbData, CacheBase}, mmu::Mask, reg::RegfileIo, States};
 
 use crate::{cmd_parser::{BreakPointCmds, CacheCmds, Cmds, DiffertestCmds, FunctionCmds, InfoCmds, MemorySetCmds, RegisterInfoCmds, RegisterSetCmds, SetCmds, StepCmds, TestCmds}, SimpleDebugger};
 
@@ -152,6 +152,14 @@ impl SimpleDebugger {
                     log_warn!("ICache is not initialized, please check if the simulator supports it.");
                 }
             }
+
+            CacheCmds::DCache => {
+                if let Some(dcache) = &self.state.cache.dcache {
+                    dcache.test(&self.state_ref.cache.dcache.as_ref().unwrap())?;
+                } else {
+                    log_warn!("DCache is not initialized, please check if the simulator supports it.");
+                }
+            }
         }
 
         log_info!("Cache Difftest Passed");
@@ -254,6 +262,14 @@ impl SimpleDebugger {
                     icache.print();
                 } else {
                     log_warn!("ICache is not initialized, please check if the simulator supports it.");
+                }
+            }
+
+            CacheCmds::DCache => {
+                if let Some(dcache) = &target_cache_state.dcache {
+                    dcache.print();
+                } else {
+                    log_warn!("DCache is not initialized, please check if the simulator supports it.");
                 }
             }
         }

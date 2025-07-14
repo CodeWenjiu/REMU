@@ -7,6 +7,7 @@ remu_macro::mod_flat!(icache, dcache, btb, replacement);
 pub struct Cache {
     pub btb: Option<BTB>,
     pub icache: Option<ICache>,
+    pub dcache: Option<DCache>,
 }
 
 impl Cache {
@@ -14,6 +15,7 @@ impl Cache {
         Cache { 
             btb: None, 
             icache: None,
+            dcache: None,
         }
     }
 
@@ -23,6 +25,10 @@ impl Cache {
 
     pub fn init_icache(&mut self, config: CacheConfiguration) {
         self.icache = Some(ICache::new(config));
+    }
+
+    pub fn init_dcache(&mut self, config: CacheConfiguration) {
+        self.dcache = Some(DCache::new(config));
     }
 }
 
@@ -107,17 +113,25 @@ impl Replacement {
     }
 }
 
-pub trait CacheTrait {
+pub trait CacheBase {
     type CacheData;
 
     fn new(config: CacheConfiguration) -> Self;
-
     fn base_meta_write(&mut self, set: u32, way: u32, tag: u32);
+    fn base_meta_dirt(&mut self, set: u32, way: u32) {
+        let _ = (set, way);
+        log_todo!();
+    }
     fn base_data_write(&mut self, set: u32, way: u32, block_num: u32, data: Self::CacheData);
     fn base_read(&self, set: u32, way: u32) -> Vec<Self::CacheData>;
 
     fn read(&mut self, addr: u32) -> Option<Vec<Self::CacheData>>;
-    fn replace(&mut self, addr: u32, data: Vec<Self::CacheData>);
+    fn write(&mut self, addr: u32, data: u32) -> Result<(), ()> {
+        let _ = (addr, data);
+        log_todo!();
+        Err(())
+    }
+    fn replace(&mut self, addr: u32, data: Vec<Self::CacheData>) -> Option<Vec<Self::CacheData>>;
 
     fn print(&self) {
         log_todo!();
@@ -127,10 +141,5 @@ pub trait CacheTrait {
         let _ = dut;
         log_todo!();
         Ok(())
-    }
-
-    fn access(&mut self, addr: u32) {
-        let _ = addr;
-        log_todo!();
     }
 }

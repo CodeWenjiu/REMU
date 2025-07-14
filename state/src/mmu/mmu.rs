@@ -126,19 +126,23 @@ impl MMU {
         Err(MMUError::MemoryUnmapped { addr })
     }
 
-    pub fn read(&mut self, addr: u32, mask: Mask) -> MMUResult<(bool, u32)> {
+    pub fn is_dev(&self, addr: u32) -> MMUResult<bool> {
+        for (_, base, length, _, memory) in &self.memory_map {
+            if addr >= *base && addr < *base + *length {
+                return Ok(matches!(&*memory.borrow(), MMTarget::Device(_)));
+            }
+        }
+        Err(MMUError::MemoryUnmapped { addr })
+    }
+
+    pub fn read(&mut self, addr: u32, mask: Mask) -> MMUResult<u32> {
         let (mut memory, offset, flags) = self.find_region(addr)?;
         
         if !flags.contains(MemoryFlags::Read) {
             return Err(MMUError::MemoryUnreadable { addr });
         }
         
-        let is_device = match &*memory {
-            MMTarget::Device(_) => true,
-            _ => false
-        };
-        
-        Ok((is_device, memory.read(offset, mask)))
+        Ok(memory.read(offset, mask))
     }
 
     pub fn read_memory(&mut self, addr: u32, mask: Mask) -> MMUResult<u32> {
@@ -161,20 +165,15 @@ impl MMU {
         Ok(memory.read(offset, mask))
     }
 
-    pub fn write(&mut self, addr: u32, data: u32, mask: Mask) -> MMUResult<bool> {
+    pub fn write(&mut self, addr: u32, data: u32, mask: Mask) -> MMUResult<()> {
         let (mut memory, offset, flags) = self.find_region(addr)?;
         
         if !flags.contains(MemoryFlags::Write) {
             return Err(MMUError::MemoryUnwritable { addr });
         }
-
-        let is_device = match &*memory {
-            MMTarget::Device(_) => true,
-            _ => false
-        };
         
         memory.write(offset, data, mask);
-        Ok(is_device)
+        Ok(())
     }
 
     pub fn write_by_name(&mut self, name: &str, offset: u32, data: u32, mask: Mask) -> MMUResult<()> {

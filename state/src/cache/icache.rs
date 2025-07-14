@@ -2,7 +2,7 @@ use comfy_table::Table;
 use remu_macro::log_error;
 use remu_utils::ProcessError;
 
-use crate::cache::{CacheConfiguration, CacheTable, CacheTrait, Replacement};
+use crate::cache::{CacheConfiguration, CacheTable, CacheBase, Replacement};
 use std::{cell::RefCell, rc::Rc};
 
 #[derive(Clone, Debug)]
@@ -44,7 +44,7 @@ pub struct ICache {
     replacement: Replacement,
 }
 
-impl CacheTrait for ICache {
+impl CacheBase for ICache {
     type CacheData = ICacheData;
 
     fn new(config: CacheConfiguration) -> Self {
@@ -107,13 +107,7 @@ impl CacheTrait for ICache {
         })
     }
 
-    fn access(&mut self, addr: u32) {
-        let set = self.table.get_set(addr);
-        let way = self.replacement.way(set);
-        self.replacement.access(set, way);
-    }
-
-    fn replace(&mut self, addr: u32, data: Vec<ICacheData>) {
+    fn replace(&mut self, addr: u32, data: Vec<ICacheData>) -> Option<Vec<Self::CacheData>>  {
         let set = self.table.get_set(addr);
         let tag = self.table.gat_tag(addr);
 
@@ -124,6 +118,8 @@ impl CacheTrait for ICache {
         for (block_num, data) in data.iter().enumerate() {
             self.base_data_write(set, way, block_num as u32, data.clone());
         }
+
+        None
     }
 
     fn print(&self) {

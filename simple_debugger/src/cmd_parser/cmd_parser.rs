@@ -255,6 +255,7 @@ pub enum MemorySetCmds {
 pub enum CacheCmds {
     BTB,
     ICache,
+    DCache,
 }
 
 #[derive(Debug, Subcommand)]

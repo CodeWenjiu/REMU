@@ -4,7 +4,7 @@ use comfy_table::Table;
 use remu_macro::log_error;
 use remu_utils::ProcessError;
 
-use crate::cache::{CacheConfiguration, CacheTable, CacheTrait, Replacement};
+use crate::cache::{CacheConfiguration, CacheTable, CacheBase, Replacement};
 
 #[derive(Clone, Debug)]
 pub struct BtbMeta {
@@ -42,7 +42,7 @@ pub struct BTB {
     replacement: Replacement,
 }
 
-impl CacheTrait for BTB {
+impl CacheBase for BTB {
     type CacheData = BtbData;
 
     fn new(config: CacheConfiguration) -> Self {
@@ -104,7 +104,7 @@ impl CacheTrait for BTB {
         })
     }
 
-    fn replace(&mut self, addr: u32, data: Vec<BtbData>) {
+    fn replace(&mut self, addr: u32, data: Vec<Self::CacheData>) -> Option<Vec<Self::CacheData>> {
         let set = self.table.get_set(addr);
         let tag = self.table.gat_tag(addr);
 
@@ -114,6 +114,8 @@ impl CacheTrait for BTB {
 
         let block_num = 0;
         self.base_data_write(set, way, block_num, data[0].clone());
+
+        None
     }
 
     fn print(&self) {

@@ -1,4 +1,4 @@
-use state::cache::{BtbData, CacheTrait};
+use state::cache::{BtbData, CacheBase};
 
 use crate::emu::{isa::riscv::hardware::frontend::ToIfStage, EmuHardware};
 

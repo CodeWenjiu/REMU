@@ -101,7 +101,7 @@ impl DifftestManager {
             let dut_data = log_err!(
                 self.states_dut.mmu.read(*addr, state::mmu::Mask::Word),
                 ProcessError::Recoverable
-            )?.1;
+            )?;
             Ok((*addr, dut_data))
         })
         .collect::<ProcessResult<Vec<_>>>()?;

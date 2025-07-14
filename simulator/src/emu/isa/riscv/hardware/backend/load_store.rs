@@ -110,50 +110,53 @@ impl EmuHardware {
         match ctrl {
             LsCtrl::Lb => {
                 let read_result = log_err!(mmu.read(addr, Mask::Byte), ProcessError::Recoverable)?;
-                is_difftest_skip = read_result.0;
-                result = read_result.1 as i8 as u32;
+                is_difftest_skip = mmu.is_dev(addr);
+                result = read_result as i8 as u32;
             }
 
             LsCtrl::Lh => {
                 let read_result = log_err!(mmu.read(addr, Mask::Half), ProcessError::Recoverable)?;
-                is_difftest_skip = read_result.0;
-                result = read_result.1 as i16 as u32;
+                is_difftest_skip = mmu.is_dev(addr);
+                result = read_result as i16 as u32;
             }
 
             LsCtrl::Lw => {
                 let read_result = log_err!(mmu.read(addr, Mask::Word), ProcessError::Recoverable)?;
-                is_difftest_skip = read_result.0;
-                result = read_result.1;
+                is_difftest_skip = mmu.is_dev(addr);
+                result = read_result;
             }
 
             LsCtrl::Lbu => {
                 let read_result = log_err!(mmu.read(addr, Mask::Byte), ProcessError::Recoverable)?;
-                is_difftest_skip = read_result.0;
-                result = read_result.1;
+                is_difftest_skip = mmu.is_dev(addr);
+                result = read_result;
             }
 
             LsCtrl::Lhu => {
                 let read_result = log_err!(mmu.read(addr, Mask::Half), ProcessError::Recoverable)?;
-                is_difftest_skip = read_result.0;
-                result = read_result.1;
+                is_difftest_skip = mmu.is_dev(addr);
+                result = read_result;
             }
 
             LsCtrl::Sb => {
                 gpr_waddr = 0;
                 result = 0;
-                is_difftest_skip = log_err!(mmu.write(addr, data, Mask::Byte), ProcessError::Recoverable)?;
+                is_difftest_skip = mmu.is_dev(addr); 
+                log_err!(mmu.write(addr, data, Mask::Byte), ProcessError::Recoverable)?;
             }
 
             LsCtrl::Sh => {
                 gpr_waddr = 0;
                 result = 0;
-                is_difftest_skip = log_err!(mmu.write(addr, data, Mask::Half), ProcessError::Recoverable)?;
+                is_difftest_skip = mmu.is_dev(addr); 
+                log_err!(mmu.write(addr, data, Mask::Half), ProcessError::Recoverable)?;
             }
 
             LsCtrl::Sw => {
                 gpr_waddr = 0;
                 result = 0;
-                is_difftest_skip = log_err!(mmu.write(addr, data, Mask::Word), ProcessError::Recoverable)?;
+                is_difftest_skip = mmu.is_dev(addr); 
+                log_err!(mmu.write(addr, data, Mask::Word), ProcessError::Recoverable)?;
             }
 
             LsCtrl::DontCare => {
@@ -162,7 +165,7 @@ impl EmuHardware {
             },
         }
 
-        if is_difftest_skip {
+        if log_err!(is_difftest_skip, ProcessError::Recoverable)? {
             (self.callback.difftest_skip)(result);
         };
 

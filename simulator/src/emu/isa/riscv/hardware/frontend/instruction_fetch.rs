@@ -1,6 +1,6 @@
 use remu_macro::log_err;
 use remu_utils::{ProcessError, ProcessResult};
-use state::cache::{CacheTrait, ICacheData};
+use state::cache::{CacheBase, ICacheData};
 
 use crate::emu::{isa::riscv::BasicStageMsg, EmuHardware};
 
@@ -42,7 +42,7 @@ impl EmuHardware {
                     let data = log_err!(
                         self.states.mmu.read(access_addr, state::mmu::Mask::Word),
                         ProcessError::Recoverable
-                    )?.1;
+                    )?;
 
                     if access_addr == msg.pc {
                         inst = data;
@@ -59,7 +59,7 @@ impl EmuHardware {
             log_err!(
                 self.states.mmu.read(msg.pc, state::mmu::Mask::Word),
                 ProcessError::Recoverable
-            )?.1
+            )?
         };
 
         Ok(ToIdStage {

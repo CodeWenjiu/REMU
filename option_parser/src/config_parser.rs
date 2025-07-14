@@ -21,6 +21,8 @@ pub struct AllCacheConfiguration {
     pub btb: Option<CacheConfiguration>,
 
     pub icache: Option<CacheConfiguration>,
+
+    pub dcache: Option<CacheConfiguration>,
 }
 
 #[derive(Debug, Default)]
@@ -59,6 +61,7 @@ impl Default for PlatformConfiguration {
             cache: AllCacheConfiguration {
                 btb: None,
                 icache: None,
+                dcache: None,
             },
         }
     }
@@ -219,6 +222,10 @@ fn parse_platform_config(pairs: pest::iterators::Pairs<'_, Rule>, result: &mut P
                         result.cache.icache = Some(parse.1);
                     }
 
+                    "DCache" => {
+                        result.cache.dcache = Some(parse.1);
+                    }
+
                     _ => unreachable!(),
                 }
             }
@@ -259,7 +266,7 @@ pub fn parse_config(config_path: PathBuf, platform: &Platform) -> Result<Cfg, ()
         platform_config: PlatformConfiguration{
             reset_vector: 0x8000_0000,
             regions: vec![],
-            cache: AllCacheConfiguration { btb: None, icache: None },
+            cache: AllCacheConfiguration { btb: None, icache: None, dcache: None},
         },
     };
     

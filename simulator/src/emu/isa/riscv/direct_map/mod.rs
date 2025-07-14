@@ -236,8 +236,8 @@ impl EmuDirectMap {
                     RV32ILS::Lb => {
                         let addr = rs1.wrapping_add(imm);
                         let data = log_err!(mmu.read(addr, Mask::Byte), ProcessError::Recoverable)?;
-                        rd_val = data.1 as i8 as u32;
-                        if data.0 == true {
+                        rd_val = data as i8 as u32;
+                        if log_err!(mmu.is_dev(addr), ProcessError::Recoverable)? {
                             (self.callback.difftest_skip)(0);
                         }
                     }
@@ -245,8 +245,8 @@ impl EmuDirectMap {
                     RV32ILS::Lh => {
                         let addr = rs1.wrapping_add(imm);
                         let data = log_err!(mmu.read(addr, Mask::Half), ProcessError::Recoverable)?;
-                        rd_val = data.1 as i16 as u32;
-                        if data.0 == true {
+                        rd_val = data as i16 as u32;
+                        if log_err!(mmu.is_dev(addr), ProcessError::Recoverable)? {
                             (self.callback.difftest_skip)(0);
                         }
                     }
@@ -254,8 +254,8 @@ impl EmuDirectMap {
                     RV32ILS::Lw => {
                         let addr = rs1.wrapping_add(imm);
                         let data = log_err!(mmu.read(addr, Mask::Word), ProcessError::Recoverable)?;
-                        rd_val = data.1;
-                        if data.0 == true {
+                        rd_val = data;
+                        if log_err!(mmu.is_dev(addr), ProcessError::Recoverable)? {
                             (self.callback.difftest_skip)(0);
                         }
                     }
@@ -263,8 +263,8 @@ impl EmuDirectMap {
                     RV32ILS::Lbu => {
                         let addr = rs1.wrapping_add(imm);
                         let data = log_err!(mmu.read(addr, Mask::Byte), ProcessError::Recoverable)?;
-                        rd_val = data.1;
-                        if data.0 == true {
+                        rd_val = data;
+                        if log_err!(mmu.is_dev(addr), ProcessError::Recoverable)? {
                             (self.callback.difftest_skip)(0);
                         }
                     }
@@ -272,8 +272,8 @@ impl EmuDirectMap {
                     RV32ILS::Lhu => {
                         let addr = rs1.wrapping_add(imm);
                         let data = log_err!(mmu.read(addr, Mask::Half), ProcessError::Recoverable)?;
-                        rd_val = data.1;
-                        if data.0 == true {
+                        rd_val = data;
+                        if log_err!(mmu.is_dev(addr), ProcessError::Recoverable)? {
                             (self.callback.difftest_skip)(0);
                         }
                     }
@@ -281,7 +281,8 @@ impl EmuDirectMap {
                     RV32ILS::Sb => {
                         msg.rd_addr = 0;
                         let addr = rs1.wrapping_add(imm);
-                        if log_err!(mmu.write(addr, rs2, Mask::Byte), ProcessError::Recoverable)? == true {
+                        log_err!(mmu.write(addr, rs2, Mask::Byte), ProcessError::Recoverable)?;
+                        if log_err!(mmu.is_dev(addr), ProcessError::Recoverable)? {
                             (self.callback.difftest_skip)(0);
                         }
                     }
@@ -289,7 +290,8 @@ impl EmuDirectMap {
                     RV32ILS::Sh => {
                         msg.rd_addr = 0;
                         let addr = rs1.wrapping_add(imm);
-                        if log_err!(mmu.write(addr, rs2, Mask::Half), ProcessError::Recoverable)? == true {
+                        log_err!(mmu.write(addr, rs2, Mask::Half), ProcessError::Recoverable)?;
+                        if log_err!(mmu.is_dev(addr), ProcessError::Recoverable)? {
                             (self.callback.difftest_skip)(0);
                         }
                     }
@@ -297,7 +299,8 @@ impl EmuDirectMap {
                     RV32ILS::Sw => {
                         msg.rd_addr = 0;
                         let addr = rs1.wrapping_add(imm);
-                        if log_err!(mmu.write(addr, rs2, Mask::Word), ProcessError::Recoverable)? == true {
+                        log_err!(mmu.write(addr, rs2, Mask::Word), ProcessError::Recoverable)?;
+                        if log_err!(mmu.is_dev(addr), ProcessError::Recoverable)? {
                             (self.callback.difftest_skip)(0);
                         }
                     }
@@ -526,13 +529,13 @@ impl EmuDirectMap {
         )?;
 
         // 2. Decode: Decode the instruction
-        let decode = self.rv32_decode(inst.1)?;
+        let decode = self.rv32_decode(inst)?;
         
         // 3. Execute: Execute the instruction
         let next_pc = self.rv32_execute(decode)?;
 
         // 4. Notify completion and return
-        (self.callback.instruction_complete)(pc, next_pc, inst.1)?;
+        (self.callback.instruction_complete)(pc, next_pc, inst)?;
 
         self.times.instructions += 1;
 

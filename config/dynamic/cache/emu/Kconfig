@@ -7,4 +7,8 @@ menu "Emu"
         string "Emu ICache Cache Config"
         default "4 1 4 lru"
 
+    config Emu_Pl_Cache_DCache
+        string "Emu ICache Cache Config"
+        default "4 1 4 lru"
+
 endmenu
