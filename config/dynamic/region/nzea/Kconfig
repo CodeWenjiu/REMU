@@ -44,6 +44,10 @@ menu "Nzea Platform"
         config Nzea_Npc_MEM_SDRAM
             string "Nzea Npc SRAM Base Region"
             default "0x80000000 0x08000000 0b00000111"
+
+        config Nzea_Npc_MEM_LSRAM
+            string "Nzea Npc LSRAM Base Region"
+            default "0xb0000000 0x00020000 0b00000111"
         
     endmenu
 
