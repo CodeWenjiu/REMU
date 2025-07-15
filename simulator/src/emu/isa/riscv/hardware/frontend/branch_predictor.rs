@@ -33,4 +33,8 @@ impl EmuHardware {
 
         self.pipeline.pipeline_pc = target;
     }
+
+    pub fn self_pipeline_branch_predict_bdb_update(&mut self, pc: u32, brmsg: BRMsg) {
+        self.states.cache.btb.as_mut().unwrap().hyper_replace(pc, brmsg);
+    }
 }

@@ -66,28 +66,25 @@ pub struct BTB {
 }
 
 impl BTB {
-    pub fn hyper_replace(&mut self, addr: u32, data: Vec<BtbData>, brmsg: BRMsg)  {
-        
+    pub fn hyper_replace(&mut self, addr: u32, brmsg: BRMsg)  {
         let set = self.table.get_set(addr);
         let tag = self.table.gat_tag(addr);
 
         let way = self.replacement.way(set);
-        self.replacement.access(set, way);
         self.base_meta_write(set, way, tag);
-
-        let block_num = 0;
-        self.base_data_write(set, way, block_num, data[0].clone());
         
         let data_index = self.table.get_data_line_index(set, way);
         let data_block = &mut self.bdb.borrow_mut()[data_index as usize];
 
-        if brmsg.br_dir {
-            if data_block.counter < 1 {
-                data_block.counter += 1;
-            }
-        } else {
-            if data_block.counter > 0 {
-                data_block.counter -= 1;
+        if brmsg.br_type {
+            if brmsg.br_dir {
+                if data_block.counter < 3 {
+                    data_block.counter += 1;
+                }
+            } else {
+                if data_block.counter > 0 {
+                    data_block.counter -= 1;
+                }
             }
         }
     }
@@ -160,7 +157,7 @@ impl CacheBase for BTB {
             // if data[0].typ && self.bdb.borrow()[data_index].counter > 1 {
                 Some(data)
             // } else {
-                // None
+            //     None
             // }
         })
     }
@@ -187,9 +184,10 @@ impl CacheBase for BTB {
 
             for (way_idx, meta_block) in meta_line.iter().enumerate() {
                 let data_block = &self.data.borrow()[(set_idx * self.meta.borrow()[0].len()) + way_idx];
+                let bdb_block = &self.bdb.borrow()[(set_idx * self.meta.borrow()[0].len()) + way_idx];
                 row.push(format!(
-                    "Way {}: Tag: {:#08x}, Target: {:#08x}",
-                    way_idx, meta_block.tag, data_block.target
+                    "Way {}: Tag: {:#08x}, Target: {:#08x}, Counter: {}",
+                    way_idx, meta_block.tag, data_block.target, bdb_block.counter
                 ));
             }
 

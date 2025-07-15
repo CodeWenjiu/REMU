@@ -233,6 +233,8 @@ impl EmuHardware {
 
             wb_msg = Some((pc, wb_out.next_pc, inst));
 
+            // self.self_pipeline_branch_predict_bdb_update(pc, wb_out.br.clone());
+
             if wb_out.wb_ctrl != WbControl::BPRight {
                 self.pipeline.flush();
                 self.self_pipeline_branch_predict_flush(pc, wb_out.next_pc, wb_out.br);

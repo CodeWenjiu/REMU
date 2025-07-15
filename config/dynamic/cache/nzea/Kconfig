@@ -9,6 +9,10 @@ menu "Nzea"
             string "Nzea ICache Cache Config"
             default "4 1 4 lru"
 
+        config Nzea_Ysyxsoc_Cache_DCache
+            string "Nzea DCache Cache Config"
+            default "4 1 4 lru"
+
     endmenu
 
     menu "Npc Cache Config"

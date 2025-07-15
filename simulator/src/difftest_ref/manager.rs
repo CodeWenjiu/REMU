@@ -4,7 +4,7 @@ use option_parser::OptionParser;
 use owo_colors::OwoColorize;
 use remu_macro::log_err;
 use remu_utils::{ProcessError, ProcessResult};
-use state::{reg::{AnyRegfile, RegfileIo}, CheckFlags4reg, States};
+use state::{cache::CacheBase, reg::{AnyRegfile, RegfileIo}, CheckFlags4reg, States};
 
 use crate::{difftest_ref::{DifftestRefPipelineApi, DifftestRefSingleCycleApi}, SimulatorCallback};
 
@@ -155,6 +155,7 @@ impl DifftestManager {
 
                 if self.is_load_store {
                     self.states_ref.mmu.check(mem_diff_msg)?;
+                    self.states_ref.cache.dcache.as_ref().unwrap().test(&self.states_dut.cache.dcache.as_ref().unwrap())?;
                     self.is_load_store = false;
                 }
 

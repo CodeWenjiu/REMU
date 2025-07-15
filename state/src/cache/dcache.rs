@@ -1,6 +1,8 @@
 use std::{cell::RefCell, rc::Rc};
 
 use comfy_table::Table;
+use remu_macro::log_error;
+use remu_utils::ProcessError;
 use crate::{cache::{CacheBase, CacheConfiguration, CacheTable, Replacement}, mmu::Mask};
 
 #[derive(Clone, Debug)]
@@ -205,6 +207,35 @@ impl CacheBase for DCache {
         }
 
         println!("{table}");
+    }
+
+    fn test(&self, dut: &Self) -> remu_utils::ProcessResult<()> {
+        for (set_idx, set) in self.meta.borrow().iter().enumerate() {
+            for (way_idx, meta_block) in set.iter().enumerate() {
+                let data_index = self.table.get_data_line_index(set_idx as u32, way_idx as u32);
+                let data_block = &self.data.borrow()[data_index];
+                let dut_meta_block = &dut.meta.borrow()[set_idx][way_idx];
+                let dut_data_block = &dut.data.borrow()[data_index];
+
+                if meta_block.tag != dut_meta_block.tag || meta_block.valid != dut_meta_block.valid || meta_block.dirty != dut_meta_block.dirty {
+                    log_error!(format!(
+                        "DCache test failed at Set {}, Way {}: Expected Tag {:#010x}, Valid {}, Dirty {}, Found Tag {:#010x}, Valid {}, Dirty {}",
+                        set_idx, way_idx, dut_meta_block.tag, dut_meta_block.valid, dut_meta_block.dirty,
+                        meta_block.tag, meta_block.valid, meta_block.dirty
+                    ));
+                    return Err(ProcessError::Recoverable);
+                }
+
+                if *data_block != *dut_data_block {
+                    log_error!(format!(
+                        "DCache test failed at Set {}, Way {}: Expected {:?}, Found {:?}",
+                        set_idx, way_idx, dut_data_block, data_block
+                    ));
+                    return Err(ProcessError::Recoverable);
+                }
+            }
+        }
+        Ok(())
     }
 
     fn print_blcok(&self, addr: u32) {
