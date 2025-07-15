@@ -1,7 +1,7 @@
 use std::{cell::RefCell, rc::Rc};
 
 use comfy_table::Table;
-use crate::cache::{CacheConfiguration, CacheTable, CacheBase, Replacement};
+use crate::{cache::{CacheBase, CacheConfiguration, CacheTable, Replacement}, mmu::Mask};
 
 #[derive(Clone, Debug)]
 pub struct DCacheMeta {
@@ -110,7 +110,7 @@ impl CacheBase for DCache {
         })
     }
 
-    fn write(&mut self, addr: u32, data: u32) -> Result<(), ()> {
+    fn write(&mut self, addr: u32, data: u32, mask: Mask) -> Result<(), ()> {
         let set = self.table.get_set(addr);
         let tag = self.table.gat_tag(addr);
 
@@ -120,8 +120,30 @@ impl CacheBase for DCache {
 
 
         way.map(|way| {
-            self.base_data_write(set, way as u32, self.table.get_block_num(addr), DCacheData { data });
-            self.replacement.access(set, way as u32);
+            let block = self.table.get_block_num(addr);
+            let mut block_data = self.base_read(set, way as u32)[block as usize].data;
+            
+            match mask {
+                Mask::Word => {
+                    self.base_data_write(set, way as u32, block, DCacheData { data: data });
+                    self.replacement.access(set, way as u32);
+                },
+                Mask::Half => {
+                    let half_offset = (addr & 0b10) as usize;
+                    block_data = (block_data & !(0xFFFF << (half_offset * 16))) | ((data & 0xFFFF) << (half_offset * 16));
+                    self.base_data_write(set, way as u32, block, DCacheData { data: block_data });
+                    self.replacement.access(set, way as u32);
+                },
+                Mask::Byte => {
+                    let byte_offset = (addr & 0b11) as usize;
+                    block_data = (block_data & !(0xFF << (byte_offset * 8))) | ((data & 0xFF) << (byte_offset * 8));
+                    self.base_data_write(set, way as u32, block, DCacheData { data: block_data });
+                    self.replacement.access(set, way as u32);
+                },
+                _ => ()
+            }
+
+            self.base_meta_dirt(set, way as u32);
             Ok(())
         }).unwrap_or_else(|| {
             Err(())

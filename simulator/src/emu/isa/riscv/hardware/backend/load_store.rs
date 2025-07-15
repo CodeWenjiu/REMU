@@ -1,6 +1,6 @@
 use remu_macro::{log_err, log_error};
 use remu_utils::{ProcessError, ProcessResult};
-use state::mmu::Mask;
+use state::{mmu::Mask};
 
 use crate::emu::{isa::riscv::BasicStageMsg, EmuHardware};
 
@@ -93,79 +93,145 @@ impl EmuHardware {
         Ok(ToWbStage { msg: to_msg, result, csr_rdata: 0, gpr_waddr, csr_waddr: 0, wb_ctrl: WbCtrl::WriteGpr })
     }
 
+    // fn try_write_cache(&mut self, addr: u32, data: u32, mask: Mask) -> ProcessResult<()> {
+    //     let dcache = self.states.cache.dcache.as_mut().unwrap();
+        
+    //     if let Err(()) = dcache.write(addr, data, mask) {
+    //         // burst update
+    //         let base_addr = addr & !((1 << dcache.base_bits) - 1);
+    //         let mut replace_data = vec![];
+
+    //         for i in 0..dcache.block_num {
+    //             let access_addr = base_addr + i * 4;
+    //             let data = log_err!(
+    //                 self.states.mmu.read(access_addr, state::mmu::Mask::Word),
+    //                 ProcessError::Recoverable
+    //             )?;
+
+    //             replace_data.push(DCacheData{data});
+    //         }
+
+    //         if let Some(writeback_data) = dcache.replace(addr, replace_data) {
+    //             for (i, data_block) in writeback_data.iter().enumerate() {
+    //                 let access_addr = base_addr + i as u32 * 4;
+    //                 log_err!(self.states.mmu.write(access_addr, data_block.data, Mask::Word), ProcessError::Recoverable)?;
+    //             }
+    //         }
+
+    //         dcache.write(addr, data, mask).unwrap(); // safe to unwrap, because replace will always succeed
+    //     }
+
+    //     Ok(())
+    // }
+
+    // fn try_read_cache(&mut self, addr: u32, mask: Mask) -> ProcessResult<u32> {
+    //     let dcache = self.states.cache.dcache.as_mut().unwrap();
+        
+    //     if let Some(data) = dcache.read(addr) {
+    //         let block_data = data[dcache.table.get_block_num(addr) as usize].data;
+    //         let offset = (addr & 0b11) * 8;
+    //         let value = match mask {
+    //             Mask::Byte => (block_data >> offset) & 0xFF,
+    //             Mask::Half => (block_data >> offset) & 0xFFFF,
+    //             Mask::Word => block_data,
+    //             Mask::None => todo!(),
+    //         };
+    //         Ok(value)
+    //     } else {
+    //         // burst update
+    //         let base_addr = addr & !((1 << dcache.base_bits) - 1);
+
+    //         let mut replace_data = vec![];
+    //         for i in 0..dcache.block_num {
+    //             let access_addr = base_addr + i * 4;
+    //             let data = log_err!(
+    //                 self.states.mmu.read(access_addr, state::mmu::Mask::Word),
+    //                 ProcessError::Recoverable
+    //             )?;
+
+    //             replace_data.push(DCacheData{data});
+    //         }
+
+    //         if let Some(writeback_data) = dcache.replace(addr, replace_data) {
+    //             for (i, data_block) in writeback_data.iter().enumerate() {
+    //                 let access_addr = base_addr + i as u32 * 4;
+    //                 log_err!(self.states.mmu.write(access_addr, data_block.data, Mask::Word), ProcessError::Recoverable)?;
+    //             }
+    //         }
+
+    //         Ok({
+    //             let block_data = dcache.read(addr).unwrap()[dcache.table.get_block_num(addr) as usize].data >> (addr & 0b11) * 8;
+    //             let offset = (addr & 0b11) * 8;
+    //             let value = match mask {
+    //                 Mask::Byte => (block_data >> offset) & 0xFF,
+    //                 Mask::Half => (block_data >> offset) & 0xFFFF,
+    //                 Mask::Word => block_data,
+    //                 Mask::None => todo!(),
+    //             };
+    //             value
+    //         })
+    //     }
+    // }
 
     pub fn load_store_rv32i(&mut self, stage: ToLsStage) -> ProcessResult<ToWbStage> {
-        let result;
-
         let msg = stage.msg;
-        let mut gpr_waddr = stage.gpr_waddr;
-
+        
+        let result;
+        
         let ctrl = stage.ls_ctrl;
         let addr = stage.addr;
         let data: u32 = stage.data;
-
-        let is_difftest_skip;
+        
         let mmu = &mut self.states.mmu;
-
-        match ctrl {
-            LsCtrl::Lb => {
-                let read_result = log_err!(mmu.read(addr, Mask::Byte), ProcessError::Recoverable)?;
-                is_difftest_skip = mmu.is_dev(addr);
-                result = read_result as i8 as u32;
-            }
-
-            LsCtrl::Lh => {
-                let read_result = log_err!(mmu.read(addr, Mask::Half), ProcessError::Recoverable)?;
-                is_difftest_skip = mmu.is_dev(addr);
-                result = read_result as i16 as u32;
-            }
-
-            LsCtrl::Lw => {
-                let read_result = log_err!(mmu.read(addr, Mask::Word), ProcessError::Recoverable)?;
-                is_difftest_skip = mmu.is_dev(addr);
-                result = read_result;
-            }
-
-            LsCtrl::Lbu => {
-                let read_result = log_err!(mmu.read(addr, Mask::Byte), ProcessError::Recoverable)?;
-                is_difftest_skip = mmu.is_dev(addr);
-                result = read_result;
-            }
-
-            LsCtrl::Lhu => {
-                let read_result = log_err!(mmu.read(addr, Mask::Half), ProcessError::Recoverable)?;
-                is_difftest_skip = mmu.is_dev(addr);
-                result = read_result;
-            }
-
-            LsCtrl::Sb => {
-                gpr_waddr = 0;
-                result = 0;
-                is_difftest_skip = mmu.is_dev(addr); 
-                log_err!(mmu.write(addr, data, Mask::Byte), ProcessError::Recoverable)?;
-            }
-
-            LsCtrl::Sh => {
-                gpr_waddr = 0;
-                result = 0;
-                is_difftest_skip = mmu.is_dev(addr); 
-                log_err!(mmu.write(addr, data, Mask::Half), ProcessError::Recoverable)?;
-            }
-
-            LsCtrl::Sw => {
-                gpr_waddr = 0;
-                result = 0;
-                is_difftest_skip = mmu.is_dev(addr); 
-                log_err!(mmu.write(addr, data, Mask::Word), ProcessError::Recoverable)?;
-            }
-
+        let is_difftest_skip = log_err!(mmu.is_dev(addr), ProcessError::Recoverable)?;
+        
+        let mask = match ctrl {
+            LsCtrl::Lb | LsCtrl::Lbu | LsCtrl::Sb => Mask::Byte,
+            LsCtrl::Lh | LsCtrl::Lhu | LsCtrl::Sh => Mask::Half,
+            LsCtrl::Lw | LsCtrl::Sw => Mask::Word,
             LsCtrl::DontCare => {
                 log_error!(format!("LsCtrl::None should not be used at pc: {:#08x}", msg.pc));
                 return Err(ProcessError::Recoverable);
             },
-        }
+        };
 
-        if log_err!(is_difftest_skip, ProcessError::Recoverable)? {
+        let gpr_waddr = match ctrl {
+            LsCtrl::Sb | LsCtrl::Sh | LsCtrl::Sw => 0,
+            _ => stage.gpr_waddr,
+        };
+
+        let read_result = match ctrl {
+            LsCtrl::Lb | LsCtrl::Lbu | LsCtrl::Lh | LsCtrl::Lhu | LsCtrl::Lw => {
+                // if is_difftest_skip {
+                    log_err!(mmu.read(addr, mask), ProcessError::Recoverable)?
+                // } else {
+                //     self.try_read_cache(addr, mask)?
+                // }
+            }
+
+            _ => {
+                // if is_difftest_skip {
+                    log_err!(mmu.write(addr, data, mask), ProcessError::Recoverable)?;
+                // } else {
+                //     self.try_write_cache(addr, data, mask)?;
+                // }
+                0
+            }
+        };
+
+        result = match ctrl {
+            LsCtrl::Lb => {
+                read_result as i8 as u32
+            }
+
+            LsCtrl::Lh => {
+                read_result as i16 as u32
+            }
+
+            _ => read_result
+        };
+
+        if is_difftest_skip {
             (self.callback.difftest_skip)(result);
         };
 

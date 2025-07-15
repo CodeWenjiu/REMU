@@ -2,7 +2,7 @@ use core::fmt;
 
 remu_macro::mod_flat!(memory, device, mmu);
 
-#[derive(Debug, PartialEq, Clone)]
+#[derive(Debug, PartialEq, Clone, Copy)]
 pub enum Mask{
     None,
     Byte = 1,

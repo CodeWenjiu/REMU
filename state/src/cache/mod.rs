@@ -1,6 +1,8 @@
 use remu_macro::log_todo;
 use remu_utils::ProcessResult;
 
+use crate::mmu::Mask;
+
 remu_macro::mod_flat!(icache, dcache, btb, replacement);
 
 #[derive(Clone, Debug)]
@@ -126,8 +128,8 @@ pub trait CacheBase {
     fn base_read(&self, set: u32, way: u32) -> Vec<Self::CacheData>;
 
     fn read(&mut self, addr: u32) -> Option<Vec<Self::CacheData>>;
-    fn write(&mut self, addr: u32, data: u32) -> Result<(), ()> {
-        let _ = (addr, data);
+    fn write(&mut self, addr: u32, data: u32, mask: Mask) -> Result<(), ()> {
+        let _ = (addr, data, mask);
         log_todo!();
         Err(())
     }
