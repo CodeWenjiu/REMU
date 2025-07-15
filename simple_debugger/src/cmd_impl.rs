@@ -153,7 +153,8 @@ impl SimpleDebugger {
                 }
             }
 
-            CacheCmds::DCache => {
+            CacheCmds::DCache { expr } => {
+                let _ = expr;
                 if let Some(dcache) = &self.state.cache.dcache {
                     dcache.test(&self.state_ref.cache.dcache.as_ref().unwrap())?;
                 } else {
@@ -246,10 +247,9 @@ impl SimpleDebugger {
     }
 
     fn cmd_info_cache(&mut self, subcmd: CacheCmds, target: StateTarget) -> ProcessResult<()> {
-        let target_cache_state = &self.get_state(target).cache;
-
         match subcmd {
             CacheCmds::BTB => {
+                let target_cache_state = &self.get_state(target).cache;
                 if let Some(btb) = &target_cache_state.btb {
                     btb.print();
                 } else {
@@ -258,6 +258,7 @@ impl SimpleDebugger {
             }
 
             CacheCmds::ICache => {
+                let target_cache_state = &self.get_state(target).cache;
                 if let Some(icache) = &target_cache_state.icache {
                     icache.print();
                 } else {
@@ -265,9 +266,19 @@ impl SimpleDebugger {
                 }
             }
 
-            CacheCmds::DCache => {
+            CacheCmds::DCache { expr } => {
+                let addr = if let Some(expr) = expr {
+                    Some(log_err!(self.eval_expr(&expr), ProcessError::Recoverable)?)
+                } else {
+                    None
+                };
+                let target_cache_state = &self.get_state(target).cache;
                 if let Some(dcache) = &target_cache_state.dcache {
-                    dcache.print();
+                    if let Some(addr) = addr {
+                        dcache.print_blcok(addr);
+                    } else {
+                        dcache.print();
+                    }
                 } else {
                     log_warn!("DCache is not initialized, please check if the simulator supports it.");
                 }

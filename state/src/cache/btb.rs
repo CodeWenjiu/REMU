@@ -104,7 +104,7 @@ impl CacheBase for BTB {
         })
     }
 
-    fn replace(&mut self, addr: u32, data: Vec<Self::CacheData>) -> Option<Vec<Self::CacheData>> {
+    fn replace(&mut self, addr: u32, data: Vec<Self::CacheData>) -> Option<(u32, Vec<Self::CacheData>)> {
         let set = self.table.get_set(addr);
         let tag = self.table.gat_tag(addr);
 

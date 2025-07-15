@@ -33,8 +33,8 @@ impl DCacheData {
 
 #[derive(Clone, Debug)]
 pub struct DCache {
+    
     pub table: CacheTable,
-
     pub base_bits: u32,
     pub block_num: u32,
 
@@ -130,7 +130,7 @@ impl CacheBase for DCache {
                 },
                 Mask::Half => {
                     let half_offset = (addr & 0b10) as usize;
-                    block_data = (block_data & !(0xFFFF << (half_offset * 16))) | ((data & 0xFFFF) << (half_offset * 16));
+                    block_data = (block_data & !(0xFFFF << (half_offset * 8))) | ((data & 0xFFFF) << (half_offset * 8));
                     self.base_data_write(set, way as u32, block, DCacheData { data: block_data });
                     self.replacement.access(set, way as u32);
                 },
@@ -150,22 +150,29 @@ impl CacheBase for DCache {
         })
     }
 
-    fn replace(&mut self, addr: u32, data: Vec<Self::CacheData>) -> Option<Vec<Self::CacheData>>  {
+    fn replace(&mut self, addr: u32, data: Vec<Self::CacheData>) -> Option<(u32, Vec<Self::CacheData>)>  {
         let set = self.table.get_set(addr);
         let tag = self.table.gat_tag(addr);
         let way = self.replacement.way(set);
 
-        let data_block = self.base_read(set, way);
+        let meta_ref = self.meta.borrow();
+        let meta_tag = meta_ref[set as usize][way as usize].tag;
+        let meta_dirty = meta_ref[set as usize][way as usize].dirty;
+        drop(meta_ref);
 
-        let meta_dirty = self.meta.borrow()[set as usize][way as usize].dirty;
+        let data_block = self.base_read(set, way);
+        let dirty_addr = self.table.get_addr(meta_tag, set);
+        let is_dirty = meta_dirty;
 
         self.base_meta_write(set, way, tag);
-        self.base_data_write(set, way, self.table.get_block_num(addr), data[0].clone());
+        for (block_num, block_data) in data.iter().enumerate() {
+            self.base_data_write(set, way, block_num as u32, block_data.clone());
+        }
 
         self.replacement.access(set, way);
 
-        if meta_dirty {
-            Some(data_block)
+        if is_dirty {
+            Some((dirty_addr, data_block))
         } else {
             None
         }
@@ -198,5 +205,31 @@ impl CacheBase for DCache {
         }
 
         println!("{table}");
+    }
+
+    fn print_blcok(&self, addr: u32) {
+        let set = self.table.get_set(addr);
+        let way = self.meta.borrow()[set as usize]
+            .iter()
+            .position(|meta_block| meta_block.valid && (meta_block.tag == self.table.gat_tag(addr)));
+
+        if let Some(way) = way {
+            let data_index = self.table.get_data_line_index(set, way as u32);
+            let data_block = &self.data.borrow()[data_index];
+
+            let mut table = Table::new();
+            for (block_index, data) in data_block.iter().enumerate() {
+                table.add_row(vec![
+                    set.to_string(),
+                    way.to_string(),
+                    block_index.to_string(),
+                    format!("{:#010x}", data.data),
+                ]);
+            }
+
+            println!("{table}");
+        } else {
+            println!("No valid block found for address {:#010x}", addr);
+        }   
     }
 }

@@ -107,7 +107,7 @@ impl CacheBase for ICache {
         })
     }
 
-    fn replace(&mut self, addr: u32, data: Vec<ICacheData>) -> Option<Vec<Self::CacheData>>  {
+    fn replace(&mut self, addr: u32, data: Vec<ICacheData>) -> Option<(u32, Vec<Self::CacheData>)>  {
         let set = self.table.get_set(addr);
         let tag = self.table.gat_tag(addr);
 

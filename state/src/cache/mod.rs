@@ -85,6 +85,11 @@ impl CacheTable {
     pub fn get_data_line_index(&self, set: u32, way: u32) -> usize {
         ((set << self.way_bits) + way) as usize
     }
+
+    pub fn get_addr(&self, tag: u32, set: u32) -> u32 {
+        (tag << (self.set_bits + self.block_bits + self.idx_bits)) |
+        (set << (self.block_bits + self.idx_bits))
+    }
 }
 
 #[derive(Clone, Debug)]
@@ -133,7 +138,7 @@ pub trait CacheBase {
         log_todo!();
         Err(())
     }
-    fn replace(&mut self, addr: u32, data: Vec<Self::CacheData>) -> Option<Vec<Self::CacheData>>;
+    fn replace(&mut self, addr: u32, data: Vec<Self::CacheData>) -> Option<(u32, Vec<Self::CacheData>)>;
 
     fn print(&self) {
         log_todo!();
@@ -143,5 +148,10 @@ pub trait CacheBase {
         let _ = dut;
         log_todo!();
         Ok(())
+    }
+
+    fn print_blcok(&self, addr: u32) {
+        let _ = addr;
+        log_todo!();
     }
 }

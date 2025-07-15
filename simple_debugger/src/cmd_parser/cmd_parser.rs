@@ -255,7 +255,9 @@ pub enum MemorySetCmds {
 pub enum CacheCmds {
     BTB,
     ICache,
-    DCache,
+    DCache {
+        expr: Option<String>,
+    },
 }
 
 #[derive(Debug, Subcommand)]
