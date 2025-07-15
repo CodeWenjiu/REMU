@@ -329,7 +329,7 @@ impl SimpleDebugger {
         let target_state = self.get_state(target);
 
         target_state.cache.btb.as_mut().map(|btb| {
-            btb.base_data_write(set, way, 0, BtbData{target: *data});
+            btb.base_data_write(set, way, 0, BtbData{typ: false, target: *data});
         });
 
         Ok(())

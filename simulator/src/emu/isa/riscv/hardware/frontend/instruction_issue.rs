@@ -1,8 +1,8 @@
 use remu_macro::{log_err, log_error};
 use remu_utils::{ProcessError, ProcessResult};
-use state::reg::{RegfileIo};
+use state::{cache::BRMsg, reg::RegfileIo};
 
-use crate::emu::{isa::riscv::{hardware::backend::{AlCtrl, LsCtrl, ToAlStage, ToLsStage, WbCtrl}, BasicStageMsg}, EmuHardware};
+use crate::emu::{isa::riscv::{hardware::{backend::{AlCtrl, LsCtrl, ToAlStage, ToLsStage, WbCtrl}}, BasicStageMsg}, EmuHardware};
 
 #[derive(Default, Clone, Copy, Debug)]
 pub struct ToIsStage {
@@ -15,6 +15,8 @@ pub struct ToIsStage {
 
     pub gpr_waddr: u8,
     pub imm: u32,
+
+    pub br_type: bool,
 
     pub is_ctrl: IsCtrl,
 
@@ -104,6 +106,8 @@ impl EmuHardware {
         let msg = stage.msg;
         let wb_ctrl = stage.wb_ctrl;
 
+        let br_type = stage.br_type;
+
         match inst_type {
             InstType::AL => {
                 let al_ctrl = stage.al_ctrl;
@@ -144,8 +148,13 @@ impl EmuHardware {
                         return Err(ProcessError::Recoverable);
                     },
                 };
-        
-                Ok(IsOutStage::AL(ToAlStage { msg, srca, srcb, al_ctrl, wb_ctrl, gpr_waddr, csr_waddr: (imm & 0xFFF) as u16, }))
+                
+                let br = BRMsg {
+                    br_type,
+                    br_dir: logic.unwrap_or(false),
+                };
+
+                Ok(IsOutStage::AL(ToAlStage { msg, srca, srcb, al_ctrl, wb_ctrl, br, gpr_waddr, csr_waddr: (imm & 0xFFF) as u16, }))
             }
 
             InstType::LS => {

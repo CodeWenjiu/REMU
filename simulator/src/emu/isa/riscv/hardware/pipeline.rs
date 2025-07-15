@@ -157,9 +157,9 @@ impl EmuHardware {
             let is_al = self.pipeline.stages.is_al.0.clone();
             to_wb = Some(ToWb::FromAl(self.arithmetic_logic_rv32(is_al)?));
         } else if self.pipeline.stages.is_ls.1 {
+            ls_hazard = true;
             if wb_out.is_none() || (wb_out.as_ref().map_or(false, |out| out.wb_ctrl == WbControl::BPRight)) {
                 let is_ls = self.pipeline.stages.is_ls.0.clone();
-                ls_hazard = true;
                 if self.pipeline.ls_ena {
                     to_wb = Some(ToWb::FromLs(
                         if let Some(skip_val) = skip {
@@ -235,7 +235,7 @@ impl EmuHardware {
 
             if wb_out.wb_ctrl != WbControl::BPRight {
                 self.pipeline.flush();
-                self.self_pipeline_branch_predict_flush(pc, wb_out.next_pc);
+                self.self_pipeline_branch_predict_flush(pc, wb_out.next_pc, wb_out.br);
                 self.states.pipe_state.as_mut().unwrap().flush();
                 self.times.flushed_cycles += 1;
                 return Ok(wb_msg);
@@ -276,7 +276,7 @@ impl EmuHardware {
         }
 
         if ls_hazard {
-            return Ok(wb_msg); // LS Hazardx
+            return Ok(wb_msg); // LS Hazard
         }
 
         if let Some(to_ls) = to_ls {

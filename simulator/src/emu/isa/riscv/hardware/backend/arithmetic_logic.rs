@@ -1,4 +1,5 @@
 use remu_utils::ProcessResult;
+use state::cache::BRMsg;
 
 use crate::emu::isa::riscv::BasicStageMsg;
 use crate::emu::EmuHardware;
@@ -54,6 +55,8 @@ pub struct ToAlStage {
 
     pub al_ctrl: AlCtrl,
     pub wb_ctrl: WbCtrl,
+
+    pub br: BRMsg,
 
     pub gpr_waddr: u8,
     pub csr_waddr: u16,
@@ -164,6 +167,6 @@ impl EmuHardware {
             };
         }
 
-        Ok(ToWbStage { msg, result, csr_rdata: srca, gpr_waddr, csr_waddr, wb_ctrl })
+        Ok(ToWbStage { msg, result, csr_rdata: srca, br: stage.br, gpr_waddr, csr_waddr, wb_ctrl })
     }
 }

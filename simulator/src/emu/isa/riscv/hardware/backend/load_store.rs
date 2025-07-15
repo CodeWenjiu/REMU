@@ -1,6 +1,6 @@
 use remu_macro::{log_err, log_error};
 use remu_utils::{ProcessError, ProcessResult};
-use state::{cache::{CacheBase, DCacheData}, mmu::Mask};
+use state::{cache::{BRMsg, CacheBase, DCacheData}, mmu::Mask};
 
 use crate::emu::{isa::riscv::BasicStageMsg, EmuHardware};
 
@@ -90,7 +90,7 @@ impl EmuHardware {
             trap: None,
         }; // wb's next pc is always pc + 4, in chisel will automatically optimize out
 
-        Ok(ToWbStage { msg: to_msg, result, csr_rdata: 0, gpr_waddr, csr_waddr: 0, wb_ctrl: WbCtrl::WriteGpr })
+        Ok(ToWbStage { msg: to_msg, result, csr_rdata: 0, br: BRMsg { br_type: false, br_dir: false }, gpr_waddr, csr_waddr: 0, wb_ctrl: WbCtrl::WriteGpr })
     }
 
     fn try_write_cache(&mut self, addr: u32, data: u32, mask: Mask) -> ProcessResult<()> {
@@ -261,6 +261,6 @@ impl EmuHardware {
 
         self.times.load_store += 1;
 
-        Ok(ToWbStage { msg: to_msg, result, csr_rdata: 0, gpr_waddr, csr_waddr: 0, wb_ctrl: WbCtrl::WriteGpr })
+        Ok(ToWbStage { msg: to_msg, result, csr_rdata: 0, br: BRMsg { br_type: false, br_dir: false }, gpr_waddr, csr_waddr: 0, wb_ctrl: WbCtrl::WriteGpr })
     }
 }

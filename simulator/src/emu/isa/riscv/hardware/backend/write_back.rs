@@ -1,6 +1,6 @@
 use remu_macro::{log_err, log_error};
 use remu_utils::{ProcessError, ProcessResult};
-use state::reg::{riscv::Trap, RegfileIo};
+use state::{cache::BRMsg, reg::{riscv::Trap, RegfileIo}};
 
 use crate::emu::{isa::riscv::BasicStageMsg, EmuHardware};
 
@@ -20,6 +20,8 @@ pub struct ToWbStage {
 
     pub result: u32,
     pub csr_rdata: u32,
+
+    pub br: BRMsg,
 
     pub gpr_waddr: u8,
     pub csr_waddr: u16,
@@ -41,6 +43,7 @@ pub struct Wbout {
     pub next_pc: u32,
     pub wb_ctrl: WbControl,
     pub wb_bypass: (u8, u32),
+    pub br: BRMsg,
 }
 
 impl EmuHardware {
@@ -50,6 +53,7 @@ impl EmuHardware {
             next_pc: 0,
             wb_ctrl: WbControl::BPRight,
             wb_bypass: (0, 0),
+            br: stage.br
         };
 
         let regfile = &mut self.states.regfile;

@@ -20,6 +20,10 @@ menu "Nzea"
         config Nzea_Npc_Cache_ICache
             string "Nzea ICache Cache Config"
             default "4 1 4 lru"
+
+        config Nzea_Npc_Cache_DCache
+            string "Nzea DCache Cache Config"
+            default "4 1 4 lru"
         
     endmenu
 

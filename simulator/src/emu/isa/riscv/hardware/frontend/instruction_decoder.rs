@@ -302,7 +302,14 @@ impl EmuHardware {
             BasicStageMsg { trap, ..msg }
         };
 
-        Ok(ToIsStage { msg, rs1_addr, rs1_val, rs2_addr, rs2_val, gpr_waddr, imm, is_ctrl, al_ctrl, ls_ctrl, wb_ctrl })
+        let br_type = match opcode {
+            RISCV::RV32I(RV32I::AL(inst)) | RISCV::RV32E(RV32I::AL(inst)) => {
+                matches!(inst, RV32IAL::Beq | RV32IAL::Bne | RV32IAL::Blt | RV32IAL::Bge | RV32IAL::Bltu | RV32IAL::Bgeu)
+            }
+            _ => false,
+        };
+
+        Ok(ToIsStage { msg, rs1_addr, rs1_val, rs2_addr, rs2_val, gpr_waddr, imm, br_type, is_ctrl, al_ctrl, ls_ctrl, wb_ctrl })
     }
 
 }

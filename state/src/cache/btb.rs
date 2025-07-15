@@ -20,16 +20,37 @@ impl BtbMeta {
 }
 
 #[derive(Clone, Debug)]
+pub struct BdbData {
+    pub counter: u32,
+}
+
+impl BdbData {
+    fn new() -> Self {
+        Self {
+            counter: 0
+        }
+    }
+}
+
+#[derive(Clone, Debug)]
 pub struct BtbData {
+    pub typ: bool,
     pub target: u32,
 }
 
 impl BtbData {
     fn new() -> Self {
         Self {
+            typ: false,
             target: 0
         }
     }
+}
+
+#[derive(Default, Debug, Clone)]
+pub struct BRMsg {
+    pub br_type: bool,
+    pub br_dir: bool,
 }
 
 #[derive(Debug, Clone)]
@@ -39,7 +60,37 @@ pub struct BTB {
     meta: Rc<RefCell<Vec<Vec<BtbMeta>>>>,
     data: Rc<RefCell<Vec<BtbData>>>,
 
+    bdb: Rc<RefCell<Vec<BdbData>>>,
+
     replacement: Replacement,
+}
+
+impl BTB {
+    pub fn hyper_replace(&mut self, addr: u32, data: Vec<BtbData>, brmsg: BRMsg)  {
+        
+        let set = self.table.get_set(addr);
+        let tag = self.table.gat_tag(addr);
+
+        let way = self.replacement.way(set);
+        self.replacement.access(set, way);
+        self.base_meta_write(set, way, tag);
+
+        let block_num = 0;
+        self.base_data_write(set, way, block_num, data[0].clone());
+        
+        let data_index = self.table.get_data_line_index(set, way);
+        let data_block = &mut self.bdb.borrow_mut()[data_index as usize];
+
+        if brmsg.br_dir {
+            if data_block.counter < 1 {
+                data_block.counter += 1;
+            }
+        } else {
+            if data_block.counter > 0 {
+                data_block.counter -= 1;
+            }
+        }
+    }
 }
 
 impl CacheBase for BTB {
@@ -60,6 +111,8 @@ impl CacheBase for BTB {
 
             meta: Rc::new(RefCell::new(vec![vec![BtbMeta::new(); way as usize]; set as usize])),
             data: Rc::new(RefCell::new(vec![BtbData::new(); (set * way) as usize])), // BTB should not have block_num
+
+            bdb: Rc::new(RefCell::new(vec![BdbData::new(); (set * way) as usize])), 
 
             replacement: Replacement::new(set, way, replacement),
         }
@@ -98,9 +151,17 @@ impl CacheBase for BTB {
                 .position(|meta_block| meta_block.tag == tag)
         };
 
-        way.map(|way| {
+        way.and_then(|way| {
             self.replacement.access(set, way as u32);
-            self.base_read(set, way as u32)
+            
+            let data = self.base_read(set, way as u32);
+            
+            // let data_index = self.table.get_data_line_index(set, way as u32);
+            // if data[0].typ && self.bdb.borrow()[data_index].counter > 1 {
+                Some(data)
+            // } else {
+                // None
+            // }
         })
     }
 

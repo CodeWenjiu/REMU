@@ -1,4 +1,4 @@
-use state::cache::{BtbData, CacheBase};
+use state::cache::{BRMsg, BtbData, CacheBase};
 
 use crate::emu::{isa::riscv::hardware::frontend::ToIfStage, EmuHardware};
 
@@ -28,8 +28,8 @@ impl EmuHardware {
         self.pipeline.pipeline_pc = npc;
     }
 
-    pub fn self_pipeline_branch_predict_flush(&mut self, pc: u32, target: u32) {
-        self.states.cache.btb.as_mut().unwrap().replace(pc, vec![BtbData {target}]);
+    pub fn self_pipeline_branch_predict_flush(&mut self, pc: u32, target: u32, brmsg: BRMsg) {
+        self.states.cache.btb.as_mut().unwrap().replace(pc, vec![BtbData {typ: brmsg.br_type, target}]);
 
         self.pipeline.pipeline_pc = target;
     }
