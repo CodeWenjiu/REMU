@@ -36,7 +36,7 @@ impl DCacheData {
 #[derive(Clone, Debug)]
 pub struct DCache {
     
-    pub table: CacheTable,
+    table: CacheTable,
     pub base_bits: u32,
     pub block_num: u32,
 
@@ -44,6 +44,21 @@ pub struct DCache {
     data: Rc<RefCell<Vec<Vec<DCacheData>>>>,
 
     replacement: Replacement,
+}
+
+impl DCache {
+    pub fn load_data(&mut self, addr: u32, mask: Mask) -> Option<u32> {
+        let data = &self.read(addr)?;
+        let block_data = data[self.table.get_block_num(addr) as usize].data;
+        let offset = (addr & 0b11) * 8;
+        let value = match mask {
+            Mask::Byte => (block_data >> offset) & 0xFF,
+            Mask::Half => (block_data >> offset) & 0xFFFF,
+            Mask::Word => block_data,
+            Mask::None => todo!(),
+        };
+        Some(value)
+    }
 }
 
 impl CacheBase for DCache {

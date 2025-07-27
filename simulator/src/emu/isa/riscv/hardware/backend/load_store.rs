@@ -94,101 +94,74 @@ impl EmuHardware {
     }
 
     fn try_write_cache(&mut self, addr: u32, data: u32, mask: Mask) -> ProcessResult<()> {
-        let dcache = self.states.cache.dcache.as_mut().unwrap();
-        
-        if let Err(()) = dcache.write(addr, data, mask) {
-            // burst update
-            let base_addr = addr & !((1 << dcache.base_bits) - 1);
-            let mut replace_data = vec![];
+        if let Some(dcache) = self.states.cache.dcache.as_mut() {
+            if let Err(()) = dcache.write(addr, data, mask) {
+                // burst update
+                let base_addr = addr & !((1 << dcache.base_bits) - 1);
+                let mut replace_data = vec![];
 
-            for i in 0..dcache.block_num {
-                let access_addr = base_addr + i * 4;
-                let data = log_err!(
-                    self.states.mmu.read(access_addr, state::mmu::Mask::Word),
-                    ProcessError::Recoverable
-                )?;
+                for i in 0..dcache.block_num {
+                    let access_addr = base_addr + i * 4;
+                    let data = log_err!(
+                        self.states.mmu.read(access_addr, state::mmu::Mask::Word),
+                        ProcessError::Recoverable
+                    )?;
 
-                replace_data.push(DCacheData{data});
-            }
-
-            if let Some(writeback_data) = dcache.replace(addr, replace_data) {
-                for (i, data_block) in writeback_data.1.iter().enumerate() {
-                    let access_addr = writeback_data.0 + i as u32 * 4;
-                    // let _ = (data_block, access_addr); // do nothing for now
-                    log_err!(self.states.mmu.write(access_addr, data_block.data, Mask::Word), ProcessError::Recoverable)?;
+                    replace_data.push(DCacheData{data});
                 }
+
+                if let Some(writeback_data) = dcache.replace(addr, replace_data) {
+                    for (i, data_block) in writeback_data.1.iter().enumerate() {
+                        let access_addr = writeback_data.0 + i as u32 * 4;
+                        log_err!(self.states.mmu.write(access_addr, data_block.data, Mask::Word), ProcessError::Recoverable)?;
+                    }
+                }
+
+                dcache.write(addr, data, mask).unwrap(); // safe to unwrap, because replace will always succeed
+            } else {
+                self.times.data_cache_hit += 1;
             }
-
-            dcache.write(addr, data, mask).unwrap(); // safe to unwrap, because replace will always succeed
         } else {
-            self.times.data_cache_hit += 1;
+            log_err!(self.states.mmu.write(addr, data, mask), ProcessError::Recoverable)?;
         }
-
-        // log_err!(self.states.mmu.write(addr, data, Mask::Word), ProcessError::Recoverable)?;
 
         Ok(())
     }
 
     fn try_read_cache(&mut self, addr: u32, mask: Mask) -> ProcessResult<u32> {
-        let dcache = self.states.cache.dcache.as_mut().unwrap();
-        // let data = log_err!(
-        //     self.states.mmu.read(addr, mask),
-        //     ProcessError::Recoverable
-        // )?;
-        
-        let cache_result = if let Some(data) = dcache.read(addr) {
-            self.times.data_cache_hit += 1;
-            let block_data = data[dcache.table.get_block_num(addr) as usize].data;
-            let offset = (addr & 0b11) * 8;
-            let value = match mask {
-                Mask::Byte => (block_data >> offset) & 0xFF,
-                Mask::Half => (block_data >> offset) & 0xFFFF,
-                Mask::Word => block_data,
-                Mask::None => todo!(),
-            };
-            value
-        } else {
-            // burst update
-            let base_addr = addr & !((1 << dcache.base_bits) - 1);
+        let read_result = if let Some(dcache) = self.states.cache.dcache.as_mut() {
+            if let Some(data) = dcache.load_data(addr, mask) {
+                self.times.data_cache_hit += 1;
+                data
+            } else {
+                // burst update
+                let base_addr = addr & !((1 << dcache.base_bits) - 1);
 
-            let mut replace_data = vec![];
-            for i in 0..dcache.block_num {
-                let access_addr = base_addr + i * 4;
-                let data = log_err!(
-                    self.states.mmu.read(access_addr, state::mmu::Mask::Word),
-                    ProcessError::Recoverable
-                )?;
+                let mut replace_data = vec![];
+                for i in 0..dcache.block_num {
+                    let access_addr = base_addr + i * 4;
+                    let data = log_err!(
+                        self.states.mmu.read(access_addr, state::mmu::Mask::Word),
+                        ProcessError::Recoverable
+                    )?;
 
-                replace_data.push(DCacheData{data});
-            }
-
-            if let Some(writeback_data) = dcache.replace(addr, replace_data) {
-                for (i, data_block) in writeback_data.1.iter().enumerate() {
-                    let access_addr = writeback_data.0 + i as u32 * 4;
-                    // let _ = (data_block, access_addr); // do nothing for now
-                    log_err!(self.states.mmu.write(access_addr, data_block.data, Mask::Word), ProcessError::Recoverable)?;
+                    replace_data.push(DCacheData{data});
                 }
-            }
 
-            {
-                let block_data = dcache.read(addr).unwrap()[dcache.table.get_block_num(addr) as usize].data;
-                let offset = (addr & 0b11) * 8;
-                let value = match mask {
-                    Mask::Byte => (block_data >> offset) & 0xFF,
-                    Mask::Half => (block_data >> offset) & 0xFFFF,
-                    Mask::Word => block_data,
-                    Mask::None => todo!(),
-                };
-                value
+                if let Some(writeback_data) = dcache.replace(addr, replace_data) {
+                    for (i, data_block) in writeback_data.1.iter().enumerate() {
+                        let access_addr = writeback_data.0 + i as u32 * 4;
+                        log_err!(self.states.mmu.write(access_addr, data_block.data, Mask::Word), ProcessError::Recoverable)?;
+                    }
+                }
+
+                dcache.load_data(addr, mask).unwrap() // safe to unwrap, because data will always be found after replace
             }
+        } else {
+            log_err!(self.states.mmu.read(addr, mask), ProcessError::Recoverable)?
         };
 
-        // if data != cache_result {
-        //     log_error!(format!("Cache read mismatch at addr: {:#08x}, expected: {:#08x}, got: {:#08x}", addr, data, cache_result));
-        //     return Err(ProcessError::Recoverable);
-        // }
-
-        Ok(cache_result)
+        Ok(read_result)
     }
 
     pub fn load_store_rv32i(&mut self, stage: ToLsStage) -> ProcessResult<ToWbStage> {

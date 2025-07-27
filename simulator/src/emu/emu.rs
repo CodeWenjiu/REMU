@@ -100,18 +100,18 @@ impl EmuTimes {
         table
             .add_row(vec![
                 Cell::new("IPC").fg(Color::Blue),
-                Cell::new("Instruction Cache Hit Rate").fg(Color::Blue),
-                Cell::new("Data Cache Hit Rate").fg(Color::Blue),
-                Cell::new("Branch Prediction Accuracy").fg(Color::Blue),
+                Cell::new("ICache Hit Rate").fg(Color::Blue),
+                Cell::new("DCache Hit Rate").fg(Color::Blue),
+                Cell::new("BP Accuracy").fg(Color::Blue),
                 Cell::new("Cycles").fg(Color::Blue),
                 Cell::new("Flushed Cycles").fg(Color::Blue),
                 Cell::new("Instructions").fg(Color::Blue),
             ])
             .add_row(vec![
                 Cell::new((self.instructions as f64 / self.cycles as f64).to_string()).fg(Color::Green),
-                Cell::new((self.instruction_cache_hit as f64 / self.instruction_fetch as f64).to_string()).fg(Color::Green),
-                Cell::new((self.data_cache_hit as f64 / self.load_store as f64).to_string()).fg(Color::Green),
-                Cell::new(((self.branched_cycles - self.flushed_cycles) as f64 / self.branched_cycles as f64).to_string()).fg(Color::Green), // Placeholder for branch prediction accuracy
+                Cell::new(format!("{:.2}%", self.instruction_cache_hit as f64 / self.instruction_fetch as f64 * 100.0)).fg(Color::Green),
+                Cell::new(format!("{:.2}%", self.data_cache_hit as f64 / self.load_store as f64 * 100.0)).fg(Color::Green),
+                Cell::new(format!("{:.2}%", (self.branched_cycles - self.flushed_cycles) as f64 / self.branched_cycles as f64 * 100.0)).fg(Color::Green),
                 Cell::new(self.cycles.to_string()).fg(Color::Green),
                 Cell::new(self.flushed_cycles.to_string()).fg(Color::Green),
                 Cell::new(self.instructions.to_string()).fg(Color::Green),
