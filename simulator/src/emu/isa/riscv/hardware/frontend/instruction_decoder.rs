@@ -1,8 +1,8 @@
 use remu_macro::log_err;
 use remu_utils::{ProcessError, ProcessResult};
-use state::reg::{riscv::{RvCsrEnum}, RegfileIo};
+use state::reg::RegfileIo;
 
-use crate::emu::{extract_bits, isa::riscv::{hardware::{backend::{AlCtrl, LsCtrl, WbCtrl}}, instruction::{DecodeResult, Priv}, BasicStageMsg}, sig_extend, EmuHardware, InstructionSetFlags};
+use crate::emu::{extract_bits, isa::riscv::{hardware::{backend::{AlCtrl, LsCtrl, WbCtrl}}, instruction::DecodeResult, BasicStageMsg}, sig_extend, EmuHardware, InstructionSetFlags};
 
 use super::{
     super::super::instruction::{ImmType, Zicsr, RISCV, RV32I, RV32IAL, RV32ILS, RV32M, }, InstType, IsCtrl, IsLogic, ToIsStage, SRCA, SRCB
@@ -82,15 +82,7 @@ impl EmuHardware {
             
             
         // Extract immediate value
-        let imm = match opcode {
-            RISCV::Priv(inst) => {
-                match inst {
-                    Priv::Mret => RvCsrEnum::MEPC.into(),
-                }
-            }
-
-            _ => Self::get_imm(instruction, imm_type)
-        };
+        let imm = Self::get_imm(instruction, imm_type);
 
         // Extract register fields
         let rs1_addr = match imm_type {
@@ -172,8 +164,6 @@ impl EmuHardware {
 
             RISCV::Zicsr(_) => SRCA::CSR,
 
-            RISCV::Priv(_) => SRCA::CSR,
-
             _ => SRCA::RS1,
         };
 
@@ -193,8 +183,6 @@ impl EmuHardware {
             }
 
             RISCV::Zicsr(_) => SRCB::RS1,
-
-            RISCV::Priv(_) => SRCB::RS1,
 
             _ => SRCB::RS2,
         };
@@ -253,8 +241,6 @@ impl EmuHardware {
                 }
             }
 
-            RISCV::Priv(_) => AlCtrl::Add,
-
             _ => AlCtrl::DontCare,
         };
 
@@ -290,8 +276,6 @@ impl EmuHardware {
             RISCV::RV32M(_) => WbCtrl::WriteGpr,
 
             RISCV::Zicsr(_) => WbCtrl::Csr,
-
-            RISCV::Priv(_) => WbCtrl::Jump,
 
             _ => WbCtrl::DontCare,
         };

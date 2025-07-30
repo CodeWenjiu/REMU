@@ -10,6 +10,8 @@ pub enum Trap {
     Ebreak = 3,
 
     EcallM = 11,
+
+    Mret, // Not a trap, but used for MRET instruction
 }
 
 #[derive(Clone, Copy, Debug)]

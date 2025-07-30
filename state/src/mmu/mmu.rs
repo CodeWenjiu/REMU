@@ -36,6 +36,15 @@ pub enum MMUError {
 }
 pub type MMUResult<T, E = MMUError> = std::result::Result<T, E>;
 
+#[derive(Debug)]
+pub struct RegionConfiguration {
+    pub name: String,
+    pub base: u32,
+    pub size: u32,
+    pub flag: MemoryFlags,
+    pub mmtype: MMTargetType,
+}
+
 impl MMU {
     pub fn new() -> Self {
         MMU {
@@ -43,8 +52,9 @@ impl MMU {
         }
     }
 
-    pub fn add_region(&mut self, base: u32, length: u32, name: &str, flag: MemoryFlags, r#type: MMTargetType) -> MMUResult<()> {
+    pub fn add_region(&mut self, region: &RegionConfiguration) -> MMUResult<()> {
         // Check for conflicts with existing memory regions
+        let (base, length, name, flag, r#type) = (region.base, region.size, &region.name, region.flag.clone(), region.mmtype);
         for (name_, base_, length_, _, _, ) in &self.memory_map {
             if !(base + length <= *base_ || base >= *base_ + *length_) {
                 return Err(MMUError::MMioRegionConflict { 

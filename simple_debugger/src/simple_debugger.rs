@@ -72,6 +72,9 @@ impl SimpleDebugger {
 
         let (state, state_ref) = Self::state_init(&cli_result, conditional.clone());
 
+        let server = Server::new(cli_result.cli.platform.simulator, rl_history_length)
+            .expect("Unable to create server");
+
         let mut simulator = log_err!(Simulator::new(
             &cli_result,
             state.clone(),
@@ -82,8 +85,7 @@ impl SimpleDebugger {
         log_err!(simulator.load_memory(&cli_result))?;
 
         Ok(Self {
-            server: Server::new(cli_result.cli.platform.simulator, rl_history_length)
-                .expect("Unable to create server"),
+            server,
 
             conditional,
 
@@ -162,25 +164,11 @@ impl SimpleDebugger {
         };
 
         for region in &cli_result.cfg.platform_config.regions {
-            log_err!(state.mmu.add_region(
-                region.base,
-                region.size,
-                &region.name,
-                region.flag.clone(),
-                region.mmtype
-            ))
-            .unwrap();
+            log_err!(state.mmu.add_region(region)).unwrap();
 
             match cli_result.cli.differtest {
                 Some(DifftestRef::Pipeline(_)) | Some(DifftestRef::SingleCycle(_)) => {
-                    log_err!(state_ref.mmu.add_region(
-                        region.base,
-                        region.size,
-                        &region.name,
-                        region.flag.clone(),
-                        region.mmtype
-                    ))
-                    .unwrap();
+                    log_err!(state_ref.mmu.add_region(region)).unwrap();
                 }
 
                 _ => {},

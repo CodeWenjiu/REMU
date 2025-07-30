@@ -74,19 +74,14 @@ impl EmuHardware {
     pub fn instruction_parse(&self, inst: u32) -> DecodeResult {
         let isa = self.instruction_set;
         
-        // Try to decode as RV32I first (most common)
-        if isa.contains(InstructionSetFlags::RV32I) {
+        // Try to decode as RV32I/E first (most common)
+        if isa.contains(InstructionSetFlags::RV32I) || isa.contains(InstructionSetFlags::RV32E) {
             if let Some((opcode, imm_type)) = Self::rv32_i_parse(inst) {
-                if opcode == RV32I::AL(RV32IAL::Ebreak) {
-                    return DecodeResult::Trap(Trap::Ebreak);
-                }
-                return DecodeResult::Result((RISCV::RV32I(opcode), imm_type));
-            }
-        }
-
-        if isa.contains(InstructionSetFlags::RV32E) {
-            if let Some((opcode, imm_type)) = Self::rv32_i_parse(inst) {
-                return DecodeResult::Result((RISCV::RV32E(opcode), imm_type));
+                return match opcode {
+                    RV32I::AL(RV32IAL::Ebreak) => DecodeResult::Trap(Trap::Ebreak),
+                    RV32I::AL(RV32IAL::Ecall) => DecodeResult::Trap(Trap::EcallM),
+                    _ => DecodeResult::Result((RISCV::RV32I(opcode), imm_type)),
+                };
             }
         }
 
@@ -106,8 +101,11 @@ impl EmuHardware {
 
         // Try to decode as privileged
         if isa.contains(InstructionSetFlags::PRIV) {
-            if let Some((opcode, imm_type)) = Self::rv_priv_parse(inst) {
-                return DecodeResult::Result((RISCV::Priv(opcode), imm_type));
+            if let Some((opcode, _imm_type)) = Self::rv_priv_parse(inst) {
+                return match opcode {
+                    Priv::Mret => DecodeResult::Trap(Trap::Mret),
+                    // _ => DecodeResult::Result((RISCV::Priv(opcode), imm_type)),
+                };
             }
         }
 

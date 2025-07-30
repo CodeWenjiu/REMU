@@ -4,17 +4,8 @@ use logger::Logger;
 use pest::Parser;
 use remu_macro::log_err;
 use remu_utils::Platform;
-use state::{cache::CacheConfiguration, mmu::{MMTargetType, MemoryFlags}};
+use state::{cache::CacheConfiguration, mmu::{MMTargetType, MemoryFlags, RegionConfiguration}};
 use std::path::PathBuf;
-
-#[derive(Debug)]
-pub struct RegionConfiguration {
-    pub name: String,
-    pub base: u32,
-    pub size: u32,
-    pub flag: MemoryFlags,
-    pub mmtype: MMTargetType,
-}
 
 #[derive(Debug)]
 pub struct AllCacheConfiguration {

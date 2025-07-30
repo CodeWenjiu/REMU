@@ -1,6 +1,6 @@
 use remu_macro::{log_err, log_error};
 use remu_utils::{ProcessError, ProcessResult};
-use state::{cache::BRMsg, reg::{riscv::Trap, RegfileIo}};
+use state::{cache::BRMsg, reg::{riscv::{RvCsrEnum, Trap}, RegfileIo}};
 
 use crate::emu::{isa::riscv::BasicStageMsg, EmuHardware};
 
@@ -61,12 +61,14 @@ impl EmuHardware {
         let mut next_pc = pc.wrapping_add(4);
 
         if let Some(trap) = stage.msg.trap {
-            if trap == Trap::Ebreak {
+            next_pc = if trap == Trap::Ebreak {
                 (self.callback.yield_)(); // just for now
                 return Err(ProcessError::Recoverable);
-            }
-            
-            next_pc = regfile.trap(pc, trap as u32)?;
+            } else if trap == Trap::Mret {
+                log_err!(regfile.read_csr(RvCsrEnum::MEPC.into()), ProcessError::Recoverable)?
+            } else {
+                regfile.trap(pc, trap as u32)?
+            };
 
             regfile.write_pc(next_pc);
             
