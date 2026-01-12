@@ -1,14 +1,7 @@
 [workspace]
 resolver = "2"
-members = [ 
-    "core", 
-    "logger","option_parser", 
-    "remu_macro", 
-    "remu_utils", 
-    "remu_buildin", 
-    "simple_debugger", 
-    "simulator", 
-    "state", "remu_feature", 
+members = [
+    "remu_launcher"
 ]
 
 [profile.release]
