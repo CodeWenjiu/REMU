@@ -1,17 +1,50 @@
-pub fn add(
-    left: u64,
-    right: u64,
-) -> u64 {
-    left + right
+use clap::{CommandFactory, Parser};
+
+remu_macro::mod_flat!(commands, error);
+
+fn get_command_list() -> Vec<String> {
+    let command = CommandParser::command();
+    command
+        .get_subcommands()
+        .map(|sub| sub.get_name().to_string())
+        .collect()
 }
 
-#[cfg(test)]
-mod tests {
-    use super::*;
+pub fn get_command_with_help() -> Vec<String> {
+    let mut commands = get_command_list();
+    commands.push("help".to_string());
+    commands
+}
 
-    #[test]
-    fn it_works() {
-        let result = add(2, 2);
-        assert_eq!(result, 4);
+pub struct Debugger {}
+
+impl Debugger {
+    pub fn new() -> Self {
+        Debugger {}
+    }
+
+    pub fn execute(&self, buffer: String) -> Result<()> {
+        let mut commands = shlex::split(&buffer).ok_or(Error::InvalidQuoting)?;
+
+        commands.insert(0, "remu_core".to_string());
+
+        let cmd_wrapper = match CommandParser::try_parse_from(commands) {
+            Ok(v) => v,
+            Err(e) => {
+                println!("{}", e);
+                return Ok(());
+            }
+        };
+
+        match cmd_wrapper.command {
+            Commands::Continue => {
+                println!("Continuing execution...");
+            }
+            Commands::Times => {
+                println!("Executing command times...");
+            }
+        }
+
+        Ok(())
     }
 }

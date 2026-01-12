@@ -11,12 +11,7 @@ fn get_editor() -> Reedline {
             .expect("Error configuring history with file"),
     );
 
-    let commands = vec![
-        "test".into(),
-        "hello world".into(),
-        "hello world reedline".into(),
-        "this is the reedline crate".into(),
-    ];
+    let commands = remu_core::get_command_with_help();
 
     let completer = Box::new(DefaultCompleter::new_with_wordlen(commands.clone(), 2));
     // Use the interactive menu to select options from the completer
@@ -56,19 +51,21 @@ fn main() {
     let mut line_editor = get_editor();
     let prompt = get_prompt();
 
+    let debugger = remu_core::Debugger::new();
+
     loop {
         let sig = line_editor.read_line(&prompt);
         match sig {
             Ok(Signal::Success(buffer)) => {
-                println!("We processed: {}", buffer);
-            },
-            Ok(Signal::CtrlD) | Ok(Signal::CtrlC) => {
-                println!("\nAborted!");
+                if let Err(e) = debugger.execute(buffer) {
+                    println!("{}", e);
+                }
+            }
+            Ok(Signal::CtrlD) => {
+                println!("Quiting...");
                 break;
-            },
-            x => {
-                println!("Event: {:?}", x);
-            },
+            }
+            _ => {}
         }
     }
 }
