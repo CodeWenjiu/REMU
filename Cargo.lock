@@ -367,9 +367,15 @@ name = "remu_cli"
 version = "0.1.0"
 dependencies = [
  "crossterm",
+ "nu-ansi-term",
  "reedline",
+ "remu_core",
  "remu_macro",
 ]
+
+[[package]]
+name = "remu_core"
+version = "0.1.0"
 
 [[package]]
 name = "remu_macro"

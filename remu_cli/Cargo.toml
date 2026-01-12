@@ -4,6 +4,8 @@ version = "0.1.0"
 edition = "2024"
 
 [dependencies]
-crossterm = "0.29.0"
-reedline = "0.44.0"
 remu_macro = { path = "../remu_macro" }
+remu_core = { path = "../remu_core" }
+crossterm = "0.29.0"
+nu-ansi-term = "0.50.3"
+reedline = "0.44.0"

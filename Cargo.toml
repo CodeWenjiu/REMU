@@ -3,7 +3,7 @@ resolver = "2"
 members = [
     "remu_macro",
     "remu_cli"
-]
+, "remu_core"]
 
 [profile.release]
 codegen-units = 1
