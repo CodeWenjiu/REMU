@@ -41,6 +41,8 @@
               ];
             })
             cargo-edit
+
+            mold
           ];
         };
       }
