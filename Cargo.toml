@@ -1,11 +1,10 @@
 [workspace]
 resolver = "2"
 members = [
-    "remu_launcher"
+    "remu_cli"
 ]
 
 [profile.release]
-# debug = true # for flamegraph
 codegen-units = 1
 lto           = true
 panic         = "abort"

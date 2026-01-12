@@ -1,5 +1,0 @@
-menu "Cache"
-    source "dynamic/cache/emu/Kconfig"
-
-    source "dynamic/cache/nzea/Kconfig"
-endmenu

@@ -1,5 +1,0 @@
-menu "Regions"
-    source "dynamic/region/emu/Kconfig"
-
-    source "dynamic/region/nzea/Kconfig"
-endmenu
