@@ -1,34 +1,21 @@
-use std::{fmt::Debug, io::Write};
+use std::path::Path;
 
 use anyhow::Result;
 use tracing_appender::non_blocking::WorkerGuard;
+use tracing_subscriber::{Registry, layer::SubscriberExt, util::SubscriberInitExt};
 
 #[tracing::instrument]
-/// Initialize the global tracing subscriber/logger.
-///
-/// This function is intended to be called exactly once at application start (e.g. in main)
-/// before any logging occurs. It installs a global default subscriber.
-///
-/// The returned WorkerGuard MUST be kept alive (not dropped) for as long as you want
-/// logging to function correctly. Dropping it will stop the background logging worker
-/// and may cause log events to be lost.
-///
-/// Typical usage:
-/// ```rust
-/// fn main() {
-///     let _guard = mtas_logger::set_logger(std::io::stdout())?;
-///     info!("Hello, world!");
-///     ...
-/// }
-/// ```
-/// (Store `_guard` in a variable you keep until shutdown; using a leading underscore
-/// silences unused warnings while still preserving the guard.)
-pub fn set_logger<T: Write + Send + Debug + 'static>(writer: T) -> Result<WorkerGuard> {
-    let (append, _guard) = tracing_appender::non_blocking(writer);
+pub fn set_logger(
+    log_dir: impl AsRef<Path> + std::fmt::Debug,
+    file_name: &str,
+) -> Result<(WorkerGuard, WorkerGuard)> {
+    let file_appender = tracing_appender::rolling::never(log_dir, file_name);
+    let (stdout, stdout_guard) = tracing_appender::non_blocking(std::io::stdout());
+    let (file, file_guard) = tracing_appender::non_blocking(file_appender);
 
-    let subscriber = tracing_subscriber::fmt()
+    let console_layer = tracing_subscriber::fmt::layer()
         // Output to stdout
-        .with_writer(append)
+        .with_writer(stdout)
         // Use a more pretty, human-readable log format
         .pretty()
         // Use ANSI colors for output
@@ -42,20 +29,28 @@ pub fn set_logger<T: Write + Send + Debug + 'static>(writer: T) -> Result<Worker
         // Display the thread ID an event was recorded on
         .with_thread_ids(true)
         // Don't display the event's target (module path)
-        .with_target(false)
-        // Build the subscriber
-        .finish();
+        .with_target(false);
 
-    tracing::subscriber::set_global_default(subscriber)?;
+    let file_layer = tracing_subscriber::fmt::layer()
+        .with_writer(file)
+        .with_ansi(false)
+        .with_file(true)
+        .with_line_number(true)
+        .with_target(true);
+
+    Registry::default()
+        .with(console_layer)
+        .with(file_layer)
+        .try_init()?;
 
     tracing::info!("Logger initialized");
 
-    Ok(_guard)
+    Ok((stdout_guard, file_guard))
 }
 
 #[macro_export]
 macro_rules! init_logger {
-    ($writer:expr) => {
-        let _guard = $crate::set_logger($writer)?;
+    ($dir:expr, $file:expr) => {
+        let (_stdout_guard, _file_guard) = $crate::set_logger($dir, $file)?;
     };
 }

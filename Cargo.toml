@@ -15,4 +15,7 @@ strip         = true
 [workspace.dependencies]
 thiserror = "2.0.17"
 anyhow = "1.0.100"
+
 tracing = "0.1.44"
+
+petgraph = "0.8.3"

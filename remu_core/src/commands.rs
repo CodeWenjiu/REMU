@@ -1,4 +1,5 @@
 use clap::{CommandFactory, Subcommand, builder::styling};
+use petgraph::graph::{Graph, NodeIndex};
 
 #[derive(clap::Parser, Debug)]
 #[command(
@@ -28,21 +29,39 @@ pub(crate) enum Commands {
 
     /// Times printf
     Times {
-        #[arg(default_value("1"))]
-        count: u64,
+        #[command(subcommand)]
+        subcmd: TimeCmds,
     },
 }
 
-fn get_command_list() -> Vec<String> {
-    let command = CommandParser::command();
-    command
-        .get_subcommands()
-        .map(|sub| sub.get_name().to_string())
-        .collect()
+#[derive(Debug, Subcommand)]
+pub(crate) enum TimeCmds {
+    /// Times Count
+    Count {
+        #[command(subcommand)]
+        subcmd: TimeCountCmds,
+    },
 }
 
-pub fn get_command_with_help() -> Vec<String> {
-    let mut commands = get_command_list();
-    commands.push("help".to_string());
-    commands
+#[derive(Debug, Subcommand)]
+pub(crate) enum TimeCountCmds {
+    Test,
+}
+
+fn populate_graph(cmd: &clap::Command, graph: &mut Graph<String, ()>, parent: NodeIndex) {
+    for sub in cmd.get_subcommands() {
+        let idx = graph.add_node(sub.get_name().to_string());
+        graph.add_edge(parent, idx, ());
+        populate_graph(sub, graph, idx);
+    }
+}
+
+/// Build a command graph for hierarchical completion.
+/// Returns the graph and the root node index.
+pub fn get_command_graph() -> (Graph<String, ()>, NodeIndex) {
+    let mut graph = Graph::<String, ()>::new();
+    let root = graph.add_node(env!("CARGO_PKG_NAME").to_string());
+    let command = CommandParser::command();
+    populate_graph(&command, &mut graph, root);
+    (graph, root)
 }

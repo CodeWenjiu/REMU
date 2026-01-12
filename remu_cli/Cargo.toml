@@ -12,6 +12,8 @@ tracing.workspace = true
 
 anyhow.workspace = true
 
+petgraph.workspace = true
+
 crossterm = "0.29.0"
 nu-ansi-term = "0.50.3"
 reedline = "0.44.0"

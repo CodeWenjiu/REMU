@@ -1,12 +1,12 @@
 use anyhow::Result;
 use nu_ansi_term::{Color, Style};
 use reedline::{
-    ColumnarMenu, DefaultHinter, DefaultPrompt, DefaultPromptSegment, Emacs, ExampleHighlighter,
-    FileBackedHistory, KeyCode, KeyModifiers, MenuBuilder, Reedline, ReedlineEvent, ReedlineMenu,
-    Signal, default_emacs_keybindings,
+    ColumnarMenu, DefaultHinter, DefaultPrompt, DefaultPromptSegment, Emacs, FileBackedHistory,
+    KeyCode, KeyModifiers, MenuBuilder, Reedline, ReedlineEvent, ReedlineMenu, Signal,
+    default_emacs_keybindings,
 };
 
-remu_macro::mod_flat!(compeleter);
+remu_macro::mod_flat!(compeleter, highlighter);
 
 fn get_editor() -> Reedline {
     let history = Box::new(
@@ -14,9 +14,10 @@ fn get_editor() -> Reedline {
             .expect("Error configuring history with file"),
     );
 
-    let commands = remu_core::get_command_with_help();
+    let (graph, root) = remu_core::get_command_graph();
 
-    let completer = Box::new(RemuCompleter::new(commands.clone()));
+    let completer = Box::new(RemuCompleter::new(graph.clone(), root));
+    let highlighter = Box::new(RemuHighlighter::new(graph, root));
     // Use the interactive menu to select options from the completer
     let completion_menu = Box::new(ColumnarMenu::default().with_name("completion_menu"));
     // Set up the required keybindings
@@ -34,7 +35,7 @@ fn get_editor() -> Reedline {
 
     Reedline::create()
         .with_history(history)
-        .with_highlighter(Box::new(ExampleHighlighter::new(commands)))
+        .with_highlighter(highlighter)
         .with_completer(completer)
         .with_menu(ReedlineMenu::EngineCompleter(completion_menu))
         .with_edit_mode(edit_mode)
@@ -51,7 +52,7 @@ fn get_prompt() -> DefaultPrompt {
 }
 
 fn main() -> Result<()> {
-    let _guard = remu_logger::set_logger(std::io::stdout())?;
+    let _guard = remu_logger::set_logger("target/logs", "remu.log")?;
 
     let mut line_editor = get_editor();
     let prompt = get_prompt();

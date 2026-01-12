@@ -1,6 +1,7 @@
 use clap::Parser;
 
 remu_macro::mod_flat!(commands, error);
+pub use commands::get_command_graph;
 
 pub struct Debugger {}
 
@@ -12,7 +13,7 @@ impl Debugger {
     pub fn execute(&self, buffer: String) -> Result<()> {
         let mut commands = shlex::split(&buffer).ok_or(Error::InvalidQuoting)?;
 
-        commands.insert(0, "remu".to_string());
+        commands.insert(0, env!("CARGO_PKG_NAME").to_string());
 
         let cmd_wrapper = match CommandParser::try_parse_from(commands) {
             Ok(v) => v,
@@ -29,9 +30,13 @@ impl Debugger {
             Commands::Continue => {
                 tracing::info!("Continuing execution...");
             }
-            Commands::Times { count } => {
-                tracing::info!("Executing command {} times...", count);
-            }
+            Commands::Times { subcmd } => match subcmd {
+                TimeCmds::Count { subcmd } => match subcmd {
+                    TimeCountCmds::Test => {
+                        tracing::info!("Time Count Test")
+                    }
+                },
+            },
         }
 
         Ok(())
