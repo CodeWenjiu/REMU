@@ -1,10 +1,12 @@
 use anyhow::Result;
 use nu_ansi_term::{Color, Style};
 use reedline::{
-    ColumnarMenu, DefaultCompleter, DefaultHinter, DefaultPrompt, DefaultPromptSegment, Emacs,
-    ExampleHighlighter, FileBackedHistory, KeyCode, KeyModifiers, MenuBuilder, Reedline,
-    ReedlineEvent, ReedlineMenu, Signal, default_emacs_keybindings,
+    ColumnarMenu, DefaultHinter, DefaultPrompt, DefaultPromptSegment, Emacs, ExampleHighlighter,
+    FileBackedHistory, KeyCode, KeyModifiers, MenuBuilder, Reedline, ReedlineEvent, ReedlineMenu,
+    Signal, default_emacs_keybindings,
 };
+
+remu_macro::mod_flat!(compeleter);
 
 fn get_editor() -> Reedline {
     let history = Box::new(
@@ -14,7 +16,7 @@ fn get_editor() -> Reedline {
 
     let commands = remu_core::get_command_with_help();
 
-    let completer = Box::new(DefaultCompleter::new_with_wordlen(commands.clone(), 2));
+    let completer = Box::new(RemuCompleter::new(commands.clone()));
     // Use the interactive menu to select options from the completer
     let completion_menu = Box::new(ColumnarMenu::default().with_name("completion_menu"));
     // Set up the required keybindings
@@ -43,7 +45,7 @@ fn get_editor() -> Reedline {
 
 fn get_prompt() -> DefaultPrompt {
     DefaultPrompt::new(
-        DefaultPromptSegment::Basic("(remu)".into()),
+        DefaultPromptSegment::Basic("remu ".into()),
         DefaultPromptSegment::CurrentDateTime,
     )
 }
@@ -61,7 +63,7 @@ fn main() -> Result<()> {
         match sig {
             Ok(Signal::Success(buffer)) => {
                 if let Err(e) = debugger.execute(buffer) {
-                    println!("{}", e);
+                    eprintln!("{}", e);
                 }
             }
             Ok(Signal::CtrlD) => {
