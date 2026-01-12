@@ -1,0 +1,12 @@
+[package]
+name = "remu_logger"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+remu_macro = { path = "../remu_macro" }
+anyhow.workspace = true
+
+tracing.workspace = true
+tracing-subscriber = "0.3.22"
+tracing-appender = "0.2.4"

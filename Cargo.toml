@@ -4,7 +4,7 @@ members = [
     "remu_macro",
     "remu_cli",
     "remu_core"
-]
+, "remu_logger"]
 
 [profile.release]
 codegen-units = 1
@@ -15,3 +15,4 @@ strip         = true
 [workspace.dependencies]
 thiserror = "2.0.17"
 anyhow = "1.0.100"
+tracing = "0.1.44"

@@ -31,7 +31,7 @@ impl Debugger {
         let cmd_wrapper = match CommandParser::try_parse_from(commands) {
             Ok(v) => v,
             Err(e) => {
-                println!("{}", e);
+                let _ = e.print();
                 return Ok(());
             }
         };
@@ -40,8 +40,8 @@ impl Debugger {
             Commands::Continue => {
                 println!("Continuing execution...");
             }
-            Commands::Times => {
-                println!("Executing command times...");
+            Commands::Times { count } => {
+                println!("Executing command {} times...", count);
             }
         }
 

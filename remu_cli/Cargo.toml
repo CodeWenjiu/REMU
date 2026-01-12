@@ -5,7 +5,13 @@ edition = "2024"
 
 [dependencies]
 remu_macro = { path = "../remu_macro" }
+remu_logger = { path = "../remu_logger" }
 remu_core = { path = "../remu_core" }
+
+tracing.workspace = true
+
+anyhow.workspace = true
+
 crossterm = "0.29.0"
 nu-ansi-term = "0.50.3"
 reedline = "0.44.0"

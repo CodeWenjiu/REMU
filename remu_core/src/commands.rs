@@ -17,5 +17,8 @@ pub(crate) enum Commands {
     Continue,
 
     /// Times printf
-    Times,
+    Times {
+        #[arg(default_value("1"))]
+        count: u64,
+    },
 }

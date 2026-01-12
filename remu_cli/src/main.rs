@@ -1,3 +1,4 @@
+use anyhow::Result;
 use nu_ansi_term::{Color, Style};
 use reedline::{
     ColumnarMenu, DefaultCompleter, DefaultHinter, DefaultPrompt, DefaultPromptSegment, Emacs,
@@ -47,7 +48,9 @@ fn get_prompt() -> DefaultPrompt {
     )
 }
 
-fn main() {
+fn main() -> Result<()> {
+    let _guard = remu_logger::set_logger(std::io::stdout())?;
+
     let mut line_editor = get_editor();
     let prompt = get_prompt();
 
@@ -68,4 +71,6 @@ fn main() {
             _ => {}
         }
     }
+
+    Ok(())
 }
