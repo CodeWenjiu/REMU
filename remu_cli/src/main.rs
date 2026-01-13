@@ -63,7 +63,7 @@ fn main() -> Result<()> {
         let sig = line_editor.read_line(&prompt);
         match sig {
             Ok(Signal::Success(buffer)) => {
-                if let Err(e) = debugger.execute(buffer) {
+                if let Err(e) = debugger.execute_line(buffer) {
                     eprintln!("{}", e);
                 }
             }

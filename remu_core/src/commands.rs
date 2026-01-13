@@ -16,7 +16,7 @@ use petgraph::graph::{Graph, NodeIndex};
 )]
 pub(crate) struct CommandParser {
     #[command(subcommand)]
-    pub command: Commands,
+    pub(crate) command: Commands,
 }
 
 #[derive(Debug, Subcommand)]

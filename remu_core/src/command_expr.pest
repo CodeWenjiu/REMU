@@ -1,0 +1,9 @@
+WHITESPACE = _{ " " | "\t" | "\n" | "\r" }
+
+expr      = { SOI ~ block ~ ((and | or) ~ block)* ~ EOI }
+block     = { do_kw ~ WHITESPACE* ~ "{" ~ inner? ~ "}" }
+inner     = { (!"}" ~ ANY)* }
+
+do_kw     = @{ "do" }
+and       = @{ "and" }
+or        = @{ "or" }
