@@ -12,61 +12,60 @@ impl Debugger {
 
     pub fn execute_line(&self, buffer: String) -> Result<()> {
         let trimmed = buffer.trim();
+        let expr =
+            command_expr::parse_expression(trimmed).map_err(|_| Error::CommandExprHandled)?;
 
-        // Try full expression (do {...} and/or do {...}) first
-        match command_expr::parse_expression(trimmed) {
-            Ok(expr) => {
-                let mut result = self.execute_tokens(expr.first)?;
-                for (op, block) in expr.tail {
-                    match op {
-                        command_expr::Op::And => {
-                            if result {
-                                result = self.execute_tokens(block)?;
-                            }
-                        }
-                        command_expr::Op::Or => {
-                            if !result {
-                                result = self.execute_tokens(block)?;
-                            }
-                        }
-                    }
-                }
-                let _ = result;
-                return Ok(());
-            }
-            Err(e) => {
-                if trimmed.starts_with("do") {
-                    return Err(Error::CommandExpr(e.to_string()));
-                }
-            }
+        // Parse all blocks up front; abort early on any invalid block
+        let command_expr::CommandExpr { first, tail } = expr;
+
+        let blocks_iter = std::iter::once(first.clone()).chain(tail.iter().map(|(_, b)| b.clone()));
+
+        let mut parsed = Vec::new();
+        for block in blocks_iter {
+            parsed.push(self.parse_block(block)?);
         }
 
-        // Fallback: treat as a single command
-        let tokens = match shlex::split(trimmed) {
-            Some(v) if !v.is_empty() => v,
-            _ => return Ok(()),
+        let mut parsed_iter = parsed.into_iter();
+        let first_cmd = match parsed_iter.next() {
+            Some(cmd) => cmd,
+            None => return Ok(()),
         };
-        let _ = self.execute_tokens(tokens)?;
+
+        let mut result = self.execute_parsed(&first_cmd.command)?;
+        for ((op, _), cmd_wrapper) in tail.into_iter().zip(parsed_iter) {
+            match (op, result) {
+                (command_expr::Op::And, true) => {
+                    result = self.execute_parsed(&cmd_wrapper.command)?;
+                }
+                (command_expr::Op::Or, false) => {
+                    result = self.execute_parsed(&cmd_wrapper.command)?;
+                }
+                _ => {}
+            }
+        }
+        let _ = result;
         Ok(())
     }
 
-    fn execute_tokens(&self, mut tokens: Vec<String>) -> Result<bool> {
+    fn parse_block(&self, mut tokens: Vec<String>) -> Result<CommandParser> {
         if tokens.is_empty() {
-            return Ok(true);
+            return Err(Error::CommandExprHandled);
         }
         let mut commands = Vec::with_capacity(tokens.len() + 1);
         commands.push(env!("CARGO_PKG_NAME").to_string());
         commands.append(&mut tokens);
 
-        let cmd_wrapper = match CommandParser::try_parse_from(commands) {
-            Ok(v) => v,
+        match CommandParser::try_parse_from(commands) {
+            Ok(v) => Ok(v),
             Err(e) => {
-                let _ = e.print();
-                return Ok(false);
+                let _ = e.print(); // keep clap colorized output
+                Err(Error::CommandExprHandled)
             }
-        };
+        }
+    }
 
-        match cmd_wrapper.command {
+    fn execute_parsed(&self, command: &Commands) -> Result<bool> {
+        match command {
             Commands::Version => {
                 println!("remu-core v{}", env!("CARGO_PKG_VERSION"))
             }

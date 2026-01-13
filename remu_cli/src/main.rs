@@ -5,6 +5,7 @@ use reedline::{
     KeyCode, KeyModifiers, MenuBuilder, Reedline, ReedlineEvent, ReedlineMenu, Signal,
     default_emacs_keybindings,
 };
+use remu_core::Error;
 
 remu_macro::mod_flat!(compeleter, highlighter);
 
@@ -64,7 +65,9 @@ fn main() -> Result<()> {
         match sig {
             Ok(Signal::Success(buffer)) => {
                 if let Err(e) = debugger.execute_line(buffer) {
-                    eprintln!("{}", e);
+                    if !matches!(e, Error::CommandExprHandled) {
+                        eprintln!("{}", e);
+                    }
                 }
             }
             Ok(Signal::CtrlD) => {

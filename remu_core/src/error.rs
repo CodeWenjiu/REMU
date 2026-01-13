@@ -7,6 +7,9 @@ pub enum Error {
 
     #[error("Command expression parse error: {0}")]
     CommandExpr(String),
+
+    #[error("Command expression parse error (handled)")]
+    CommandExprHandled,
 }
 
 pub(crate) type Result<T> = std::result::Result<T, Error>;
