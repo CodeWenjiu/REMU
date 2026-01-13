@@ -49,10 +49,19 @@ pub(crate) enum TimeCountCmds {
 }
 
 fn populate_graph(cmd: &clap::Command, graph: &mut Graph<String, ()>, parent: NodeIndex) {
+    let mut has_children = false;
+
     for sub in cmd.get_subcommands() {
+        has_children = true;
         let idx = graph.add_node(sub.get_name().to_string());
         graph.add_edge(parent, idx, ());
         populate_graph(sub, graph, idx);
+    }
+
+    // For any node that has subcommands, also add an implicit `help` child
+    if has_children {
+        let help_idx = graph.add_node("help".to_string());
+        graph.add_edge(parent, help_idx, ());
     }
 }
 
