@@ -4,7 +4,7 @@ members = [
     "remu_macro",
     "remu_cli",
     "remu_core"
-, "remu_logger"]
+, "remu_logger", "remu_simulator", "remu_state"]
 
 [profile.release]
 codegen-units = 1

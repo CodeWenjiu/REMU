@@ -702,6 +702,7 @@ dependencies = [
  "pest_derive",
  "petgraph",
  "remu_macro",
+ "remu_simulator",
  "shlex",
  "thiserror",
  "tracing",
@@ -721,6 +722,25 @@ dependencies = [
 [[package]]
 name = "remu_macro"
 version = "0.1.0"
+
+[[package]]
+name = "remu_simulator"
+version = "0.1.0"
+dependencies = [
+ "remu_macro",
+ "remu_state",
+ "thiserror",
+ "tracing",
+]
+
+[[package]]
+name = "remu_state"
+version = "0.1.0"
+dependencies = [
+ "remu_macro",
+ "thiserror",
+ "tracing",
+]
 
 [[package]]
 name = "rustc_version"
