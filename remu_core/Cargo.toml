@@ -5,7 +5,7 @@ edition = "2024"
 
 [dependencies]
 remu_macro = { path = "../remu_macro" }
-remu_simulator = { path = "../remu_simulator"
+remu_simulator = { path = "../remu_simulator" }
 remu_state = { path = "../remu_state" }
 
 clap = { version = "4.5.54", features = [ "derive", "color" ] }

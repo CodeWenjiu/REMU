@@ -32,6 +32,12 @@ pub(crate) enum Commands {
         #[command(subcommand)]
         subcmd: TimeCmds,
     },
+
+    /// Get Info
+    Info {
+        #[command(subcommand)]
+        subcmd: InfoCmds,
+    },
 }
 
 #[derive(Debug, Subcommand)]
@@ -46,6 +52,12 @@ pub(crate) enum TimeCmds {
 #[derive(Debug, Subcommand)]
 pub(crate) enum TimeCountCmds {
     Test,
+}
+
+#[derive(Debug, Subcommand)]
+pub(crate) enum InfoCmds {
+    /// Hello Test
+    Hello,
 }
 
 fn populate_graph(cmd: &clap::Command, graph: &mut Graph<String, ()>, parent: NodeIndex) {

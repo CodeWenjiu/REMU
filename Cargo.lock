@@ -703,6 +703,7 @@ dependencies = [
  "petgraph",
  "remu_macro",
  "remu_simulator",
+ "remu_state",
  "shlex",
  "thiserror",
  "tracing",

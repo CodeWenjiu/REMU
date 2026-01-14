@@ -1,14 +1,22 @@
-pub fn add(left: u64, right: u64) -> u64 {
-    left + right
+use remu_state::State;
+
+/// As a template
+pub struct Simulator {
+    state: State,
 }
 
-#[cfg(test)]
-mod tests {
-    use super::*;
+impl Simulator {
+    pub fn new() -> Self {
+        Simulator {
+            state: State::new(),
+        }
+    }
 
-    #[test]
-    fn it_works() {
-        let result = add(2, 2);
-        assert_eq!(result, 4);
+    pub fn get_state(&self) -> &State {
+        &self.state
+    }
+
+    pub fn get_state_mut(&mut self) -> &mut State {
+        &mut self.state
     }
 }

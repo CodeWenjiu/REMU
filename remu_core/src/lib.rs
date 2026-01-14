@@ -3,12 +3,17 @@ use clap::Parser;
 remu_macro::mod_flat!(commands, error, command_expr);
 pub use command_expr::{ExprParser, Rule};
 pub use commands::get_command_graph;
+use remu_simulator::Simulator;
 
-pub struct Debugger {}
+pub struct Debugger {
+    simulator: Simulator,
+}
 
 impl Debugger {
     pub fn new() -> Self {
-        Debugger {}
+        Debugger {
+            simulator: Simulator::new(),
+        }
     }
 
     pub fn execute_line(&self, buffer: String) -> Result<()> {
@@ -86,6 +91,9 @@ impl Debugger {
                         tracing::info!("Time Count Test")
                     }
                 },
+            },
+            Commands::Info { subcmd } => match subcmd {
+                InfoCmds::Hello => self.simulator.get_state().hello(),
             },
         }
 
