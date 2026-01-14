@@ -1,6 +1,7 @@
 use clap::Parser;
 
 remu_macro::mod_flat!(commands, error, command_expr);
+pub use command_expr::{ExprParser, Rule};
 pub use commands::get_command_graph;
 
 pub struct Debugger {}
@@ -22,7 +23,14 @@ impl Debugger {
 
         let mut parsed = Vec::new();
         for block in blocks_iter {
+            if block.is_empty() {
+                continue;
+            }
             parsed.push(self.parse_block(block)?);
+        }
+
+        if parsed.is_empty() {
+            return Ok(());
         }
 
         let mut parsed_iter = parsed.into_iter();

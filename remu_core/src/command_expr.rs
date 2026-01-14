@@ -6,7 +6,7 @@ use thiserror::Error;
 
 #[derive(Parser)]
 #[grammar = "command_expr.pest"]
-struct ExprParser;
+pub struct ExprParser;
 
 /// Logical operators supported in command expressions.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -28,14 +28,19 @@ pub(crate) enum ParseError {
     Pest(String),
     #[error("parse error (handled)")]
     PestHandled,
-    #[error("empty command block")]
-    EmptyBlock,
     #[error("invalid quoting inside block")]
     InvalidQuoting,
 }
 
 pub(crate) fn parse_expression(input: &str) -> Result<CommandExpr, ParseError> {
     let input = input.trim();
+
+    if input.is_empty() {
+        return Ok(CommandExpr {
+            first: Vec::new(),
+            tail: Vec::new(),
+        });
+    }
 
     let result: Result<CommandExpr, ParseError> = (|| {
         let mut pairs =
@@ -105,7 +110,7 @@ fn block_to_tokens(block: Pair<Rule>) -> Result<Vec<String>, ParseError> {
                 .unwrap_or("");
             let tokens = shlex::split(inner_pair).ok_or(ParseError::InvalidQuoting)?;
             if tokens.is_empty() {
-                return Err(ParseError::EmptyBlock);
+                return Ok(Vec::new());
             }
             Ok(tokens)
         }
@@ -113,7 +118,7 @@ fn block_to_tokens(block: Pair<Rule>) -> Result<Vec<String>, ParseError> {
             let src = block.as_str();
             let tokens = shlex::split(src).ok_or(ParseError::InvalidQuoting)?;
             if tokens.is_empty() {
-                return Err(ParseError::EmptyBlock);
+                return Ok(Vec::new());
             }
             Ok(tokens)
         }
