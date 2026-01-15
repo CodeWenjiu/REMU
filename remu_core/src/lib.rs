@@ -10,16 +10,20 @@ pub struct Debugger {
 }
 
 impl Debugger {
-    pub fn new() -> Self {
+    pub fn new(opt: remu_options::OptionParser) -> Self {
         Debugger {
-            simulator: Simulator::new(),
+            simulator: Simulator::new(opt.simulator),
         }
     }
 
     pub fn execute_line(&self, buffer: String) -> Result<()> {
         let trimmed = buffer.trim();
-        let expr =
-            command_expr::parse_expression(trimmed).map_err(|_| Error::CommandExprHandled)?;
+
+        // If the command expression itself is invalid (e.g. bad braces like "{]"),
+        // surface that parse error to the user instead of swallowing it and later
+        // falling back to clap's "unrecognized subcommand".
+        let expr = command_expr::parse_expression(trimmed)
+            .map_err(|e| Error::CommandExpr(format!("{e}")))?;
 
         // Parse all blocks up front; abort early on any invalid block
         let command_expr::CommandExpr { first, tail } = expr;

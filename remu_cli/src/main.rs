@@ -1,4 +1,5 @@
 use anyhow::Result;
+use clap::Parser;
 use nu_ansi_term::{Color, Style};
 use reedline::{
     ColumnarMenu, DefaultHinter, DefaultPrompt, DefaultPromptSegment, Emacs, FileBackedHistory,
@@ -6,6 +7,7 @@ use reedline::{
     default_emacs_keybindings,
 };
 use remu_core::Error;
+use remu_options::OptionParser;
 
 remu_macro::mod_flat!(compeleter, highlighter);
 
@@ -58,7 +60,7 @@ fn main() -> Result<()> {
     let mut line_editor = get_editor();
     let prompt = get_prompt();
 
-    let debugger = remu_core::Debugger::new();
+    let debugger = remu_core::Debugger::new(OptionParser::parse());
 
     loop {
         let sig = line_editor.read_line(&prompt);

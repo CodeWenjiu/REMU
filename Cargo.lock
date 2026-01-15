@@ -681,6 +681,7 @@ name = "remu_cli"
 version = "0.1.0"
 dependencies = [
  "anyhow",
+ "clap",
  "crossterm",
  "nu-ansi-term",
  "pest",
@@ -690,6 +691,7 @@ dependencies = [
  "remu_core",
  "remu_logger",
  "remu_macro",
+ "remu_options",
  "tracing",
 ]
 
@@ -702,6 +704,7 @@ dependencies = [
  "pest_derive",
  "petgraph",
  "remu_macro",
+ "remu_options",
  "remu_simulator",
  "remu_state",
  "shlex",
@@ -725,9 +728,22 @@ name = "remu_macro"
 version = "0.1.0"
 
 [[package]]
+name = "remu_options"
+version = "0.1.0"
+dependencies = [
+ "clap",
+ "remu_logger",
+ "remu_macro",
+ "remu_simulator",
+ "thiserror",
+ "tracing",
+]
+
+[[package]]
 name = "remu_simulator"
 version = "0.1.0"
 dependencies = [
+ "clap",
  "remu_macro",
  "remu_state",
  "thiserror",
@@ -738,6 +754,7 @@ dependencies = [
 name = "remu_state"
 version = "0.1.0"
 dependencies = [
+ "clap",
  "remu_macro",
  "thiserror",
  "tracing",

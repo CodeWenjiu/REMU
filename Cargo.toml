@@ -4,7 +4,7 @@ members = [
     "remu_macro",
     "remu_cli",
     "remu_core"
-, "remu_logger", "remu_simulator", "remu_state"]
+, "remu_logger", "remu_simulator", "remu_state", "remu_options"]
 
 [profile.release]
 codegen-units = 1
@@ -20,5 +20,6 @@ tracing = "0.1.44"
 
 petgraph = "0.8.3"
 
+clap = "4.5.54"
 pest = "2.8.5"
 pest_derive = "2.8.5"
