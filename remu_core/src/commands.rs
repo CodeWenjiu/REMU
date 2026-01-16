@@ -1,5 +1,6 @@
 use clap::{CommandFactory, Subcommand, builder::styling};
 use petgraph::graph::{Graph, NodeIndex};
+use remu_harness::HarnessCommands;
 
 #[derive(clap::Parser, Debug)]
 #[command(
@@ -16,48 +17,19 @@ use petgraph::graph::{Graph, NodeIndex};
 )]
 pub(crate) struct CommandParser {
     #[command(subcommand)]
-    pub(crate) command: Commands,
+    pub(crate) command: DebuggerCommands,
 }
 
 #[derive(Debug, Subcommand)]
-pub(crate) enum Commands {
+pub(crate) enum DebuggerCommands {
     /// Print version information
     Version,
 
-    /// continue the emulator
-    Continue,
-
-    /// Times printf
-    Times {
+    /// Harness Commands
+    Harness {
         #[command(subcommand)]
-        subcmd: TimeCmds,
+        subcmd: HarnessCommands,
     },
-
-    /// Get Info
-    Info {
-        #[command(subcommand)]
-        subcmd: InfoCmds,
-    },
-}
-
-#[derive(Debug, Subcommand)]
-pub(crate) enum TimeCmds {
-    /// Times Count
-    Count {
-        #[command(subcommand)]
-        subcmd: TimeCountCmds,
-    },
-}
-
-#[derive(Debug, Subcommand)]
-pub(crate) enum TimeCountCmds {
-    Test,
-}
-
-#[derive(Debug, Subcommand)]
-pub(crate) enum InfoCmds {
-    /// Hello Test
-    Hello,
 }
 
 fn populate_graph(cmd: &clap::Command, graph: &mut Graph<String, ()>, parent: NodeIndex) {

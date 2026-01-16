@@ -2,8 +2,7 @@ remu_macro::mod_flat!(memory, device);
 
 pub use memory::{MemFault, MemRegionSpec};
 
-// Use the public re-export to avoid shadowing the glob re-exported `Memory`.
-use crate::bus::Memory;
+// Use the public re-export to avoid shadowing the glob re-exported `Memory`
 
 #[derive(clap::Args, Debug)]
 pub struct BusOption {

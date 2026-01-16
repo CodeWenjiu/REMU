@@ -259,43 +259,29 @@ impl Memory {
         }
         Ok(())
     }
+}
+
+impl BusAccess for Memory {
+    type Fault = MemFault;
 
     #[inline(always)]
-    pub fn read8_rel(&mut self, rel_addr: u64) -> Result<u8, MemFault> {
-        let r = self.checked_range_rel(AccessKind::Read, rel_addr, 1)?;
+    fn read_8(&mut self, addr: u64) -> Result<u8, Self::Fault> {
+        let r = self.checked_range_rel(AccessKind::Read, addr, 1)?;
         Ok(self.storage[r.start])
     }
 
     #[inline(always)]
-    pub fn write8_rel(&mut self, rel_addr: u64, value: u8) -> Result<(), MemFault> {
-        let r = self.checked_range_rel(AccessKind::Write, rel_addr, 1)?;
-        self.storage[r.start] = value;
-        Ok(())
-    }
-
-    #[inline(always)]
-    pub fn read16_rel(&mut self, rel_addr: u64) -> Result<u16, MemFault> {
-        // alignment is identical for absolute and relative since base is aligned by mapping choice
-        self.check_aligned(AccessKind::Read, self.base + rel_addr, 2)?;
-        let r = self.checked_range_rel(AccessKind::Read, rel_addr, 2)?;
+    fn read_16(&mut self, addr: u64) -> Result<u16, Self::Fault> {
+        self.check_aligned(AccessKind::Read, self.base + addr, 2)?;
+        let r = self.checked_range_rel(AccessKind::Read, addr, 2)?;
         let bytes = [self.storage[r.start], self.storage[r.start + 1]];
         Ok(u16::from_le_bytes(bytes))
     }
 
     #[inline(always)]
-    pub fn write16_rel(&mut self, rel_addr: u64, value: u16) -> Result<(), MemFault> {
-        self.check_aligned(AccessKind::Write, self.base + rel_addr, 2)?;
-        let r = self.checked_range_rel(AccessKind::Write, rel_addr, 2)?;
-        let bytes = value.to_le_bytes();
-        self.storage[r.start] = bytes[0];
-        self.storage[r.start + 1] = bytes[1];
-        Ok(())
-    }
-
-    #[inline(always)]
-    pub fn read32_rel(&mut self, rel_addr: u64) -> Result<u32, MemFault> {
-        self.check_aligned(AccessKind::Read, self.base + rel_addr, 4)?;
-        let r = self.checked_range_rel(AccessKind::Read, rel_addr, 4)?;
+    fn read_32(&mut self, addr: u64) -> Result<u32, Self::Fault> {
+        self.check_aligned(AccessKind::Read, self.base + addr, 4)?;
+        let r = self.checked_range_rel(AccessKind::Read, addr, 4)?;
         let bytes = [
             self.storage[r.start],
             self.storage[r.start + 1],
@@ -306,21 +292,9 @@ impl Memory {
     }
 
     #[inline(always)]
-    pub fn write32_rel(&mut self, rel_addr: u64, value: u32) -> Result<(), MemFault> {
-        self.check_aligned(AccessKind::Write, self.base + rel_addr, 4)?;
-        let r = self.checked_range_rel(AccessKind::Write, rel_addr, 4)?;
-        let bytes = value.to_le_bytes();
-        self.storage[r.start] = bytes[0];
-        self.storage[r.start + 1] = bytes[1];
-        self.storage[r.start + 2] = bytes[2];
-        self.storage[r.start + 3] = bytes[3];
-        Ok(())
-    }
-
-    #[inline(always)]
-    pub fn read64_rel(&mut self, rel_addr: u64) -> Result<u64, MemFault> {
-        self.check_aligned(AccessKind::Read, self.base + rel_addr, 8)?;
-        let r = self.checked_range_rel(AccessKind::Read, rel_addr, 8)?;
+    fn read_64(&mut self, addr: u64) -> Result<u64, Self::Fault> {
+        self.check_aligned(AccessKind::Read, self.base + addr, 8)?;
+        let r = self.checked_range_rel(AccessKind::Read, addr, 8)?;
         let bytes = [
             self.storage[r.start],
             self.storage[r.start + 1],
@@ -335,9 +309,38 @@ impl Memory {
     }
 
     #[inline(always)]
-    pub fn write64_rel(&mut self, rel_addr: u64, value: u64) -> Result<(), MemFault> {
-        self.check_aligned(AccessKind::Write, self.base + rel_addr, 8)?;
-        let r = self.checked_range_rel(AccessKind::Write, rel_addr, 8)?;
+    fn write_8(&mut self, addr: u64, value: u8) -> Result<(), Self::Fault> {
+        let r = self.checked_range_rel(AccessKind::Write, addr, 1)?;
+        self.storage[r.start] = value;
+        Ok(())
+    }
+
+    #[inline(always)]
+    fn write_16(&mut self, addr: u64, value: u16) -> Result<(), Self::Fault> {
+        self.check_aligned(AccessKind::Write, self.base + addr, 2)?;
+        let r = self.checked_range_rel(AccessKind::Write, addr, 2)?;
+        let bytes = value.to_le_bytes();
+        self.storage[r.start] = bytes[0];
+        self.storage[r.start + 1] = bytes[1];
+        Ok(())
+    }
+
+    #[inline(always)]
+    fn write_32(&mut self, addr: u64, value: u32) -> Result<(), Self::Fault> {
+        self.check_aligned(AccessKind::Write, self.base + addr, 4)?;
+        let r = self.checked_range_rel(AccessKind::Write, addr, 4)?;
+        let bytes = value.to_le_bytes();
+        self.storage[r.start] = bytes[0];
+        self.storage[r.start + 1] = bytes[1];
+        self.storage[r.start + 2] = bytes[2];
+        self.storage[r.start + 3] = bytes[3];
+        Ok(())
+    }
+
+    #[inline(always)]
+    fn write_64(&mut self, addr: u64, value: u64) -> Result<(), Self::Fault> {
+        self.check_aligned(AccessKind::Write, self.base + addr, 8)?;
+        let r = self.checked_range_rel(AccessKind::Write, addr, 8)?;
         let bytes = value.to_le_bytes();
         self.storage[r.start] = bytes[0];
         self.storage[r.start + 1] = bytes[1];
@@ -348,49 +351,5 @@ impl Memory {
         self.storage[r.start + 6] = bytes[6];
         self.storage[r.start + 7] = bytes[7];
         Ok(())
-    }
-}
-
-impl BusAccess for Memory {
-    type Fault = MemFault;
-
-    #[inline(always)]
-    fn read_8(&mut self, addr: u64) -> Result<u8, Self::Fault> {
-        self.read8_rel(addr)
-    }
-
-    #[inline(always)]
-    fn read_16(&mut self, addr: u64) -> Result<u16, Self::Fault> {
-        self.read16_rel(addr)
-    }
-
-    #[inline(always)]
-    fn read_32(&mut self, addr: u64) -> Result<u32, Self::Fault> {
-        self.read32_rel(addr)
-    }
-
-    #[inline(always)]
-    fn read_64(&mut self, addr: u64) -> Result<u64, Self::Fault> {
-        self.read64_rel(addr)
-    }
-
-    #[inline(always)]
-    fn write_8(&mut self, addr: u64, value: u8) -> Result<(), Self::Fault> {
-        self.write8_rel(addr, value)
-    }
-
-    #[inline(always)]
-    fn write_16(&mut self, addr: u64, value: u16) -> Result<(), Self::Fault> {
-        self.write16_rel(addr, value)
-    }
-
-    #[inline(always)]
-    fn write_32(&mut self, addr: u64, value: u32) -> Result<(), Self::Fault> {
-        self.write32_rel(addr, value)
-    }
-
-    #[inline(always)]
-    fn write_64(&mut self, addr: u64, value: u64) -> Result<(), Self::Fault> {
-        self.write64_rel(addr, value)
     }
 }

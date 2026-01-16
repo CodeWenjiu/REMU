@@ -1,5 +1,5 @@
 use clap::builder::styling;
-use remu_simulator::SimulatorOption;
+use remu_harness::HarnessOption;
 
 #[derive(clap::Parser, Debug)]
 #[command(
@@ -12,8 +12,8 @@ use remu_simulator::SimulatorOption;
     .literal(styling::AnsiColor::Blue.on_default().bold())
     .placeholder(styling::AnsiColor::Cyan.on_default())
 )]
-pub struct OptionParser {
-    /// State Option
+pub struct RemuOptionParer {
+    /// Harness Option
     #[command(flatten)]
-    pub simulator: SimulatorOption,
+    pub harness: HarnessOption,
 }

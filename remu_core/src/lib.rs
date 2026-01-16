@@ -1,22 +1,22 @@
 use clap::Parser;
 
-remu_macro::mod_flat!(commands, error, command_expr);
+remu_macro::mod_flat!(options, commands, command_expr, error);
 pub use command_expr::{ExprParser, Rule};
 pub use commands::get_command_graph;
-use remu_simulator::Simulator;
+use remu_harness::Harness;
 
 pub struct Debugger {
-    simulator: Simulator,
+    harness: Harness,
 }
 
 impl Debugger {
-    pub fn new(opt: remu_options::OptionParser) -> Self {
+    pub fn new(opt: RemuOptionParer) -> Self {
         Debugger {
-            simulator: Simulator::new(opt.simulator),
+            harness: Harness::new(opt.harness),
         }
     }
 
-    pub fn execute_line(&self, buffer: String) -> Result<()> {
+    pub fn execute_line(&mut self, buffer: String) -> Result<()> {
         let trimmed = buffer.trim();
 
         // If the command expression itself is invalid (e.g. bad braces like "{]"),
@@ -81,24 +81,12 @@ impl Debugger {
         }
     }
 
-    fn execute_parsed(&self, command: &Commands) -> Result<bool> {
+    fn execute_parsed(&mut self, command: &DebuggerCommands) -> Result<bool> {
         match command {
-            Commands::Version => {
+            DebuggerCommands::Version => {
                 println!("remu-core v{}", env!("CARGO_PKG_VERSION"))
             }
-            Commands::Continue => {
-                tracing::info!("Continuing execution...");
-            }
-            Commands::Times { subcmd } => match subcmd {
-                TimeCmds::Count { subcmd } => match subcmd {
-                    TimeCountCmds::Test => {
-                        tracing::info!("Time Count Test")
-                    }
-                },
-            },
-            Commands::Info { subcmd } => match subcmd {
-                InfoCmds::Hello => self.simulator.get_state().hello(),
-            },
+            DebuggerCommands::Harness { subcmd } => self.harness.execute(subcmd),
         }
 
         Ok(true)
