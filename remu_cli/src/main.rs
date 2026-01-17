@@ -7,8 +7,10 @@ use reedline::{
     default_emacs_keybindings,
 };
 use remu_debugger::{Error, RemuOptionParer};
+use remu_types::TracerDyn;
+use std::{cell::RefCell, rc::Rc};
 
-remu_macro::mod_flat!(compeleter, highlighter);
+remu_macro::mod_flat!(compeleter, highlighter, tracer);
 
 fn get_editor() -> Reedline {
     let history = Box::new(
@@ -56,10 +58,12 @@ fn get_prompt() -> DefaultPrompt {
 fn main() -> Result<()> {
     let _guard = remu_logger::set_logger("target/logs", "remu.log")?;
 
+    let tracer: TracerDyn = Rc::new(RefCell::new(CLITracer::new()));
+
     let mut line_editor = get_editor();
     let prompt = get_prompt();
 
-    let mut debugger = remu_debugger::Debugger::new(RemuOptionParer::parse());
+    let mut debugger = remu_debugger::Debugger::new(RemuOptionParer::parse(), tracer);
 
     loop {
         let sig = line_editor.read_line(&prompt);

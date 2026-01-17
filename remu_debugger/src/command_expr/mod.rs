@@ -5,7 +5,7 @@ use shlex;
 use thiserror::Error;
 
 #[derive(Parser)]
-#[grammar = "command_expr.pest"]
+#[grammar = "command_expr/parse.pest"]
 pub struct ExprParser;
 
 /// Logical operators supported in command expressions.

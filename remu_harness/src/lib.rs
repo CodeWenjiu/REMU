@@ -1,15 +1,16 @@
 remu_macro::mod_flat!(commands);
 
 use remu_simulator::Simulator;
+use remu_types::TracerDyn;
 
 pub struct Harness {
     simulator: Simulator,
 }
 
 impl Harness {
-    pub fn new(opt: HarnessOption) -> Self {
+    pub fn new(opt: HarnessOption, tracer: TracerDyn) -> Self {
         Self {
-            simulator: Simulator::new(opt.simulator),
+            simulator: Simulator::new(opt.simulator, tracer),
         }
     }
 

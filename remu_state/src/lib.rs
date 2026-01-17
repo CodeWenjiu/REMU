@@ -1,4 +1,4 @@
-use crate::bus::{Bus, BusOption};
+use crate::bus::{Bus, BusAccess, BusOption};
 
 remu_macro::mod_pub!(bus);
 remu_macro::mod_flat!(commands);
@@ -6,18 +6,29 @@ remu_macro::mod_flat!(commands);
 /// State template
 pub struct State {
     pub bus: Bus,
+    tracer: remu_types::TracerDyn,
 }
 
 impl State {
-    pub fn new(opt: StateOption) -> Self {
+    pub fn new(opt: StateOption, tracer: remu_types::TracerDyn) -> Self {
         Self {
             bus: Bus::new(opt.bus),
+            tracer,
         }
     }
 
     pub fn execute(&mut self, subcmd: &StateCmds) {
         match subcmd {
             StateCmds::Hello => tracing::info!("hello state"),
+            StateCmds::Print { start, count } => {
+                let _ = count;
+                match self.bus.read_64(*start) {
+                    Ok(value) => {
+                        self.tracer.borrow_mut().mem_print(*start, value);
+                    }
+                    _ => todo!(),
+                }
+            }
         }
     }
 }

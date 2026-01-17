@@ -1,18 +1,20 @@
 use clap::Parser;
 
-remu_macro::mod_flat!(options, commands, command_expr, error);
+remu_macro::mod_flat!(options, commands, error);
+remu_macro::mod_pub!(command_expr);
 pub use command_expr::{ExprParser, Rule};
 pub use commands::get_command_graph;
 use remu_harness::{CommandParser, Commands, Harness};
+use remu_types::TracerDyn;
 
 pub struct Debugger {
     harness: Harness,
 }
 
 impl Debugger {
-    pub fn new(opt: RemuOptionParer) -> Self {
+    pub fn new(opt: RemuOptionParer, tracer: TracerDyn) -> Self {
         Debugger {
-            harness: Harness::new(opt.harness),
+            harness: Harness::new(opt.harness, tracer),
         }
     }
 

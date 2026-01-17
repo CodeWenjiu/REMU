@@ -7,7 +7,7 @@ members = [
     "remu_logger",
     "remu_simulator",
     "remu_state",
-    "remu_harness",
+    "remu_harness", "remu_fmt", "remu_types",
 ]
 
 [profile.release]

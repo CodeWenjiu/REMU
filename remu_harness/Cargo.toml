@@ -5,6 +5,7 @@ edition = "2024"
 
 [dependencies]
 remu_macro = { path = "../remu_macro" }
+remu_types = { path = "../remu_types" }
 remu_simulator = { path = "../remu_simulator" }
 remu_state = { path = "../remu_state" }
 

@@ -691,6 +691,7 @@ dependencies = [
  "remu_debugger",
  "remu_logger",
  "remu_macro",
+ "remu_types",
  "tracing",
 ]
 
@@ -704,10 +705,15 @@ dependencies = [
  "petgraph",
  "remu_harness",
  "remu_macro",
+ "remu_types",
  "shlex",
  "thiserror",
  "tracing",
 ]
+
+[[package]]
+name = "remu_fmt"
+version = "0.1.0"
 
 [[package]]
 name = "remu_harness"
@@ -717,6 +723,7 @@ dependencies = [
  "remu_macro",
  "remu_simulator",
  "remu_state",
+ "remu_types",
  "thiserror",
  "tracing",
 ]
@@ -743,6 +750,7 @@ dependencies = [
  "clap",
  "remu_macro",
  "remu_state",
+ "remu_types",
  "thiserror",
  "tracing",
 ]
@@ -752,6 +760,16 @@ name = "remu_state"
 version = "0.1.0"
 dependencies = [
  "clap",
+ "remu_macro",
+ "remu_types",
+ "thiserror",
+ "tracing",
+]
+
+[[package]]
+name = "remu_types"
+version = "0.1.0"
+dependencies = [
  "remu_macro",
  "thiserror",
  "tracing",

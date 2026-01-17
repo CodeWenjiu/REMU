@@ -1,12 +1,9 @@
 [package]
-name = "remu_state"
+name = "remu_types"
 version = "0.1.0"
 edition = "2024"
 
 [dependencies]
 remu_macro = { path = "../remu_macro" }
-remu_types = { path = "../remu_types" }
 thiserror.workspace = true
 tracing.workspace = true
-
-clap = { workspace = true, features = [ "derive", "color" ] }

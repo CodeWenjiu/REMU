@@ -1,14 +1,17 @@
 use remu_state::{State, StateOption};
+use remu_types::TracerDyn;
 
 /// As a template
 pub struct Simulator {
     state: State,
+    tracer: TracerDyn,
 }
 
 impl Simulator {
-    pub fn new(opt: SimulatorOption) -> Self {
+    pub fn new(opt: SimulatorOption, tracer: TracerDyn) -> Self {
         Simulator {
-            state: State::new(opt.state),
+            state: State::new(opt.state, tracer.clone()),
+            tracer: tracer,
         }
     }
 
