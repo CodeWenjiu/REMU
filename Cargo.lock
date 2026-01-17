@@ -688,14 +688,14 @@ dependencies = [
  "pest_derive",
  "petgraph",
  "reedline",
- "remu_core",
+ "remu_debugger",
  "remu_logger",
  "remu_macro",
  "tracing",
 ]
 
 [[package]]
-name = "remu_core"
+name = "remu_debugger"
 version = "0.1.0"
 dependencies = [
  "clap",

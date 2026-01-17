@@ -6,7 +6,7 @@ use reedline::{
     KeyCode, KeyModifiers, MenuBuilder, Reedline, ReedlineEvent, ReedlineMenu, Signal,
     default_emacs_keybindings,
 };
-use remu_core::{Error, RemuOptionParer};
+use remu_debugger::{Error, RemuOptionParer};
 
 remu_macro::mod_flat!(compeleter, highlighter);
 
@@ -16,7 +16,7 @@ fn get_editor() -> Reedline {
             .expect("Error configuring history with file"),
     );
 
-    let (graph, root) = remu_core::get_command_graph();
+    let (graph, root) = remu_debugger::get_command_graph();
 
     let completer = Box::new(RemuCompleter::new(graph.clone(), root));
     let highlighter = Box::new(RemuHighlighter::new(graph, root));
@@ -59,7 +59,7 @@ fn main() -> Result<()> {
     let mut line_editor = get_editor();
     let prompt = get_prompt();
 
-    let mut debugger = remu_core::Debugger::new(RemuOptionParer::parse());
+    let mut debugger = remu_debugger::Debugger::new(RemuOptionParer::parse());
 
     loop {
         let sig = line_editor.read_line(&prompt);

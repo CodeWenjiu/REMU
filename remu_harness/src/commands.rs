@@ -1,4 +1,6 @@
+use clap::builder::styling;
 use remu_simulator::SimulatorOption;
+use remu_state::StateCmds;
 
 #[derive(clap::Args, Debug)]
 pub struct HarnessOption {
@@ -7,8 +9,26 @@ pub struct HarnessOption {
     pub simulator: SimulatorOption,
 }
 
+#[derive(clap::Parser, Debug)]
+#[command(
+    author,
+    version,
+    about,
+    disable_help_flag = true,
+    disable_version_flag = true,
+    styles = styling::Styles::styled()
+    .header(styling::AnsiColor::Green.on_default().bold())
+    .usage(styling::AnsiColor::Green.on_default().bold())
+    .literal(styling::AnsiColor::Blue.on_default().bold())
+    .placeholder(styling::AnsiColor::Cyan.on_default())
+)]
+pub struct CommandParser {
+    #[command(subcommand)]
+    pub command: Commands,
+}
+
 #[derive(Debug, clap::Subcommand)]
-pub enum HarnessCommands {
+pub enum Commands {
     /// continue the emulator
     Continue,
 
@@ -37,10 +57,4 @@ pub enum TimeCmds {
 #[derive(Debug, clap::Subcommand)]
 pub enum TimeCountCmds {
     Test,
-}
-
-#[derive(Debug, clap::Subcommand)]
-pub enum StateCmds {
-    /// Hello Test
-    Hello,
 }

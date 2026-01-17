@@ -6,7 +6,7 @@ edition = "2024"
 [dependencies]
 remu_macro = { path = "../remu_macro" }
 remu_logger = { path = "../remu_logger" }
-remu_core = { path = "../remu_core" }
+remu_debugger = { path = "../remu_debugger" }
 
 clap = { workspace = true, features = [ "derive", "color" ] }
 

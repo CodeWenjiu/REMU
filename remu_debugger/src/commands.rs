@@ -1,36 +1,6 @@
-use clap::{CommandFactory, Subcommand, builder::styling};
+use clap::CommandFactory;
 use petgraph::graph::{Graph, NodeIndex};
-use remu_harness::HarnessCommands;
-
-#[derive(clap::Parser, Debug)]
-#[command(
-    author,
-    version,
-    about,
-    disable_help_flag = true,
-    disable_version_flag = true,
-    styles = styling::Styles::styled()
-    .header(styling::AnsiColor::Green.on_default().bold())
-    .usage(styling::AnsiColor::Green.on_default().bold())
-    .literal(styling::AnsiColor::Blue.on_default().bold())
-    .placeholder(styling::AnsiColor::Cyan.on_default())
-)]
-pub(crate) struct CommandParser {
-    #[command(subcommand)]
-    pub(crate) command: DebuggerCommands,
-}
-
-#[derive(Debug, Subcommand)]
-pub(crate) enum DebuggerCommands {
-    /// Print version information
-    Version,
-
-    /// Harness Commands
-    Harness {
-        #[command(subcommand)]
-        subcmd: HarnessCommands,
-    },
-}
+use remu_harness::CommandParser;
 
 fn populate_graph(cmd: &clap::Command, graph: &mut Graph<String, ()>, parent: NodeIndex) {
     let mut has_children = false;

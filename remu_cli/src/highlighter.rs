@@ -2,7 +2,7 @@ use nu_ansi_term::{Color, Style};
 use pest::Parser;
 use petgraph::graph::{Graph, NodeIndex};
 use reedline::{Highlighter, StyledText};
-use remu_core::{ExprParser, Rule};
+use remu_debugger::{ExprParser, Rule};
 use std::collections::BTreeMap;
 
 /// A highlighter using pest parser for validation.

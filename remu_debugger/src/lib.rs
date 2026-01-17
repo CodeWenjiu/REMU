@@ -3,7 +3,7 @@ use clap::Parser;
 remu_macro::mod_flat!(options, commands, command_expr, error);
 pub use command_expr::{ExprParser, Rule};
 pub use commands::get_command_graph;
-use remu_harness::Harness;
+use remu_harness::{CommandParser, Commands, Harness};
 
 pub struct Debugger {
     harness: Harness,
@@ -81,13 +81,8 @@ impl Debugger {
         }
     }
 
-    fn execute_parsed(&mut self, command: &DebuggerCommands) -> Result<bool> {
-        match command {
-            DebuggerCommands::Version => {
-                println!("remu-core v{}", env!("CARGO_PKG_VERSION"))
-            }
-            DebuggerCommands::Harness { subcmd } => self.harness.execute(subcmd),
-        }
+    fn execute_parsed(&mut self, command: &Commands) -> Result<bool> {
+        self.harness.execute(command);
 
         Ok(true)
     }
