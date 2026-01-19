@@ -8,6 +8,6 @@ pub enum StateCmds {
         /// Address to start printing from
         start: u64,
         /// Number of bytes to print
-        count: u64,
+        count: usize,
     },
 }

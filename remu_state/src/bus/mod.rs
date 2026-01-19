@@ -53,6 +53,7 @@ pub trait BusAccess {
     fn read_16(&mut self, addr: u64) -> Result<u16, Self::Fault>;
     fn read_32(&mut self, addr: u64) -> Result<u32, Self::Fault>;
     fn read_64(&mut self, addr: u64) -> Result<u64, Self::Fault>;
+    fn read_bytes(&mut self, addr: u64, buf: &mut [u8]) -> Result<(), Self::Fault>;
 
     fn write_8(&mut self, addr: u64, value: u8) -> Result<(), Self::Fault>;
     fn write_16(&mut self, addr: u64, value: u16) -> Result<(), Self::Fault>;
@@ -85,6 +86,12 @@ impl BusAccess for Bus {
     fn read_64(&mut self, addr: u64) -> Result<u64, Self::Fault> {
         let m = self.find_memory_mut(addr)?;
         m.read_64(addr - m.base)
+    }
+
+    #[inline(always)]
+    fn read_bytes(&mut self, addr: u64, buf: &mut [u8]) -> Result<(), Self::Fault> {
+        let m = self.find_memory_mut(addr)?;
+        m.read_bytes(addr - m.base, buf)
     }
 
     #[inline(always)]

@@ -125,19 +125,6 @@ pub enum MemFault {
         end: u64,
     },
 
-    #[error(
-        "misaligned {kind:?} at 0x{addr:016x} (alignment={align}) for region '{region}' \
-         [0x{base:016x}..0x{end:016x})"
-    )]
-    Misaligned {
-        kind: AccessKind,
-        addr: u64,
-        align: usize,
-        region: String,
-        base: u64,
-        end: u64,
-    },
-
     #[error("invalid region '{name}': size too large to allocate on this platform: {size}")]
     SizeTooLarge { name: String, size: u64 },
 
@@ -240,25 +227,6 @@ impl Memory {
 
         Ok(off..end)
     }
-
-    #[inline(always)]
-    fn check_aligned(&self, kind: AccessKind, addr: u64, align: usize) -> Result<(), MemFault> {
-        if align <= 1 {
-            return Ok(());
-        }
-        let mask = (align - 1) as u64;
-        if (addr & mask) != 0 {
-            return Err(MemFault::Misaligned {
-                kind,
-                addr,
-                align,
-                region: self.name.clone(),
-                base: self.base,
-                end: self.end,
-            });
-        }
-        Ok(())
-    }
 }
 
 impl BusAccess for Memory {
@@ -272,7 +240,6 @@ impl BusAccess for Memory {
 
     #[inline(always)]
     fn read_16(&mut self, addr: u64) -> Result<u16, Self::Fault> {
-        self.check_aligned(AccessKind::Read, self.base + addr, 2)?;
         let r = self.checked_range_rel(AccessKind::Read, addr, 2)?;
         let bytes = [self.storage[r.start], self.storage[r.start + 1]];
         Ok(u16::from_le_bytes(bytes))
@@ -280,7 +247,6 @@ impl BusAccess for Memory {
 
     #[inline(always)]
     fn read_32(&mut self, addr: u64) -> Result<u32, Self::Fault> {
-        self.check_aligned(AccessKind::Read, self.base + addr, 4)?;
         let r = self.checked_range_rel(AccessKind::Read, addr, 4)?;
         let bytes = [
             self.storage[r.start],
@@ -293,7 +259,6 @@ impl BusAccess for Memory {
 
     #[inline(always)]
     fn read_64(&mut self, addr: u64) -> Result<u64, Self::Fault> {
-        self.check_aligned(AccessKind::Read, self.base + addr, 8)?;
         let r = self.checked_range_rel(AccessKind::Read, addr, 8)?;
         let bytes = [
             self.storage[r.start],
@@ -309,6 +274,13 @@ impl BusAccess for Memory {
     }
 
     #[inline(always)]
+    fn read_bytes(&mut self, addr: u64, buf: &mut [u8]) -> Result<(), Self::Fault> {
+        let r = self.checked_range_rel(AccessKind::Read, addr, buf.len())?;
+        buf.copy_from_slice(&self.storage[(r.start)..(r.start + buf.len())]);
+        Ok(())
+    }
+
+    #[inline(always)]
     fn write_8(&mut self, addr: u64, value: u8) -> Result<(), Self::Fault> {
         let r = self.checked_range_rel(AccessKind::Write, addr, 1)?;
         self.storage[r.start] = value;
@@ -317,7 +289,6 @@ impl BusAccess for Memory {
 
     #[inline(always)]
     fn write_16(&mut self, addr: u64, value: u16) -> Result<(), Self::Fault> {
-        self.check_aligned(AccessKind::Write, self.base + addr, 2)?;
         let r = self.checked_range_rel(AccessKind::Write, addr, 2)?;
         let bytes = value.to_le_bytes();
         self.storage[r.start] = bytes[0];
@@ -327,7 +298,6 @@ impl BusAccess for Memory {
 
     #[inline(always)]
     fn write_32(&mut self, addr: u64, value: u32) -> Result<(), Self::Fault> {
-        self.check_aligned(AccessKind::Write, self.base + addr, 4)?;
         let r = self.checked_range_rel(AccessKind::Write, addr, 4)?;
         let bytes = value.to_le_bytes();
         self.storage[r.start] = bytes[0];
@@ -339,7 +309,6 @@ impl BusAccess for Memory {
 
     #[inline(always)]
     fn write_64(&mut self, addr: u64, value: u64) -> Result<(), Self::Fault> {
-        self.check_aligned(AccessKind::Write, self.base + addr, 8)?;
         let r = self.checked_range_rel(AccessKind::Write, addr, 8)?;
         let bytes = value.to_le_bytes();
         self.storage[r.start] = bytes[0];

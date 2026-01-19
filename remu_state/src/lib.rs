@@ -1,3 +1,5 @@
+use std::error::Error;
+
 use crate::bus::{Bus, BusAccess, BusOption};
 
 remu_macro::mod_pub!(bus);
@@ -21,13 +23,12 @@ impl State {
         match subcmd {
             StateCmds::Hello => tracing::info!("hello state"),
             StateCmds::Print { start, count } => {
-                let _ = count;
-                match self.bus.read_64(*start) {
-                    Ok(value) => {
-                        self.tracer.borrow_mut().mem_print(*start, value);
-                    }
-                    _ => todo!(),
-                }
+                let mut buf = vec![0u8 as u8; *count];
+                let result = self
+                    .bus
+                    .read_bytes(*start, &mut buf)
+                    .map_err(|e| Box::new(e) as Box<dyn Error>);
+                self.tracer.borrow_mut().mem_print(*start, &buf, result);
             }
         }
     }
