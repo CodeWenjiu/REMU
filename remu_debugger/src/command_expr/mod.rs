@@ -46,16 +46,12 @@ pub(crate) fn parse_expression(input: &str) -> Result<CommandExpr, ParseError> {
         let mut pairs =
             ExprParser::parse(Rule::expr, input).map_err(|e| ParseError::Pest(e.to_string()))?;
 
-        let expr_pair = pairs
-            .next()
-            .ok_or_else(|| ParseError::Pest("missing expr".to_string()))?;
+        let expr_pair = pairs.next().unwrap();
 
         let mut inner = expr_pair.into_inner();
 
         // First block
-        let first_block = inner
-            .next()
-            .ok_or_else(|| ParseError::Pest("missing first block".into()))?;
+        let first_block = inner.next().unwrap();
         let first = block_to_tokens(first_block)?;
 
         // Zero or more (op, block)
@@ -66,16 +62,11 @@ pub(crate) fn parse_expression(input: &str) -> Result<CommandExpr, ParseError> {
                 Rule::or => Op::Or,
                 Rule::EOI => break,
                 _ => {
-                    return Err(ParseError::Pest(format!(
-                        "unexpected op: {:?}",
-                        op_pair.as_rule()
-                    )));
+                    unreachable!()
                 }
             };
 
-            let block_pair = inner
-                .next()
-                .ok_or_else(|| ParseError::Pest("operator missing right-hand block".into()))?;
+            let block_pair = inner.next().unwrap();
             let block = block_to_tokens(block_pair)?;
             tail.push((op, block));
         }

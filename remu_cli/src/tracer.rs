@@ -1,23 +1,21 @@
 use remu_types::Tracer;
-use tabled::{Table, Tabled, settings::Style};
-
-use colored::Colorize;
+use tabled::{
+    Table, Tabled,
+    settings::{Color, Style, object::Columns},
+};
 
 pub struct CLITracer;
 
-#[derive(Clone, Copy, Debug)]
-pub struct HexU32(pub u32);
-
-impl std::fmt::Display for HexU32 {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "0x{:08x}", self.0)
-    }
+fn display_address(val: &u32) -> String {
+    format!("0x{:08x}", val).to_string()
 }
 
 #[derive(Tabled)]
 pub struct MemTable {
-    address: HexU32,
-    data: HexU32,
+    #[tabled(display = "display_address")]
+    address: u32,
+    #[tabled(display = "display_address")]
+    data: u32,
     interpretation: String,
 }
 
@@ -35,8 +33,8 @@ fn mem_rows_32(begin: usize, data: &[u8]) -> Vec<MemTable> {
         let word = u32::from_le_bytes(bytes);
 
         rows.push(MemTable {
-            address: HexU32(addr as u32),
-            data: HexU32(word),
+            address: addr as u32,
+            data: word,
             interpretation: "nop".to_string(), // nop for now
         });
     }
@@ -51,6 +49,9 @@ impl Tracer for CLITracer {
                 let rows = mem_rows_32(begin, data);
                 let mut table = Table::new(rows);
                 table.with(Style::rounded());
+                table.modify(Columns::one(0), Color::FG_YELLOW);
+                table.modify(Columns::one(1), Color::FG_CYAN);
+                table.modify(Columns::one(2), Color::FG_MAGENTA);
                 println!("{table}");
             }
             Err(err) => self.deal_error(err),
@@ -58,7 +59,7 @@ impl Tracer for CLITracer {
     }
 
     fn deal_error(&self, error: Box<dyn std::error::Error>) {
-        println!("{}{}", "error: ".red(), error.to_string())
+        println!("{}{}", "error: ", error)
     }
 }
 

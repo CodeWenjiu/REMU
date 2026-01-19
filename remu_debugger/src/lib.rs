@@ -67,9 +67,6 @@ impl Debugger {
     }
 
     fn parse_block(&self, mut tokens: Vec<String>) -> Result<CommandParser> {
-        if tokens.is_empty() {
-            return Err(Error::CommandExprHandled);
-        }
         let mut commands = Vec::with_capacity(tokens.len() + 1);
         commands.push(env!("CARGO_PKG_NAME").to_string());
         commands.append(&mut tokens);
