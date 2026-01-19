@@ -6,6 +6,7 @@ edition = "2024"
 [dependencies]
 remu_macro = { path = "../remu_macro" }
 remu_types = { path = "../remu_types" }
+remu_fmt = { path = "../remu_fmt" }
 thiserror.workspace = true
 tracing.workspace = true
 

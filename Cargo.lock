@@ -876,6 +876,10 @@ dependencies = [
 [[package]]
 name = "remu_fmt"
 version = "0.1.0"
+dependencies = [
+ "remu_macro",
+ "thiserror",
+]
 
 [[package]]
 name = "remu_harness"
@@ -922,6 +926,7 @@ name = "remu_state"
 version = "0.1.0"
 dependencies = [
  "clap",
+ "remu_fmt",
  "remu_macro",
  "remu_types",
  "thiserror",

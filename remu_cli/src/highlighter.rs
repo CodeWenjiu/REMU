@@ -77,7 +77,7 @@ impl RemuHighlighter {
                     if do_pair.as_rule() == Rule::do_kw {
                         let do_span = do_pair.as_span();
                         for i in do_span.start()..do_span.end() {
-                            style_map.insert(i, Style::new().fg(Color::Yellow));
+                            style_map.insert(i, Style::new().fg(Color::Cyan));
                         }
                     }
                 }
@@ -85,7 +85,7 @@ impl RemuHighlighter {
                 // Find opening brace and mark it yellow
                 if let Some(brace_idx) = full_line[start..end].find('{') {
                     let abs_brace_idx = start + brace_idx;
-                    style_map.insert(abs_brace_idx, Style::new().fg(Color::Yellow));
+                    style_map.insert(abs_brace_idx, Style::new().fg(Color::Cyan));
                 }
 
                 // Process inner content
@@ -97,7 +97,7 @@ impl RemuHighlighter {
                 // Find closing brace and mark it yellow
                 if let Some(brace_idx) = full_line[start..end].rfind('}') {
                     let abs_brace_idx = start + brace_idx;
-                    style_map.insert(abs_brace_idx, Style::new().fg(Color::Yellow));
+                    style_map.insert(abs_brace_idx, Style::new().fg(Color::Cyan));
                 }
 
                 current = self.root;
@@ -114,7 +114,7 @@ impl RemuHighlighter {
             Rule::and | Rule::or => {
                 // Style operator keyword as yellow
                 for i in start..end {
-                    style_map.insert(i, Style::new().fg(Color::Yellow));
+                    style_map.insert(i, Style::new().fg(Color::Cyan));
                 }
                 current = self.root;
             }
@@ -286,14 +286,14 @@ impl RemuHighlighter {
                     expect_block && !in_do_block && !pending_do && matches!(next_token, Some("{"));
                 pending_do = valid;
                 styled_seg = (
-                    Style::new().fg(if valid { Color::Yellow } else { Color::Red }),
+                    Style::new().fg(if valid { Color::Cyan } else { Color::Red }),
                     token.to_string(),
                 );
                 expect_block = false;
             } else if token == "{" {
                 let valid = pending_do && !in_do_block;
                 styled_seg = (
-                    Style::new().fg(if valid { Color::Yellow } else { Color::Red }),
+                    Style::new().fg(if valid { Color::Cyan } else { Color::Red }),
                     token.to_string(),
                 );
                 pending_do = false;
@@ -302,7 +302,7 @@ impl RemuHighlighter {
             } else if token == "}" {
                 let valid = in_do_block;
                 styled_seg = (
-                    Style::new().fg(if valid { Color::Yellow } else { Color::Red }),
+                    Style::new().fg(if valid { Color::Cyan } else { Color::Red }),
                     token.to_string(),
                 );
                 in_do_block = false;
@@ -310,7 +310,7 @@ impl RemuHighlighter {
             } else if token == "and" || token == "or" {
                 let valid = !in_do_block && !expect_block && matches!(next_token, Some("do"));
                 styled_seg = (
-                    Style::new().fg(if valid { Color::Yellow } else { Color::Red }),
+                    Style::new().fg(if valid { Color::Cyan } else { Color::Red }),
                     token.to_string(),
                 );
                 expect_block = true;
