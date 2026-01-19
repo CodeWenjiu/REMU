@@ -1,8 +1,8 @@
 use nu_ansi_term::{Color, Style};
-use pest::Parser;
 use petgraph::graph::{Graph, NodeIndex};
 use reedline::{Highlighter, StyledText};
 use remu_debugger::{ExprParser, Rule};
+use remu_harness::CommandParser;
 use std::collections::BTreeMap;
 
 /// A highlighter using pest parser for validation.
@@ -28,7 +28,7 @@ impl RemuHighlighter {
 
     /// Highlight line by parsing with pest and mapping character styles
     fn highlight_parsed(&self, line: &str) -> Option<StyledText> {
-        let pairs = ExprParser::parse(Rule::expr, line).ok()?;
+        let pairs = <ExprParser as pest::Parser<Rule>>::parse(Rule::expr, line).ok()?;
 
         // Create a character-level style map: byte position -> Style
         let mut style_map: BTreeMap<usize, Style> = BTreeMap::new();
@@ -140,6 +140,19 @@ impl RemuHighlighter {
         style_map: &mut BTreeMap<usize, Style>,
         mut current: NodeIndex,
     ) -> NodeIndex {
+        // Highest priority: if clap accepts this whole command segment, render it all green.
+        // NOTE: CommandParser expects argv[0] to be the binary name.
+        let mut argv: Vec<String> = Vec::new();
+        argv.push(env!("CARGO_PKG_NAME").to_string());
+        argv.extend(text.split_whitespace().map(|s| s.to_string()));
+
+        if <CommandParser as clap::Parser>::try_parse_from(argv).is_ok() {
+            for i in abs_start..(abs_start + text.len()) {
+                style_map.insert(i, Style::new().fg(Color::Green));
+            }
+            return current;
+        }
+
         let tokens: Vec<&str> = text.split_whitespace().collect();
 
         if tokens.is_empty() {
@@ -156,9 +169,10 @@ impl RemuHighlighter {
 
                 // Check if this is a valid command
                 if let Some(next) = self.is_valid_command(current, token) {
-                    // Valid command - color green
+                    // Token is a valid command in the graph, but the full command segment is not
+                    // clap-valid (otherwise we'd have returned early above). Mark as yellow.
                     for i in token_start_abs..token_end_abs {
-                        style_map.insert(i, Style::new().fg(Color::Green));
+                        style_map.insert(i, Style::new().fg(Color::Yellow));
                     }
                     current = next;
                 } else {
