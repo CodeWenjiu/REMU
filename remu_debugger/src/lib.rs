@@ -24,8 +24,7 @@ impl Debugger {
         // If the command expression itself is invalid (e.g. bad braces like "{]"),
         // surface that parse error to the user instead of swallowing it and later
         // falling back to clap's "unrecognized subcommand".
-        let expr = command_expr::parse_expression(trimmed)
-            .map_err(|e| Error::CommandExpr(format!("{e}")))?;
+        let expr = command_expr::parse_expression(trimmed)?;
 
         // Parse all blocks up front; abort early on any invalid block
         let command_expr::CommandExpr { first, tail } = expr;
@@ -75,7 +74,7 @@ impl Debugger {
             Ok(v) => Ok(v),
             Err(e) => {
                 let _ = e.print(); // keep clap colorized output
-                Err(Error::CommandExprHandled)
+                Err(DebuggerError::CommandExprHandled)
             }
         }
     }

@@ -1,4 +1,4 @@
-use std::error::Error;
+use remu_types::DynDiagError;
 
 use crate::bus::{Bus, BusAccess, BusOption};
 
@@ -27,7 +27,7 @@ impl State {
                 let result = self
                     .bus
                     .read_bytes(*start, &mut buf)
-                    .map_err(|e| Box::new(e) as Box<dyn Error>);
+                    .map_err(|e| Box::new(e) as Box<dyn DynDiagError>);
                 self.tracer.borrow_mut().mem_print(*start, &buf, result);
             }
             StateCmds::Set { address, value } => {
@@ -35,7 +35,7 @@ impl State {
                 if let Err(e) = self.bus.write_bytes(*address, &data) {
                     self.tracer
                         .borrow()
-                        .deal_error(Box::new(e) as Box<dyn Error>);
+                        .deal_error(Box::new(e) as Box<dyn DynDiagError>);
                 }
             }
         }

@@ -1,12 +1,13 @@
 use anyhow::Result;
 use clap::Parser;
+use colored::Colorize;
 use nu_ansi_term::{Color, Style};
 use reedline::{
     ColumnarMenu, DefaultHinter, DefaultPrompt, DefaultPromptSegment, Emacs, FileBackedHistory,
     KeyCode, KeyModifiers, MenuBuilder, Reedline, ReedlineEvent, ReedlineMenu, Signal,
     default_emacs_keybindings,
 };
-use remu_debugger::{Error, RemuOptionParer};
+use remu_debugger::RemuOptionParer;
 use remu_types::TracerDyn;
 use std::{cell::RefCell, rc::Rc};
 
@@ -70,13 +71,11 @@ fn main() -> Result<()> {
         match sig {
             Ok(Signal::Success(buffer)) => {
                 if let Err(e) = debugger.execute_line(buffer) {
-                    if !matches!(e, Error::CommandExprHandled) {
-                        eprintln!("{}", e);
-                    }
+                    println!("{:?}", miette::Report::new(e));
                 }
             }
             Ok(Signal::CtrlD) => {
-                println!("Quiting...");
+                println!("{}", "Quiting...".cyan());
                 break;
             }
             _ => {}

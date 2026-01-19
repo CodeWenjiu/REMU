@@ -1,4 +1,5 @@
-use remu_types::Tracer;
+use colored::Colorize;
+use remu_types::{DynDiagError, Tracer};
 use tabled::{
     Table, Tabled,
     settings::{Color, Style, object::Columns},
@@ -43,7 +44,7 @@ fn mem_rows_32(begin: usize, data: &[u8]) -> Vec<MemTable> {
 }
 
 impl Tracer for CLITracer {
-    fn mem_print(&self, begin: usize, data: &[u8], result: Result<(), Box<dyn std::error::Error>>) {
+    fn mem_print(&self, begin: usize, data: &[u8], result: Result<(), Box<dyn DynDiagError>>) {
         match result {
             Ok(_) => {
                 let rows = mem_rows_32(begin, data);
@@ -58,8 +59,8 @@ impl Tracer for CLITracer {
         }
     }
 
-    fn deal_error(&self, error: Box<dyn std::error::Error>) {
-        println!("{}{}", "error: ", error)
+    fn deal_error(&self, error: Box<dyn DynDiagError>) {
+        println!("{}: {}", "error".red(), error)
     }
 }
 

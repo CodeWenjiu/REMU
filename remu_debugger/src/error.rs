@@ -1,15 +1,16 @@
+use miette::Diagnostic;
 use thiserror::Error;
 
-#[derive(Error, Debug)]
-pub enum Error {
-    #[error("Invalid quoting in command string")]
-    InvalidQuoting,
+use crate::command_expr::ParseError;
 
+#[derive(Error, Debug, Diagnostic)]
+pub enum DebuggerError {
     #[error("Command expression parse error: {0}")]
-    CommandExpr(String),
+    #[diagnostic(transparent)]
+    CommandExpr(#[from] ParseError),
 
     #[error("Command expression parse error (handled)")]
     CommandExprHandled,
 }
 
-pub(crate) type Result<T> = std::result::Result<T, Error>;
+pub(crate) type Result<T> = std::result::Result<T, DebuggerError>;

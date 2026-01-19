@@ -4,14 +4,14 @@ use remu_types::TracerDyn;
 /// As a template
 pub struct Simulator {
     state: State,
-    tracer: TracerDyn,
+    _tracer: TracerDyn,
 }
 
 impl Simulator {
     pub fn new(opt: SimulatorOption, tracer: TracerDyn) -> Self {
         Simulator {
             state: State::new(opt.state, tracer.clone()),
-            tracer: tracer,
+            _tracer: tracer,
         }
     }
 

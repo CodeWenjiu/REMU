@@ -1,3 +1,4 @@
+use miette::Diagnostic;
 use pest::Parser;
 use pest::iterators::Pair;
 use pest_derive::Parser;
@@ -22,12 +23,14 @@ pub(crate) struct CommandExpr {
     pub(crate) tail: Vec<(Op, Vec<String>)>,
 }
 
-#[derive(Debug, Error)]
-pub(crate) enum ParseError {
+#[derive(Debug, Error, Diagnostic)]
+pub enum ParseError {
     #[error("parse error: {0}")]
-    Pest(String),
+    Pest(#[from] pest::error::Error<Rule>),
+
     #[error("parse error (handled)")]
     PestHandled,
+
     #[error("invalid quoting inside block")]
     InvalidQuoting,
 }
@@ -43,8 +46,7 @@ pub(crate) fn parse_expression(input: &str) -> Result<CommandExpr, ParseError> {
     }
 
     let result: Result<CommandExpr, ParseError> = (|| {
-        let mut pairs =
-            ExprParser::parse(Rule::expr, input).map_err(|e| ParseError::Pest(e.to_string()))?;
+        let mut pairs = ExprParser::parse(Rule::expr, input)?;
 
         let expr_pair = pairs.next().unwrap();
 
@@ -61,9 +63,7 @@ pub(crate) fn parse_expression(input: &str) -> Result<CommandExpr, ParseError> {
                 Rule::and => Op::And,
                 Rule::or => Op::Or,
                 Rule::EOI => break,
-                _ => {
-                    unreachable!()
-                }
+                _ => unreachable!(),
             };
 
             let block_pair = inner.next().unwrap();
@@ -88,9 +88,7 @@ fn block_to_tokens(block: Pair<Rule>) -> Result<Vec<String>, ParseError> {
         // Unwrap the grammar-level block wrapper
         Rule::block => {
             let mut inner = block.into_inner();
-            let inner_block = inner
-                .next()
-                .ok_or_else(|| ParseError::Pest("empty block wrapper".to_string()))?;
+            let inner_block = inner.next().unwrap();
             block_to_tokens(inner_block)
         }
         Rule::do_block => {
@@ -113,9 +111,6 @@ fn block_to_tokens(block: Pair<Rule>) -> Result<Vec<String>, ParseError> {
             }
             Ok(tokens)
         }
-        other => Err(ParseError::Pest(format!(
-            "unexpected block rule: {:?}",
-            other
-        ))),
+        _ => unreachable!(),
     }
 }
