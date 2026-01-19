@@ -12,8 +12,8 @@ use crate::bus::BusAccess;
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct MemRegionSpec {
     pub name: String,
-    pub base: u64,
-    pub size: u64,
+    pub base: usize,
+    pub size: usize,
 }
 
 impl std::str::FromStr for MemRegionSpec {
@@ -40,7 +40,7 @@ impl std::str::FromStr for MemRegionSpec {
             "invalid mem region spec: missing ':' (expected <name>@<base>:<size>)".to_string()
         })?;
 
-        fn parse_u64_allow_hex_underscore(s: &str, field: &str) -> Result<u64, String> {
+        fn parse_usize_allow_hex_underscore(s: &str, field: &str) -> Result<usize, String> {
             let raw = s.trim();
             if raw.is_empty() {
                 return Err(format!("invalid mem region spec: empty {}", field));
@@ -57,21 +57,21 @@ impl std::str::FromStr for MemRegionSpec {
                 .strip_prefix("0x")
                 .or_else(|| cleaned.strip_prefix("0X"))
             {
-                u64::from_str_radix(hex, 16).map_err(|e| {
+                usize::from_str_radix(hex, 16).map_err(|e| {
                     format!(
                         "invalid mem region spec: {} '{}' is not valid hex: {}",
                         field, raw, e
                     )
                 })?
             } else if cleaned.chars().all(|c| c.is_ascii_digit()) {
-                cleaned.parse::<u64>().map_err(|e| {
+                cleaned.parse::<usize>().map_err(|e| {
                     format!(
                         "invalid mem region spec: {} '{}' is not valid decimal: {}",
                         field, raw, e
                     )
                 })?
             } else {
-                u64::from_str_radix(&cleaned, 16).map_err(|e| {
+                usize::from_str_radix(&cleaned, 16).map_err(|e| {
                     format!(
                         "invalid mem region spec: {} '{}' is not valid hex: {}",
                         field, raw, e
@@ -82,8 +82,8 @@ impl std::str::FromStr for MemRegionSpec {
             Ok(value)
         }
 
-        let base = parse_u64_allow_hex_underscore(base_str, "base")?;
-        let size = parse_u64_allow_hex_underscore(size_str, "size")?;
+        let base = parse_usize_allow_hex_underscore(base_str, "base")?;
+        let size = parse_usize_allow_hex_underscore(size_str, "size")?;
 
         if size == 0 {
             return Err("invalid mem region spec: size must be > 0".to_string());
@@ -110,7 +110,7 @@ pub enum AccessKind {
 #[derive(Debug, Error, Clone, PartialEq, Eq)]
 pub enum MemFault {
     #[error("unmapped address: 0x{addr:016x}")]
-    Unmapped { addr: u64 },
+    Unmapped { addr: usize },
 
     #[error(
         "out of bounds {kind:?} at 0x{addr:016x} (size={size}) for region '{region}' \
@@ -118,15 +118,15 @@ pub enum MemFault {
     )]
     OutOfBounds {
         kind: AccessKind,
-        addr: u64,
+        addr: usize,
         size: usize,
         region: String,
-        base: u64,
-        end: u64,
+        base: usize,
+        end: usize,
     },
 
     #[error("invalid region '{name}': size too large to allocate on this platform: {size}")]
-    SizeTooLarge { name: String, size: u64 },
+    SizeTooLarge { name: String, size: usize },
 
     #[error("invalid region '{name}': base+size overflows u64")]
     RangeOverflow { name: String },
@@ -139,8 +139,8 @@ pub enum MemFault {
 #[derive(Debug)]
 pub struct Memory {
     pub name: String,
-    pub base: u64,
-    pub end: u64, // exclusive
+    pub base: usize,
+    pub end: usize, // exclusive
     storage: Vec<u8>,
 }
 
@@ -177,7 +177,7 @@ impl Memory {
 
     /// Returns whether `addr` is contained in this region.
     #[inline(always)]
-    pub fn contains(&self, addr: u64) -> bool {
+    pub fn contains(&self, addr: usize) -> bool {
         self.base <= addr && addr < self.end
     }
 
@@ -190,7 +190,7 @@ impl Memory {
     fn checked_range_rel(
         &self,
         kind: AccessKind,
-        rel_addr: u64,
+        rel_addr: usize,
         size: usize,
     ) -> Result<Range<usize>, MemFault> {
         // Fast reject on end overflow: rel_addr+size must be <= region_size
@@ -233,20 +233,20 @@ impl BusAccess for Memory {
     type Fault = MemFault;
 
     #[inline(always)]
-    fn read_8(&mut self, addr: u64) -> Result<u8, Self::Fault> {
+    fn read_8(&mut self, addr: usize) -> Result<u8, Self::Fault> {
         let r = self.checked_range_rel(AccessKind::Read, addr, 1)?;
         Ok(self.storage[r.start])
     }
 
     #[inline(always)]
-    fn read_16(&mut self, addr: u64) -> Result<u16, Self::Fault> {
+    fn read_16(&mut self, addr: usize) -> Result<u16, Self::Fault> {
         let r = self.checked_range_rel(AccessKind::Read, addr, 2)?;
         let bytes = [self.storage[r.start], self.storage[r.start + 1]];
         Ok(u16::from_le_bytes(bytes))
     }
 
     #[inline(always)]
-    fn read_32(&mut self, addr: u64) -> Result<u32, Self::Fault> {
+    fn read_32(&mut self, addr: usize) -> Result<u32, Self::Fault> {
         let r = self.checked_range_rel(AccessKind::Read, addr, 4)?;
         let bytes = [
             self.storage[r.start],
@@ -258,7 +258,7 @@ impl BusAccess for Memory {
     }
 
     #[inline(always)]
-    fn read_64(&mut self, addr: u64) -> Result<u64, Self::Fault> {
+    fn read_64(&mut self, addr: usize) -> Result<u64, Self::Fault> {
         let r = self.checked_range_rel(AccessKind::Read, addr, 8)?;
         let bytes = [
             self.storage[r.start],
@@ -274,21 +274,21 @@ impl BusAccess for Memory {
     }
 
     #[inline(always)]
-    fn read_bytes(&mut self, addr: u64, buf: &mut [u8]) -> Result<(), Self::Fault> {
+    fn read_bytes(&mut self, addr: usize, buf: &mut [u8]) -> Result<(), Self::Fault> {
         let r = self.checked_range_rel(AccessKind::Read, addr, buf.len())?;
         buf.copy_from_slice(&self.storage[(r.start)..(r.start + buf.len())]);
         Ok(())
     }
 
     #[inline(always)]
-    fn write_8(&mut self, addr: u64, value: u8) -> Result<(), Self::Fault> {
+    fn write_8(&mut self, addr: usize, value: u8) -> Result<(), Self::Fault> {
         let r = self.checked_range_rel(AccessKind::Write, addr, 1)?;
         self.storage[r.start] = value;
         Ok(())
     }
 
     #[inline(always)]
-    fn write_16(&mut self, addr: u64, value: u16) -> Result<(), Self::Fault> {
+    fn write_16(&mut self, addr: usize, value: u16) -> Result<(), Self::Fault> {
         let r = self.checked_range_rel(AccessKind::Write, addr, 2)?;
         let bytes = value.to_le_bytes();
         self.storage[r.start] = bytes[0];
@@ -297,7 +297,7 @@ impl BusAccess for Memory {
     }
 
     #[inline(always)]
-    fn write_32(&mut self, addr: u64, value: u32) -> Result<(), Self::Fault> {
+    fn write_32(&mut self, addr: usize, value: u32) -> Result<(), Self::Fault> {
         let r = self.checked_range_rel(AccessKind::Write, addr, 4)?;
         let bytes = value.to_le_bytes();
         self.storage[r.start] = bytes[0];
@@ -308,7 +308,7 @@ impl BusAccess for Memory {
     }
 
     #[inline(always)]
-    fn write_64(&mut self, addr: u64, value: u64) -> Result<(), Self::Fault> {
+    fn write_64(&mut self, addr: usize, value: u64) -> Result<(), Self::Fault> {
         let r = self.checked_range_rel(AccessKind::Write, addr, 8)?;
         let bytes = value.to_le_bytes();
         self.storage[r.start] = bytes[0];
@@ -319,6 +319,13 @@ impl BusAccess for Memory {
         self.storage[r.start + 5] = bytes[5];
         self.storage[r.start + 6] = bytes[6];
         self.storage[r.start + 7] = bytes[7];
+        Ok(())
+    }
+
+    #[inline(always)]
+    fn write_bytes(&mut self, addr: usize, buf: &[u8]) -> Result<(), Self::Fault> {
+        let r = self.checked_range_rel(AccessKind::Write, addr, buf.len())?;
+        self.storage[r.start..r.start + buf.len()].copy_from_slice(buf);
         Ok(())
     }
 }
