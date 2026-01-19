@@ -53,12 +53,14 @@ pub trait BusAccess {
     fn read_16(&mut self, addr: usize) -> Result<u16, Self::Fault>;
     fn read_32(&mut self, addr: usize) -> Result<u32, Self::Fault>;
     fn read_64(&mut self, addr: usize) -> Result<u64, Self::Fault>;
+    fn read_128(&mut self, addr: usize) -> Result<u128, Self::Fault>;
     fn read_bytes(&mut self, addr: usize, buf: &mut [u8]) -> Result<(), Self::Fault>;
 
     fn write_8(&mut self, addr: usize, value: u8) -> Result<(), Self::Fault>;
     fn write_16(&mut self, addr: usize, value: u16) -> Result<(), Self::Fault>;
     fn write_32(&mut self, addr: usize, value: u32) -> Result<(), Self::Fault>;
     fn write_64(&mut self, addr: usize, value: u64) -> Result<(), Self::Fault>;
+    fn write_128(&mut self, addr: usize, value: u128) -> Result<(), Self::Fault>;
     fn write_bytes(&mut self, addr: usize, buf: &[u8]) -> Result<(), Self::Fault>;
 }
 
@@ -90,6 +92,12 @@ impl BusAccess for Bus {
     }
 
     #[inline(always)]
+    fn read_128(&mut self, addr: usize) -> Result<u128, Self::Fault> {
+        let m = self.find_memory_mut(addr)?;
+        m.read_128(addr - m.base)
+    }
+
+    #[inline(always)]
     fn read_bytes(&mut self, addr: usize, buf: &mut [u8]) -> Result<(), Self::Fault> {
         let m = self.find_memory_mut(addr)?;
         m.read_bytes(addr - m.base, buf)
@@ -117,6 +125,12 @@ impl BusAccess for Bus {
     fn write_64(&mut self, addr: usize, value: u64) -> Result<(), Self::Fault> {
         let m = self.find_memory_mut(addr)?;
         m.write_64(addr - m.base, value)
+    }
+
+    #[inline(always)]
+    fn write_128(&mut self, addr: usize, value: u128) -> Result<(), Self::Fault> {
+        let m = self.find_memory_mut(addr)?;
+        m.write_128(addr - m.base, value)
     }
 
     #[inline(always)]

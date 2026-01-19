@@ -274,6 +274,30 @@ impl BusAccess for Memory {
     }
 
     #[inline(always)]
+    fn read_128(&mut self, addr: usize) -> Result<u128, Self::Fault> {
+        let r = self.checked_range_rel(AccessKind::Read, addr, 16)?;
+        let bytes = [
+            self.storage[r.start],
+            self.storage[r.start + 1],
+            self.storage[r.start + 2],
+            self.storage[r.start + 3],
+            self.storage[r.start + 4],
+            self.storage[r.start + 5],
+            self.storage[r.start + 6],
+            self.storage[r.start + 7],
+            self.storage[r.start + 8],
+            self.storage[r.start + 9],
+            self.storage[r.start + 10],
+            self.storage[r.start + 11],
+            self.storage[r.start + 12],
+            self.storage[r.start + 13],
+            self.storage[r.start + 14],
+            self.storage[r.start + 15],
+        ];
+        Ok(u128::from_le_bytes(bytes))
+    }
+
+    #[inline(always)]
     fn read_bytes(&mut self, addr: usize, buf: &mut [u8]) -> Result<(), Self::Fault> {
         let r = self.checked_range_rel(AccessKind::Read, addr, buf.len())?;
         buf.copy_from_slice(&self.storage[(r.start)..(r.start + buf.len())]);
@@ -319,6 +343,29 @@ impl BusAccess for Memory {
         self.storage[r.start + 5] = bytes[5];
         self.storage[r.start + 6] = bytes[6];
         self.storage[r.start + 7] = bytes[7];
+        Ok(())
+    }
+
+    #[inline(always)]
+    fn write_128(&mut self, addr: usize, value: u128) -> Result<(), Self::Fault> {
+        let r = self.checked_range_rel(AccessKind::Write, addr, 16)?;
+        let bytes = value.to_le_bytes();
+        self.storage[r.start] = bytes[0];
+        self.storage[r.start + 1] = bytes[1];
+        self.storage[r.start + 2] = bytes[2];
+        self.storage[r.start + 3] = bytes[3];
+        self.storage[r.start + 4] = bytes[4];
+        self.storage[r.start + 5] = bytes[5];
+        self.storage[r.start + 6] = bytes[6];
+        self.storage[r.start + 7] = bytes[7];
+        self.storage[r.start + 8] = bytes[8];
+        self.storage[r.start + 9] = bytes[9];
+        self.storage[r.start + 10] = bytes[10];
+        self.storage[r.start + 11] = bytes[11];
+        self.storage[r.start + 12] = bytes[12];
+        self.storage[r.start + 13] = bytes[13];
+        self.storage[r.start + 14] = bytes[14];
+        self.storage[r.start + 15] = bytes[15];
         Ok(())
     }
 
