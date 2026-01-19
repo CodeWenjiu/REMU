@@ -32,11 +32,11 @@ impl State {
             }
             StateCmds::Set { address, value } => {
                 let data: Vec<u8> = value.iter().flat_map(|v| v.iter().copied()).collect();
-                let result = self
-                    .bus
-                    .write_bytes(*address, &data)
-                    .map_err(|e| Box::new(e) as Box<dyn Error>);
-                self.tracer.borrow_mut().mem_print(*address, &data, result);
+                if let Err(e) = self.bus.write_bytes(*address, &data) {
+                    self.tracer
+                        .borrow()
+                        .deal_error(Box::new(e) as Box<dyn Error>);
+                }
             }
         }
     }
