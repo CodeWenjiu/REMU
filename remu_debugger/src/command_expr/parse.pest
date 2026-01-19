@@ -1,14 +1,13 @@
 WS = _{ " " | "\t" | "\n" | "\r" }
 
-expr      = { SOI ~ block ~ (WS* ~ (and | or) ~ WS* ~ block)* ~ WS* ~ EOI }
-block     = { do_block | command }
-do_block  = { do_kw ~ WS* ~ "{" ~ inner? ~ "}" }
-command   = { token ~ (WS+ ~ token)* }
-token     = @{ !(and_kw | or_kw) ~ (!WS ~ ANY)+ }
-inner     = { (!"}" ~ ANY)* }
+expr        =  { SOI ~ block ~ (WS* ~ (and | or) ~ WS* ~ block)* ~ WS* ~ EOI }
+block       =  { brace_block | command }
+brace_block =  { "{" ~ inner? ~ "}" }
+command     =  { token ~ (WS+ ~ token)* }
+token       = @{ !(and_kw | or_kw) ~ (!WS ~ ANY)+ }
+inner       =  { (!"}" ~ ANY)* }
 
-and_kw    = _{ "and" ~ (WS+ | EOI) }
-or_kw     = _{ "or" ~ (WS+ | EOI) }
-do_kw     = @{ "do" }
-and       = @{ "and" }
-or        = @{ "or" }
+and_kw = _{ "and" ~ (WS+ | EOI) }
+or_kw  = _{ "or" ~ (WS+ | EOI) }
+and    = @{ "and" }
+or     = @{ "or" }

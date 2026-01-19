@@ -91,7 +91,9 @@ fn block_to_tokens(block: Pair<Rule>) -> Result<Vec<String>, ParseError> {
             let inner_block = inner.next().unwrap();
             block_to_tokens(inner_block)
         }
-        Rule::do_block => {
+
+        // New syntax: `{ ... }`
+        Rule::brace_block => {
             let mut inner = block.into_inner();
             let inner_pair = inner
                 .find(|p| p.as_rule() == Rule::inner)
@@ -103,6 +105,7 @@ fn block_to_tokens(block: Pair<Rule>) -> Result<Vec<String>, ParseError> {
             }
             Ok(tokens)
         }
+
         Rule::command => {
             let src = block.as_str();
             let tokens = shlex::split(src).ok_or(ParseError::InvalidQuoting)?;

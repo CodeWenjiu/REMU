@@ -6,7 +6,7 @@ use remu_harness::CommandParser;
 use std::collections::BTreeMap;
 
 /// A highlighter using pest parser for validation.
-/// - Keywords (do, and, or, {, }) are yellow when structurally valid
+/// - Keywords (and, or, {, }) are yellow when structurally valid
 /// - Commands are green when valid in the graph
 /// - Everything invalid is red
 pub struct RemuHighlighter {
@@ -69,18 +69,8 @@ impl RemuHighlighter {
                     current = self.collect_styles(inner, full_line, style_map, current);
                 }
             }
-            Rule::do_block => {
+            Rule::brace_block => {
                 let mut inner_iter = pair.into_inner();
-
-                // Style the "do" keyword
-                if let Some(do_pair) = inner_iter.next() {
-                    if do_pair.as_rule() == Rule::do_kw {
-                        let do_span = do_pair.as_span();
-                        for i in do_span.start()..do_span.end() {
-                            style_map.insert(i, Style::new().fg(Color::Cyan));
-                        }
-                    }
-                }
 
                 // Find opening brace and mark it yellow
                 if let Some(brace_idx) = full_line[start..end].find('{') {
@@ -295,17 +285,9 @@ impl RemuHighlighter {
             let token = seg.as_str();
             let styled_seg;
 
-            if token == "do" {
-                let valid =
-                    expect_block && !in_do_block && !pending_do && matches!(next_token, Some("{"));
-                pending_do = valid;
-                styled_seg = (
-                    Style::new().fg(if valid { Color::Cyan } else { Color::Red }),
-                    token.to_string(),
-                );
-                expect_block = false;
-            } else if token == "{" {
-                let valid = pending_do && !in_do_block;
+            if token == "{" {
+                // In the simplified syntax, a block starts directly with "{") when a block is expected.
+                let valid = expect_block && !in_do_block && !pending_do;
                 styled_seg = (
                     Style::new().fg(if valid { Color::Cyan } else { Color::Red }),
                     token.to_string(),
@@ -313,6 +295,7 @@ impl RemuHighlighter {
                 pending_do = false;
                 in_do_block = valid;
                 current = self.root;
+                expect_block = false;
             } else if token == "}" {
                 let valid = in_do_block;
                 styled_seg = (
@@ -322,7 +305,8 @@ impl RemuHighlighter {
                 in_do_block = false;
                 expect_block = false;
             } else if token == "and" || token == "or" {
-                let valid = !in_do_block && !expect_block && matches!(next_token, Some("do"));
+                // After a complete block, an operator must be followed by another block ("{").
+                let valid = !in_do_block && !expect_block && matches!(next_token, Some("{"));
                 styled_seg = (
                     Style::new().fg(if valid { Color::Cyan } else { Color::Red }),
                     token.to_string(),
