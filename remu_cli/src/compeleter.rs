@@ -35,7 +35,8 @@ impl RemuCompleter {
 
         let open = *stack.last()?;
         // Cursor must be after '{' to be considered "inside" the block.
-        if pos <= open + 1 {
+        // Allow completing immediately after '{' (including "{|" and "{ |").
+        if pos <= open {
             return None;
         }
 

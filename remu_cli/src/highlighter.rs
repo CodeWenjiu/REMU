@@ -136,7 +136,16 @@ impl RemuHighlighter {
         argv.push(env!("CARGO_PKG_NAME").to_string());
         argv.extend(text.split_whitespace().map(|s| s.to_string()));
 
-        if <CommandParser as clap::Parser>::try_parse_from(argv).is_ok() {
+        let clap_parse_result = <CommandParser as clap::Parser>::try_parse_from(argv);
+        let is_valid = match &clap_parse_result {
+            Ok(_) => true,
+            Err(e) => matches!(
+                e.kind(),
+                clap::error::ErrorKind::DisplayHelp | clap::error::ErrorKind::DisplayVersion
+            ),
+        };
+
+        if is_valid {
             for i in abs_start..(abs_start + text.len()) {
                 style_map.insert(i, Style::new().fg(Color::Green));
             }
