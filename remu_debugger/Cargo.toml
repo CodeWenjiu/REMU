@@ -17,5 +17,4 @@ miette = { workspace = true, features = ["fancy"] }
 tracing.workspace = true
 
 petgraph.workspace = true
-pest.workspace = true
-pest_derive.workspace = true
+winnow.workspace = true

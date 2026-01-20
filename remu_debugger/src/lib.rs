@@ -1,8 +1,6 @@
 use clap::Parser;
 
-remu_macro::mod_flat!(options, commands, error);
-remu_macro::mod_pub!(command_expr);
-pub use command_expr::{ExprParser, Rule};
+remu_macro::mod_flat!(options, commands, error, command_expr);
 pub use commands::get_command_graph;
 use remu_harness::{CommandParser, Commands, Harness};
 use remu_types::TracerDyn;

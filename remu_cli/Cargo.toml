@@ -25,5 +25,4 @@ reedline = "0.44.0"
 tabled = "0.20.0"
 colored = "3.1.1"
 
-pest.workspace = true
-pest_derive.workspace = true
+winnow.workspace = true
