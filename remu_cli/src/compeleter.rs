@@ -119,6 +119,96 @@ impl RemuCompleter {
             })
             .collect()
     }
+
+    /// Attempt to offer structural completions when the cursor is *not* inside `{ ... }`.
+    ///
+    /// Goals:
+    /// - After a completed `{ ... }` block, suggest `and {}` / `or {}` and place cursor inside `{}`.
+    /// - When input is blank / only whitespace, *do not* override normal command completion.
+    ///   (We intentionally do not return `{}` here; the caller may decide to merge `{}` alongside
+    ///   normal command suggestions if desired.)
+    fn complete_structural_outside_braces(&self, line: &str, pos: usize) -> Vec<Suggestion> {
+        if pos > line.len() {
+            return vec![];
+        }
+
+        // Boundary condition: empty/whitespace input should still offer normal command completion,
+        // so don't return structural suggestions from this helper.
+        if line.trim().is_empty() {
+            return vec![];
+        }
+
+        // Only provide structural suggestions when cursor is at end-of-line.
+        // This matches the "after a {} statement" wording and avoids surprising mid-line edits.
+        if pos != line.len() {
+            return vec![];
+        }
+
+        let bytes = line.as_bytes();
+
+        // Helper: skip trailing whitespace and return index of last non-ws byte (inclusive).
+        let mut i = bytes.len().saturating_sub(1);
+        while i > 0 && bytes[i].is_ascii_whitespace() {
+            i = i.saturating_sub(1);
+        }
+        if bytes[i].is_ascii_whitespace() {
+            return vec![];
+        }
+
+        // We only offer `and {}` / `or {}` if the line ends with a full brace block (`...}`).
+        if bytes[i] != b'}' {
+            return vec![];
+        }
+
+        // Walk backwards to find the matching '{' for this closing brace.
+        let mut depth: isize = 0;
+        let mut j = i;
+        loop {
+            match bytes[j] {
+                b'}' => depth += 1,
+                b'{' => {
+                    depth -= 1;
+                    if depth == 0 {
+                        break;
+                    }
+                }
+                _ => {}
+            }
+
+            if j == 0 {
+                return vec![];
+            }
+            j -= 1;
+        }
+
+        // `j` is the matching '{' for the last '}'.
+        // Ensure there is no extra non-ws content after the closing brace (we already trimmed trailing ws),
+        // so this truly ends with a complete block.
+        // Now suggest ` and {}` / ` or {}`. We include a leading space to keep formatting natural.
+        // Span replaces an empty range at the cursor (insertion).
+        let insert_span = Span::new(pos, pos);
+
+        vec![
+            Suggestion {
+                value: " and {".to_string(),
+                description: Some("structural".to_string()),
+                style: None,
+                extra: None,
+                span: insert_span,
+                append_whitespace: false,
+                match_indices: None,
+            },
+            Suggestion {
+                value: " or {".to_string(),
+                description: Some("structural".to_string()),
+                style: None,
+                extra: None,
+                span: insert_span,
+                append_whitespace: false,
+                match_indices: None,
+            },
+        ]
+    }
 }
 
 impl Completer for RemuCompleter {
@@ -133,6 +223,12 @@ impl Completer for RemuCompleter {
             }
 
             return out;
+        }
+
+        // Outside of braces, try structural completions first (and/or + {}).
+        let structural = self.complete_structural_outside_braces(line, pos);
+        if !structural.is_empty() {
+            return structural;
         }
 
         // Otherwise, fall back to normal single-command completion on the whole line.
