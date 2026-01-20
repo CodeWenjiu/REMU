@@ -3,9 +3,9 @@ use clap::Parser;
 use colored::Colorize;
 use nu_ansi_term::{Color, Style};
 use reedline::{
-    ColumnarMenu, DefaultHinter, DefaultPrompt, DefaultPromptSegment, Emacs, FileBackedHistory,
-    KeyCode, KeyModifiers, MenuBuilder, Reedline, ReedlineEvent, ReedlineMenu, Signal,
-    default_emacs_keybindings,
+    ColumnarMenu, DefaultHinter, DefaultPrompt, DefaultPromptSegment, DefaultValidator, Emacs,
+    FileBackedHistory, KeyCode, KeyModifiers, MenuBuilder, Reedline, ReedlineEvent, ReedlineMenu,
+    Signal, default_emacs_keybindings,
 };
 use remu_debugger::RemuOptionParer;
 use remu_types::TracerDyn;
@@ -42,6 +42,8 @@ fn get_editor() -> Reedline {
         .with_history(history)
         .with_highlighter(highlighter)
         .with_completer(completer)
+        .with_quick_completions(true)
+        .with_validator(Box::new(DefaultValidator))
         .with_menu(ReedlineMenu::EngineCompleter(completion_menu))
         .with_edit_mode(edit_mode)
         .with_hinter(Box::new(

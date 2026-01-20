@@ -1,6 +1,6 @@
 use clap::Parser;
 
-remu_macro::mod_flat!(options, commands, error, command_expr);
+remu_macro::mod_flat!(options, commands, error, compound_command);
 pub use commands::get_command_graph;
 use remu_harness::{CommandParser, Commands, Harness};
 use remu_types::TracerDyn;
@@ -22,10 +22,10 @@ impl Debugger {
         // If the command expression itself is invalid (e.g. bad braces like "{]"),
         // surface that parse error to the user instead of swallowing it and later
         // falling back to clap's "unrecognized subcommand".
-        let expr = command_expr::parse_expression(trimmed)?;
+        let expr = compound_command::parse_expression(trimmed)?;
 
         // Parse all blocks up front; abort early on any invalid block
-        let command_expr::CommandExpr { first, tail } = expr;
+        let compound_command::CommandExpr { first, tail } = expr;
 
         let blocks_iter = std::iter::once(first.clone()).chain(tail.iter().map(|(_, b)| b.clone()));
 
@@ -50,10 +50,10 @@ impl Debugger {
         let mut result = self.execute_parsed(&first_cmd.command)?;
         for ((op, _), cmd_wrapper) in tail.into_iter().zip(parsed_iter) {
             match (op, result) {
-                (command_expr::Op::And, true) => {
+                (compound_command::Op::And, true) => {
                     result = self.execute_parsed(&cmd_wrapper.command)?;
                 }
-                (command_expr::Op::Or, false) => {
+                (compound_command::Op::Or, false) => {
                     result = self.execute_parsed(&cmd_wrapper.command)?;
                 }
                 _ => {}

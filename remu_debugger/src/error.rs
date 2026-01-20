@@ -1,7 +1,7 @@
 use miette::Diagnostic;
 use thiserror::Error;
 
-use crate::command_expr::ParseError;
+use crate::compound_command::ParseError;
 
 #[derive(Error, Debug, Diagnostic)]
 pub enum DebuggerError {
