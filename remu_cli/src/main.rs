@@ -35,6 +35,14 @@ fn get_editor() -> Reedline {
             ReedlineEvent::MenuNext,
         ]),
     );
+    keybindings.add_binding(
+        KeyModifiers::SHIFT,
+        KeyCode::BackTab,
+        ReedlineEvent::UntilFound(vec![
+            ReedlineEvent::Menu("completion_menu".to_string()),
+            ReedlineEvent::MenuPrevious,
+        ]),
+    );
 
     let edit_mode = Box::new(Emacs::new(keybindings));
 

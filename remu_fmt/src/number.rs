@@ -99,10 +99,16 @@ fn parse_vec_u8_from_prefixed_literal(s: &str) -> Result<Vec<u8>, ParseLiteralEr
         });
     }
 
-    // Big-endian, fixed length determined by digits. Leading zeros are preserved by length.
+    // Little-endian, fixed length determined by digits. Leading zeros are preserved by length.
+    //
+    // Rationale:
+    // - `state set` is primarily a "write value into memory" operation and memory is interpreted
+    //   as little-endian elsewhere (e.g. `read_32` / table rendering).
+    // - Keeping the per-literal byte length derived from digit count while using little-endian bytes
+    //   makes `0x12345678` write as `[0x78, 0x56, 0x34, 0x12]`.
     let mut out = vec![0u8; byte_len];
     for i in 0..byte_len {
-        let shift = 8 * (byte_len - 1 - i);
+        let shift = 8 * i;
         out[i] = ((v >> shift) & 0xff) as u8;
     }
     Ok(out)

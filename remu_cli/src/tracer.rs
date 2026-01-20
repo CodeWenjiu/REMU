@@ -11,12 +11,18 @@ fn display_address(val: &u32) -> String {
     format!("0x{:08x}", val).to_string()
 }
 
+fn display_bytes4(val: &String) -> String {
+    val.clone()
+}
+
 #[derive(Tabled)]
 pub struct MemTable {
     #[tabled(display = "display_address")]
     address: u32,
     #[tabled(display = "display_address")]
     data: u32,
+    #[tabled(display = "display_bytes4")]
+    bytes: String,
     interpretation: String,
 }
 
@@ -32,10 +38,15 @@ fn mem_rows_32(begin: usize, data: &[u8]) -> Vec<MemTable> {
         bytes[..chunk.len()].copy_from_slice(chunk);
 
         let word = u32::from_le_bytes(bytes);
+        let bytes_str = format!(
+            "[{:02x} {:02x} {:02x} {:02x}]",
+            bytes[0], bytes[1], bytes[2], bytes[3]
+        );
 
         rows.push(MemTable {
             address: addr as u32,
             data: word,
+            bytes: bytes_str,
             interpretation: "nop".to_string(), // nop for now
         });
     }
@@ -52,9 +63,21 @@ impl Tracer for CLITracer {
                 table.with(Style::rounded());
                 table.modify(Columns::one(0), Color::FG_YELLOW);
                 table.modify(Columns::one(1), Color::FG_CYAN);
-                table.modify(Columns::one(2), Color::FG_MAGENTA);
+                table.modify(Columns::one(2), Color::FG_BLUE);
+                table.modify(Columns::one(3), Color::FG_BRIGHT_WHITE);
                 println!("{table}");
             }
+            Err(err) => self.deal_error(err),
+        }
+    }
+
+    fn mem_show(&self, begin: usize, data: Result<remu_types::AllUsize, Box<dyn DynDiagError>>) {
+        match data {
+            Ok(value) => println!(
+                "{}: {}",
+                format!("0x{:08x}", begin).yellow(),
+                format!("{}", value).blue()
+            ),
             Err(err) => self.deal_error(err),
         }
     }
