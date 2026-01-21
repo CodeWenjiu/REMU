@@ -16,6 +16,14 @@ const BENCH_WRITE_NAME: &str = "bus_write_mixed_1_1_1_u8_u16_u32_u64_aligned";
 const BENCH_WRITE_NAME_SEQUENTIAL: &str = "bus_write_mixed_1_1_1_u8_u16_u32_u64_sequential";
 const BENCH_WRITE_NAME_SMALL_WS: &str = "bus_write_mixed_1_1_1_u8_u16_u32_u64_small_ws";
 
+/// Fixed-size `write_bytes` benchmarks (cache-line-like).
+///
+/// We keep the length fixed to make the work per iteration stable and comparable.
+/// These benches are expected to become more relevant once a cache-line writeback path exists.
+const BENCH_WRITE_BYTES_NAME: &str = "bus_write_bytes_64B_aligned";
+const BENCH_WRITE_BYTES_NAME_SEQUENTIAL: &str = "bus_write_bytes_64B_sequential";
+const BENCH_WRITE_BYTES_NAME_SMALL_WS: &str = "bus_write_bytes_64B_small_ws";
+
 #[inline(never)]
 fn run_write_workload(
     bus: &mut impl BusAccess<Fault = remu_state::bus::MemFault>,
@@ -60,6 +68,35 @@ fn run_write_workload(
     black_box(acc);
 }
 
+#[inline(never)]
+fn run_write_bytes_workload_64b(
+    bus: &mut impl BusAccess<Fault = remu_state::bus::MemFault>,
+    addrs64_aligned: &[usize],
+) {
+    // Fixed-size "cache line" writes.
+    // Use a stack buffer to keep allocation out of the hot loop.
+    let mut acc: u64 = 0;
+    let mut buf = [0u8; 64];
+
+    for &addr in addrs64_aligned {
+        // Deterministic payload, changes with address to avoid trivially redundant stores.
+        buf[0] = (addr as u8).wrapping_mul(3);
+        buf[63] = (addr as u8).wrapping_mul(7);
+
+        bus.write_bytes(addr, &buf)
+            .expect("unmapped write_bytes(64) in bench workload");
+
+        // Read back a couple bytes to keep side effects observable.
+        let mut verify = [0u8; 64];
+        bus.read_bytes(addr, &mut verify)
+            .expect("unmapped read_bytes(64) after write_bytes");
+        acc = acc.wrapping_add(verify[0] as u64);
+        acc = acc.wrapping_add(verify[63] as u64);
+    }
+
+    black_box(acc);
+}
+
 fn bench_write(c: &mut Criterion) {
     let mut state = common::make_state_from_clap_defaults("bus_write_bench");
 
@@ -77,6 +114,20 @@ fn bench_write(c: &mut Criterion) {
 
     c.bench_function(BENCH_WRITE_NAME_SMALL_WS, |b| {
         b.iter(|| run_write_workload(&mut state.bus, &sw8, &sw16, &sw32, &sw64))
+    });
+
+    // write_bytes(64) benchmarks: reuse the 64-bit aligned address stream (8-byte aligned implies
+    // also safe for 64B writes as long as the underlying mapping is large enough, which it is).
+    c.bench_function(BENCH_WRITE_BYTES_NAME, |b| {
+        b.iter(|| run_write_bytes_workload_64b(&mut state.bus, &addrs64))
+    });
+
+    c.bench_function(BENCH_WRITE_BYTES_NAME_SEQUENTIAL, |b| {
+        b.iter(|| run_write_bytes_workload_64b(&mut state.bus, &seq64))
+    });
+
+    c.bench_function(BENCH_WRITE_BYTES_NAME_SMALL_WS, |b| {
+        b.iter(|| run_write_bytes_workload_64b(&mut state.bus, &sw64))
     });
 }
 

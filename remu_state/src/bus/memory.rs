@@ -317,7 +317,18 @@ impl BusAccess for Memory {
         let r = self
             .checked_range_rel(AccessKind::Read, addr, buf.len())
             .map_err(Box::new)?;
-        buf.copy_from_slice(&self.storage[(r.start)..(r.start + buf.len())]);
+
+        // SAFETY:
+        // - `checked_range_rel` guarantees `[r.start, r.start + buf.len())` is in-bounds.
+        // - `buf` is a valid writable slice of length `buf.len()`.
+        // - Source and destination do not overlap (storage and `buf` are distinct allocations).
+        unsafe {
+            core::ptr::copy_nonoverlapping(
+                self.storage.as_ptr().add(r.start),
+                buf.as_mut_ptr(),
+                buf.len(),
+            );
+        }
         Ok(())
     }
 
@@ -415,7 +426,18 @@ impl BusAccess for Memory {
         let r = self
             .checked_range_rel(AccessKind::Write, addr, buf.len())
             .map_err(Box::new)?;
-        self.storage[r.start..r.start + buf.len()].copy_from_slice(buf);
+
+        // SAFETY:
+        // - `checked_range_rel` guarantees `[r.start, r.start + buf.len())` is in-bounds.
+        // - `buf` is a valid readable slice of length `buf.len()`.
+        // - Source and destination do not overlap (storage and `buf` are distinct allocations).
+        unsafe {
+            core::ptr::copy_nonoverlapping(
+                buf.as_ptr(),
+                self.storage.as_mut_ptr().add(r.start),
+                buf.len(),
+            );
+        }
         Ok(())
     }
 }
