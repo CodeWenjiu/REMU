@@ -1,4 +1,4 @@
-use criterion::{Criterion, criterion_group, criterion_main};
+use criterion::{Criterion, black_box, criterion_group, criterion_main};
 
 use clap::Parser;
 use pprof::criterion::{Output, PProfProfiler};
@@ -6,6 +6,18 @@ use remu_state::bus::{BusAccess, BusOption};
 use remu_state::{State, StateOption};
 use remu_types::{AllUsize, DynDiagError, Tracer, TracerDyn};
 
+/// Benchmark name used in `c.bench_function(...)`.
+///
+/// Criterion uses this to create output directories under `target/criterion/`.
+/// When you enable Criterion-style profiling (see below), the flamegraph will be written to:
+///
+/// `target/criterion/<BENCH_NAME>/profile/flamegraph.svg`
+const BENCH_NAME: &str = "bus_read_mixed_1_1_1_u8_u16_u32_aligned";
+
+/// A minimal tracer implementation so we can construct `remu_state::State` without pulling in CLI.
+///
+/// This benchmark focuses on bus/memory access; tracer output would only add noise.
+/// We still use `State` because `Bus::new` is `pub(crate)` and benches are compiled as separate crates.
 struct BenchTracer;
 
 impl Tracer for BenchTracer {
@@ -21,38 +33,74 @@ impl Tracer for BenchTracer {
 
 #[inline(never)]
 fn make_state_from_clap_defaults() -> State {
+    // ----------------------------
+    // IMPORTANT: Constructing State/Bus in a bench
+    // ----------------------------
+    //
+    // `BusOption` is defined with clap attributes, including a `default_value` for `--mem`.
+    // The "default bus" maps a RAM region at:
+    //
+    //   [0x8000_0000, 0x8800_0000)  (base 0x8000_0000, size 0x0800_0000)
+    //
+    // We want benches to be representative of the real binary's configuration, so we
+    // intentionally *reuse the clap defaults*, instead of repeating the memory mapping logic
+    // in the bench itself.
+    //
+    // NOTE: `Bus::new` is `pub(crate)` inside `remu_state`, and benchmarks are separate crates
+    // under `benches/`, so we can't call `Bus::new` directly. We therefore construct a `State`
+    // (which is public) and access `state.bus`.
+    //
     // Build StateOption (and thus BusOption) via clap defaults by parsing an empty argv.
-    // This picks up `default_value = "ram@0x8000_0000:0x0800_0000"` for `--mem`.
     #[derive(clap::Parser, Debug)]
     struct Opt {
         #[command(flatten)]
         state: StateOption,
     }
 
+    // `parse_from(["..."])` triggers clap's default_value filling behavior.
     let opt = Opt::parse_from(["memory_access_bench"]);
 
-    // Make sure the clap default actually populated BusOption.mem, so our address range is mapped.
-    // (This also makes flamegraphs more trustworthy if someone later changes defaults.)
+    // Sanity check: ensure the clap default actually populated BusOption.mem, so our address
+    // range is mapped. If someone changes the default later, this bench will fail loudly
+    // instead of producing misleading "unmapped"/error-heavy profiles.
     let BusOption { mem } = &opt.state.bus;
     assert!(
         !mem.is_empty(),
         "BusOption.mem is empty; clap default for --mem did not apply"
     );
 
+    // BenchTracer does nothing; it exists only because `State::new` requires a tracer.
     let tracer: TracerDyn = std::rc::Rc::new(std::cell::RefCell::new(BenchTracer));
     State::new(opt.state, tracer)
 }
 
 #[inline(never)]
 fn prepare_workload() -> (Vec<usize>, Vec<usize>, Vec<usize>) {
+    // ----------------------------
+    // Workload generation (reproducible + aligned + inside mapped RAM)
+    // ----------------------------
+    //
+    // We generate addresses *once* outside the measured loop:
+    // - avoids measuring RNG/addr-gen overhead
+    // - makes measurements more stable/reproducible
+    //
+    // Address constraints (we intentionally avoid unaligned accesses for now):
+    // - read_8 : any addr in range
+    // - read_16: addr % 2 == 0
+    // - read_32: addr % 4 == 0
+    //
+    // All addresses must fall in the mapped RAM region created by the default BusOption:
+    //   [BASE, BASE + SIZE)
     const BASE: usize = 0x8000_0000;
     const SIZE: usize = 0x0800_0000;
 
-    // Deterministic, fast PRNG so generated addresses are stable and we don't pull in extra deps.
+    // Deterministic, fast PRNG so generated addresses are stable across runs without extra deps.
     // (xorshift64*)
     let mut rng: u64 = 0x9E37_79B9_7F4A_7C15;
 
-    // Exact 1:1:1 ratio, but stored separately to minimize per-access overhead.
+    // We keep a strict 1:1:1 ratio. Using separate arrays removes a per-access match/branch,
+    // which keeps the benchmark focused on the memory access implementation.
+    //
     // Total reads per benchmark iteration = 3 * PER_KIND.
     const PER_KIND: usize = 1 << 15; // 32768 each -> 98304 total reads/iter
 
@@ -61,14 +109,14 @@ fn prepare_workload() -> (Vec<usize>, Vec<usize>, Vec<usize>) {
     let mut addrs32: Vec<usize> = Vec::with_capacity(PER_KIND);
 
     for _ in 0..PER_KIND {
-        // read_8 addr
+        // read_8 addr: [BASE, BASE+SIZE)
         rng ^= rng >> 12;
         rng ^= rng << 25;
         rng ^= rng >> 27;
         let x8 = rng.wrapping_mul(0x2545_F491_4F6C_DD1D);
         addrs8.push(BASE + ((x8 >> 2) as usize % SIZE));
 
-        // read_16 aligned addr
+        // read_16 aligned addr: [BASE, BASE+SIZE-2], even
         rng ^= rng >> 12;
         rng ^= rng << 25;
         rng ^= rng >> 27;
@@ -77,7 +125,7 @@ fn prepare_workload() -> (Vec<usize>, Vec<usize>, Vec<usize>) {
         let off16 = ((x16 >> 2) as usize % (max16 + 1)) & !1usize;
         addrs16.push(BASE + off16);
 
-        // read_32 aligned addr
+        // read_32 aligned addr: [BASE, BASE+SIZE-4], 4-byte aligned
         rng ^= rng >> 12;
         rng ^= rng << 25;
         rng ^= rng >> 27;
@@ -97,39 +145,83 @@ fn run_workload(
     addrs16: &[usize],
     addrs32: &[usize],
 ) {
-    // Keep the hot loop in a named function to make flamegraphs readable.
+    // ----------------------------
+    // The measured loop body
+    // ----------------------------
+    //
+    // Keep the hot loop in a named function so flamegraphs show a stable "entry point"
+    // (instead of just `{{closure}}` frames).
+    //
+    // IMPORTANT: Always "use" the loaded value.
+    // If you read a value and then discard it, LLVM may be able to remove or shrink the load,
+    // resulting in a benchmark that over-emphasizes address mapping logic (e.g. region lookup)
+    // and under-emphasizes actual data reads.
+    //
+    // We accumulate into `acc` and then feed it to `criterion::black_box` so the compiler cannot
+    // assume the loads are unused.
+    let mut acc: u64 = 0;
+
     for &addr in addrs8 {
-        let _ = bus.read_8(addr).expect("unmapped read_8 in bench workload");
+        let v = bus.read_8(addr).expect("unmapped read_8 in bench workload") as u64;
+        acc = acc.wrapping_add(v);
     }
     for &addr in addrs16 {
-        let _ = bus
+        let v = bus
             .read_16(addr)
-            .expect("unmapped read_16 in bench workload");
+            .expect("unmapped read_16 in bench workload") as u64;
+        acc = acc.wrapping_add(v);
     }
     for &addr in addrs32 {
-        let _ = bus
+        let v = bus
             .read_32(addr)
-            .expect("unmapped read_32 in bench workload");
+            .expect("unmapped read_32 in bench workload") as u64;
+        acc = acc.wrapping_add(v);
     }
+
+    black_box(acc);
 }
 
 fn bench_read(c: &mut Criterion) {
-    // Criterion 本身不会“帮你消掉”循环体内部的额外开销（分支、unwrap/错误处理、地址生成等）。
-    // 它能做的是：稳定采样、统计分析、warmup/measurement 控制，但被测闭包里做了什么就会被一起计入。
-    //
-    // 因此这里把 workload 预先生成，并把三类地址分 3 个数组，避免每次访存都走 match 分支；
-    // 同时用 `.expect(...)` 明确假设“地址一定映射”，避免错误路径干扰，同时不会打印/格式化。
-    //
-    // 另外：为了让 flamegraph 更可读，我们把 iteration body 提取成了具名函数 run_workload。
-
+    // Construct state (allocates RAM backing storage) and precompute workload addresses.
+    // Both are intentionally done outside the timed loop so we measure read performance,
+    // not setup overhead.
     let mut state = make_state_from_clap_defaults();
     let (addrs8, addrs16, addrs32) = prepare_workload();
 
-    c.bench_function("bus_read_mixed_1_1_1_u8_u16_u32_aligned", |b| {
+    // Criterion will run this closure many times to collect statistics.
+    // Keep per-iteration overhead minimal and deterministic.
+    c.bench_function(BENCH_NAME, |b| {
         b.iter(|| run_workload(&mut state.bus, &addrs8, &addrs16, &addrs32))
     });
 }
 
+// ----------------------------
+// Flamegraph / profiling mode
+// ----------------------------
+//
+// We integrate pprof via Criterion's `Profiler` hook. This has a few practical implications:
+//
+// 1) When running with `-- --profile-time <secs>`, Criterion enters "profiling mode":
+//    - It profiles for the requested duration and outputs `flamegraph.svg` under
+//      `target/criterion/<BENCH_NAME>/profile/`.
+//    - Criterion typically disables statistical comparison output in profiling mode.
+//      That's expected: profiling perturbs timing and would otherwise pollute baselines.
+//    - Use profiling runs for "where is the time going?", not for "did it regress?".
+//
+// 2) When running without `-- --profile-time ...`, you get normal benchmark statistics
+//    (baselines/new/change/report). Use those runs to compare before/after performance.
+//
+// 3) Profiling quality depends on build configuration:
+//    - For readable flamegraphs, you generally want symbols enabled (debuginfo) and avoid stripping.
+//    - In this repo, we use a bench profile that keeps symbols while keeping release-like optimizations.
+//      (See workspace `Cargo.toml` `[profile.bench]`.)
+//    - If you change inlining/LTO/strip settings, the flamegraph call stacks can become shallower.
+//
+// Quick commands:
+// - Normal benchmark (for comparison):
+//     cargo bench -p remu_state --bench memory_access
+// - Flamegraph (for hotspots; profiling mode, analysis disabled):
+//     cargo bench -p remu_state --bench memory_access -- --profile-time 20
 criterion_group!(
     name = benches;
     config = Criterion::default().with_profiler(PProfProfiler::new(100, Output::Flamegraph(None)));
