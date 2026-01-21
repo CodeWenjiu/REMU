@@ -11,10 +11,10 @@ run *args:
     @cargo run --release {{ args }}
 
 bench:
-    @cargo bench -p remu_state --bench memory_access
+    @cargo bench -p remu_state --bench bus_read
 
 flame:
-    @cargo bench -p remu_state --bench memory_access -- --profile-time 20
+    @cargo bench -p remu_state --bench bus_read -- --profile-time 20
 
 clean:
     @cargo clean

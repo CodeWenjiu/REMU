@@ -17,5 +17,9 @@ criterion.workspace = true
 pprof = { workspace = true, features = [ "criterion", "flamegraph" ] }
 
 [[bench]]
-name = "memory_access"
+name = "bus_read"
+harness = false # 必须关掉默认 harness
+
+[[bench]]
+name = "bus_write"
 harness = false # 必须关掉默认 harness
