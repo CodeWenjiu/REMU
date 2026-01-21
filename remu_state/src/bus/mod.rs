@@ -54,6 +54,12 @@ impl Bus {
         }
 
         // Slow path: scan all regions.
+        self.find_memory_mut_slow(addr)
+    }
+
+    #[cold]
+    #[inline(never)]
+    fn find_memory_mut_slow(&mut self, addr: usize) -> Result<&mut Memory, Box<MemFault>> {
         // First match wins. If you later allow overlapping regions, you must define priority.
         // For now, regions are expected to be non-overlapping.
         for (i, m) in self.memory.iter_mut().enumerate() {
