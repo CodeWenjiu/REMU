@@ -42,6 +42,7 @@
             })
             cargo-edit
 
+            clang
             mold
           ];
         };
