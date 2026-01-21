@@ -16,6 +16,14 @@ lto           = true
 panic         = "abort"
 strip         = true
 
+# Bench-only profile for more informative flamegraphs:
+# - keep symbols (`debug = 1`, `strip = "none"`)
+# - disable LTO so call stacks don't get flattened as aggressively
+[profile.bench]
+inherits = "release"
+debug = 1
+strip = "none"
+
 [workspace.dependencies]
 thiserror = "2.0.17"
 miette = "7.6.0"
@@ -28,5 +36,5 @@ petgraph = "0.8.3"
 clap = "4.5.54"
 winnow = "0.7.14"
 
-criterion = "0.8.1"
+criterion = "0.5.1"
 pprof = "0.15.0"

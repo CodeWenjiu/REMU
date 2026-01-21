@@ -1,7 +1,8 @@
 use criterion::{Criterion, criterion_group, criterion_main};
 
 use clap::Parser;
-use remu_state::bus::BusAccess;
+use pprof::criterion::{Output, PProfProfiler};
+use remu_state::bus::{BusAccess, BusOption};
 use remu_state::{State, StateOption};
 use remu_types::{AllUsize, DynDiagError, Tracer, TracerDyn};
 
@@ -18,7 +19,8 @@ impl Tracer for BenchTracer {
     fn deal_error(&self, _error: Box<dyn DynDiagError>) {}
 }
 
-fn bench_read(c: &mut Criterion) {
+#[inline(never)]
+fn make_state_from_clap_defaults() -> State {
     // Build StateOption (and thus BusOption) via clap defaults by parsing an empty argv.
     // This picks up `default_value = "ram@0x8000_0000:0x0800_0000"` for `--mem`.
     #[derive(clap::Parser, Debug)]
@@ -28,9 +30,21 @@ fn bench_read(c: &mut Criterion) {
     }
 
     let opt = Opt::parse_from(["memory_access_bench"]);
-    let tracer: TracerDyn = std::rc::Rc::new(std::cell::RefCell::new(BenchTracer));
-    let mut state = State::new(opt.state, tracer);
 
+    // Make sure the clap default actually populated BusOption.mem, so our address range is mapped.
+    // (This also makes flamegraphs more trustworthy if someone later changes defaults.)
+    let BusOption { mem } = &opt.state.bus;
+    assert!(
+        !mem.is_empty(),
+        "BusOption.mem is empty; clap default for --mem did not apply"
+    );
+
+    let tracer: TracerDyn = std::rc::Rc::new(std::cell::RefCell::new(BenchTracer));
+    State::new(opt.state, tracer)
+}
+
+#[inline(never)]
+fn prepare_workload() -> (Vec<usize>, Vec<usize>, Vec<usize>) {
     const BASE: usize = 0x8000_0000;
     const SIZE: usize = 0x0800_0000;
 
@@ -73,31 +87,52 @@ fn bench_read(c: &mut Criterion) {
         addrs32.push(BASE + off32);
     }
 
+    (addrs8, addrs16, addrs32)
+}
+
+#[inline(never)]
+fn run_workload(
+    bus: &mut impl BusAccess<Fault = remu_state::bus::MemFault>,
+    addrs8: &[usize],
+    addrs16: &[usize],
+    addrs32: &[usize],
+) {
+    // Keep the hot loop in a named function to make flamegraphs readable.
+    for &addr in addrs8 {
+        let _ = bus.read_8(addr).expect("unmapped read_8 in bench workload");
+    }
+    for &addr in addrs16 {
+        let _ = bus
+            .read_16(addr)
+            .expect("unmapped read_16 in bench workload");
+    }
+    for &addr in addrs32 {
+        let _ = bus
+            .read_32(addr)
+            .expect("unmapped read_32 in bench workload");
+    }
+}
+
+fn bench_read(c: &mut Criterion) {
+    // Criterion 本身不会“帮你消掉”循环体内部的额外开销（分支、unwrap/错误处理、地址生成等）。
+    // 它能做的是：稳定采样、统计分析、warmup/measurement 控制，但被测闭包里做了什么就会被一起计入。
+    //
+    // 因此这里把 workload 预先生成，并把三类地址分 3 个数组，避免每次访存都走 match 分支；
+    // 同时用 `.expect(...)` 明确假设“地址一定映射”，避免错误路径干扰，同时不会打印/格式化。
+    //
+    // 另外：为了让 flamegraph 更可读，我们把 iteration body 提取成了具名函数 run_workload。
+
+    let mut state = make_state_from_clap_defaults();
+    let (addrs8, addrs16, addrs32) = prepare_workload();
+
     c.bench_function("bus_read_mixed_1_1_1_u8_u16_u32_aligned", |b| {
-        b.iter(|| {
-            // 这三段循环可以显著减少每次访存的额外开销（避免 match 分支），
-            // 同时仍然保持总调用比例严格为 1:1:1。
-            for &addr in &addrs8 {
-                let _ = state
-                    .bus
-                    .read_8(addr)
-                    .expect("unmapped read_8 in bench workload");
-            }
-            for &addr in &addrs16 {
-                let _ = state
-                    .bus
-                    .read_16(addr)
-                    .expect("unmapped read_16 in bench workload");
-            }
-            for &addr in &addrs32 {
-                let _ = state
-                    .bus
-                    .read_32(addr)
-                    .expect("unmapped read_32 in bench workload");
-            }
-        })
+        b.iter(|| run_workload(&mut state.bus, &addrs8, &addrs16, &addrs32))
     });
 }
 
-criterion_group!(benches, bench_read);
+criterion_group!(
+    name = benches;
+    config = Criterion::default().with_profiler(PProfProfiler::new(100, Output::Flamegraph(None)));
+    targets = bench_read
+);
 criterion_main!(benches);

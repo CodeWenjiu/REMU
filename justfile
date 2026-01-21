@@ -11,7 +11,7 @@ run *args:
     @cargo run --release {{ args }}
 
 bench:
-    @cargo bench --profile release
+    @cargo bench -p remu_state --bench memory_access -- --profile-time 20
 
 clean:
     @cargo clean
