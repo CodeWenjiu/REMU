@@ -193,39 +193,35 @@ impl Memory {
         rel_addr: usize,
         size: usize,
     ) -> Result<Range<usize>, MemFault> {
-        // Fast reject on end overflow: rel_addr+size must be <= region_size
-        let region_size = self.storage.len();
-
-        let off = usize::try_from(rel_addr).map_err(|_| MemFault::OutOfBounds {
-            kind,
-            addr: self.base.wrapping_add(rel_addr),
-            size,
-            region: self.name.clone(),
-            base: self.base,
-            end: self.end,
-        })?;
-
-        let end = off.checked_add(size).ok_or_else(|| MemFault::OutOfBounds {
-            kind,
-            addr: self.base.wrapping_add(rel_addr),
-            size,
-            region: self.name.clone(),
-            base: self.base,
-            end: self.end,
-        })?;
-
-        if end > region_size {
-            return Err(MemFault::OutOfBounds {
+        #[cold]
+        #[inline(never)]
+        fn oob(mem: &Memory, kind: AccessKind, rel_addr: usize, size: usize) -> MemFault {
+            MemFault::OutOfBounds {
                 kind,
-                addr: self.base.wrapping_add(rel_addr),
+                addr: mem.base.wrapping_add(rel_addr),
                 size,
-                region: self.name.clone(),
-                base: self.base,
-                end: self.end,
-            });
+                region: mem.name.clone(),
+                base: mem.base,
+                end: mem.end,
+            }
         }
 
-        Ok(off..end)
+        let region_size = self.storage.len();
+
+        // Fast path: avoid checked_add and keep error construction out of line.
+        //
+        // We want: rel_addr + size <= region_size, without risking overflow.
+        // This is equivalent to: size <= region_size && rel_addr <= region_size - size
+        if size > region_size {
+            return Err(oob(self, kind, rel_addr, size));
+        }
+        let max_off = region_size - size;
+        if rel_addr > max_off {
+            return Err(oob(self, kind, rel_addr, size));
+        }
+
+        let off = rel_addr;
+        Ok(off..(off + size))
     }
 }
 
@@ -233,49 +229,54 @@ impl BusAccess for Memory {
     type Fault = MemFault;
 
     #[inline(always)]
-    fn read_8(&mut self, addr: usize) -> Result<u8, Self::Fault> {
-        let r = self.checked_range_rel(AccessKind::Read, addr, 1)?;
+    fn read_8(&mut self, addr: usize) -> Result<u8, Box<Self::Fault>> {
+        let r = self
+            .checked_range_rel(AccessKind::Read, addr, 1)
+            .map_err(Box::new)?;
         Ok(self.storage[r.start])
     }
 
     #[inline(always)]
-    fn read_16(&mut self, addr: usize) -> Result<u16, Self::Fault> {
-        let r = self.checked_range_rel(AccessKind::Read, addr, 2)?;
-        let bytes = [self.storage[r.start], self.storage[r.start + 1]];
-        Ok(u16::from_le_bytes(bytes))
+    fn read_16(&mut self, addr: usize) -> Result<u16, Box<Self::Fault>> {
+        let r = self
+            .checked_range_rel(AccessKind::Read, addr, 2)
+            .map_err(Box::new)?;
+
+        // SAFETY: `checked_range_rel` guarantees `[r.start, r.start+2)` is in-bounds.
+        let p = unsafe { self.storage.as_ptr().add(r.start) as *const u16 };
+        let v = unsafe { p.read_unaligned() };
+        Ok(u16::from_le(v))
     }
 
     #[inline(always)]
-    fn read_32(&mut self, addr: usize) -> Result<u32, Self::Fault> {
-        let r = self.checked_range_rel(AccessKind::Read, addr, 4)?;
-        let bytes = [
-            self.storage[r.start],
-            self.storage[r.start + 1],
-            self.storage[r.start + 2],
-            self.storage[r.start + 3],
-        ];
-        Ok(u32::from_le_bytes(bytes))
+    fn read_32(&mut self, addr: usize) -> Result<u32, Box<Self::Fault>> {
+        let r = self
+            .checked_range_rel(AccessKind::Read, addr, 4)
+            .map_err(Box::new)?;
+
+        // SAFETY: `checked_range_rel` guarantees `[r.start, r.start+4)` is in-bounds.
+        let p = unsafe { self.storage.as_ptr().add(r.start) as *const u32 };
+        let v = unsafe { p.read_unaligned() };
+        Ok(u32::from_le(v))
     }
 
     #[inline(always)]
-    fn read_64(&mut self, addr: usize) -> Result<u64, Self::Fault> {
-        let r = self.checked_range_rel(AccessKind::Read, addr, 8)?;
-        let bytes = [
-            self.storage[r.start],
-            self.storage[r.start + 1],
-            self.storage[r.start + 2],
-            self.storage[r.start + 3],
-            self.storage[r.start + 4],
-            self.storage[r.start + 5],
-            self.storage[r.start + 6],
-            self.storage[r.start + 7],
-        ];
-        Ok(u64::from_le_bytes(bytes))
+    fn read_64(&mut self, addr: usize) -> Result<u64, Box<Self::Fault>> {
+        let r = self
+            .checked_range_rel(AccessKind::Read, addr, 8)
+            .map_err(Box::new)?;
+
+        // SAFETY: `checked_range_rel` guarantees `[r.start, r.start+8)` is in-bounds.
+        let p = unsafe { self.storage.as_ptr().add(r.start) as *const u64 };
+        let v = unsafe { p.read_unaligned() };
+        Ok(u64::from_le(v))
     }
 
     #[inline(always)]
-    fn read_128(&mut self, addr: usize) -> Result<u128, Self::Fault> {
-        let r = self.checked_range_rel(AccessKind::Read, addr, 16)?;
+    fn read_128(&mut self, addr: usize) -> Result<u128, Box<Self::Fault>> {
+        let r = self
+            .checked_range_rel(AccessKind::Read, addr, 16)
+            .map_err(Box::new)?;
         let bytes = [
             self.storage[r.start],
             self.storage[r.start + 1],
@@ -298,57 +299,64 @@ impl BusAccess for Memory {
     }
 
     #[inline(always)]
-    fn read_bytes(&mut self, addr: usize, buf: &mut [u8]) -> Result<(), Self::Fault> {
-        let r = self.checked_range_rel(AccessKind::Read, addr, buf.len())?;
+    fn read_bytes(&mut self, addr: usize, buf: &mut [u8]) -> Result<(), Box<Self::Fault>> {
+        let r = self
+            .checked_range_rel(AccessKind::Read, addr, buf.len())
+            .map_err(Box::new)?;
         buf.copy_from_slice(&self.storage[(r.start)..(r.start + buf.len())]);
         Ok(())
     }
 
     #[inline(always)]
-    fn write_8(&mut self, addr: usize, value: u8) -> Result<(), Self::Fault> {
-        let r = self.checked_range_rel(AccessKind::Write, addr, 1)?;
+    fn write_8(&mut self, addr: usize, value: u8) -> Result<(), Box<Self::Fault>> {
+        let r = self
+            .checked_range_rel(AccessKind::Write, addr, 1)
+            .map_err(Box::new)?;
         self.storage[r.start] = value;
         Ok(())
     }
 
     #[inline(always)]
-    fn write_16(&mut self, addr: usize, value: u16) -> Result<(), Self::Fault> {
-        let r = self.checked_range_rel(AccessKind::Write, addr, 2)?;
-        let bytes = value.to_le_bytes();
-        self.storage[r.start] = bytes[0];
-        self.storage[r.start + 1] = bytes[1];
+    fn write_16(&mut self, addr: usize, value: u16) -> Result<(), Box<Self::Fault>> {
+        let r = self
+            .checked_range_rel(AccessKind::Write, addr, 2)
+            .map_err(Box::new)?;
+
+        // SAFETY: `checked_range_rel` guarantees `[r.start, r.start+2)` is in-bounds.
+        let p = unsafe { self.storage.as_mut_ptr().add(r.start) as *mut u16 };
+        unsafe { p.write_unaligned(value.to_le()) };
         Ok(())
     }
 
     #[inline(always)]
-    fn write_32(&mut self, addr: usize, value: u32) -> Result<(), Self::Fault> {
-        let r = self.checked_range_rel(AccessKind::Write, addr, 4)?;
-        let bytes = value.to_le_bytes();
-        self.storage[r.start] = bytes[0];
-        self.storage[r.start + 1] = bytes[1];
-        self.storage[r.start + 2] = bytes[2];
-        self.storage[r.start + 3] = bytes[3];
+    fn write_32(&mut self, addr: usize, value: u32) -> Result<(), Box<Self::Fault>> {
+        let r = self
+            .checked_range_rel(AccessKind::Write, addr, 4)
+            .map_err(Box::new)?;
+
+        // SAFETY: `checked_range_rel` guarantees `[r.start, r.start+4)` is in-bounds.
+        let p = unsafe { self.storage.as_mut_ptr().add(r.start) as *mut u32 };
+        unsafe { p.write_unaligned(value.to_le()) };
         Ok(())
     }
 
     #[inline(always)]
-    fn write_64(&mut self, addr: usize, value: u64) -> Result<(), Self::Fault> {
-        let r = self.checked_range_rel(AccessKind::Write, addr, 8)?;
-        let bytes = value.to_le_bytes();
-        self.storage[r.start] = bytes[0];
-        self.storage[r.start + 1] = bytes[1];
-        self.storage[r.start + 2] = bytes[2];
-        self.storage[r.start + 3] = bytes[3];
-        self.storage[r.start + 4] = bytes[4];
-        self.storage[r.start + 5] = bytes[5];
-        self.storage[r.start + 6] = bytes[6];
-        self.storage[r.start + 7] = bytes[7];
+    fn write_64(&mut self, addr: usize, value: u64) -> Result<(), Box<Self::Fault>> {
+        let r = self
+            .checked_range_rel(AccessKind::Write, addr, 8)
+            .map_err(Box::new)?;
+
+        // SAFETY: `checked_range_rel` guarantees `[r.start, r.start+8)` is in-bounds.
+        let p = unsafe { self.storage.as_mut_ptr().add(r.start) as *mut u64 };
+        unsafe { p.write_unaligned(value.to_le()) };
         Ok(())
     }
 
     #[inline(always)]
-    fn write_128(&mut self, addr: usize, value: u128) -> Result<(), Self::Fault> {
-        let r = self.checked_range_rel(AccessKind::Write, addr, 16)?;
+    fn write_128(&mut self, addr: usize, value: u128) -> Result<(), Box<Self::Fault>> {
+        let r = self
+            .checked_range_rel(AccessKind::Write, addr, 16)
+            .map_err(Box::new)?;
         let bytes = value.to_le_bytes();
         self.storage[r.start] = bytes[0];
         self.storage[r.start + 1] = bytes[1];
@@ -370,8 +378,10 @@ impl BusAccess for Memory {
     }
 
     #[inline(always)]
-    fn write_bytes(&mut self, addr: usize, buf: &[u8]) -> Result<(), Self::Fault> {
-        let r = self.checked_range_rel(AccessKind::Write, addr, buf.len())?;
+    fn write_bytes(&mut self, addr: usize, buf: &[u8]) -> Result<(), Box<Self::Fault>> {
+        let r = self
+            .checked_range_rel(AccessKind::Write, addr, buf.len())
+            .map_err(Box::new)?;
         self.storage[r.start..r.start + buf.len()].copy_from_slice(buf);
         Ok(())
     }
