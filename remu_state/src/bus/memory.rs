@@ -1,6 +1,15 @@
 use core::ops::Range;
 
-use crate::bus::BusFault;
+use thiserror::Error;
+
+#[derive(Debug, Error, Clone, PartialEq, Eq)]
+pub enum MemFault {
+    #[error("invalid region '{name}': size too large to allocate on this platform: {size}")]
+    SizeTooLarge { name: String, size: usize },
+
+    #[error("invalid region '{name}': base+size overflows u64")]
+    RangeOverflow { name: String },
+}
 
 /// NOTE: `MemRegionSpec` is currently defined in this module so `BusOption` and `Memory` can share
 /// the same type without importing it from elsewhere.
@@ -119,15 +128,15 @@ impl Memory {
     /// Allocates `size` bytes of zero-filled RAM.
     ///
     /// NOTE: Multi-byte reads/writes are currently always little-endian.
-    pub fn new(region: MemRegionSpec) -> Result<Self, BusFault> {
+    pub fn new(region: MemRegionSpec) -> Result<Self, MemFault> {
         let end = region
             .base
             .checked_add(region.size)
-            .ok_or_else(|| BusFault::RangeOverflow {
+            .ok_or_else(|| MemFault::RangeOverflow {
                 name: region.name.clone(),
             })?;
 
-        let size_usize = usize::try_from(region.size).map_err(|_| BusFault::SizeTooLarge {
+        let size_usize = usize::try_from(region.size).map_err(|_| MemFault::SizeTooLarge {
             name: region.name.clone(),
             size: region.size,
         })?;
@@ -151,7 +160,7 @@ impl Memory {
 
     #[inline(always)]
     pub fn read_8(&mut self, addr: usize) -> u8 {
-        self.storage[addr - self.range.start]
+        unsafe { *self.storage.get_unchecked(addr - self.range.start) }
     }
 
     #[inline(always)]
@@ -231,7 +240,9 @@ impl Memory {
 
     #[inline(always)]
     pub fn write_8(&mut self, addr: usize, value: u8) {
-        self.storage[addr - self.range.start] = value;
+        unsafe {
+            *self.storage.get_unchecked_mut(addr - self.range.start) = value;
+        }
     }
 
     #[inline(always)]

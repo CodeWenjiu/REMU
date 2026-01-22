@@ -50,7 +50,8 @@ impl Bus {
         if let Some(i) = self.last_hit {
             // If memory regions can ever be removed/shrunk, this must be revisited.
             // In current design, regions are built once and remain stable.
-            if self.memory[i].contains(range.clone()) {
+            // SAFETY: i must be a valid index into self.memory.
+            if unsafe { self.memory.get_unchecked(i).contains(range.clone()) } {
                 return Ok(&mut self.memory[i]);
             }
         }

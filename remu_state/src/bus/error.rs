@@ -1,6 +1,6 @@
 use thiserror::Error;
 
-use crate::bus::AccessKind;
+use crate::bus::{AccessKind, MemFault};
 
 /// In-memory fault type returned by RAM-backed `Memory` operations.
 ///
@@ -23,9 +23,6 @@ pub enum BusFault {
         end: usize,
     },
 
-    #[error("invalid region '{name}': size too large to allocate on this platform: {size}")]
-    SizeTooLarge { name: String, size: usize },
-
-    #[error("invalid region '{name}': base+size overflows u64")]
-    RangeOverflow { name: String },
+    #[error("Memory Fault {0}")]
+    MemError(#[from] MemFault),
 }
