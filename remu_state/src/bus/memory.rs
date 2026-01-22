@@ -1,8 +1,6 @@
 use core::ops::Range;
 
-use thiserror::Error;
-
-use crate::bus::BusAccess;
+use crate::bus::{BusAccess, BusFault};
 
 /// NOTE: `MemRegionSpec` is currently defined in this module so `BusOption` and `Memory` can share
 /// the same type without importing it from elsewhere.
@@ -104,34 +102,6 @@ pub enum AccessKind {
     Write,
 }
 
-/// In-memory fault type returned by RAM-backed `Memory` operations.
-///
-/// This is intentionally ISA-agnostic. The simulator/CPU layer should map it to an ISA trap.
-#[derive(Debug, Error, Clone, PartialEq, Eq)]
-pub enum MemFault {
-    #[error("unmapped address: 0x{addr:016x}")]
-    Unmapped { addr: usize },
-
-    #[error(
-        "out of bounds {kind:?} at 0x{addr:016x} (size={size}) for region '{region}' \
-         [0x{base:016x}..0x{end:016x})"
-    )]
-    OutOfBounds {
-        kind: AccessKind,
-        addr: usize,
-        size: usize,
-        region: String,
-        base: usize,
-        end: usize,
-    },
-
-    #[error("invalid region '{name}': size too large to allocate on this platform: {size}")]
-    SizeTooLarge { name: String, size: usize },
-
-    #[error("invalid region '{name}': base+size overflows u64")]
-    RangeOverflow { name: String },
-}
-
 /// A contiguous RAM-backed memory region.
 ///
 /// This is a *region* (segment). Higher-level bus/address-space code can keep a `Vec<Memory>`
@@ -150,15 +120,15 @@ impl Memory {
     /// Allocates `size` bytes of zero-filled RAM.
     ///
     /// NOTE: Multi-byte reads/writes are currently always little-endian.
-    pub fn new(region: MemRegionSpec) -> Result<Self, MemFault> {
+    pub fn new(region: MemRegionSpec) -> Result<Self, BusFault> {
         let end = region
             .base
             .checked_add(region.size)
-            .ok_or_else(|| MemFault::RangeOverflow {
+            .ok_or_else(|| BusFault::RangeOverflow {
                 name: region.name.clone(),
             })?;
 
-        let size_usize = usize::try_from(region.size).map_err(|_| MemFault::SizeTooLarge {
+        let size_usize = usize::try_from(region.size).map_err(|_| BusFault::SizeTooLarge {
             name: region.name.clone(),
             size: region.size,
         })?;
@@ -192,11 +162,11 @@ impl Memory {
         kind: AccessKind,
         rel_addr: usize,
         size: usize,
-    ) -> Result<Range<usize>, MemFault> {
+    ) -> Result<Range<usize>, BusFault> {
         #[cold]
         #[inline(never)]
-        fn oob(mem: &Memory, kind: AccessKind, rel_addr: usize, size: usize) -> MemFault {
-            MemFault::OutOfBounds {
+        fn oob(mem: &Memory, kind: AccessKind, rel_addr: usize, size: usize) -> BusFault {
+            BusFault::OutOfBounds {
                 kind,
                 addr: mem.base.wrapping_add(rel_addr),
                 size,
@@ -226,7 +196,7 @@ impl Memory {
 }
 
 impl BusAccess for Memory {
-    type Fault = MemFault;
+    type Fault = BusFault;
 
     #[inline(always)]
     fn read_8(&mut self, addr: usize) -> Result<u8, Box<Self::Fault>> {

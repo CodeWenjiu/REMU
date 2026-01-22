@@ -1,6 +1,6 @@
-remu_macro::mod_flat!(memory, device);
+remu_macro::mod_flat!(error, memory, device);
 
-pub use memory::{MemFault, MemRegionSpec};
+pub use memory::MemRegionSpec;
 
 // Use the public re-export to avoid shadowing the glob re-exported `Memory`
 
@@ -43,7 +43,7 @@ impl Bus {
     }
 
     #[inline(always)]
-    fn find_memory_mut(&mut self, addr: usize) -> Result<&mut Memory, Box<MemFault>> {
+    fn find_memory_mut(&mut self, addr: usize) -> Result<&mut Memory, Box<BusFault>> {
         // Fast path: check last hit first.
         if let Some(i) = self.last_hit {
             // If memory regions can ever be removed/shrunk, this must be revisited.
@@ -59,7 +59,7 @@ impl Bus {
 
     #[cold]
     #[inline(never)]
-    fn find_memory_mut_slow(&mut self, addr: usize) -> Result<&mut Memory, Box<MemFault>> {
+    fn find_memory_mut_slow(&mut self, addr: usize) -> Result<&mut Memory, Box<BusFault>> {
         // First match wins. If you later allow overlapping regions, you must define priority.
         // For now, regions are expected to be non-overlapping.
         for (i, m) in self.memory.iter_mut().enumerate() {
@@ -70,7 +70,7 @@ impl Bus {
         }
 
         // If address isn't mapped, keep last_hit unchanged (it may still be useful).
-        Err(Box::new(MemFault::Unmapped { addr }))
+        Err(Box::new(BusFault::Unmapped { addr }))
     }
 }
 
@@ -93,7 +93,7 @@ pub trait BusAccess {
 }
 
 impl BusAccess for Bus {
-    type Fault = MemFault;
+    type Fault = BusFault;
 
     #[inline(always)]
     fn read_8(&mut self, addr: usize) -> Result<u8, Box<Self::Fault>> {

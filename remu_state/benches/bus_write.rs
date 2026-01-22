@@ -26,7 +26,7 @@ const BENCH_WRITE_BYTES_NAME_SMALL_WS: &str = "bus_write_bytes_64B_small_ws";
 
 #[inline(never)]
 fn run_write_workload(
-    bus: &mut impl BusAccess<Fault = remu_state::bus::MemFault>,
+    bus: &mut impl BusAccess<Fault = remu_state::bus::BusFault>,
     addrs8: &[usize],
     addrs16: &[usize],
     addrs32: &[usize],
@@ -70,7 +70,7 @@ fn run_write_workload(
 
 #[inline(never)]
 fn run_write_bytes_workload_64b(
-    bus: &mut impl BusAccess<Fault = remu_state::bus::MemFault>,
+    bus: &mut impl BusAccess<Fault = remu_state::bus::BusFault>,
     addrs64_aligned: &[usize],
 ) {
     // Fixed-size "cache line" writes.
