@@ -7,7 +7,7 @@ use crate::bus::AccessKind;
 /// This is intentionally ISA-agnostic. The simulator/CPU layer should map it to an ISA trap.
 #[derive(Debug, Error, Clone, PartialEq, Eq)]
 pub enum BusFault {
-    #[error("unmapped address: 0x{addr:016x}")]
+    #[error("unmapped range: 0x{addr:016x} : 0x")]
     Unmapped { addr: usize },
 
     #[error(

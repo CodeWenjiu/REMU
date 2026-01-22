@@ -1,6 +1,6 @@
 use core::ops::Range;
 
-use crate::bus::{BusAccess, BusFault};
+use crate::bus::BusFault;
 
 /// NOTE: `MemRegionSpec` is currently defined in this module so `BusOption` and `Memory` can share
 /// the same type without importing it from elsewhere.
@@ -109,9 +109,8 @@ pub enum AccessKind {
 #[derive(Debug)]
 pub struct Memory {
     pub name: String,
-    pub base: usize,
-    pub end: usize, // exclusive
-    storage: Vec<u8>,
+    pub range: Range<usize>,
+    storage: Box<[u8]>,
 }
 
 impl Memory {
@@ -135,86 +134,31 @@ impl Memory {
 
         // NOTE: this allocates and zero-fills. If you later want faster init for huge RAM,
         // consider an mmap-backed implementation.
-        let storage = vec![0u8; size_usize];
+        let storage = vec![0u8; size_usize].into_boxed_slice();
 
         Ok(Self {
             name: region.name,
-            base: region.base,
-            end,
+            range: region.base..end,
             storage,
         })
     }
 
     /// Returns whether `addr` is contained in this region.
     #[inline(always)]
-    pub fn contains(&self, addr: usize) -> bool {
-        self.base <= addr && addr < self.end
-    }
-
-    /// Convert a **relative** address (offset from region base) to a storage offset (usize),
-    /// returning a bound-checked range.
-    ///
-    /// Callers that deal in absolute addresses should translate first:
-    /// `let rel = addr - self.base`.
-    #[inline(always)]
-    fn checked_range_rel(
-        &self,
-        kind: AccessKind,
-        rel_addr: usize,
-        size: usize,
-    ) -> Result<Range<usize>, BusFault> {
-        #[cold]
-        #[inline(never)]
-        fn oob(mem: &Memory, kind: AccessKind, rel_addr: usize, size: usize) -> BusFault {
-            BusFault::OutOfBounds {
-                kind,
-                addr: mem.base.wrapping_add(rel_addr),
-                size,
-                region: mem.name.clone(),
-                base: mem.base,
-                end: mem.end,
-            }
-        }
-
-        let region_size = self.storage.len();
-
-        // Fast path: avoid checked_add and keep error construction out of line.
-        //
-        // We want: rel_addr + size <= region_size, without risking overflow.
-        // This is equivalent to: size <= region_size && rel_addr <= region_size - size
-        if size > region_size {
-            return Err(oob(self, kind, rel_addr, size));
-        }
-        let max_off = region_size - size;
-        if rel_addr > max_off {
-            return Err(oob(self, kind, rel_addr, size));
-        }
-
-        let off = rel_addr;
-        Ok(off..(off + size))
-    }
-}
-
-impl BusAccess for Memory {
-    type Fault = BusFault;
-
-    #[inline(always)]
-    fn read_8(&mut self, addr: usize) -> Result<u8, Box<Self::Fault>> {
-        let r = self
-            .checked_range_rel(AccessKind::Read, addr, 1)
-            .map_err(Box::new)?;
-        Ok(self.storage[r.start])
+    pub fn contains(&self, range: Range<usize>) -> bool {
+        (range.start >= self.range.start) && (range.end <= self.range.end)
     }
 
     #[inline(always)]
-    fn read_16(&mut self, addr: usize) -> Result<u16, Box<Self::Fault>> {
-        let r = self
-            .checked_range_rel(AccessKind::Read, addr, 2)
-            .map_err(Box::new)?;
+    pub fn read_8(&mut self, addr: usize) -> u8 {
+        self.storage[addr - self.range.start]
+    }
 
+    #[inline(always)]
+    pub fn read_16(&mut self, addr: usize) -> u16 {
         // SAFETY: `checked_range_rel` guarantees `[r.start, r.start+2)` is in-bounds.
         // We keep correct unaligned semantics, but add a faster aligned path.
-        let off = r.start;
+        let off = addr - self.range.start;
         let p = unsafe { self.storage.as_ptr().add(off) as *const u16 };
         let raw = if (off & 1) == 0 {
             // SAFETY: `p` is in-bounds and properly aligned when `off` is 2-byte aligned.
@@ -222,18 +166,14 @@ impl BusAccess for Memory {
         } else {
             unsafe { p.read_unaligned() }
         };
-        Ok(u16::from_le(raw))
+        u16::from_le(raw)
     }
 
     #[inline(always)]
-    fn read_32(&mut self, addr: usize) -> Result<u32, Box<Self::Fault>> {
-        let r = self
-            .checked_range_rel(AccessKind::Read, addr, 4)
-            .map_err(Box::new)?;
-
+    pub fn read_32(&mut self, addr: usize) -> u32 {
         // SAFETY: `checked_range_rel` guarantees `[r.start, r.start+4)` is in-bounds.
         // We keep correct unaligned semantics, but add a faster aligned path.
-        let off = r.start;
+        let off = addr - self.range.start;
         let p = unsafe { self.storage.as_ptr().add(off) as *const u32 };
         let raw = if (off & 3) == 0 {
             // SAFETY: `p` is in-bounds and properly aligned when `off` is 4-byte aligned.
@@ -241,18 +181,14 @@ impl BusAccess for Memory {
         } else {
             unsafe { p.read_unaligned() }
         };
-        Ok(u32::from_le(raw))
+        u32::from_le(raw)
     }
 
     #[inline(always)]
-    fn read_64(&mut self, addr: usize) -> Result<u64, Box<Self::Fault>> {
-        let r = self
-            .checked_range_rel(AccessKind::Read, addr, 8)
-            .map_err(Box::new)?;
-
+    pub fn read_64(&mut self, addr: usize) -> u64 {
         // SAFETY: `checked_range_rel` guarantees `[r.start, r.start+8)` is in-bounds.
         // We keep correct unaligned semantics, but add a faster aligned path.
-        let off = r.start;
+        let off = addr - self.range.start;
         let p = unsafe { self.storage.as_ptr().add(off) as *const u64 };
         let raw = if (off & 7) == 0 {
             // SAFETY: `p` is in-bounds and properly aligned when `off` is 8-byte aligned.
@@ -260,18 +196,14 @@ impl BusAccess for Memory {
         } else {
             unsafe { p.read_unaligned() }
         };
-        Ok(u64::from_le(raw))
+        u64::from_le(raw)
     }
 
     #[inline(always)]
-    fn read_128(&mut self, addr: usize) -> Result<u128, Box<Self::Fault>> {
-        let r = self
-            .checked_range_rel(AccessKind::Read, addr, 16)
-            .map_err(Box::new)?;
-
+    pub fn read_128(&mut self, addr: usize) -> u128 {
         // SAFETY: `checked_range_rel` guarantees `[r.start, r.start+16)` is in-bounds.
         // We keep correct unaligned semantics, but add a faster aligned path.
-        let off = r.start;
+        let off = addr - self.range.start;
         let p = unsafe { self.storage.as_ptr().add(off) as *const u128 };
         let raw = if (off & 15) == 0 {
             // SAFETY: `p` is in-bounds and properly aligned when `off` is 16-byte aligned.
@@ -279,47 +211,34 @@ impl BusAccess for Memory {
         } else {
             unsafe { p.read_unaligned() }
         };
-        Ok(u128::from_le(raw))
+        u128::from_le(raw)
     }
 
     #[inline(always)]
-    fn read_bytes(&mut self, addr: usize, buf: &mut [u8]) -> Result<(), Box<Self::Fault>> {
-        let r = self
-            .checked_range_rel(AccessKind::Read, addr, buf.len())
-            .map_err(Box::new)?;
-
+    pub fn read_bytes(&mut self, addr: usize, buf: &mut [u8]) {
         // SAFETY:
         // - `checked_range_rel` guarantees `[r.start, r.start + buf.len())` is in-bounds.
         // - `buf` is a valid writable slice of length `buf.len()`.
         // - Source and destination do not overlap (storage and `buf` are distinct allocations).
         unsafe {
             core::ptr::copy_nonoverlapping(
-                self.storage.as_ptr().add(r.start),
+                self.storage.as_ptr().add(addr - self.range.start),
                 buf.as_mut_ptr(),
                 buf.len(),
             );
         }
-        Ok(())
     }
 
     #[inline(always)]
-    fn write_8(&mut self, addr: usize, value: u8) -> Result<(), Box<Self::Fault>> {
-        let r = self
-            .checked_range_rel(AccessKind::Write, addr, 1)
-            .map_err(Box::new)?;
-        self.storage[r.start] = value;
-        Ok(())
+    pub fn write_8(&mut self, addr: usize, value: u8) {
+        self.storage[addr - self.range.start] = value;
     }
 
     #[inline(always)]
-    fn write_16(&mut self, addr: usize, value: u16) -> Result<(), Box<Self::Fault>> {
-        let r = self
-            .checked_range_rel(AccessKind::Write, addr, 2)
-            .map_err(Box::new)?;
-
+    pub fn write_16(&mut self, addr: usize, value: u16) {
         // SAFETY: `checked_range_rel` guarantees `[r.start, r.start+2)` is in-bounds.
         // We keep correct unaligned semantics, but add a faster aligned path.
-        let off = r.start;
+        let off = addr - self.range.start;
         let p = unsafe { self.storage.as_mut_ptr().add(off) as *mut u16 };
         let le = value.to_le();
         if (off & 1) == 0 {
@@ -328,18 +247,13 @@ impl BusAccess for Memory {
         } else {
             unsafe { p.write_unaligned(le) };
         }
-        Ok(())
     }
 
     #[inline(always)]
-    fn write_32(&mut self, addr: usize, value: u32) -> Result<(), Box<Self::Fault>> {
-        let r = self
-            .checked_range_rel(AccessKind::Write, addr, 4)
-            .map_err(Box::new)?;
-
+    pub fn write_32(&mut self, addr: usize, value: u32) {
         // SAFETY: `checked_range_rel` guarantees `[r.start, r.start+4)` is in-bounds.
         // We keep correct unaligned semantics, but add a faster aligned path.
-        let off = r.start;
+        let off = addr - self.range.start;
         let p = unsafe { self.storage.as_mut_ptr().add(off) as *mut u32 };
         let le = value.to_le();
         if (off & 3) == 0 {
@@ -348,18 +262,13 @@ impl BusAccess for Memory {
         } else {
             unsafe { p.write_unaligned(le) };
         }
-        Ok(())
     }
 
     #[inline(always)]
-    fn write_64(&mut self, addr: usize, value: u64) -> Result<(), Box<Self::Fault>> {
-        let r = self
-            .checked_range_rel(AccessKind::Write, addr, 8)
-            .map_err(Box::new)?;
-
+    pub fn write_64(&mut self, addr: usize, value: u64) {
         // SAFETY: `checked_range_rel` guarantees `[r.start, r.start+8)` is in-bounds.
         // We keep correct unaligned semantics, but add a faster aligned path.
-        let off = r.start;
+        let off = addr - self.range.start;
         let p = unsafe { self.storage.as_mut_ptr().add(off) as *mut u64 };
         let le = value.to_le();
         if (off & 7) == 0 {
@@ -368,18 +277,13 @@ impl BusAccess for Memory {
         } else {
             unsafe { p.write_unaligned(le) };
         }
-        Ok(())
     }
 
     #[inline(always)]
-    fn write_128(&mut self, addr: usize, value: u128) -> Result<(), Box<Self::Fault>> {
-        let r = self
-            .checked_range_rel(AccessKind::Write, addr, 16)
-            .map_err(Box::new)?;
-
+    pub fn write_128(&mut self, addr: usize, value: u128) {
         // SAFETY: `checked_range_rel` guarantees `[r.start, r.start+16)` is in-bounds.
         // We keep correct unaligned semantics, but add a faster aligned path.
-        let off = r.start;
+        let off = addr - self.range.start;
         let p = unsafe { self.storage.as_mut_ptr().add(off) as *mut u128 };
         let le = value.to_le();
         if (off & 15) == 0 {
@@ -388,15 +292,10 @@ impl BusAccess for Memory {
         } else {
             unsafe { p.write_unaligned(le) };
         }
-        Ok(())
     }
 
     #[inline(always)]
-    fn write_bytes(&mut self, addr: usize, buf: &[u8]) -> Result<(), Box<Self::Fault>> {
-        let r = self
-            .checked_range_rel(AccessKind::Write, addr, buf.len())
-            .map_err(Box::new)?;
-
+    pub fn write_bytes(&mut self, addr: usize, buf: &[u8]) {
         // SAFETY:
         // - `checked_range_rel` guarantees `[r.start, r.start + buf.len())` is in-bounds.
         // - `buf` is a valid readable slice of length `buf.len()`.
@@ -404,10 +303,9 @@ impl BusAccess for Memory {
         unsafe {
             core::ptr::copy_nonoverlapping(
                 buf.as_ptr(),
-                self.storage.as_mut_ptr().add(r.start),
+                self.storage.as_mut_ptr().add(addr - self.range.start),
                 buf.len(),
             );
         }
-        Ok(())
     }
 }
