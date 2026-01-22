@@ -12,6 +12,17 @@ pub struct CLITracer {
     guesser: ByteGuesser,
 }
 
+fn fmt_range_begin_end(r: &Range<usize>) -> String {
+    format!("0x{:08x}:0x{:08x}", r.start as u64, r.end as u64)
+}
+
+#[derive(Tabled)]
+pub struct MemMapTable {
+    name: String,
+    #[tabled(display = "fmt_range_begin_end")]
+    range: Range<usize>,
+}
+
 fn display_address(val: &u32) -> String {
     format!("0x{:08x}", val).to_string()
 }
@@ -174,6 +185,18 @@ impl Tracer for CLITracer {
             ),
             Err(err) => self.deal_error(err),
         }
+    }
+
+    fn mem_show_map(&self, map: Vec<(String, Range<usize>)>) {
+        let rows = map
+            .into_iter()
+            .map(|(name, range)| MemMapTable { name, range });
+
+        let mut table = Table::new(rows);
+        table.with(Style::rounded());
+        table.modify(Columns::one(0), Color::FG_YELLOW);
+        table.modify(Columns::one(1), Color::FG_CYAN);
+        println!("{table}");
     }
 
     fn reg_print(&self, regs: &[(Gpr, u32); 32], range: Range<usize>) {

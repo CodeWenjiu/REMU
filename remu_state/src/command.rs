@@ -13,4 +13,7 @@ pub enum StateCmd {
         #[command(subcommand)]
         subcmd: BusCmd,
     },
+
+    /// Show current memory map (name | begin | end)
+    MemMap,
 }

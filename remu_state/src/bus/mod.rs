@@ -1,4 +1,4 @@
-remu_macro::mod_flat!(error, command, memory, device);
+remu_macro::mod_flat!(error, command, option, memory, device);
 
 use std::ops::Range;
 
@@ -6,17 +6,6 @@ pub use memory::MemRegionSpec;
 use remu_types::{AllUsize, DynDiagError};
 
 // Use the public re-export to avoid shadowing the glob re-exported `Memory`
-
-#[derive(clap::Args, Debug, Clone)]
-pub struct BusOption {
-    #[arg(
-        long = "mem",
-        value_name = "NAME@BASE:SIZE",
-        action = clap::ArgAction::Append,
-        default_value = "ram@0x8000_0000:0x0800_0000"
-    )]
-    pub mem: Vec<MemRegionSpec>,
-}
 
 pub struct Bus {
     memory: Box<[Memory]>,
@@ -45,6 +34,17 @@ impl Bus {
             last_hit: None,
             tracer,
         }
+    }
+
+    /// Return a snapshot of the current memory map as (name, address range) pairs.
+    ///
+    /// This is intended for frontends (via `State` -> `Tracer`) to render a memory map table.
+    /// The returned `Vec` is small (number of regions) and cheap to build.
+    pub fn mem_map(&self) -> Vec<(String, Range<usize>)> {
+        self.memory
+            .iter()
+            .map(|m| (m.name.clone(), m.range.clone()))
+            .collect()
     }
 
     #[inline(always)]

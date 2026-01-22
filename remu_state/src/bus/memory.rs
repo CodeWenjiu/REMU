@@ -7,8 +7,15 @@ pub enum MemFault {
     #[error("invalid region '{name}': size too large to allocate on this platform: {size}")]
     SizeTooLarge { name: String, size: usize },
 
-    #[error("invalid region '{name}': base+size overflows u64")]
+    #[error("invalid region '{name}': range start..end overflows usize")]
     RangeOverflow { name: String },
+
+    #[error("invalid region '{name}': region size {size} is too small (min {min_size} bytes)")]
+    RegionTooSmall {
+        name: String,
+        size: usize,
+        min_size: usize,
+    },
 }
 
 /// NOTE: `MemRegionSpec` is currently defined in this module so `BusOption` and `Memory` can share
@@ -19,23 +26,79 @@ pub enum MemFault {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct MemRegionSpec {
     pub name: String,
-    pub base: usize,
-    pub size: usize,
+    /// Half-open address range: [start, end)
+    pub region: Range<usize>,
+}
+
+impl MemRegionSpec {
+    pub const MIN_REGION_SIZE: usize = 4096;
+
+    #[inline(always)]
+    pub fn base(&self) -> usize {
+        self.region.start
+    }
+
+    #[inline(always)]
+    pub fn size(&self) -> usize {
+        self.region.end - self.region.start
+    }
+}
+
+fn parse_usize_allow_hex_underscore(s: &str, field: &str) -> Result<usize, String> {
+    let raw = s.trim();
+    if raw.is_empty() {
+        return Err(format!("invalid mem region spec: empty {}", field));
+    }
+
+    // allow '_' inside numbers
+    let cleaned: String = raw.chars().filter(|&c| c != '_').collect();
+
+    // Accept:
+    // - 0x... / 0X... hex
+    // - bare hex (e.g. "8000_0000")
+    // - decimal (digits only)
+    let value = if let Some(hex) = cleaned
+        .strip_prefix("0x")
+        .or_else(|| cleaned.strip_prefix("0X"))
+    {
+        usize::from_str_radix(hex, 16).map_err(|e| {
+            format!(
+                "invalid mem region spec: {} '{}' is not valid hex: {}",
+                field, raw, e
+            )
+        })?
+    } else if cleaned.chars().all(|c| c.is_ascii_digit()) {
+        cleaned.parse::<usize>().map_err(|e| {
+            format!(
+                "invalid mem region spec: {} '{}' is not valid decimal: {}",
+                field, raw, e
+            )
+        })?
+    } else {
+        usize::from_str_radix(&cleaned, 16).map_err(|e| {
+            format!(
+                "invalid mem region spec: {} '{}' is not valid hex: {}",
+                field, raw, e
+            )
+        })?
+    };
+
+    Ok(value)
 }
 
 impl std::str::FromStr for MemRegionSpec {
     type Err = String;
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
-        // Expected format: "<name>@<base>:<size>"
-        // Example: "ram1@0x8000_0000:0x0800_0000"
+        // Expected format: "<name>@<start>:<end>"
+        // Example: "ram1@0x8000_0000:0x8800_0000"
         let input = s.trim();
         if input.is_empty() {
             return Err("empty mem region spec".to_string());
         }
 
         let (name, rest) = input.split_once('@').ok_or_else(|| {
-            "invalid mem region spec: missing '@' (expected <name>@<base>:<size>)".to_string()
+            "invalid mem region spec: missing '@' (expected <name>@<start>:<end>)".to_string()
         })?;
 
         let name = name.trim();
@@ -43,63 +106,28 @@ impl std::str::FromStr for MemRegionSpec {
             return Err("invalid mem region spec: empty name before '@'".to_string());
         }
 
-        let (base_str, size_str) = rest.split_once(':').ok_or_else(|| {
-            "invalid mem region spec: missing ':' (expected <name>@<base>:<size>)".to_string()
+        let (start_str, end_str) = rest.split_once(':').ok_or_else(|| {
+            "invalid mem region spec: missing ':' (expected <name>@<start>:<end>)".to_string()
         })?;
 
-        fn parse_usize_allow_hex_underscore(s: &str, field: &str) -> Result<usize, String> {
-            let raw = s.trim();
-            if raw.is_empty() {
-                return Err(format!("invalid mem region spec: empty {}", field));
-            }
+        let start = parse_usize_allow_hex_underscore(start_str, "start")?;
+        let end = parse_usize_allow_hex_underscore(end_str, "end")?;
 
-            // allow '_' inside hex numbers
-            let cleaned: String = raw.chars().filter(|&c| c != '_').collect();
-
-            // Accept:
-            // - 0x... / 0X... hex
-            // - bare hex (e.g. "8000_0000")
-            // - decimal (digits only)
-            let value = if let Some(hex) = cleaned
-                .strip_prefix("0x")
-                .or_else(|| cleaned.strip_prefix("0X"))
-            {
-                usize::from_str_radix(hex, 16).map_err(|e| {
-                    format!(
-                        "invalid mem region spec: {} '{}' is not valid hex: {}",
-                        field, raw, e
-                    )
-                })?
-            } else if cleaned.chars().all(|c| c.is_ascii_digit()) {
-                cleaned.parse::<usize>().map_err(|e| {
-                    format!(
-                        "invalid mem region spec: {} '{}' is not valid decimal: {}",
-                        field, raw, e
-                    )
-                })?
-            } else {
-                usize::from_str_radix(&cleaned, 16).map_err(|e| {
-                    format!(
-                        "invalid mem region spec: {} '{}' is not valid hex: {}",
-                        field, raw, e
-                    )
-                })?
-            };
-
-            Ok(value)
+        if end <= start {
+            return Err("invalid mem region spec: end must be > start".to_string());
         }
 
-        let base = parse_usize_allow_hex_underscore(base_str, "base")?;
-        let size = parse_usize_allow_hex_underscore(size_str, "size")?;
-
-        if size == 0 {
-            return Err("invalid mem region spec: size must be > 0".to_string());
+        let size = end - start;
+        if size < MemRegionSpec::MIN_REGION_SIZE {
+            return Err(format!(
+                "invalid mem region spec: region size {size} is too small (min {} bytes)",
+                MemRegionSpec::MIN_REGION_SIZE
+            ));
         }
 
         Ok(MemRegionSpec {
             name: name.to_string(),
-            base,
-            size,
+            region: start..end,
         })
     }
 }
@@ -129,16 +157,29 @@ impl Memory {
     ///
     /// NOTE: Multi-byte reads/writes are currently always little-endian.
     pub fn new(region: MemRegionSpec) -> Result<Self, MemFault> {
-        let end = region
-            .base
-            .checked_add(region.size)
-            .ok_or_else(|| MemFault::RangeOverflow {
-                name: region.name.clone(),
-            })?;
+        let start = region.region.start;
+        let end = region.region.end;
 
-        let size_usize = usize::try_from(region.size).map_err(|_| MemFault::SizeTooLarge {
+        if end < start {
+            // This should be impossible with parsing, but keep it defensive.
+            return Err(MemFault::RangeOverflow {
+                name: region.name.clone(),
+            });
+        }
+
+        let size = end - start;
+
+        if size < MemRegionSpec::MIN_REGION_SIZE {
+            return Err(MemFault::RegionTooSmall {
+                name: region.name.clone(),
+                size,
+                min_size: MemRegionSpec::MIN_REGION_SIZE,
+            });
+        }
+
+        let size_usize = usize::try_from(size).map_err(|_| MemFault::SizeTooLarge {
             name: region.name.clone(),
-            size: region.size,
+            size,
         })?;
 
         // NOTE: this allocates and zero-fills. If you later want faster init for huge RAM,
@@ -147,7 +188,7 @@ impl Memory {
 
         Ok(Self {
             name: region.name,
-            range: region.base..end,
+            range: start..end,
             storage,
         })
     }

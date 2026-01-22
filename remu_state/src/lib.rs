@@ -7,13 +7,15 @@ remu_macro::mod_flat!(option, command);
 pub struct State {
     pub bus: Bus,
     pub reg: RiscvReg,
+    tracer: remu_types::TracerDyn,
 }
 
 impl State {
     pub fn new(opt: StateOption, tracer: remu_types::TracerDyn) -> Self {
         Self {
             bus: Bus::new(opt.bus, tracer.clone()),
-            reg: RiscvReg::new(opt.reg, tracer),
+            reg: RiscvReg::new(opt.reg, tracer.clone()),
+            tracer,
         }
     }
 
@@ -21,6 +23,10 @@ impl State {
         match subcmd {
             StateCmd::Bus { subcmd } => self.bus.execute(subcmd),
             StateCmd::Reg { subcmd } => self.reg.execute(subcmd),
+            StateCmd::MemMap => {
+                let map = self.bus.mem_map();
+                self.tracer.borrow().mem_show_map(map);
+            }
         }
     }
 }

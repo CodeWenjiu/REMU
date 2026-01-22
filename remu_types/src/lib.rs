@@ -28,6 +28,7 @@ impl Display for AllUsize {
 pub trait Tracer {
     fn mem_print(&self, begin: usize, data: &[u8], result: Result<(), Box<dyn DynDiagError>>);
     fn mem_show(&self, begin: usize, data: Result<AllUsize, Box<dyn DynDiagError>>);
+    fn mem_show_map(&self, map: Vec<(String, Range<usize>)>);
 
     fn reg_print(&self, regs: &[(Gpr, u32); 32], range: Range<usize>);
     fn reg_show(&self, index: Gpr, data: u32);

@@ -19,6 +19,9 @@ impl Tracer for BenchTracer {
     fn mem_show(&self, _begin: usize, _data: Result<AllUsize, Box<dyn DynDiagError>>) {}
 
     #[inline(always)]
+    fn mem_show_map(&self, _map: Vec<(String, Range<usize>)>) {}
+
+    #[inline(always)]
     fn deal_error(&self, _error: Box<dyn DynDiagError>) {}
 
     #[inline(always)]
