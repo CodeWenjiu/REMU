@@ -9,3 +9,4 @@ thiserror.workspace = true
 tracing.workspace = true
 
 target-lexicon.workspace = true
+strum = { version = "0.27.2", features = ["derive"] }

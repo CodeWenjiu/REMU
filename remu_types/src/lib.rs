@@ -1,6 +1,6 @@
-remu_macro::mod_flat!(isa);
+remu_macro::mod_flat!(isa, register);
 
-use std::{cell::RefCell, error::Error, fmt::Display, rc::Rc};
+use std::{cell::RefCell, error::Error, fmt::Display, ops::Range, rc::Rc};
 pub trait DynDiagError: Error {}
 impl<T> DynDiagError for T where T: Error {}
 
@@ -29,7 +29,8 @@ pub trait Tracer {
     fn mem_print(&self, begin: usize, data: &[u8], result: Result<(), Box<dyn DynDiagError>>);
     fn mem_show(&self, begin: usize, data: Result<AllUsize, Box<dyn DynDiagError>>);
 
-    fn reg_show(&self, index: usize, data: u32);
+    fn reg_print(&self, regs: &[(Gpr, u32)], range: Range<usize>);
+    fn reg_show(&self, index: Gpr, data: u32);
 
     fn deal_error(&self, error: Box<dyn DynDiagError>);
 }

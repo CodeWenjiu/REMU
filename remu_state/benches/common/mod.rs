@@ -1,3 +1,5 @@
+use std::ops::Range;
+
 use clap::Parser;
 
 use remu_state::bus::BusOption;
@@ -20,7 +22,10 @@ impl Tracer for BenchTracer {
     fn deal_error(&self, _error: Box<dyn DynDiagError>) {}
 
     #[inline(always)]
-    fn reg_show(&self, _index: usize, _data: u32) {}
+    fn reg_show(&self, _index: remu_types::Gpr, _data: u32) {}
+
+    #[inline(always)]
+    fn reg_print(&self, _regs: &[(remu_types::Gpr, u32)], _range: Range<usize>) {}
 }
 
 #[inline(never)]

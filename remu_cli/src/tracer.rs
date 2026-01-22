@@ -1,6 +1,8 @@
+use std::ops::Range;
+
 use colored::Colorize;
 use remu_fmt::ByteGuesser;
-use remu_types::{DynDiagError, IsaSpec, Tracer};
+use remu_types::{DynDiagError, Gpr, IsaSpec, Tracer};
 use tabled::{
     Table, Tabled,
     settings::{Color, Style, object::Columns},
@@ -48,6 +50,18 @@ pub struct MemTable {
 
     #[tabled(skip)]
     byte_mask: u8,
+}
+
+fn fmt_hex(v: &u32) -> String {
+    format!("0x{v:08x}")
+}
+
+#[derive(Tabled)]
+pub struct RegTable {
+    #[tabled()]
+    register: Gpr,
+    #[tabled(display = "fmt_hex")]
+    data: u32,
 }
 
 impl CLITracer {
@@ -162,7 +176,23 @@ impl Tracer for CLITracer {
         }
     }
 
-    fn reg_show(&self, index: usize, data: u32) {
+    fn reg_print(&self, regs: &[(Gpr, u32)], range: Range<usize>) {
+        // `range` is a half-open index range over the regs slice (start..end).
+        // Clamp to slice bounds to avoid panics and make UX nicer.
+        let start = range.start.min(regs.len());
+        let end = range.end.min(regs.len());
+
+        let mut table = Table::new(regs[start..end].iter().map(|&(reg, data)| RegTable {
+            register: reg,
+            data,
+        }));
+        table.with(Style::rounded());
+        table.modify(Columns::one(0), Color::FG_YELLOW);
+        table.modify(Columns::one(1), Color::FG_CYAN);
+        println!("{table}");
+    }
+
+    fn reg_show(&self, index: Gpr, data: u32) {
         println!(
             "index: {}, data: {}",
             format!("{}", index).yellow(),
