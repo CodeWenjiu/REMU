@@ -1,1 +1,1 @@
-remu_macro::mod_flat!(riscv, options, command);
+remu_macro::mod_flat!(riscv, option, command);

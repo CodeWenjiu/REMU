@@ -10,12 +10,11 @@ build:
 run *args:
     @cargo run --release {{ args }}
 
-bench:
-    @cargo bench -p remu_state --bench bus_read
-    @cargo bench -p remu_state --bench bus_write
+bench BENCH:
+    @cargo bench -p remu_state --bench {{ BENCH }}
 
-flame:
-    @cargo bench -p remu_state --bench bus_read -- --profile-time 20
+flame BENCH:
+    @cargo bench -p remu_state --bench {{ BENCH }} -- --profile-time 20
 
 clean:
     @cargo clean

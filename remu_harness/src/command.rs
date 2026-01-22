@@ -1,13 +1,5 @@
 use clap::builder::styling;
-use remu_simulator::SimulatorOption;
-use remu_state::StateCmds;
-
-#[derive(clap::Args, Debug, Clone)]
-pub struct HarnessOption {
-    /// Simulator Option
-    #[command(flatten)]
-    pub simulator: SimulatorOption,
-}
+use remu_state::StateCmd;
 
 #[derive(clap::Parser, Debug)]
 #[command(
@@ -24,37 +16,37 @@ pub struct HarnessOption {
 )]
 pub struct CommandParser {
     #[command(subcommand)]
-    pub command: Commands,
+    pub command: Command,
 }
 
 #[derive(Debug, clap::Subcommand)]
-pub enum Commands {
+pub enum Command {
     /// continue the emulator
     Continue,
 
     /// Times printf
     Times {
         #[command(subcommand)]
-        subcmd: TimeCmds,
+        subcmd: TimeCmd,
     },
 
     /// State Command
     State {
         #[command(subcommand)]
-        subcmd: StateCmds,
+        subcmd: StateCmd,
     },
 }
 
 #[derive(Debug, clap::Subcommand)]
-pub enum TimeCmds {
+pub enum TimeCmd {
     /// Times Count
     Count {
         #[command(subcommand)]
-        subcmd: TimeCountCmds,
+        subcmd: TimeCountCmd,
     },
 }
 
 #[derive(Debug, clap::Subcommand)]
-pub enum TimeCountCmds {
+pub enum TimeCountCmd {
     Test,
 }

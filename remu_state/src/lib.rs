@@ -1,7 +1,7 @@
 use crate::{bus::Bus, reg::RiscvReg};
 
 remu_macro::mod_pub!(reg, bus);
-remu_macro::mod_flat!(options, commands);
+remu_macro::mod_flat!(option, command);
 
 /// State template
 pub struct State {
@@ -17,10 +17,10 @@ impl State {
         }
     }
 
-    pub fn execute(&mut self, subcmd: &StateCmds) {
+    pub fn execute(&mut self, subcmd: &StateCmd) {
         match subcmd {
-            StateCmds::Bus { subcmd } => self.bus.execute(subcmd),
-            StateCmds::Reg { subcmd } => self.reg.execute(subcmd),
+            StateCmd::Bus { subcmd } => self.bus.execute(subcmd),
+            StateCmd::Reg { subcmd } => self.reg.execute(subcmd),
         }
     }
 }

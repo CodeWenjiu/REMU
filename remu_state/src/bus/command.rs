@@ -1,7 +1,7 @@
 use remu_fmt::{parse_byte_vec, parse_prefixed_uint};
 
 #[derive(Debug, clap::Subcommand)]
-pub enum BusCmds {
+pub enum BusCmd {
     /// Read With Specefic Width
     Read {
         #[command(subcommand)]

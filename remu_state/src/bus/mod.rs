@@ -77,9 +77,9 @@ impl Bus {
         Err(Box::new(BusFault::Unmapped { addr: range.start }))
     }
 
-    pub(crate) fn execute(&mut self, subcmd: &BusCmds) {
+    pub(crate) fn execute(&mut self, subcmd: &BusCmd) {
         match subcmd {
-            BusCmds::Read { subcmd } => {
+            BusCmd::Read { subcmd } => {
                 let (addr, result) = match subcmd {
                     ReadCommand::U8(arg) => {
                         (arg.addr, self.read_8(arg.addr).map(|v| AllUsize::U8(v)))
@@ -101,14 +101,14 @@ impl Bus {
                     .borrow()
                     .mem_show(addr, result.map_err(|e| e as Box<dyn DynDiagError>));
             }
-            BusCmds::Print { addr, count } => {
+            BusCmd::Print { addr, count } => {
                 let mut buf = vec![0u8 as u8; *count];
                 let result = self
                     .read_bytes(*addr, &mut buf)
                     .map_err(|e| e as Box<dyn DynDiagError>);
                 self.tracer.borrow_mut().mem_print(*addr, &buf, result);
             }
-            BusCmds::Write { subcmd } => {
+            BusCmd::Write { subcmd } => {
                 let result = match subcmd {
                     WriteCommand::U8 { addr, value } => self.write_8(*addr, *value),
                     WriteCommand::U16 { addr, value } => self.write_16(*addr, *value),
@@ -120,7 +120,7 @@ impl Bus {
                     self.tracer.borrow().deal_error(e as Box<dyn DynDiagError>)
                 }
             }
-            BusCmds::Set { address, value } => {
+            BusCmd::Set { address, value } => {
                 let mut addr = *address;
                 for chunk in value.iter() {
                     if chunk.is_empty() {

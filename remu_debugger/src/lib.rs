@@ -1,8 +1,8 @@
 use clap::Parser;
 
-remu_macro::mod_flat!(options, commands, error, compound_command);
-pub use commands::get_command_graph;
-use remu_harness::{CommandParser, Commands, Harness};
+remu_macro::mod_flat!(option, command, error, compound_command);
+pub use command::get_command_graph;
+use remu_harness::{Command, CommandParser, Harness};
 use remu_types::TracerDyn;
 
 pub struct Debugger {
@@ -77,7 +77,7 @@ impl Debugger {
         }
     }
 
-    fn execute_parsed(&mut self, command: &Commands) -> Result<bool> {
+    fn execute_parsed(&mut self, command: &Command) -> Result<bool> {
         self.harness.execute(command);
 
         Ok(true)

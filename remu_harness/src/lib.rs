@@ -1,4 +1,4 @@
-remu_macro::mod_flat!(commands);
+remu_macro::mod_flat!(option, command);
 
 use remu_simulator::Simulator;
 use remu_types::TracerDyn;
@@ -14,17 +14,17 @@ impl Harness {
         }
     }
 
-    pub fn execute(&mut self, command: &Commands) {
+    pub fn execute(&mut self, command: &Command) {
         match command {
-            Commands::State { subcmd } => self.simulator.get_state_mut().execute(subcmd),
-            Commands::Times { subcmd } => match subcmd {
-                TimeCmds::Count { subcmd } => match subcmd {
-                    TimeCountCmds::Test => {
+            Command::State { subcmd } => self.simulator.get_state_mut().execute(subcmd),
+            Command::Times { subcmd } => match subcmd {
+                TimeCmd::Count { subcmd } => match subcmd {
+                    TimeCountCmd::Test => {
                         tracing::info!("Time Count Test")
                     }
                 },
             },
-            Commands::Continue => {
+            Command::Continue => {
                 self.simulator.step(0);
             }
         }

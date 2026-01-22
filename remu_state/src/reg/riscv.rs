@@ -1,4 +1,4 @@
-use crate::reg::{RegCmds, RegOption};
+use crate::reg::{RegCmd, RegOption};
 
 pub struct RiscvReg {
     pub pc: u32,
@@ -25,12 +25,12 @@ impl RiscvReg {
         unsafe { *self.gpr.get_unchecked_mut(index) = value }
     }
 
-    pub(crate) fn execute(&mut self, cmd: &RegCmds) {
+    pub(crate) fn execute(&mut self, cmd: &RegCmd) {
         match cmd {
-            RegCmds::Read { index } => {
+            RegCmd::Read { index } => {
                 self.tracer.borrow().reg_show(*index, self.read_gpr(*index));
             }
-            RegCmds::Write { index, value } => {
+            RegCmd::Write { index, value } => {
                 self.write_gpr(*index as usize, *value);
             }
         }

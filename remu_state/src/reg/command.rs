@@ -1,7 +1,7 @@
 use remu_fmt::parse_prefixed_uint;
 
 #[derive(Debug, clap::Subcommand)]
-pub enum RegCmds {
+pub enum RegCmd {
     /// Read With Specefic Width
     Read {
         /// Address to set
