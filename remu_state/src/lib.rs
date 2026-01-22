@@ -1,9 +1,9 @@
 use remu_types::{AllUsize, DynDiagError};
 
-use crate::bus::{Bus, BusAccess, BusOption};
+use crate::bus::{Bus, BusAccess};
 
 remu_macro::mod_pub!(bus);
-remu_macro::mod_flat!(commands);
+remu_macro::mod_flat!(options, commands);
 
 /// State template
 pub struct State {
@@ -108,11 +108,4 @@ impl State {
             }
         }
     }
-}
-
-#[derive(clap::Args, Debug)]
-pub struct StateOption {
-    /// Bus Option
-    #[command(flatten)]
-    pub bus: BusOption,
 }

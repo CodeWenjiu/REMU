@@ -7,3 +7,5 @@ edition = "2024"
 remu_macro = { path = "../remu_macro" }
 thiserror.workspace = true
 tracing.workspace = true
+
+target-lexicon.workspace = true

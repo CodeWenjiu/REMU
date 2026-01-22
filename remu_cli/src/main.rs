@@ -135,12 +135,12 @@ fn get_prompt() -> RemuPrompt {
 fn main() -> Result<()> {
     let _guard = remu_logger::set_logger("target/logs", "remu.log")?;
 
-    let tracer: TracerDyn = Rc::new(RefCell::new(CLITracer::new()));
+    let option = RemuOptionParer::parse();
+    let tracer: TracerDyn = Rc::new(RefCell::new(CLITracer::new(option.isa.clone())));
+    let mut debugger = remu_debugger::Debugger::new(option, tracer);
 
     let mut line_editor = get_editor();
     let prompt = get_prompt();
-
-    let mut debugger = remu_debugger::Debugger::new(RemuOptionParer::parse(), tracer);
 
     loop {
         let sig = line_editor.read_line(&prompt);

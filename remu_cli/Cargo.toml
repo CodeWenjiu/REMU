@@ -8,6 +8,7 @@ remu_macro = { path = "../remu_macro" }
 remu_logger = { path = "../remu_logger" }
 remu_debugger = { path = "../remu_debugger" }
 remu_harness = { path = "../remu_harness" }
+remu_fmt = { path = "../remu_fmt" }
 remu_types = { path = "../remu_types" }
 
 clap = { workspace = true, features = [ "derive", "color" ] }

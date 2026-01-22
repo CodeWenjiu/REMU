@@ -1,3 +1,5 @@
+remu_macro::mod_flat!(isa);
+
 use std::{cell::RefCell, error::Error, fmt::Display, rc::Rc};
 pub trait DynDiagError: Error {}
 impl<T> DynDiagError for T where T: Error {}

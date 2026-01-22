@@ -1,7 +1,8 @@
 use clap::builder::styling;
 use remu_harness::HarnessOption;
+use remu_types::IsaSpec;
 
-#[derive(clap::Parser, Debug)]
+#[derive(clap::Parser, Debug, Clone)]
 #[command(
     author,
     version,
@@ -16,4 +17,8 @@ pub struct RemuOptionParer {
     /// Harness Option
     #[command(flatten)]
     pub harness: HarnessOption,
+
+    /// ISA Option
+    #[arg(long, default_value = "riscv32i")]
+    pub isa: IsaSpec,
 }

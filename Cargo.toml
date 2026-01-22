@@ -35,6 +35,7 @@ petgraph = "0.8.3"
 
 clap = "4.5.54"
 winnow = "0.7.14"
+target-lexicon = "0.13.4"
 
 criterion = "0.5.1"
 pprof = "0.15.0"

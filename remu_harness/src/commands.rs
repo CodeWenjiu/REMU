@@ -2,7 +2,7 @@ use clap::builder::styling;
 use remu_simulator::SimulatorOption;
 use remu_state::StateCmds;
 
-#[derive(clap::Args, Debug)]
+#[derive(clap::Args, Debug, Clone)]
 pub struct HarnessOption {
     /// Simulator Option
     #[command(flatten)]

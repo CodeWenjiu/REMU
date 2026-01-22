@@ -1,1 +1,1 @@
-remu_macro::mod_flat!(number);
+remu_macro::mod_flat!(number, disasm);

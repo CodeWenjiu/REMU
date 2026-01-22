@@ -1,4 +1,6 @@
-use remu_state::{State, StateOption};
+remu_macro::mod_flat!(option);
+
+use remu_state::State;
 use remu_types::TracerDyn;
 
 /// As a template
@@ -26,11 +28,4 @@ impl Simulator {
     pub fn step(&mut self, times: usize) {
         tracing::info!("Step {}", times);
     }
-}
-
-#[derive(clap::Args, Debug)]
-pub struct SimulatorOption {
-    /// State Option
-    #[command(flatten)]
-    pub state: StateOption,
 }

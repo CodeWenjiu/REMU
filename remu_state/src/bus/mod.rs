@@ -6,7 +6,7 @@ pub use memory::MemRegionSpec;
 
 // Use the public re-export to avoid shadowing the glob re-exported `Memory`
 
-#[derive(clap::Args, Debug)]
+#[derive(clap::Args, Debug, Clone)]
 pub struct BusOption {
     #[arg(
         long = "mem",
@@ -48,8 +48,6 @@ impl Bus {
     fn find_memory_mut(&mut self, range: Range<usize>) -> Result<&mut Memory, Box<BusFault>> {
         // Fast path: check last hit first.
         if let Some(i) = self.last_hit {
-            // If memory regions can ever be removed/shrunk, this must be revisited.
-            // In current design, regions are built once and remain stable.
             // SAFETY: i must be a valid index into self.memory.
             if unsafe { self.memory.get_unchecked(i).contains(range.clone()) } {
                 return Ok(&mut self.memory[i]);
