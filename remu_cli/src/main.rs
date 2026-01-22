@@ -1,82 +1,17 @@
 use anyhow::Result;
+use cfonts::{Colors, Fonts, Options, render};
 use clap::Parser;
 use colored::Colorize;
 use nu_ansi_term::{Color, Style};
 use reedline::{
-    ColumnarMenu, DefaultHinter, DefaultPrompt, DefaultPromptSegment, Emacs, FileBackedHistory,
-    KeyCode, KeyModifiers, MenuBuilder, Prompt, PromptEditMode, PromptHistorySearch, Reedline,
-    ReedlineEvent, ReedlineMenu, Signal, default_emacs_keybindings,
+    ColumnarMenu, DefaultHinter, Emacs, FileBackedHistory, KeyCode, KeyModifiers, MenuBuilder,
+    Reedline, ReedlineEvent, ReedlineMenu, Signal, default_emacs_keybindings,
 };
 use remu_debugger::RemuOptionParer;
 use remu_types::TracerDyn;
-use std::{borrow::Cow, cell::RefCell, rc::Rc};
+use std::{cell::RefCell, rc::Rc};
 
-remu_macro::mod_flat!(compeleter, highlighter, validator, tracer);
-
-const PROMPT_LEFT: &str = "remu ";
-const MULTILINE_PREFIX_LEN: usize = PROMPT_LEFT.len() + 2;
-
-#[derive(Clone)]
-struct RemuPrompt {
-    inner: DefaultPrompt,
-    multiline_prefix_len: usize,
-}
-
-impl RemuPrompt {
-    fn new(inner: DefaultPrompt, multiline_prefix_len: usize) -> Self {
-        Self {
-            inner,
-            multiline_prefix_len,
-        }
-    }
-}
-
-impl Prompt for RemuPrompt {
-    fn render_prompt_left(&self) -> Cow<'_, str> {
-        self.inner.render_prompt_left()
-    }
-
-    fn render_prompt_right(&self) -> Cow<'_, str> {
-        self.inner.render_prompt_right()
-    }
-
-    fn render_prompt_indicator(&self, prompt_mode: PromptEditMode) -> Cow<'_, str> {
-        self.inner.render_prompt_indicator(prompt_mode)
-    }
-
-    fn render_prompt_multiline_indicator(&self) -> Cow<'_, str> {
-        // Align continued lines under the first character after the left prompt.
-        Cow::Owned(" ".repeat(self.multiline_prefix_len))
-    }
-
-    fn render_prompt_history_search_indicator(
-        &self,
-        history_search: PromptHistorySearch,
-    ) -> Cow<'_, str> {
-        self.inner
-            .render_prompt_history_search_indicator(history_search)
-    }
-
-    fn get_prompt_color(&self) -> reedline::Color {
-        self.inner.get_prompt_color()
-    }
-
-    fn get_prompt_multiline_color(&self) -> nu_ansi_term::Color {
-        self.inner.get_prompt_multiline_color()
-    }
-
-    fn get_indicator_color(&self) -> reedline::Color {
-        self.inner.get_indicator_color()
-    }
-
-    fn get_prompt_right_color(&self) -> reedline::Color {
-        self.inner.get_prompt_right_color()
-    }
-
-    fn right_prompt_on_last_line(&self) -> bool {
-        self.inner.right_prompt_on_last_line()
-    }
-}
+remu_macro::mod_flat!(compeleter, highlighter, validator, prompt, tracer);
 
 fn get_editor() -> Reedline {
     let history = Box::new(
@@ -116,7 +51,7 @@ fn get_editor() -> Reedline {
         .with_highlighter(highlighter)
         .with_completer(completer)
         .with_quick_completions(true)
-        .with_validator(Box::new(RemuValidator::new(MULTILINE_PREFIX_LEN)))
+        .with_validator(Box::new(RemuValidator::new(PROMPT_LEN)))
         .with_menu(ReedlineMenu::EngineCompleter(completion_menu))
         .with_edit_mode(edit_mode)
         .with_hinter(Box::new(
@@ -124,12 +59,17 @@ fn get_editor() -> Reedline {
         ))
 }
 
-fn get_prompt() -> RemuPrompt {
-    let inner = DefaultPrompt::new(
-        DefaultPromptSegment::Basic(PROMPT_LEFT.into()),
-        DefaultPromptSegment::CurrentDateTime,
-    );
-    RemuPrompt::new(inner, MULTILINE_PREFIX_LEN)
+fn hello() {
+    let output = render(Options {
+        text: String::from("remu"),
+        font: Fonts::FontSimple,
+        colors: vec![Colors::Yellow],
+        ..Options::default()
+    });
+
+    println!();
+    println!("{}", "welcome to".magenta());
+    println!("{}", output.text);
 }
 
 fn main() -> Result<()> {
@@ -141,6 +81,8 @@ fn main() -> Result<()> {
 
     let mut line_editor = get_editor();
     let prompt = get_prompt();
+
+    hello();
 
     loop {
         let sig = line_editor.read_line(&prompt);
