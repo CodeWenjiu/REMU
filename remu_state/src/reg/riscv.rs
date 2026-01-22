@@ -33,19 +33,11 @@ impl RiscvReg {
                     .reg_show(*index, self.read_gpr(index.idx()));
             }
             RegCmd::Print { range } => {
-                // Build a stable (Gpr, u32) view for printing.
-                // Avoid transmute; rely on known RISC-V naming ("x0".."x31") and the
-                // `EnumString` implementation in `remu_types::Gpr`.
-                let regs: Vec<(remu_types::Gpr, u32)> = self
-                    .gpr
-                    .iter()
-                    .copied()
-                    .enumerate()
-                    .map(|(i, v)| {
-                        let reg = format!("x{i}").parse::<remu_types::Gpr>().unwrap();
-                        (reg, v)
-                    })
-                    .collect();
+                let regs: [(remu_types::Gpr, u32); 32] = core::array::from_fn(|i| {
+                    let reg =
+                        remu_types::Gpr::from_repr(i).expect("valid RISC-V GPR index (0..=31)");
+                    (reg, self.gpr[i])
+                });
 
                 self.tracer.borrow().reg_print(&regs, range.clone());
             }

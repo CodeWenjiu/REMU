@@ -25,7 +25,7 @@ impl Tracer for BenchTracer {
     fn reg_show(&self, _index: remu_types::Gpr, _data: u32) {}
 
     #[inline(always)]
-    fn reg_print(&self, _regs: &[(remu_types::Gpr, u32)], _range: Range<usize>) {}
+    fn reg_print(&self, _regs: &[(remu_types::Gpr, u32); 32], _range: Range<usize>) {}
 }
 
 #[inline(never)]

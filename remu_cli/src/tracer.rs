@@ -176,7 +176,7 @@ impl Tracer for CLITracer {
         }
     }
 
-    fn reg_print(&self, regs: &[(Gpr, u32)], range: Range<usize>) {
+    fn reg_print(&self, regs: &[(Gpr, u32); 32], range: Range<usize>) {
         // `range` is a half-open index range over the regs slice (start..end).
         // Clamp to slice bounds to avoid panics and make UX nicer.
         let start = range.start.min(regs.len());
