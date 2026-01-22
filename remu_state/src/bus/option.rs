@@ -14,7 +14,7 @@ pub struct BusOption {
     )]
     pub mem: Vec<MemRegionSpec>,
 
-    #[arg(long = "elf", value_name = "PATH", value_parser = file_exists, value_hint = ValueHint::FilePath)]
+    #[arg(long = "elf", alias = "bin", value_name = "PATH", value_parser = file_exists, value_hint = ValueHint::FilePath)]
     pub elf: Option<PathBuf>,
 }
 

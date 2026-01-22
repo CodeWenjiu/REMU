@@ -43,8 +43,6 @@ pub fn set_logger(
         .with(file_layer)
         .try_init()?;
 
-    tracing::info!("Logger initialized");
-
     Ok((stdout_guard, file_guard))
 }
 
