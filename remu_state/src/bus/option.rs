@@ -1,3 +1,7 @@
+use std::path::PathBuf;
+
+use clap::ValueHint;
+
 use crate::bus::MemRegionSpec;
 
 #[derive(clap::Args, Debug, Clone)]
@@ -9,4 +13,16 @@ pub struct BusOption {
         default_value = "ram@0x8000_0000:0x8800_0000"
     )]
     pub mem: Vec<MemRegionSpec>,
+
+    #[arg(long = "elf", value_name = "PATH", value_parser = file_exists, value_hint = ValueHint::FilePath)]
+    pub elf: Option<PathBuf>,
+}
+
+fn file_exists(s: &str) -> Result<PathBuf, String> {
+    let path = PathBuf::from(s);
+    if path.exists() && path.is_file() {
+        Ok(path)
+    } else {
+        Err(format!("File Does Not Exist or It is Not a File: '{}'", s))
+    }
 }

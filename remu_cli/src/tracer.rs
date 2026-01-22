@@ -160,6 +160,10 @@ impl CLITracer {
 }
 
 impl Tracer for CLITracer {
+    fn print(&self, message: &str) {
+        println!("{}", message);
+    }
+
     fn mem_print(&self, begin: usize, data: &[u8], result: Result<(), Box<dyn DynDiagError>>) {
         match result {
             Ok(_) => {

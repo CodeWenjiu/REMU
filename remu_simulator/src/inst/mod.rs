@@ -22,6 +22,7 @@ pub struct DecodedInst {
     pub handler: fn(&mut State, &DecodedInst) -> Result<(), SimulatorError>,
 }
 
+#[inline(always)]
 pub fn decode(inst: u32) -> DecodedInst {
     let opcode = opcode(inst);
     match opcode {

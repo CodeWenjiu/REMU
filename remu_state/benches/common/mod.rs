@@ -13,6 +13,9 @@ pub struct BenchTracer;
 
 impl Tracer for BenchTracer {
     #[inline(always)]
+    fn print(&self, _message: &str) {}
+
+    #[inline(always)]
     fn mem_print(&self, _begin: usize, _data: &[u8], _result: Result<(), Box<dyn DynDiagError>>) {}
 
     #[inline(always)]
@@ -45,7 +48,7 @@ pub fn make_state_from_clap_defaults(tag: &'static str) -> State {
     // Sanity check: ensure the clap default actually populated BusOption.mem, so our address
     // range is mapped. If someone changes the default later, this bench will fail loudly
     // instead of producing misleading "unmapped"/error-heavy profiles.
-    let BusOption { mem } = &opt.state.bus;
+    let BusOption { mem, elf: _ } = &opt.state.bus;
     assert!(
         !mem.is_empty(),
         "BusOption.mem is empty; clap default for --mem did not apply"

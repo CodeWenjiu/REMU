@@ -29,8 +29,10 @@ impl Bus {
             })
             .collect();
 
+        let memory = memory.into_boxed_slice();
+
         Self {
-            memory: memory.into_boxed_slice(),
+            memory,
             last_hit: None,
             tracer,
         }
