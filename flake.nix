@@ -41,6 +41,7 @@
               ];
             })
             cargo-edit
+            cargo-machete
 
             clang
             mold

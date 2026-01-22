@@ -1218,7 +1218,6 @@ dependencies = [
  "remu_harness",
  "remu_macro",
  "remu_types",
- "shlex",
  "thiserror",
  "tracing",
  "winnow",
@@ -1230,7 +1229,6 @@ version = "0.1.0"
 dependencies = [
  "capstone",
  "remu_macro",
- "remu_types",
  "target-lexicon",
  "thiserror",
  "tracing",
