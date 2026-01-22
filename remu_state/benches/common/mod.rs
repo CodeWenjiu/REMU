@@ -18,6 +18,9 @@ impl Tracer for BenchTracer {
 
     #[inline(always)]
     fn deal_error(&self, _error: Box<dyn DynDiagError>) {}
+
+    #[inline(always)]
+    fn reg_show(&self, _index: usize, _data: u32) {}
 }
 
 #[inline(never)]
@@ -177,4 +180,3 @@ pub fn prepare_workload_small_ws() -> (Vec<usize>, Vec<usize>, Vec<usize>, Vec<u
 
     (addrs8, addrs16, addrs32, addrs64)
 }
-

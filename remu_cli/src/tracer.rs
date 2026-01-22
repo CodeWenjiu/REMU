@@ -162,6 +162,14 @@ impl Tracer for CLITracer {
         }
     }
 
+    fn reg_show(&self, index: usize, data: u32) {
+        println!(
+            "index: {}, data: {}",
+            format!("{}", index).yellow(),
+            format!("0x{:08x}", data).blue()
+        )
+    }
+
     fn deal_error(&self, error: Box<dyn DynDiagError>) {
         println!("{}: {}", "error".red(), error)
     }

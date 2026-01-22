@@ -1,8 +1,9 @@
-remu_macro::mod_flat!(error, memory, device);
+remu_macro::mod_flat!(error, command, memory, device);
 
 use std::ops::Range;
 
 pub use memory::MemRegionSpec;
+use remu_types::{AllUsize, DynDiagError};
 
 // Use the public re-export to avoid shadowing the glob re-exported `Memory`
 
@@ -25,10 +26,11 @@ pub struct Bus {
     /// (or when there is only a single region): we first check the previously-hit
     /// region and fall back to scanning only if it doesn't match.
     last_hit: Option<usize>,
+    tracer: remu_types::TracerDyn,
 }
 
 impl Bus {
-    pub(crate) fn new(opt: BusOption) -> Self {
+    pub(crate) fn new(opt: BusOption, tracer: remu_types::TracerDyn) -> Self {
         let memory: Vec<Memory> = opt
             .mem
             .into_iter()
@@ -41,6 +43,7 @@ impl Bus {
         Self {
             memory: memory.into_boxed_slice(),
             last_hit: None,
+            tracer,
         }
     }
 
@@ -72,6 +75,65 @@ impl Bus {
 
         // If address isn't mapped, keep last_hit unchanged (it may still be useful).
         Err(Box::new(BusFault::Unmapped { addr: range.start }))
+    }
+
+    pub(crate) fn execute(&mut self, subcmd: &BusCmds) {
+        match subcmd {
+            BusCmds::Read { subcmd } => {
+                let (addr, result) = match subcmd {
+                    ReadCommand::U8(arg) => {
+                        (arg.addr, self.read_8(arg.addr).map(|v| AllUsize::U8(v)))
+                    }
+                    ReadCommand::U16(arg) => {
+                        (arg.addr, self.read_16(arg.addr).map(|v| AllUsize::U16(v)))
+                    }
+                    ReadCommand::U32(arg) => {
+                        (arg.addr, self.read_32(arg.addr).map(|v| AllUsize::U32(v)))
+                    }
+                    ReadCommand::U64(arg) => {
+                        (arg.addr, self.read_64(arg.addr).map(|v| AllUsize::U64(v)))
+                    }
+                    ReadCommand::U128(arg) => {
+                        (arg.addr, self.read_128(arg.addr).map(|v| AllUsize::U128(v)))
+                    }
+                };
+                self.tracer
+                    .borrow()
+                    .mem_show(addr, result.map_err(|e| e as Box<dyn DynDiagError>));
+            }
+            BusCmds::Print { addr, count } => {
+                let mut buf = vec![0u8 as u8; *count];
+                let result = self
+                    .read_bytes(*addr, &mut buf)
+                    .map_err(|e| e as Box<dyn DynDiagError>);
+                self.tracer.borrow_mut().mem_print(*addr, &buf, result);
+            }
+            BusCmds::Write { subcmd } => {
+                let result = match subcmd {
+                    WriteCommand::U8 { addr, value } => self.write_8(*addr, *value),
+                    WriteCommand::U16 { addr, value } => self.write_16(*addr, *value),
+                    WriteCommand::U32 { addr, value } => self.write_32(*addr, *value),
+                    WriteCommand::U64 { addr, value } => self.write_64(*addr, *value),
+                    WriteCommand::U128 { addr, value } => self.write_128(*addr, *value),
+                };
+                if let Err(e) = result {
+                    self.tracer.borrow().deal_error(e as Box<dyn DynDiagError>)
+                }
+            }
+            BusCmds::Set { address, value } => {
+                let mut addr = *address;
+                for chunk in value.iter() {
+                    if chunk.is_empty() {
+                        continue;
+                    }
+                    if let Err(e) = self.write_bytes(addr, chunk) {
+                        self.tracer.borrow().deal_error(e as Box<dyn DynDiagError>);
+                        break;
+                    }
+                    addr = addr.saturating_add(chunk.len());
+                }
+            }
+        }
     }
 }
 
