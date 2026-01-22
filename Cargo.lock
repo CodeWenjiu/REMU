@@ -1234,6 +1234,7 @@ dependencies = [
  "target-lexicon",
  "thiserror",
  "tracing",
+ "winnow",
 ]
 
 [[package]]

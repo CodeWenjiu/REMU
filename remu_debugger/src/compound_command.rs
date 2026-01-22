@@ -1,11 +1,10 @@
 use miette::Diagnostic;
-use shlex;
 use thiserror::Error;
 use winnow::Parser as _;
 use winnow::ascii::{multispace0, multispace1};
 use winnow::combinator::{alt, cut_err, delimited, eof, opt, repeat};
 use winnow::error::{ContextError, ErrMode};
-use winnow::token::take_until;
+use winnow::token::{take_till, take_until};
 
 /// Logical operators supported in command expressions.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -94,16 +93,66 @@ fn parse_block(input: &mut &str) -> winnow::Result<Vec<String>, ErrMode<ContextE
     alt((parse_brace_block, parse_command)).parse_next(input)
 }
 
+/// Split a command string on ASCII whitespace while preserving double-quoted tokens,
+/// including the surrounding quotes.
+///
+/// Rules (for now):
+/// - Whitespace separates tokens.
+/// - A token starting with `"` consumes until the next `"` (no escapes supported).
+/// - The returned quoted token includes the surrounding quotes: `"dead"` stays `"dead"`.
+fn split_preserve_dquotes(s: &str) -> Option<Vec<String>> {
+    fn ws0(input: &mut &str) -> winnow::Result<(), ErrMode<ContextError>> {
+        take_till(0.., |c: char| !matches!(c, ' ' | '\t' | '\n' | '\r'))
+            .void()
+            .parse_next(input)
+    }
+
+    fn quoted_token(input: &mut &str) -> winnow::Result<String, ErrMode<ContextError>> {
+        // " ... " with no escapes; we preserve the quotes in the returned token.
+        let inner = delimited("\"", take_until(0.., "\""), "\"").parse_next(input)?;
+        Ok(format!("\"{}\"", inner))
+    }
+
+    fn bare_token(input: &mut &str) -> winnow::Result<String, ErrMode<ContextError>> {
+        // Read until whitespace.
+        take_till(1.., |c: char| matches!(c, ' ' | '\t' | '\n' | '\r'))
+            .map(|t: &str| t.to_string())
+            .parse_next(input)
+    }
+
+    fn token(input: &mut &str) -> winnow::Result<String, ErrMode<ContextError>> {
+        alt((quoted_token, bare_token)).parse_next(input)
+    }
+
+    let mut input = s;
+
+    // 0 or more: ws* token
+    let mut out = Vec::new();
+    loop {
+        let _ = ws0.parse_next(&mut input).ok()?;
+
+        if input.is_empty() {
+            break;
+        }
+
+        let t = token.parse_next(&mut input).ok()?;
+        out.push(t);
+    }
+
+    Some(out)
+}
+
 fn parse_brace_block(input: &mut &str) -> winnow::Result<Vec<String>, ErrMode<ContextError>> {
     // `{` ~ inner? ~ `}`
     //
     // We intentionally keep "inner" permissive (like the pest grammar), and
-    // leave quoting validation to shlex (same behavior as before).
+    // perform our own tokenization here to preserve double-quoted tokens (including quotes).
     let inner_str = delimited("{", opt(take_until(0.., "}")), cut_err("}"))
         .map(|opt| opt.unwrap_or(""))
         .parse_next(input)?;
 
-    let tokens = shlex::split(inner_str).ok_or_else(|| ErrMode::Cut(ContextError::new()))?;
+    let tokens =
+        split_preserve_dquotes(inner_str).ok_or_else(|| ErrMode::Cut(ContextError::new()))?;
 
     Ok(tokens)
 }
@@ -148,7 +197,8 @@ fn parse_command(input: &mut &str) -> winnow::Result<Vec<String>, ErrMode<Contex
     }
 
     let cmd_src = &rest[..idx];
-    let tokens = shlex::split(cmd_src).ok_or_else(|| ErrMode::Cut(ContextError::new()))?;
+    let tokens =
+        split_preserve_dquotes(cmd_src).ok_or_else(|| ErrMode::Cut(ContextError::new()))?;
 
     // Advance input by consumed command slice.
     *input = &rest[idx..];
