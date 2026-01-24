@@ -21,7 +21,7 @@ miette = { workspace = true, features = ["fancy"] }
 petgraph.workspace = true
 
 nu-ansi-term = "0.50.3"
-reedline = "0.44.0"
+reedline = "0.45.0"
 
 tabled = "0.20.0"
 colored = "3.1.1"
