@@ -23,4 +23,4 @@ harness = false # 必须关掉默认 harness
 
 [[bench]]
 name = "bus_write"
-harness = false # 必须关掉默认 harness
+harness = false

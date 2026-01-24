@@ -10,11 +10,11 @@ build:
 run *args:
     @cargo run --release {{ args }}
 
-bench BENCH:
-    @cargo bench -p remu_state --bench {{ BENCH }}
+bench CRATE BENCH:
+    @cargo bench -p remu_{{ CRATE }} --bench {{ BENCH }}
 
-flame BENCH:
-    @cargo bench -p remu_state --bench {{ BENCH }} -- --profile-time 20
+flame CRATE BENCH:
+    @cargo bench -p remu_{{ CRATE }} --bench {{ BENCH }} -- --profile-time 20
 
 clean:
     @cargo clean

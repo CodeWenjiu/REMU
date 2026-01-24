@@ -25,7 +25,7 @@ debug = 1
 strip = "none"
 
 [workspace.dependencies]
-thiserror = "2.0.17"
+thiserror = "2.0.18"
 miette = "7.6.0"
 anyhow = "1.0.100"
 

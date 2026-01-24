@@ -21,3 +21,17 @@ pub fn decode(inst: u32) -> DecodedInst {
         _ => DecodedInst::default(),
     }
 }
+
+pub const RV32_INSTRUCTION_MIX: &[(u32, u32)] = &[
+    // (Base Opcode, Permille Weight)
+    (AUIPC::OPCODE, AUIPC::INSTRUCTION_MIX),
+    (BRANCH::OPCODE, BRANCH::INSTRUCTION_MIX),
+    (JAL::OPCODE, JAL::INSTRUCTION_MIX),
+    (JALR::OPCODE, JALR::INSTRUCTION_MIX),
+    (LOAD::OPCODE, LOAD::INSTRUCTION_MIX),
+    (LUI::OPCODE, LUI::INSTRUCTION_MIX),
+    (OP::OPCODE, OP::INSTRUCTION_MIX),
+    (OP_IMM::OPCODE, OP_IMM::INSTRUCTION_MIX),
+    (STORE::OPCODE, STORE::INSTRUCTION_MIX),
+    (UNKNOWN::OPCODE, UNKNOWN::INSTRUCTION_MIX),
+];
