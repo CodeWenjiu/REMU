@@ -2,7 +2,10 @@ use remu_state::State;
 
 use crate::inst::{DecodedInst, SimulatorError, imm_i, rd, rs1};
 
-pub const OPCODE: u32 = 0b110_0111;
+pub(crate) const OPCODE: u32 = 0b110_0111;
+
+#[allow(unused)]
+pub(crate) const INSTRUCTION_MIX: u32 = 30;
 
 fn jalr(state: &mut State, inst: &DecodedInst) -> Result<(), SimulatorError> {
     let value: u32 = state.reg.pc.wrapping_add(4);

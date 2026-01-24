@@ -2,7 +2,10 @@ use remu_state::State;
 
 use crate::inst::{DecodedInst, SimulatorError, imm_u, rd};
 
-pub const OPCODE: u32 = 0b001_0111;
+pub(crate) const OPCODE: u32 = 0b001_0111;
+
+#[allow(unused)]
+pub(crate) const INSTRUCTION_MIX: u32 = 20;
 
 fn auipc(state: &mut State, inst: &DecodedInst) -> Result<(), SimulatorError> {
     let value: u32 = state.reg.pc.wrapping_add(inst.imm);

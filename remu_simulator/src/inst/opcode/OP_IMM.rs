@@ -2,7 +2,10 @@ use remu_state::State;
 
 use crate::inst::{DecodedInst, SimulatorError, funct3, funct7, imm_i, rd, rs1};
 
-pub const OPCODE: u32 = 0b001_0011;
+pub(crate) const OPCODE: u32 = 0b001_0011;
+
+#[allow(unused)]
+pub(crate) const INSTRUCTION_MIX: u32 = 260;
 
 mod func3 {
     pub const ADDI: u32 = 0b000;

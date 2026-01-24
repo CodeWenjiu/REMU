@@ -2,7 +2,10 @@ use remu_state::State;
 
 use crate::inst::{DecodedInst, SimulatorError, imm_u, rd};
 
-pub const OPCODE: u32 = 0b011_0111;
+pub(crate) const OPCODE: u32 = 0b011_0111;
+
+#[allow(unused)]
+pub(crate) const INSTRUCTION_MIX: u32 = 50;
 
 fn lui(state: &mut State, inst: &DecodedInst) -> Result<(), SimulatorError> {
     let value: u32 = inst.imm;

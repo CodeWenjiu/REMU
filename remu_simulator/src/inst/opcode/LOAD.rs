@@ -2,7 +2,10 @@ use remu_state::{State, bus::BusAccess};
 
 use crate::inst::{DecodedInst, SimulatorError, funct3, imm_i, rd, rs1};
 
-pub const OPCODE: u32 = 0b000_0011;
+pub(crate) const OPCODE: u32 = 0b000_0011;
+
+#[allow(unused)]
+pub(crate) const INSTRUCTION_MIX: u32 = 220;
 
 mod func3 {
     pub const LB: u32 = 0b000;
