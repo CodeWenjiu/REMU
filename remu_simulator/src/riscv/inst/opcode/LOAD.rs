@@ -1,4 +1,5 @@
 use remu_state::{State, bus::BusAccess};
+use remu_types::Rv32Isa;
 
 use crate::riscv::inst::{DecodedInst, SimulatorError, funct3, imm_i, rd, rs1};
 
@@ -16,7 +17,10 @@ mod func3 {
 
 macro_rules! load_s {
     ($name:ident, $read_fn:ident, $u:ty, $i:ty) => {
-        fn $name(state: &mut State, inst: &DecodedInst) -> Result<(), SimulatorError> {
+        fn $name<I: Rv32Isa>(
+            state: &mut State<I>,
+            inst: &DecodedInst<I>,
+        ) -> Result<(), SimulatorError> {
             let rs1_val = state.reg.read_gpr(inst.rs1.into());
             let addr = rs1_val.wrapping_add(inst.imm);
             let value: $u = state.bus.$read_fn(addr as usize)?;
@@ -29,7 +33,10 @@ macro_rules! load_s {
 
 macro_rules! load_u {
     ($name:ident, $read_fn:ident, $u:ty) => {
-        fn $name(state: &mut State, inst: &DecodedInst) -> Result<(), SimulatorError> {
+        fn $name<I: Rv32Isa>(
+            state: &mut State<I>,
+            inst: &DecodedInst<I>,
+        ) -> Result<(), SimulatorError> {
             let rs1_val = state.reg.read_gpr(inst.rs1.into());
             let addr = rs1_val.wrapping_add(inst.imm);
             let value: $u = state.bus.$read_fn(addr as usize)?;
@@ -48,7 +55,7 @@ load_u!(lhu, read_16, u16);
 load_u!(lw, read_32, u32);
 
 #[inline(always)]
-pub(crate) fn decode(inst: u32) -> DecodedInst {
+pub(crate) fn decode<I: Rv32Isa>(inst: u32) -> DecodedInst<I> {
     let f3 = funct3(inst);
 
     let rs1 = rs1(inst);

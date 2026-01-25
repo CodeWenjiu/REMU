@@ -26,3 +26,14 @@ impl FromStr for IsaSpec {
         }
     }
 }
+
+pub trait Rv32Isa: 'static + Copy {
+    const HAS_M: bool;
+}
+
+#[derive(Debug, Clone, Copy)]
+pub struct Rv32<const M: bool>;
+
+impl<const M: bool> Rv32Isa for Rv32<M> {
+    const HAS_M: bool = M;
+}

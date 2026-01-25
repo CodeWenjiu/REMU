@@ -24,7 +24,13 @@ fn get_editor() -> Reedline {
     let completer = Box::new(RemuCompleter::new(graph.clone(), root));
     let highlighter = Box::new(RemuHighlighter::new(graph, root));
     // Use the interactive menu to select options from the completer
-    let completion_menu = Box::new(ColumnarMenu::default().with_name("completion_menu"));
+    let completion_menu = Box::new(
+        ColumnarMenu::default()
+            .with_name("completion_menu")
+            .with_columns(8)
+            .with_column_width(None)
+            .with_column_padding(0),
+    );
     // Set up the required keybindings
     let mut keybindings = default_emacs_keybindings();
     keybindings.add_binding(

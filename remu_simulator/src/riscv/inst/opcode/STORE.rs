@@ -1,4 +1,5 @@
 use remu_state::{State, bus::BusAccess};
+use remu_types::Rv32Isa;
 
 use crate::riscv::inst::{DecodedInst, SimulatorError, funct3, imm_s, rs1, rs2};
 
@@ -12,7 +13,7 @@ mod func3 {
     pub const SW: u32 = 0b010; // Store Word
 }
 
-fn sb(state: &mut State, inst: &DecodedInst) -> Result<(), SimulatorError> {
+fn sb<I: Rv32Isa>(state: &mut State<I>, inst: &DecodedInst<I>) -> Result<(), SimulatorError> {
     let rs1 = state.reg.read_gpr(inst.rs1.into());
     let addr = rs1.wrapping_add(inst.imm);
     state
@@ -22,7 +23,7 @@ fn sb(state: &mut State, inst: &DecodedInst) -> Result<(), SimulatorError> {
     Ok(())
 }
 
-fn sh(state: &mut State, inst: &DecodedInst) -> Result<(), SimulatorError> {
+fn sh<I: Rv32Isa>(state: &mut State<I>, inst: &DecodedInst<I>) -> Result<(), SimulatorError> {
     let rs1 = state.reg.read_gpr(inst.rs1.into());
     let addr = rs1.wrapping_add(inst.imm);
     state
@@ -32,7 +33,7 @@ fn sh(state: &mut State, inst: &DecodedInst) -> Result<(), SimulatorError> {
     Ok(())
 }
 
-fn sw(state: &mut State, inst: &DecodedInst) -> Result<(), SimulatorError> {
+fn sw<I: Rv32Isa>(state: &mut State<I>, inst: &DecodedInst<I>) -> Result<(), SimulatorError> {
     let rs1 = state.reg.read_gpr(inst.rs1.into());
     let addr = rs1.wrapping_add(inst.imm);
     state
@@ -43,7 +44,7 @@ fn sw(state: &mut State, inst: &DecodedInst) -> Result<(), SimulatorError> {
 }
 
 #[inline(always)]
-pub(crate) fn decode(inst: u32) -> DecodedInst {
+pub(crate) fn decode<I: Rv32Isa>(inst: u32) -> DecodedInst<I> {
     let f3 = funct3(inst);
 
     let rs1 = rs1(inst);

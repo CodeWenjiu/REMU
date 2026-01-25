@@ -16,7 +16,7 @@ impl Harness {
 
     pub fn execute(&mut self, command: &Command) {
         match command {
-            Command::State { subcmd } => self.simulator.get_state_mut().execute(subcmd),
+            Command::State { subcmd } => self.simulator.state_exec(subcmd),
             Command::Func { subcmd } => self.simulator.func(subcmd),
             Command::Step { times: steps } => self.simulator.step(*steps),
             Command::Times { subcmd } => match subcmd {

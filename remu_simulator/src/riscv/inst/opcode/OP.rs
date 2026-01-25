@@ -1,4 +1,5 @@
 use remu_state::State;
+use remu_types::Rv32Isa;
 
 use crate::riscv::inst::{DecodedInst, SimulatorError, funct3, funct7, rd, rs1, rs2};
 
@@ -24,7 +25,10 @@ mod func7 {
 
 macro_rules! op_op {
     ($name:ident, |$rs1_val:ident, $rs2_val:ident| $value:expr) => {
-        fn $name(state: &mut State, inst: &DecodedInst) -> Result<(), SimulatorError> {
+        fn $name<I: Rv32Isa>(
+            state: &mut State<I>,
+            inst: &DecodedInst<I>,
+        ) -> Result<(), SimulatorError> {
             let $rs1_val = state.reg.read_gpr(inst.rs1.into());
             let $rs2_val = state.reg.read_gpr(inst.rs2.into());
             let value: u32 = $value;
@@ -51,7 +55,7 @@ op_op!(srai, |rs1, rs2| ((rs1 as i32).wrapping_shr(rs2 & 0x1F))
     as u32);
 
 #[inline(always)]
-pub(crate) fn decode(inst: u32) -> DecodedInst {
+pub(crate) fn decode<I: Rv32Isa>(inst: u32) -> DecodedInst<I> {
     let f3 = funct3(inst);
 
     let rd = rd(inst);

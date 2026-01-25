@@ -4,7 +4,7 @@ use clap::Parser;
 
 use remu_state::bus::BusOption;
 use remu_state::{State, StateOption};
-use remu_types::{AllUsize, DynDiagError, Tracer, TracerDyn};
+use remu_types::{AllUsize, DynDiagError, Rv32, Tracer, TracerDyn};
 
 /// A minimal tracer implementation so we can construct `remu_state::State` without pulling in CLI.
 ///
@@ -38,7 +38,7 @@ impl Tracer for BenchTracer {
 }
 
 #[inline(never)]
-pub fn make_state_from_clap_defaults(tag: &'static str) -> State {
+pub fn make_state_from_clap_defaults(tag: &'static str) -> State<Rv32<true>> {
     // We intentionally reuse clap defaults so benches match real configuration.
     #[derive(clap::Parser, Debug)]
     struct Opt {

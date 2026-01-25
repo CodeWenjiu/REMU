@@ -7,6 +7,9 @@ pub enum FuncCmd {
         #[command(subcommand)]
         subcmd: TraceCmd,
     },
+
+    /// Print All Function State
+    Print,
 }
 
 #[derive(Debug, clap::Subcommand)]
@@ -18,6 +21,7 @@ pub enum TraceCmd {
     },
 }
 
+#[derive(Debug)]
 pub(crate) struct Func {
     pub trace: Trace,
 }
@@ -32,10 +36,12 @@ impl Func {
     pub fn execute(&mut self, command: &FuncCmd) {
         match command {
             FuncCmd::Trace { subcmd } => self.trace.execute(subcmd),
+            FuncCmd::Print => println!("Function State: {:?}", self),
         }
     }
 }
 
+#[derive(Debug)]
 pub(crate) struct Trace {
     pub instruction: bool,
 }

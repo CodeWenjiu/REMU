@@ -1,15 +1,14 @@
 remu_macro::mod_pub!(riscv);
 remu_macro::mod_flat!(option, func);
 
-use remu_state::State;
+use remu_state::StateCmd;
 use remu_types::{IsaSpec, TracerDyn};
 use target_lexicon::Architecture;
 
 use crate::riscv::new_simulator_riscv;
 
 pub trait Simulator {
-    fn get_state(&self) -> &State;
-    fn get_state_mut(&mut self) -> &mut State;
+    fn state_exec(&mut self, command: &StateCmd);
     fn step(&mut self, times: usize);
     fn func(&mut self, cmd: &FuncCmd);
 }

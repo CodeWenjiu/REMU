@@ -1,23 +1,23 @@
 use std::marker::PhantomData;
 
 use remu_state::{State, bus::BusAccess};
-use remu_types::TracerDyn;
+use remu_types::{Rv32, Rv32Isa, TracerDyn};
 use target_lexicon::Riscv32Architecture;
 
 use crate::{
     Func, Simulator, SimulatorOption,
-    riscv::{Isa, Rv32, SimulatorError, inst::opcode::decode},
+    riscv::{SimulatorError, inst::opcode::decode},
 };
 
 /// As a template
-pub(crate) struct SimulatorRiscv<I: Isa> {
-    state: State,
+pub(crate) struct SimulatorRiscv<I: Rv32Isa> {
+    state: State<I>,
     func: Func,
     tracer: TracerDyn,
     _marker: PhantomData<I>,
 }
 
-impl<I: Isa> SimulatorRiscv<I> {
+impl<I: Rv32Isa> SimulatorRiscv<I> {
     pub(crate) fn new(opt: SimulatorOption, tracer: TracerDyn) -> Self {
         Self {
             state: State::new(opt.state, tracer.clone()),
@@ -32,7 +32,7 @@ impl<I: Isa> SimulatorRiscv<I> {
         let pc = self.state.reg.pc;
         let inst = self.state.bus.read_32(pc as usize)?;
         let decoded = decode::<I>(inst);
-        (decoded.handler)(self.get_state_mut(), &decoded)?;
+        (decoded.handler)(&mut self.state, &decoded)?;
         if self.func.trace.instruction {
             self.tracer.borrow().disasm(pc as u64, inst);
         }
@@ -40,13 +40,9 @@ impl<I: Isa> SimulatorRiscv<I> {
     }
 }
 
-impl<I: Isa> Simulator for SimulatorRiscv<I> {
-    fn get_state(&self) -> &State {
-        &self.state
-    }
-
-    fn get_state_mut(&mut self) -> &mut State {
-        &mut self.state
+impl<I: Rv32Isa> Simulator for SimulatorRiscv<I> {
+    fn state_exec(&mut self, command: &remu_state::StateCmd) {
+        self.state.execute(command);
     }
 
     fn step(&mut self, times: usize) {
