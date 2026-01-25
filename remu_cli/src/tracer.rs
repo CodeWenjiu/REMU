@@ -227,6 +227,19 @@ impl Tracer for CLITracer {
         )
     }
 
+    fn disasm(&self, pc: u64, inst: u32) {
+        let result = match self.guesser.disassemble(pc, inst) {
+            Ok(disasm) => disasm,
+            Err(_) => format!("unknown"),
+        };
+        println!(
+            "pc: {}, inst: {}, disasm: {}",
+            format!("0x{:08x}", pc).blue(),
+            format!("0x{:08x}", inst).cyan(),
+            result.bright_white()
+        );
+    }
+
     fn deal_error(&self, error: Box<dyn DynDiagError>) {
         println!("{}: {}", "error".red(), error)
     }

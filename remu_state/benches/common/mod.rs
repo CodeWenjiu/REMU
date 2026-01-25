@@ -32,6 +32,9 @@ impl Tracer for BenchTracer {
 
     #[inline(always)]
     fn reg_print(&self, _regs: &[(remu_types::Gpr, u32); 32], _range: Range<usize>) {}
+
+    #[inline(always)]
+    fn disasm(&self, _pc: u64, _inst: u32) {}
 }
 
 #[inline(never)]

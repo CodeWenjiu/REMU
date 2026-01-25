@@ -35,6 +35,8 @@ pub trait Tracer {
     fn reg_print(&self, regs: &[(Gpr, u32); 32], range: Range<usize>);
     fn reg_show(&self, index: Gpr, data: u32);
 
+    fn disasm(&self, pc: u64, inst: u32);
+
     fn deal_error(&self, error: Box<dyn DynDiagError>);
 }
 

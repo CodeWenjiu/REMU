@@ -1,4 +1,5 @@
 use clap::builder::styling;
+use remu_simulator::FuncCmd;
 use remu_state::StateCmd;
 
 #[derive(clap::Parser, Debug)]
@@ -41,6 +42,12 @@ pub enum Command {
     State {
         #[command(subcommand)]
         subcmd: StateCmd,
+    },
+
+    /// Function Command
+    Func {
+        #[command(subcommand)]
+        subcmd: FuncCmd,
     },
 }
 

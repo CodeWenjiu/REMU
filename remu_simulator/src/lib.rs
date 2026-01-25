@@ -1,5 +1,5 @@
 remu_macro::mod_pub!(riscv);
-remu_macro::mod_flat!(option);
+remu_macro::mod_flat!(option, func);
 
 use remu_state::State;
 use remu_types::{IsaSpec, TracerDyn};
@@ -11,6 +11,7 @@ pub trait Simulator {
     fn get_state(&self) -> &State;
     fn get_state_mut(&mut self) -> &mut State;
     fn step(&mut self, times: usize);
+    fn func(&mut self, cmd: &FuncCmd);
 }
 
 pub fn new_simulator(

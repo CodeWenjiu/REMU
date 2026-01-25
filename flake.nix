@@ -41,13 +41,6 @@
             clang
             mold
           ];
-
-          shellHook = ''
-            if [ -z "''${_NU_LAUNCHED:-}" ]; then
-              export _NU_LAUNCHED=1
-              nu
-            fi
-          '';
         };
       }
     );
