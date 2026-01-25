@@ -1,22 +1,18 @@
 #![allow(non_snake_case)]
 
-use remu_state::{State, bus::BusFault};
-use thiserror::Error;
+use remu_state::State;
+
+use crate::riscv::SimulatorError;
 remu_macro::mod_pub!(opcode);
 remu_macro::mod_flat!(bytes);
 
-#[derive(Debug, Error)]
-pub enum SimulatorError {
-    #[error("Memory access error {0}")]
-    MemoryAccessError(#[from] BusFault),
-}
-
 #[derive(Clone, Copy)]
 pub struct DecodedInst {
-    pub rs1: u8,
-    pub rs2: u8,
-    pub rd: u8,
+    pub(crate) rs1: u8,
+    pub(crate) rs2: u8,
+    pub(crate) rd: u8,
+    /// Public so the decode bench (separate crate) can use it; others use pub(crate).
     pub imm: u32,
 
-    pub handler: fn(&mut State, &DecodedInst) -> Result<(), SimulatorError>,
+    pub(crate) handler: fn(&mut State, &DecodedInst) -> Result<(), SimulatorError>,
 }

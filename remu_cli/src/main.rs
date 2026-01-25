@@ -76,7 +76,7 @@ fn main() -> Result<()> {
     let _guard = remu_logger::set_logger("target/logs", "remu.log")?;
 
     let option = RemuOptionParer::parse();
-    let tracer: TracerDyn = Rc::new(RefCell::new(CLITracer::new(option.isa.clone())));
+    let tracer: TracerDyn = Rc::new(RefCell::new(CLITracer::new(option.harness.isa.clone())));
     let mut debugger = remu_debugger::Debugger::new(option, tracer);
 
     let mut line_editor = get_editor();

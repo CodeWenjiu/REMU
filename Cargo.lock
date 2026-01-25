@@ -1354,6 +1354,7 @@ dependencies = [
  "remu_macro",
  "remu_state",
  "remu_types",
+ "target-lexicon",
  "thiserror",
  "tracing",
 ]

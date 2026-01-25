@@ -2,9 +2,10 @@ remu_macro::mod_pub!(riscv);
 remu_macro::mod_flat!(option);
 
 use remu_state::State;
-use remu_types::TracerDyn;
+use remu_types::{IsaSpec, TracerDyn};
+use target_lexicon::Architecture;
 
-use crate::riscv::SimulatorRiscv;
+use crate::riscv::new_simulator_riscv;
 
 pub trait Simulator {
     fn get_state(&self) -> &State;
@@ -12,6 +13,13 @@ pub trait Simulator {
     fn step(&mut self, times: usize);
 }
 
-pub fn new_simulator(option: SimulatorOption, tracer: TracerDyn) -> impl Simulator {
-    SimulatorRiscv::new(option, tracer)
+pub fn new_simulator(
+    option: SimulatorOption,
+    isa: IsaSpec,
+    tracer: TracerDyn,
+) -> Box<dyn Simulator> {
+    match isa.0 {
+        Architecture::Riscv32(isa) => new_simulator_riscv(option, isa, tracer),
+        _ => unreachable!(),
+    }
 }

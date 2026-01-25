@@ -6,7 +6,10 @@ use rand::{
     distr::{Distribution, weighted::WeightedIndex},
     rngs::ThreadRng,
 };
-use remu_simulator::riscv::inst::opcode::{self, RV32_INSTRUCTION_MIX};
+use remu_simulator::riscv::{
+    Rv32,
+    inst::opcode::{self, RV32_INSTRUCTION_MIX},
+};
 
 /// Benchmark names used in `c.bench_function(...)`.
 ///
@@ -16,13 +19,13 @@ use remu_simulator::riscv::inst::opcode::{self, RV32_INSTRUCTION_MIX};
 /// `target/criterion/<BENCH_NAME>/profile/flamegraph.svg`
 const BENCH_NAME: &str = "decode_inst_stream";
 
-pub struct InstructionGenerator {
+struct InstructionGenerator {
     dist: WeightedIndex<u32>,
     opcodes: Vec<u32>,
 }
 
 impl InstructionGenerator {
-    pub fn new() -> Self {
+    fn new() -> Self {
         let opcodes: Vec<u32> = RV32_INSTRUCTION_MIX.iter().map(|(op, _)| *op).collect();
         let weights: Vec<u32> = RV32_INSTRUCTION_MIX.iter().map(|(_, w)| *w).collect();
 
@@ -32,7 +35,7 @@ impl InstructionGenerator {
     }
 
     #[inline(always)]
-    pub fn next(&self, rng: &mut ThreadRng) -> u32 {
+    fn next(&self, rng: &mut ThreadRng) -> u32 {
         let idx = self.dist.sample(rng);
         let opcode = self.opcodes[idx];
 
@@ -52,7 +55,7 @@ fn build_inst_stream(len: usize) -> Vec<u32> {
 fn run_decode_workload(insts: &[u32]) {
     let mut acc: u64 = 0;
     for &inst in insts {
-        let decoded = opcode::decode(inst);
+        let decoded = opcode::decode::<Rv32<false>>(inst);
         acc = acc.wrapping_add(decoded.imm as u64);
     }
     black_box(acc);

@@ -24,6 +24,13 @@ pub enum Command {
     /// continue the emulator
     Continue,
 
+    /// Step
+    Step {
+        /// Number of steps to take
+        #[arg(default_value_t = 1)]
+        times: usize,
+    },
+
     /// Times printf
     Times {
         #[command(subcommand)]
