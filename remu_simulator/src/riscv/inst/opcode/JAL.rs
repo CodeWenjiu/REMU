@@ -1,6 +1,6 @@
 use remu_state::State;
 
-use crate::inst::{DecodedInst, SimulatorError, imm_j, rd};
+use crate::riscv::inst::{DecodedInst, SimulatorError, imm_j, rd};
 
 pub(crate) const OPCODE: u32 = 0b110_1111;
 

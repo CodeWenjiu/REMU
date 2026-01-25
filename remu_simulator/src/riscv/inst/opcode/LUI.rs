@@ -1,13 +1,13 @@
 use remu_state::State;
 
-use crate::inst::{DecodedInst, SimulatorError, imm_u, rd};
+use crate::riscv::inst::{DecodedInst, SimulatorError, imm_u, rd};
 
-pub(crate) const OPCODE: u32 = 0b001_0111;
+pub(crate) const OPCODE: u32 = 0b011_0111;
 
-pub(crate) const INSTRUCTION_MIX: u32 = 20;
+pub(crate) const INSTRUCTION_MIX: u32 = 50;
 
-fn auipc(state: &mut State, inst: &DecodedInst) -> Result<(), SimulatorError> {
-    let value: u32 = state.reg.pc.wrapping_add(inst.imm);
+fn lui(state: &mut State, inst: &DecodedInst) -> Result<(), SimulatorError> {
+    let value: u32 = inst.imm;
     state.reg.write_gpr(inst.rd.into(), value);
     state.reg.pc = state.reg.pc.wrapping_add(4);
     Ok(())
@@ -20,6 +20,6 @@ pub(crate) fn decode(inst: u32) -> DecodedInst {
         rs2: 0,
         rd: rd(inst),
         imm: imm_u(inst),
-        handler: auipc,
+        handler: lui,
     }
 }

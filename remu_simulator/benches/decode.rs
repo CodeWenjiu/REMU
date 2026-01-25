@@ -6,7 +6,7 @@ use rand::{
     distr::{Distribution, weighted::WeightedIndex},
     rngs::ThreadRng,
 };
-use remu_simulator::inst::opcode::{self, RV32_INSTRUCTION_MIX};
+use remu_simulator::riscv::inst::opcode::{self, RV32_INSTRUCTION_MIX};
 
 /// Benchmark names used in `c.bench_function(...)`.
 ///

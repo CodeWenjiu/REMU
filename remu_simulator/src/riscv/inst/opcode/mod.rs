@@ -1,6 +1,6 @@
 #![allow(non_snake_case)]
 
-use crate::inst::{DecodedInst, opcode};
+use crate::riscv::inst::{DecodedInst, opcode};
 remu_macro::mod_flat!(
     LUI, AUIPC, JAL, JALR, BRANCH, OP_IMM, OP, LOAD, STORE, UNKNOWN
 );
