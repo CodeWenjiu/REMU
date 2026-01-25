@@ -1,0 +1,9 @@
+{
+    "lsp": {
+        "rust-analyzer": {
+            "binary": {
+                "path": "rust-analyzer"
+            }
+        }
+    }
+}
