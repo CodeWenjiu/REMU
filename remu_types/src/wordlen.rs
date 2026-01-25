@@ -34,19 +34,12 @@ pub trait Xlen: MachineWord {
     const BITS: u32;
 }
 
-pub trait Support64: Xlen {}
-pub trait Support128: Xlen {}
-
 impl MachineWord for u32 {}
 impl MachineWord for i32 {}
 impl MachineWord for u64 {}
 impl MachineWord for i64 {}
 impl MachineWord for u128 {}
 impl MachineWord for i128 {}
-
-impl Support64 for u64 {}
-impl Support64 for u128 {}
-impl Support128 for u128 {}
 
 impl Xlen for u32 {
     type Signed = i32;

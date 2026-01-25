@@ -96,12 +96,13 @@ impl<I: RvIsa> Bus<I> {
                     }
                     ReadCommand::U32(arg) => {
                         (arg.addr, self.read_32(arg.addr).map(|v| AllUsize::U32(v)))
-                    } // ReadCommand::U64(arg) => {
-                      //     (arg.addr, self.read_64(arg.addr).map(|v| AllUsize::U64(v)))
-                      // }
-                      // ReadCommand::U128(arg) => {
-                      //     (arg.addr, self.read_128(arg.addr).map(|v| AllUsize::U128(v)))
-                      // }
+                    }
+                    ReadCommand::U64(arg) => {
+                        (arg.addr, self.read_64(arg.addr).map(|v| AllUsize::U64(v)))
+                    }
+                    ReadCommand::U128(arg) => {
+                        (arg.addr, self.read_128(arg.addr).map(|v| AllUsize::U128(v)))
+                    }
                 };
                 self.tracer.borrow().mem_show(
                     addr,
@@ -120,8 +121,8 @@ impl<I: RvIsa> Bus<I> {
                     WriteCommand::U8 { addr, value } => self.write_8(*addr, *value),
                     WriteCommand::U16 { addr, value } => self.write_16(*addr, *value),
                     WriteCommand::U32 { addr, value } => self.write_32(*addr, *value),
-                    // WriteCommand::U64 { addr, value } => self.write_64(*addr, *value),
-                    // WriteCommand::U128 { addr, value } => self.write_128(*addr, *value),
+                    WriteCommand::U64 { addr, value } => self.write_64(*addr, *value),
+                    WriteCommand::U128 { addr, value } => self.write_128(*addr, *value),
                 };
                 if let Err(e) = result {
                     self.tracer
