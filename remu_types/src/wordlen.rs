@@ -23,11 +23,6 @@ pub trait MachineWord:
 {
 }
 
-impl MachineWord for u32 {}
-impl MachineWord for i32 {}
-impl MachineWord for u64 {}
-impl MachineWord for i64 {}
-
 pub trait Xlen: MachineWord {
     type Signed: MachineWord;
 
@@ -38,6 +33,20 @@ pub trait Xlen: MachineWord {
 
     const BITS: u32;
 }
+
+pub trait Support64: Xlen {}
+pub trait Support128: Xlen {}
+
+impl MachineWord for u32 {}
+impl MachineWord for i32 {}
+impl MachineWord for u64 {}
+impl MachineWord for i64 {}
+impl MachineWord for u128 {}
+impl MachineWord for i128 {}
+
+impl Support64 for u64 {}
+impl Support64 for u128 {}
+impl Support128 for u128 {}
 
 impl Xlen for u32 {
     type Signed = i32;
@@ -71,4 +80,21 @@ impl Xlen for u64 {
     }
 
     const BITS: u32 = 64;
+}
+
+impl Xlen for u128 {
+    type Signed = i128;
+    type Unsigned = u128;
+
+    #[inline(always)]
+    fn to_signed(self) -> i128 {
+        self as i128
+    }
+
+    #[inline(always)]
+    fn from_signed(s: i128) -> u128 {
+        s as u128
+    }
+
+    const BITS: u32 = 128;
 }

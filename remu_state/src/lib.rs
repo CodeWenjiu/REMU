@@ -9,7 +9,7 @@ remu_macro::mod_flat!(option, command);
 
 /// State template
 pub struct State<I: RvIsa> {
-    pub bus: Bus,
+    pub bus: Bus<I>,
     pub reg: RiscvReg,
     tracer: remu_types::TracerDyn,
     _marker: PhantomData<I>,

@@ -1,4 +1,4 @@
-use remu_state::{State, bus::BusAccess};
+use remu_state::State;
 use remu_types::RvIsa;
 
 use crate::riscv::inst::{DecodedInst, SimulatorError, funct3, imm_s, rs1, rs2};

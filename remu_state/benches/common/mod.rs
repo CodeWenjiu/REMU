@@ -62,7 +62,7 @@ pub fn make_state_from_clap_defaults(tag: &'static str) -> State<Rv32<true>> {
 }
 
 #[inline(never)]
-pub fn prepare_workload_random_full() -> (Vec<usize>, Vec<usize>, Vec<usize>, Vec<usize>) {
+pub fn prepare_workload_random_full() -> (Vec<usize>, Vec<usize>, Vec<usize>) {
     // Default mapped RAM region:
     //   [0x8000_0000, 0x8800_0000)
     const BASE: usize = 0x8000_0000;
@@ -77,7 +77,6 @@ pub fn prepare_workload_random_full() -> (Vec<usize>, Vec<usize>, Vec<usize>, Ve
     let mut addrs8: Vec<usize> = Vec::with_capacity(PER_KIND);
     let mut addrs16: Vec<usize> = Vec::with_capacity(PER_KIND);
     let mut addrs32: Vec<usize> = Vec::with_capacity(PER_KIND);
-    let mut addrs64: Vec<usize> = Vec::with_capacity(PER_KIND);
 
     for _ in 0..PER_KIND {
         rng ^= rng >> 12;
@@ -101,21 +100,13 @@ pub fn prepare_workload_random_full() -> (Vec<usize>, Vec<usize>, Vec<usize>, Ve
         let max32 = SIZE - 4;
         let off32 = ((x32 >> 2) as usize % (max32 + 1)) & !3usize;
         addrs32.push(BASE + off32);
-
-        rng ^= rng >> 12;
-        rng ^= rng << 25;
-        rng ^= rng >> 27;
-        let x64 = rng.wrapping_mul(0x2545_F491_4F6C_DD1D);
-        let max64 = SIZE - 8;
-        let off64 = ((x64 >> 2) as usize % (max64 + 1)) & !7usize;
-        addrs64.push(BASE + off64);
     }
 
-    (addrs8, addrs16, addrs32, addrs64)
+    (addrs8, addrs16, addrs32)
 }
 
 #[inline(never)]
-pub fn prepare_workload_sequential() -> (Vec<usize>, Vec<usize>, Vec<usize>, Vec<usize>) {
+pub fn prepare_workload_sequential() -> (Vec<usize>, Vec<usize>, Vec<usize>) {
     const BASE: usize = 0x8000_0000;
     const SIZE: usize = 0x0800_0000;
 
@@ -124,7 +115,6 @@ pub fn prepare_workload_sequential() -> (Vec<usize>, Vec<usize>, Vec<usize>, Vec
     let mut addrs8: Vec<usize> = Vec::with_capacity(PER_KIND);
     let mut addrs16: Vec<usize> = Vec::with_capacity(PER_KIND);
     let mut addrs32: Vec<usize> = Vec::with_capacity(PER_KIND);
-    let mut addrs64: Vec<usize> = Vec::with_capacity(PER_KIND);
 
     for i in 0..PER_KIND {
         let off8 = i % SIZE;
@@ -137,17 +127,13 @@ pub fn prepare_workload_sequential() -> (Vec<usize>, Vec<usize>, Vec<usize>, Vec
         let max32 = SIZE - 4;
         let off32 = ((4 * i) % (max32 + 1)) & !3usize;
         addrs32.push(BASE + off32);
-
-        let max64 = SIZE - 8;
-        let off64 = ((8 * i) % (max64 + 1)) & !7usize;
-        addrs64.push(BASE + off64);
     }
 
-    (addrs8, addrs16, addrs32, addrs64)
+    (addrs8, addrs16, addrs32)
 }
 
 #[inline(never)]
-pub fn prepare_workload_small_ws() -> (Vec<usize>, Vec<usize>, Vec<usize>, Vec<usize>) {
+pub fn prepare_workload_small_ws() -> (Vec<usize>, Vec<usize>, Vec<usize>) {
     const BASE: usize = 0x8000_0000;
     const SIZE: usize = 256 * 1024;
 
@@ -158,7 +144,6 @@ pub fn prepare_workload_small_ws() -> (Vec<usize>, Vec<usize>, Vec<usize>, Vec<u
     let mut addrs8: Vec<usize> = Vec::with_capacity(PER_KIND);
     let mut addrs16: Vec<usize> = Vec::with_capacity(PER_KIND);
     let mut addrs32: Vec<usize> = Vec::with_capacity(PER_KIND);
-    let mut addrs64: Vec<usize> = Vec::with_capacity(PER_KIND);
 
     for _ in 0..PER_KIND {
         rng ^= rng >> 12;
@@ -182,15 +167,7 @@ pub fn prepare_workload_small_ws() -> (Vec<usize>, Vec<usize>, Vec<usize>, Vec<u
         let max32 = SIZE - 4;
         let off32 = ((x32 >> 2) as usize % (max32 + 1)) & !3usize;
         addrs32.push(BASE + off32);
-
-        rng ^= rng >> 12;
-        rng ^= rng << 25;
-        rng ^= rng >> 27;
-        let x64 = rng.wrapping_mul(0x2545_F491_4F6C_DD1D);
-        let max64 = SIZE - 8;
-        let off64 = ((x64 >> 2) as usize % (max64 + 1)) & !7usize;
-        addrs64.push(BASE + off64);
     }
 
-    (addrs8, addrs16, addrs32, addrs64)
+    (addrs8, addrs16, addrs32)
 }

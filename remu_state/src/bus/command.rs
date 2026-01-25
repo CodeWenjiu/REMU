@@ -41,8 +41,8 @@ pub enum ReadCommand {
     U8(ReadArgs),
     U16(ReadArgs),
     U32(ReadArgs),
-    U64(ReadArgs),
-    U128(ReadArgs),
+    // U64(ReadArgs),
+    // U128(ReadArgs),
 }
 
 #[derive(Debug, clap::Args)]
@@ -83,24 +83,23 @@ pub enum WriteCommand {
         #[arg(value_parser = parse_prefixed_uint::<u32>)]
         value: u32,
     },
+    // U64 {
+    //     /// Address to start write
+    //     #[arg(value_parser = parse_prefixed_uint::<usize>)]
+    //     addr: usize,
 
-    U64 {
-        /// Address to start write
-        #[arg(value_parser = parse_prefixed_uint::<usize>)]
-        addr: usize,
+    //     /// Value to write
+    //     #[arg(value_parser = parse_prefixed_uint::<u64>)]
+    //     value: u64,
+    // },
 
-        /// Value to write
-        #[arg(value_parser = parse_prefixed_uint::<u64>)]
-        value: u64,
-    },
+    // U128 {
+    //     /// Address to start write
+    //     #[arg(value_parser = parse_prefixed_uint::<usize>)]
+    //     addr: usize,
 
-    U128 {
-        /// Address to start write
-        #[arg(value_parser = parse_prefixed_uint::<usize>)]
-        addr: usize,
-
-        /// Value to write
-        #[arg(value_parser = parse_prefixed_uint::<u128>)]
-        value: u128,
-    },
+    //     /// Value to write
+    //     #[arg(value_parser = parse_prefixed_uint::<u128>)]
+    //     value: u128,
+    // },
 }

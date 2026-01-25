@@ -1,6 +1,6 @@
 use std::marker::PhantomData;
 
-use remu_state::{State, bus::BusAccess};
+use remu_state::State;
 use remu_types::{Rv32, RvIsa, TracerDyn};
 use target_lexicon::Riscv32Architecture;
 
