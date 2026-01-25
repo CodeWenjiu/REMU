@@ -2,10 +2,8 @@ use remu_state::State;
 
 use crate::inst::{DecodedInst, SimulatorError};
 
-#[allow(unused)]
 pub(crate) const OPCODE: u32 = 0b111_1111;
 
-#[allow(unused)]
 pub(crate) const INSTRUCTION_MIX: u32 = 2;
 
 // WIP

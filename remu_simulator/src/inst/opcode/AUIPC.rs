@@ -4,7 +4,6 @@ use crate::inst::{DecodedInst, SimulatorError, imm_u, rd};
 
 pub(crate) const OPCODE: u32 = 0b001_0111;
 
-#[allow(unused)]
 pub(crate) const INSTRUCTION_MIX: u32 = 20;
 
 fn auipc(state: &mut State, inst: &DecodedInst) -> Result<(), SimulatorError> {

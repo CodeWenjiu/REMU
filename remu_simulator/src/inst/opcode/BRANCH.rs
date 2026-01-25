@@ -4,7 +4,6 @@ use crate::inst::{DecodedInst, SimulatorError, funct3, imm_b, rs1, rs2};
 
 pub(crate) const OPCODE: u32 = 0b110_0011;
 
-#[allow(unused)]
 pub(crate) const INSTRUCTION_MIX: u32 = 140;
 
 mod func3 {

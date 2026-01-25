@@ -4,7 +4,6 @@ use crate::inst::{DecodedInst, SimulatorError, imm_j, rd};
 
 pub(crate) const OPCODE: u32 = 0b110_1111;
 
-#[allow(unused)]
 pub(crate) const INSTRUCTION_MIX: u32 = 30;
 
 fn jal(state: &mut State, inst: &DecodedInst) -> Result<(), SimulatorError> {
