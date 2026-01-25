@@ -1,1 +1,0 @@
-remu_macro::mod_pub!(user_input);

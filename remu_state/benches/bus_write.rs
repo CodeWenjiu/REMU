@@ -2,7 +2,7 @@ use criterion::{Criterion, black_box, criterion_group, criterion_main};
 
 use pprof::criterion::{Output, PProfProfiler};
 use remu_state::bus::Bus;
-use remu_types::Rv32;
+use remu_types::Rv32I;
 
 mod common;
 
@@ -18,7 +18,7 @@ const BENCH_WRITE_NAME_SMALL_WS: &str = "bus_write_mixed_1_1_1_u8_u16_u32_small_
 
 #[inline(never)]
 fn run_write_workload(
-    bus: &mut Bus<Rv32<true>>,
+    bus: &mut Bus<Rv32I>,
     addrs8: &[usize],
     addrs16: &[usize],
     addrs32: &[usize],

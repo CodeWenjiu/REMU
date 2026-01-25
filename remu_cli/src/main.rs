@@ -8,8 +8,9 @@ use reedline::{
     Reedline, ReedlineEvent, ReedlineMenu, Signal, default_emacs_keybindings,
 };
 use remu_simulator::SimulatorOption;
-use remu_types::TracerDyn;
+use remu_types::{Rv32I, Rv32IM, RvIsa, TracerDyn};
 use std::{cell::RefCell, rc::Rc};
+use target_lexicon::{Architecture, Riscv32Architecture};
 
 remu_macro::mod_flat!(compeleter, highlighter, validator, prompt, tracer);
 
@@ -78,12 +79,9 @@ fn hello() {
     println!("{}", output.text);
 }
 
-fn main() -> Result<()> {
-    let _guard = remu_logger::set_logger("target/logs", "remu.log")?;
-
-    let option = SimulatorOption::parse();
+fn run_debugger<I: RvIsa>(option: SimulatorOption) {
     let tracer: TracerDyn = Rc::new(RefCell::new(CLITracer::new(option.isa.clone())));
-    let mut debugger = remu_debugger::Debugger::new(option, tracer);
+    let mut debugger = remu_debugger::Debugger::<I>::new(option, tracer);
 
     let mut line_editor = get_editor();
     let prompt = get_prompt();
@@ -104,6 +102,21 @@ fn main() -> Result<()> {
             }
             _ => {}
         }
+    }
+}
+
+fn main() -> Result<()> {
+    let _guard = remu_logger::set_logger("target/logs", "remu.log")?;
+
+    let option = SimulatorOption::parse();
+
+    match option.isa.0 {
+        Architecture::Riscv32(arch) => match arch {
+            Riscv32Architecture::Riscv32i => run_debugger::<Rv32I>(option),
+            Riscv32Architecture::Riscv32im => run_debugger::<Rv32IM>(option),
+            _ => unreachable!(),
+        },
+        _ => unreachable!(),
     }
 
     Ok(())

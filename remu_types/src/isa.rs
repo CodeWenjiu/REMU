@@ -7,6 +7,22 @@ use crate::Xlen;
 #[derive(Debug, Clone)]
 pub struct IsaSpec(pub Architecture);
 
+pub trait RvIsa: 'static + Copy {
+    type XLEN: Xlen;
+    const HAS_M: bool;
+}
+
+#[derive(Debug, Clone, Copy)]
+pub struct Rv32<const M: bool>;
+
+impl<const M: bool> RvIsa for Rv32<M> {
+    type XLEN = u32;
+    const HAS_M: bool = M;
+}
+
+pub type Rv32I = Rv32<false>;
+pub type Rv32IM = Rv32<true>;
+
 impl FromStr for IsaSpec {
     type Err = String;
 
@@ -27,17 +43,4 @@ impl FromStr for IsaSpec {
             _ => Err(format!("Unsupported ISA architecture: {}", architecture)),
         }
     }
-}
-
-pub trait RvIsa: 'static + Copy {
-    type XLEN: Xlen;
-    const HAS_M: bool;
-}
-
-#[derive(Debug, Clone, Copy)]
-pub struct Rv32<const M: bool>;
-
-impl<const M: bool> RvIsa for Rv32<M> {
-    type XLEN = u32;
-    const HAS_M: bool = M;
 }

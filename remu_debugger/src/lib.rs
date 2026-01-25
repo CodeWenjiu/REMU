@@ -2,17 +2,17 @@ use clap::Parser;
 
 remu_macro::mod_flat!(command, error, compound_command);
 pub use command::get_command_graph;
-use remu_simulator::{Command, Simulator, SimulatorCommand, SimulatorOption, new_simulator};
-use remu_types::TracerDyn;
+use remu_simulator::{Command, Simulator, SimulatorCommand, SimulatorOption};
+use remu_types::{RvIsa, TracerDyn};
 
-pub struct Debugger {
-    simulator: Box<dyn Simulator>,
+pub struct Debugger<I: RvIsa> {
+    simulator: Simulator<I>,
 }
 
-impl Debugger {
+impl<I: RvIsa> Debugger<I> {
     pub fn new(opt: SimulatorOption, tracer: TracerDyn) -> Self {
         Debugger {
-            simulator: new_simulator(opt, tracer),
+            simulator: Simulator::new(opt, tracer),
         }
     }
 

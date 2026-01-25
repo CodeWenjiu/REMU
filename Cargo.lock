@@ -1284,6 +1284,7 @@ dependencies = [
  "remu_simulator",
  "remu_types",
  "tabled",
+ "target-lexicon",
  "tracing",
  "winnow",
 ]
