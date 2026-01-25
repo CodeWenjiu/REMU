@@ -10,7 +10,7 @@ pub(crate) const INSTRUCTION_MIX: u32 = 50;
 fn lui<I: RvIsa>(state: &mut State<I>, inst: &DecodedInst<I>) -> Result<(), SimulatorError> {
     let value: u32 = inst.imm;
     state.reg.write_gpr(inst.rd.into(), value);
-    state.reg.pc = state.reg.pc.wrapping_add(4);
+    state.reg.write_pc(state.reg.read_pc().wrapping_add(4));
     Ok(())
 }
 

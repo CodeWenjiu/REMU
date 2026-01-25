@@ -19,7 +19,7 @@ fn sb<I: RvIsa>(state: &mut State<I>, inst: &DecodedInst<I>) -> Result<(), Simul
     state
         .bus
         .write_8(addr as usize, state.reg.read_gpr(inst.rs2.into()) as u8)?;
-    state.reg.pc = state.reg.pc.wrapping_add(4);
+    state.reg.write_pc(state.reg.read_pc().wrapping_add(4));
     Ok(())
 }
 
@@ -29,7 +29,7 @@ fn sh<I: RvIsa>(state: &mut State<I>, inst: &DecodedInst<I>) -> Result<(), Simul
     state
         .bus
         .write_16(addr as usize, state.reg.read_gpr(inst.rs2.into()) as u16)?;
-    state.reg.pc = state.reg.pc.wrapping_add(4);
+    state.reg.write_pc(state.reg.read_pc().wrapping_add(4));
     Ok(())
 }
 
@@ -39,7 +39,7 @@ fn sw<I: RvIsa>(state: &mut State<I>, inst: &DecodedInst<I>) -> Result<(), Simul
     state
         .bus
         .write_32(addr as usize, state.reg.read_gpr(inst.rs2.into()))?;
-    state.reg.pc = state.reg.pc.wrapping_add(4);
+    state.reg.write_pc(state.reg.read_pc().wrapping_add(4));
     Ok(())
 }
 

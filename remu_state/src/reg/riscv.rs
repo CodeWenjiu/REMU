@@ -1,7 +1,7 @@
 use crate::reg::{RegCmd, RegOption};
 
 pub struct RiscvReg {
-    pub pc: u32,
+    pc: u32,
     gpr: [u32; 32],
     tracer: remu_types::TracerDyn,
 }
@@ -23,6 +23,16 @@ impl RiscvReg {
     #[inline(always)]
     pub fn write_gpr(&mut self, index: usize, value: u32) {
         unsafe { *self.gpr.get_unchecked_mut(index) = value }
+    }
+
+    #[inline(always)]
+    pub fn read_pc(&self) -> u32 {
+        self.pc
+    }
+
+    #[inline(always)]
+    pub fn write_pc(&mut self, value: u32) {
+        self.pc = value;
     }
 
     pub(crate) fn execute(&mut self, cmd: &RegCmd) {

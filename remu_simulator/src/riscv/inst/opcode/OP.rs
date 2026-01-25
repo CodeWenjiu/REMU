@@ -43,7 +43,7 @@ macro_rules! op_op {
             let $rs2_val = state.reg.read_gpr(inst.rs2.into());
             let value: u32 = $value;
             state.reg.write_gpr(inst.rd.into(), value);
-            state.reg.pc = state.reg.pc.wrapping_add(4);
+            state.reg.write_pc(state.reg.read_pc().wrapping_add(4));
             Ok(())
         }
     };

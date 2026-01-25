@@ -25,7 +25,7 @@ macro_rules! load_s {
             let addr = rs1_val.wrapping_add(inst.imm);
             let value: $u = state.bus.$read_fn(addr as usize)?;
             state.reg.write_gpr(inst.rd.into(), (value as $i) as u32);
-            state.reg.pc = state.reg.pc.wrapping_add(4);
+            state.reg.write_pc(state.reg.read_pc().wrapping_add(4));
             Ok(())
         }
     };
@@ -41,7 +41,7 @@ macro_rules! load_u {
             let addr = rs1_val.wrapping_add(inst.imm);
             let value: $u = state.bus.$read_fn(addr as usize)?;
             state.reg.write_gpr(inst.rd.into(), value as u32);
-            state.reg.pc = state.reg.pc.wrapping_add(4);
+            state.reg.write_pc(state.reg.read_pc().wrapping_add(4));
             Ok(())
         }
     };

@@ -7,17 +7,19 @@ use remu_state::State;
 use remu_types::{RvIsa, TracerDyn};
 
 /// As a template
-pub struct Simulator<I: RvIsa> {
+pub struct Simulator<I: RvIsa, const DIFF_TEST: u8 = 0> {
     state: State<I>,
+    _ref_state: State<I>,
     func: Func,
     tracer: TracerDyn,
     _marker: PhantomData<I>,
 }
 
-impl<I: RvIsa> Simulator<I> {
+impl<I: RvIsa, const DIFF_TEST: u8> Simulator<I, DIFF_TEST> {
     pub fn new(opt: SimulatorOption, tracer: TracerDyn) -> Self {
         Self {
-            state: State::new(opt.state, tracer.clone()),
+            state: State::new(opt.state.clone(), tracer.clone()),
+            _ref_state: State::new(opt.state, tracer.clone()),
             func: Func::new(),
             tracer,
             _marker: PhantomData,
@@ -26,7 +28,7 @@ impl<I: RvIsa> Simulator<I> {
 
     #[inline(always)]
     fn step_once(&mut self) -> Result<(), SimulatorError> {
-        let pc = self.state.reg.pc;
+        let pc = self.state.reg.read_pc();
         let inst = self.state.bus.read_32(pc as usize)?;
         let decoded = decode::<I>(inst);
         (decoded.handler)(&mut self.state, &decoded)?;
