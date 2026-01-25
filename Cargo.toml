@@ -2,12 +2,15 @@
 resolver = "2"
 members = [
     "remu_macro",
-    "remu_cli",
-    "remu_debugger",
     "remu_logger",
+    "remu_types",
+    "remu_fmt",
+
+    "remu_cli",
+
+    "remu_debugger",
     "remu_simulator",
     "remu_state",
-    "remu_harness", "remu_fmt", "remu_types",
 ]
 
 [profile.release]

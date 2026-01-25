@@ -5,7 +5,7 @@ use remu_types::{Rv32, RvIsa, TracerDyn};
 use target_lexicon::Riscv32Architecture;
 
 use crate::{
-    Func, Simulator, SimulatorOption,
+    Command, Func, Simulator, SimulatorOption,
     riscv::{SimulatorError, inst::opcode::decode},
 };
 
@@ -38,12 +38,6 @@ impl<I: RvIsa> SimulatorRiscv<I> {
         }
         Ok(())
     }
-}
-
-impl<I: RvIsa> Simulator for SimulatorRiscv<I> {
-    fn state_exec(&mut self, command: &remu_state::StateCmd) {
-        self.state.execute(command);
-    }
 
     fn step(&mut self, times: usize) {
         for _ in 0..times {
@@ -56,9 +50,16 @@ impl<I: RvIsa> Simulator for SimulatorRiscv<I> {
             }
         }
     }
+}
 
-    fn func(&mut self, cmd: &crate::FuncCmd) {
-        self.func.execute(cmd);
+impl<I: RvIsa> Simulator for SimulatorRiscv<I> {
+    fn exec(&mut self, command: &Command) {
+        match command {
+            Command::Continue => self.step(usize::MAX),
+            Command::Func { subcmd } => self.func.execute(subcmd),
+            Command::State { subcmd } => self.state.execute(subcmd),
+            Command::Step { times } => self.step(*times),
+        }
     }
 }
 

@@ -1279,9 +1279,9 @@ dependencies = [
  "reedline",
  "remu_debugger",
  "remu_fmt",
- "remu_harness",
  "remu_logger",
  "remu_macro",
+ "remu_simulator",
  "remu_types",
  "tabled",
  "tracing",
@@ -1295,8 +1295,8 @@ dependencies = [
  "clap",
  "miette",
  "petgraph",
- "remu_harness",
  "remu_macro",
+ "remu_simulator",
  "remu_types",
  "thiserror",
  "tracing",
@@ -1313,19 +1313,6 @@ dependencies = [
  "thiserror",
  "tracing",
  "winnow",
-]
-
-[[package]]
-name = "remu_harness"
-version = "0.1.0"
-dependencies = [
- "clap",
- "remu_macro",
- "remu_simulator",
- "remu_state",
- "remu_types",
- "thiserror",
- "tracing",
 ]
 
 [[package]]

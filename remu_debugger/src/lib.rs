@@ -1,18 +1,18 @@
 use clap::Parser;
 
-remu_macro::mod_flat!(option, command, error, compound_command);
+remu_macro::mod_flat!(command, error, compound_command);
 pub use command::get_command_graph;
-use remu_harness::{Command, CommandParser, Harness};
+use remu_simulator::{Command, Simulator, SimulatorCommand, SimulatorOption, new_simulator};
 use remu_types::TracerDyn;
 
 pub struct Debugger {
-    harness: Harness,
+    simulator: Box<dyn Simulator>,
 }
 
 impl Debugger {
-    pub fn new(opt: RemuOptionParer, tracer: TracerDyn) -> Self {
+    pub fn new(opt: SimulatorOption, tracer: TracerDyn) -> Self {
         Debugger {
-            harness: Harness::new(opt.harness, tracer),
+            simulator: new_simulator(opt, tracer),
         }
     }
 
@@ -63,12 +63,12 @@ impl Debugger {
         Ok(())
     }
 
-    fn parse_block(&self, mut tokens: Vec<String>) -> Result<CommandParser> {
+    fn parse_block(&self, mut tokens: Vec<String>) -> Result<SimulatorCommand> {
         let mut commands = Vec::with_capacity(tokens.len() + 1);
         commands.push(env!("CARGO_PKG_NAME").to_string());
         commands.append(&mut tokens);
 
-        match CommandParser::try_parse_from(commands) {
+        match SimulatorCommand::try_parse_from(commands) {
             Ok(v) => Ok(v),
             Err(e) => {
                 let _ = e.print(); // keep clap colorized output
@@ -78,7 +78,7 @@ impl Debugger {
     }
 
     fn execute_parsed(&mut self, command: &Command) -> Result<bool> {
-        self.harness.execute(command);
+        self.simulator.exec(command);
 
         Ok(true)
     }

@@ -1,6 +1,6 @@
 use clap::CommandFactory;
 use petgraph::graph::{Graph, NodeIndex};
-use remu_harness::CommandParser;
+use remu_simulator::SimulatorCommand;
 
 fn populate_graph(cmd: &clap::Command, graph: &mut Graph<String, ()>, parent: NodeIndex) {
     let mut has_children = false;
@@ -24,7 +24,7 @@ fn populate_graph(cmd: &clap::Command, graph: &mut Graph<String, ()>, parent: No
 pub fn get_command_graph() -> (Graph<String, ()>, NodeIndex) {
     let mut graph = Graph::<String, ()>::new();
     let root = graph.add_node(env!("CARGO_PKG_NAME").to_string());
-    let command = CommandParser::command();
+    let command = SimulatorCommand::command();
     populate_graph(&command, &mut graph, root);
     (graph, root)
 }

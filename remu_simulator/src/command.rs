@@ -1,6 +1,7 @@
 use clap::builder::styling;
-use remu_simulator::FuncCmd;
 use remu_state::StateCmd;
+
+use crate::FuncCmd;
 
 #[derive(clap::Parser, Debug)]
 #[command(
@@ -15,7 +16,7 @@ use remu_state::StateCmd;
     .literal(styling::AnsiColor::Blue.on_default().bold())
     .placeholder(styling::AnsiColor::Cyan.on_default())
 )]
-pub struct CommandParser {
+pub struct SimulatorCommand {
     #[command(subcommand)]
     pub command: Command,
 }
@@ -32,12 +33,6 @@ pub enum Command {
         times: usize,
     },
 
-    /// Times printf
-    Times {
-        #[command(subcommand)]
-        subcmd: TimeCmd,
-    },
-
     /// State Command
     State {
         #[command(subcommand)]
@@ -49,18 +44,4 @@ pub enum Command {
         #[command(subcommand)]
         subcmd: FuncCmd,
     },
-}
-
-#[derive(Debug, clap::Subcommand)]
-pub enum TimeCmd {
-    /// Times Count
-    Count {
-        #[command(subcommand)]
-        subcmd: TimeCountCmd,
-    },
-}
-
-#[derive(Debug, clap::Subcommand)]
-pub enum TimeCountCmd {
-    Test,
 }
