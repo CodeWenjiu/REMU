@@ -1,7 +1,7 @@
 use std::marker::PhantomData;
 
 use remu_state::{State, bus::BusAccess};
-use remu_types::{Rv32, Rv32Isa, TracerDyn};
+use remu_types::{Rv32, RvIsa, TracerDyn};
 use target_lexicon::Riscv32Architecture;
 
 use crate::{
@@ -10,14 +10,14 @@ use crate::{
 };
 
 /// As a template
-pub(crate) struct SimulatorRiscv<I: Rv32Isa> {
+pub(crate) struct SimulatorRiscv<I: RvIsa> {
     state: State<I>,
     func: Func,
     tracer: TracerDyn,
     _marker: PhantomData<I>,
 }
 
-impl<I: Rv32Isa> SimulatorRiscv<I> {
+impl<I: RvIsa> SimulatorRiscv<I> {
     pub(crate) fn new(opt: SimulatorOption, tracer: TracerDyn) -> Self {
         Self {
             state: State::new(opt.state, tracer.clone()),
@@ -40,7 +40,7 @@ impl<I: Rv32Isa> SimulatorRiscv<I> {
     }
 }
 
-impl<I: Rv32Isa> Simulator for SimulatorRiscv<I> {
+impl<I: RvIsa> Simulator for SimulatorRiscv<I> {
     fn state_exec(&mut self, command: &remu_state::StateCmd) {
         self.state.execute(command);
     }

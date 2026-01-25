@@ -1,5 +1,5 @@
 use remu_state::State;
-use remu_types::Rv32Isa;
+use remu_types::RvIsa;
 
 use crate::riscv::inst::{DecodedInst, SimulatorError};
 
@@ -8,7 +8,7 @@ pub(crate) const OPCODE: u32 = 0b111_1111;
 pub(crate) const INSTRUCTION_MIX: u32 = 2;
 
 // WIP
-fn trap_unknown_instruction<I: Rv32Isa>(
+fn trap_unknown_instruction<I: RvIsa>(
     state: &mut State<I>,
     inst: &DecodedInst<I>,
 ) -> Result<(), SimulatorError> {
@@ -17,7 +17,7 @@ fn trap_unknown_instruction<I: Rv32Isa>(
     Ok(())
 }
 
-impl<I: Rv32Isa> Default for DecodedInst<I> {
+impl<I: RvIsa> Default for DecodedInst<I> {
     fn default() -> Self {
         Self {
             rs1: 0,

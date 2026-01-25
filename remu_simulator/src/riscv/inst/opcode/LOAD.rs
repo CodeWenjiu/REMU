@@ -1,5 +1,5 @@
 use remu_state::{State, bus::BusAccess};
-use remu_types::Rv32Isa;
+use remu_types::RvIsa;
 
 use crate::riscv::inst::{DecodedInst, SimulatorError, funct3, imm_i, rd, rs1};
 
@@ -17,7 +17,7 @@ mod func3 {
 
 macro_rules! load_s {
     ($name:ident, $read_fn:ident, $u:ty, $i:ty) => {
-        fn $name<I: Rv32Isa>(
+        fn $name<I: RvIsa>(
             state: &mut State<I>,
             inst: &DecodedInst<I>,
         ) -> Result<(), SimulatorError> {
@@ -33,7 +33,7 @@ macro_rules! load_s {
 
 macro_rules! load_u {
     ($name:ident, $read_fn:ident, $u:ty) => {
-        fn $name<I: Rv32Isa>(
+        fn $name<I: RvIsa>(
             state: &mut State<I>,
             inst: &DecodedInst<I>,
         ) -> Result<(), SimulatorError> {
@@ -55,7 +55,7 @@ load_u!(lhu, read_16, u16);
 load_u!(lw, read_32, u32);
 
 #[inline(always)]
-pub(crate) fn decode<I: Rv32Isa>(inst: u32) -> DecodedInst<I> {
+pub(crate) fn decode<I: RvIsa>(inst: u32) -> DecodedInst<I> {
     let f3 = funct3(inst);
 
     let rs1 = rs1(inst);

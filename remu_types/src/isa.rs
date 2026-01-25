@@ -2,6 +2,8 @@ use std::str::FromStr;
 
 use target_lexicon::{Architecture, Triple};
 
+use crate::Xlen;
+
 #[derive(Debug, Clone)]
 pub struct IsaSpec(pub Architecture);
 
@@ -27,13 +29,15 @@ impl FromStr for IsaSpec {
     }
 }
 
-pub trait Rv32Isa: 'static + Copy {
+pub trait RvIsa: 'static + Copy {
+    type XLEN: Xlen;
     const HAS_M: bool;
 }
 
 #[derive(Debug, Clone, Copy)]
 pub struct Rv32<const M: bool>;
 
-impl<const M: bool> Rv32Isa for Rv32<M> {
+impl<const M: bool> RvIsa for Rv32<M> {
+    type XLEN = u32;
     const HAS_M: bool = M;
 }

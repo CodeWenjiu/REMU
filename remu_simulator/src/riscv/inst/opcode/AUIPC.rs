@@ -1,5 +1,5 @@
 use remu_state::State;
-use remu_types::Rv32Isa;
+use remu_types::RvIsa;
 
 use crate::riscv::inst::{DecodedInst, SimulatorError, imm_u, rd};
 
@@ -7,7 +7,7 @@ pub(crate) const OPCODE: u32 = 0b001_0111;
 
 pub(crate) const INSTRUCTION_MIX: u32 = 20;
 
-fn auipc<I: Rv32Isa>(state: &mut State<I>, inst: &DecodedInst<I>) -> Result<(), SimulatorError> {
+fn auipc<I: RvIsa>(state: &mut State<I>, inst: &DecodedInst<I>) -> Result<(), SimulatorError> {
     let value: u32 = state.reg.pc.wrapping_add(inst.imm);
     state.reg.write_gpr(inst.rd.into(), value);
     state.reg.pc = state.reg.pc.wrapping_add(4);
@@ -15,7 +15,7 @@ fn auipc<I: Rv32Isa>(state: &mut State<I>, inst: &DecodedInst<I>) -> Result<(), 
 }
 
 #[inline(always)]
-pub(crate) fn decode<I: Rv32Isa>(inst: u32) -> DecodedInst<I> {
+pub(crate) fn decode<I: RvIsa>(inst: u32) -> DecodedInst<I> {
     DecodedInst {
         rs1: 0,
         rs2: 0,

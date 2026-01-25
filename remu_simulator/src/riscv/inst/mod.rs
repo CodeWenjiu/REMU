@@ -1,14 +1,14 @@
 #![allow(non_snake_case)]
 
 use remu_state::State;
-use remu_types::Rv32Isa;
+use remu_types::RvIsa;
 
 use crate::riscv::SimulatorError;
 remu_macro::mod_pub!(opcode);
 remu_macro::mod_flat!(bytes);
 
 #[derive(Clone, Copy)]
-pub struct DecodedInst<I: Rv32Isa> {
+pub struct DecodedInst<I: RvIsa> {
     pub(crate) rs1: u8,
     pub(crate) rs2: u8,
     pub(crate) rd: u8,

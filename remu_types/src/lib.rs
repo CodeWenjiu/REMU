@@ -1,4 +1,4 @@
-remu_macro::mod_flat!(isa, register);
+remu_macro::mod_flat!(isa, wordlen, register);
 
 use std::{cell::RefCell, error::Error, fmt::Display, ops::Range, rc::Rc};
 pub trait DynDiagError: Error {}

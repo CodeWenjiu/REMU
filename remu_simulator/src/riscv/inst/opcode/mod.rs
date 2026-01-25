@@ -1,6 +1,6 @@
 #![allow(non_snake_case)]
 
-use remu_types::Rv32Isa;
+use remu_types::RvIsa;
 
 use crate::riscv::inst::{DecodedInst, opcode};
 remu_macro::mod_flat!(
@@ -8,7 +8,7 @@ remu_macro::mod_flat!(
 );
 
 #[inline(always)]
-pub fn decode<I: Rv32Isa>(inst: u32) -> DecodedInst<I> {
+pub fn decode<I: RvIsa>(inst: u32) -> DecodedInst<I> {
     let opcode = opcode(inst);
     match opcode {
         LUI::OPCODE => LUI::decode(inst),
