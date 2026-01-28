@@ -2,7 +2,7 @@ use criterion::{Criterion, black_box, criterion_group, criterion_main};
 
 use pprof::criterion::{Output, PProfProfiler};
 use remu_state::bus::Bus;
-use remu_types::Rv32I;
+use remu_types::isa::extension_enum::RV32I;
 
 mod common;
 
@@ -22,7 +22,7 @@ const BENCH_NAME_SEQUENTIAL: &str = "bus_read_mixed_1_1_1_u8_u16_u32_sequential"
 const BENCH_NAME_SMALL_WS: &str = "bus_read_mixed_1_1_1_u8_u16_u32_small_ws";
 
 #[inline(never)]
-fn run_read_workload(bus: &mut Bus<Rv32I>, addrs8: &[usize], addrs16: &[usize], addrs32: &[usize]) {
+fn run_read_workload(bus: &mut Bus<RV32I>, addrs8: &[usize], addrs16: &[usize], addrs32: &[usize]) {
     let mut acc: u64 = 0;
 
     for &addr in addrs8 {

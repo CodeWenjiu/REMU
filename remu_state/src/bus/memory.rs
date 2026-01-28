@@ -210,12 +210,7 @@ impl Memory {
         // We keep correct unaligned semantics, but add a faster aligned path.
         let off = addr - self.range.start;
         let p = unsafe { self.storage.as_ptr().add(off) as *const u16 };
-        let raw = if (off & 1) == 0 {
-            // SAFETY: `p` is in-bounds and properly aligned when `off` is 2-byte aligned.
-            unsafe { p.read() }
-        } else {
-            unsafe { p.read_unaligned() }
-        };
+        let raw = unsafe { p.read_unaligned() };
         u16::from_le(raw)
     }
 
@@ -225,12 +220,7 @@ impl Memory {
         // We keep correct unaligned semantics, but add a faster aligned path.
         let off = addr - self.range.start;
         let p = unsafe { self.storage.as_ptr().add(off) as *const u32 };
-        let raw = if (off & 3) == 0 {
-            // SAFETY: `p` is in-bounds and properly aligned when `off` is 4-byte aligned.
-            unsafe { p.read() }
-        } else {
-            unsafe { p.read_unaligned() }
-        };
+        let raw = unsafe { p.read_unaligned() };
         u32::from_le(raw)
     }
 
@@ -240,12 +230,7 @@ impl Memory {
         // We keep correct unaligned semantics, but add a faster aligned path.
         let off = addr - self.range.start;
         let p = unsafe { self.storage.as_ptr().add(off) as *const u64 };
-        let raw = if (off & 7) == 0 {
-            // SAFETY: `p` is in-bounds and properly aligned when `off` is 8-byte aligned.
-            unsafe { p.read() }
-        } else {
-            unsafe { p.read_unaligned() }
-        };
+        let raw = unsafe { p.read_unaligned() };
         u64::from_le(raw)
     }
 
@@ -255,12 +240,7 @@ impl Memory {
         // We keep correct unaligned semantics, but add a faster aligned path.
         let off = addr - self.range.start;
         let p = unsafe { self.storage.as_ptr().add(off) as *const u128 };
-        let raw = if (off & 15) == 0 {
-            // SAFETY: `p` is in-bounds and properly aligned when `off` is 16-byte aligned.
-            unsafe { p.read() }
-        } else {
-            unsafe { p.read_unaligned() }
-        };
+        let raw = unsafe { p.read_unaligned() };
         u128::from_le(raw)
     }
 
@@ -293,12 +273,7 @@ impl Memory {
         let off = addr - self.range.start;
         let p = unsafe { self.storage.as_mut_ptr().add(off) as *mut u16 };
         let le = value.to_le();
-        if (off & 1) == 0 {
-            // SAFETY: `p` is in-bounds and properly aligned when `off` is 2-byte aligned.
-            unsafe { p.write(le) };
-        } else {
-            unsafe { p.write_unaligned(le) };
-        }
+        unsafe { p.write_unaligned(le) };
     }
 
     #[inline(always)]
@@ -308,12 +283,7 @@ impl Memory {
         let off = addr - self.range.start;
         let p = unsafe { self.storage.as_mut_ptr().add(off) as *mut u32 };
         let le = value.to_le();
-        if (off & 3) == 0 {
-            // SAFETY: `p` is in-bounds and properly aligned when `off` is 4-byte aligned.
-            unsafe { p.write(le) };
-        } else {
-            unsafe { p.write_unaligned(le) };
-        }
+        unsafe { p.write_unaligned(le) };
     }
 
     #[inline(always)]
@@ -323,12 +293,7 @@ impl Memory {
         let off = addr - self.range.start;
         let p = unsafe { self.storage.as_mut_ptr().add(off) as *mut u64 };
         let le = value.to_le();
-        if (off & 7) == 0 {
-            // SAFETY: `p` is in-bounds and properly aligned when `off` is 8-byte aligned.
-            unsafe { p.write(le) };
-        } else {
-            unsafe { p.write_unaligned(le) };
-        }
+        unsafe { p.write_unaligned(le) };
     }
 
     #[inline(always)]
@@ -338,12 +303,7 @@ impl Memory {
         let off = addr - self.range.start;
         let p = unsafe { self.storage.as_mut_ptr().add(off) as *mut u128 };
         let le = value.to_le();
-        if (off & 15) == 0 {
-            // SAFETY: `p` is in-bounds and properly aligned when `off` is 16-byte aligned.
-            unsafe { p.write(le) };
-        } else {
-            unsafe { p.write_unaligned(le) };
-        }
+        unsafe { p.write_unaligned(le) };
     }
 
     #[inline(always)]

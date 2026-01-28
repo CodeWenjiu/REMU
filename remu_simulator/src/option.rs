@@ -1,6 +1,6 @@
 use clap::builder::styling;
 use remu_state::StateOption;
-use remu_types::IsaSpec;
+use remu_types::isa::IsaSpec;
 
 #[derive(clap::Parser, Debug, Clone)]
 #[command(

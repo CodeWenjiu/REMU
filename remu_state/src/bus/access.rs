@@ -1,4 +1,4 @@
-use remu_types::RvIsa;
+use remu_types::isa::RvIsa;
 
 use crate::bus::{Bus, BusFault};
 

@@ -1,5 +1,5 @@
 use remu_state::State;
-use remu_types::{RvIsa, Xlen};
+use remu_types::{Xlen, isa::RvIsa};
 
 use crate::riscv::inst::{DecodedInst, SimulatorError, funct3, imm_b, rs1, rs2};
 

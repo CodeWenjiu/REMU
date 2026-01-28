@@ -2,7 +2,10 @@ use std::ops::Range;
 
 use colored::Colorize;
 use remu_fmt::ByteGuesser;
-use remu_types::{DynDiagError, Gpr, IsaSpec, Tracer};
+use remu_types::{
+    DynDiagError, Tracer,
+    isa::{IsaSpec, reg::Gpr},
+};
 use tabled::{
     Table, Tabled,
     settings::{Color, Style, object::Columns},

@@ -3,7 +3,7 @@ use clap::Parser;
 remu_macro::mod_flat!(command, error, compound_command);
 pub use command::get_command_graph;
 use remu_simulator::{Command, Simulator, SimulatorCommand, SimulatorOption};
-use remu_types::{RvIsa, TracerDyn};
+use remu_types::{TracerDyn, isa::RvIsa};
 
 pub struct Debugger<I: RvIsa> {
     simulator: Simulator<I>,

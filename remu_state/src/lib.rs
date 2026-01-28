@@ -1,6 +1,6 @@
 use std::marker::PhantomData;
 
-use remu_types::RvIsa;
+use remu_types::isa::RvIsa;
 
 use crate::{bus::Bus, reg::RiscvReg};
 
@@ -10,7 +10,7 @@ remu_macro::mod_flat!(option, command);
 /// State template
 pub struct State<I: RvIsa> {
     pub bus: Bus<I>,
-    pub reg: RiscvReg,
+    pub reg: RiscvReg<I>,
     tracer: remu_types::TracerDyn,
     _marker: PhantomData<I>,
 }

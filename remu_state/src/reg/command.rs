@@ -1,7 +1,7 @@
 use std::ops::Range;
 
 use remu_fmt::parse_prefixed_uint;
-use remu_types::Gpr;
+use remu_types::isa::reg::Gpr;
 
 fn parse_half_open_range_usize(s: &str) -> Result<Range<usize>, String> {
     // Support half-open ranges of the form: `start..end`

@@ -4,7 +4,8 @@ use clap::Parser;
 
 use remu_state::bus::BusOption;
 use remu_state::{State, StateOption};
-use remu_types::{AllUsize, DynDiagError, Rv32I, Tracer, TracerDyn};
+use remu_types::isa::reg::Gpr;
+use remu_types::{AllUsize, DynDiagError, Tracer, TracerDyn, isa::extension_enum::RV32I};
 
 /// A minimal tracer implementation so we can construct `remu_state::State` without pulling in CLI.
 ///
@@ -28,17 +29,17 @@ impl Tracer for BenchTracer {
     fn deal_error(&self, _error: Box<dyn DynDiagError>) {}
 
     #[inline(always)]
-    fn reg_show(&self, _index: remu_types::Gpr, _data: u32) {}
+    fn reg_show(&self, _index: Gpr, _data: u32) {}
 
     #[inline(always)]
-    fn reg_print(&self, _regs: &[(remu_types::Gpr, u32); 32], _range: Range<usize>) {}
+    fn reg_print(&self, _regs: &[(Gpr, u32); 32], _range: Range<usize>) {}
 
     #[inline(always)]
     fn disasm(&self, _pc: u64, _inst: u32) {}
 }
 
 #[inline(never)]
-pub fn make_state_from_clap_defaults(tag: &'static str) -> State<Rv32I> {
+pub fn make_state_from_clap_defaults(tag: &'static str) -> State<RV32I> {
     // We intentionally reuse clap defaults so benches match real configuration.
     #[derive(clap::Parser, Debug)]
     struct Opt {

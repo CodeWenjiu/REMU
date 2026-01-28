@@ -3,7 +3,7 @@ remu_macro::mod_flat!(error, command, option, memory, device, access, elf_loader
 use std::{marker::PhantomData, ops::Range};
 
 pub use memory::MemRegionSpec;
-use remu_types::{AllUsize, DynDiagError, RvIsa};
+use remu_types::{AllUsize, DynDiagError, isa::RvIsa};
 
 // Use the public re-export to avoid shadowing the glob re-exported `Memory`
 

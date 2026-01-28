@@ -1,6 +1,9 @@
-remu_macro::mod_flat!(isa, platform, wordlen, register);
+remu_macro::mod_pub!(isa);
+remu_macro::mod_flat!(platform, wordlen);
 
 use std::{cell::RefCell, error::Error, fmt::Display, ops::Range, rc::Rc};
+
+use crate::isa::reg::Gpr;
 pub trait DynDiagError: Error {}
 impl<T> DynDiagError for T where T: Error {}
 

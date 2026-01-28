@@ -4,12 +4,11 @@ use std::marker::PhantomData;
 
 use crate::riscv::{SimulatorError, inst::opcode::decode};
 use remu_state::State;
-use remu_types::{RvIsa, TracerDyn};
+use remu_types::{TracerDyn, isa::RvIsa};
 
 /// As a template
 pub struct Simulator<I: RvIsa, const DIFF_TEST: u8 = 0> {
     state: State<I>,
-    _ref_state: State<I>,
     func: Func,
     tracer: TracerDyn,
     _marker: PhantomData<I>,
@@ -19,7 +18,6 @@ impl<I: RvIsa, const DIFF_TEST: u8> Simulator<I, DIFF_TEST> {
     pub fn new(opt: SimulatorOption, tracer: TracerDyn) -> Self {
         Self {
             state: State::new(opt.state.clone(), tracer.clone()),
-            _ref_state: State::new(opt.state, tracer.clone()),
             func: Func::new(),
             tracer,
             _marker: PhantomData,

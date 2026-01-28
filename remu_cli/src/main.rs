@@ -8,7 +8,13 @@ use reedline::{
     Reedline, ReedlineEvent, ReedlineMenu, Signal, default_emacs_keybindings,
 };
 use remu_simulator::SimulatorOption;
-use remu_types::{Rv32I, Rv32IM, RvIsa, TracerDyn};
+use remu_types::{
+    TracerDyn,
+    isa::{
+        RvIsa,
+        extension_enum::{RV32I, RV32IM},
+    },
+};
 use std::{cell::RefCell, rc::Rc};
 use target_lexicon::{Architecture, Riscv32Architecture};
 
@@ -112,8 +118,8 @@ fn main() -> Result<()> {
 
     match option.isa.0 {
         Architecture::Riscv32(arch) => match arch {
-            Riscv32Architecture::Riscv32i => run_debugger::<Rv32I>(option),
-            Riscv32Architecture::Riscv32im => run_debugger::<Rv32IM>(option),
+            Riscv32Architecture::Riscv32i => run_debugger::<RV32I>(option),
+            Riscv32Architecture::Riscv32im => run_debugger::<RV32IM>(option),
             _ => unreachable!(),
         },
         _ => unreachable!(),
