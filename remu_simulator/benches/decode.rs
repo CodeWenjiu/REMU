@@ -53,7 +53,7 @@ fn build_inst_stream(len: usize) -> Vec<u32> {
 fn run_decode_workload(insts: &[u32]) {
     let mut acc: u64 = 0;
     for &inst in insts {
-        let decoded = opcode::decode::<RV32I>(inst);
+        let decoded = opcode::decode::<RV32I, ()>(inst);
         acc = acc.wrapping_add(decoded.imm as u64);
     }
     black_box(acc);

@@ -1,4 +1,6 @@
-use remu_state::State;
+use std::marker::PhantomData;
+
+use remu_state::{State, bus::BusObserver};
 use remu_types::isa::{RvIsa, reg::RegAccess};
 
 use crate::riscv::inst::{DecodedInst, SimulatorError, funct3, funct7, rd, rs1, rs2};
@@ -35,9 +37,9 @@ mod func7 {
 
 macro_rules! op_op {
     ($name:ident, |$rs1_val:ident, $rs2_val:ident| $value:expr) => {
-        fn $name<I: RvIsa>(
+        fn $name<I: RvIsa, O: BusObserver>(
             state: &mut State<I>,
-            inst: &DecodedInst<I>,
+            inst: &DecodedInst<I, O>,
         ) -> Result<(), SimulatorError> {
             let $rs1_val = state.reg.gpr.raw_read(inst.rs1.into());
             let $rs2_val = state.reg.gpr.raw_read(inst.rs2.into());
@@ -94,7 +96,7 @@ op_op!(remu, |rs1, rs2| if rs2 == 0 {
 });
 
 #[inline(always)]
-pub(crate) fn decode<I: RvIsa>(inst: u32) -> DecodedInst<I> {
+pub(crate) fn decode<I: RvIsa, O: BusObserver>(inst: u32) -> DecodedInst<I, O> {
     let f3 = funct3(inst);
     let f7 = funct7(inst);
 
@@ -103,146 +105,163 @@ pub(crate) fn decode<I: RvIsa>(inst: u32) -> DecodedInst<I> {
     let rs2 = rs2(inst);
 
     match (f3, f7) {
-        (func3::ADD, func7::NORMAL) => DecodedInst {
+        (func3::ADD, func7::NORMAL) => DecodedInst::<I, O> {
             rd,
             rs1,
             rs2,
             imm: 0,
 
-            handler: addi,
+            handler: addi::<I, O>,
+            _marker: PhantomData,
         },
-        (func3::SLL, func7::NORMAL) => DecodedInst {
+        (func3::SLL, func7::NORMAL) => DecodedInst::<I, O> {
             rd,
             rs1,
             rs2,
             imm: 0,
 
-            handler: slli,
+            handler: slli::<I, O>,
+            _marker: PhantomData,
         },
-        (func3::SLT, func7::NORMAL) => DecodedInst {
+        (func3::SLT, func7::NORMAL) => DecodedInst::<I, O> {
             rd,
             rs1,
             rs2,
             imm: 0,
 
-            handler: slti,
+            handler: slti::<I, O>,
+            _marker: PhantomData,
         },
-        (func3::SLTU, func7::NORMAL) => DecodedInst {
+        (func3::SLTU, func7::NORMAL) => DecodedInst::<I, O> {
             rd,
             rs1,
             rs2,
             imm: 0,
 
-            handler: sltiu,
+            handler: sltiu::<I, O>,
+            _marker: PhantomData,
         },
-        (func3::XOR, func7::NORMAL) => DecodedInst {
+        (func3::XOR, func7::NORMAL) => DecodedInst::<I, O> {
             rd,
             rs1,
             rs2,
             imm: 0,
 
-            handler: xori,
+            handler: xori::<I, O>,
+            _marker: PhantomData,
         },
-        (func3::OR, func7::NORMAL) => DecodedInst {
+        (func3::OR, func7::NORMAL) => DecodedInst::<I, O> {
             rd,
             rs1,
             rs2,
             imm: 0,
 
-            handler: ori,
+            handler: ori::<I, O>,
+            _marker: PhantomData,
         },
-        (func3::SR, func7::NORMAL) => DecodedInst {
+        (func3::SR, func7::NORMAL) => DecodedInst::<I, O> {
             rd,
             rs1,
             rs2,
             imm: 0,
 
-            handler: srli,
+            handler: srli::<I, O>,
+            _marker: PhantomData,
         },
-        (func3::SR, func7::ALT) => DecodedInst {
+        (func3::SR, func7::ALT) => DecodedInst::<I, O> {
             rd,
             rs1,
             rs2,
             imm: 0,
 
-            handler: srai,
+            handler: srai::<I, O>,
+            _marker: PhantomData,
         },
-        (func3::AND, func7::NORMAL) => DecodedInst {
+        (func3::AND, func7::NORMAL) => DecodedInst::<I, O> {
             rd,
             rs1,
             rs2,
             imm: 0,
 
-            handler: andi,
+            handler: andi::<I, O>,
+            _marker: PhantomData,
         },
 
         (f3, func7::MAD) if I::HAS_M => match f3 {
-            func3::MUL => DecodedInst {
+            func3::MUL => DecodedInst::<I, O> {
                 rd,
                 rs1,
                 rs2,
                 imm: 0,
 
-                handler: mul,
+                handler: mul::<I, O>,
+                _marker: PhantomData,
             },
-            func3::MULH => DecodedInst {
+            func3::MULH => DecodedInst::<I, O> {
                 rd,
                 rs1,
                 rs2,
                 imm: 0,
 
-                handler: mulh,
+                handler: mulh::<I, O>,
+                _marker: PhantomData,
             },
-            func3::MULHSU => DecodedInst {
+            func3::MULHSU => DecodedInst::<I, O> {
                 rd,
                 rs1,
                 rs2,
                 imm: 0,
 
-                handler: mulhsu,
+                handler: mulhsu::<I, O>,
+                _marker: PhantomData,
             },
-            func3::MULHU => DecodedInst {
+            func3::MULHU => DecodedInst::<I, O> {
                 rd,
                 rs1,
                 rs2,
                 imm: 0,
 
-                handler: mulhu,
+                handler: mulhu::<I, O>,
+                _marker: PhantomData,
             },
-            func3::DIV => DecodedInst {
+            func3::DIV => DecodedInst::<I, O> {
                 rd,
                 rs1,
                 rs2,
                 imm: 0,
 
-                handler: div,
+                handler: div::<I, O>,
+                _marker: PhantomData,
             },
-            func3::DIVU => DecodedInst {
+            func3::DIVU => DecodedInst::<I, O> {
                 rd,
                 rs1,
                 rs2,
                 imm: 0,
 
-                handler: divu,
+                handler: divu::<I, O>,
+                _marker: PhantomData,
             },
-            func3::REM => DecodedInst {
+            func3::REM => DecodedInst::<I, O> {
                 rd,
                 rs1,
                 rs2,
                 imm: 0,
 
-                handler: rem,
+                handler: rem::<I, O>,
+                _marker: PhantomData,
             },
-            func3::REMU => DecodedInst {
+            func3::REMU => DecodedInst::<I, O> {
                 rd,
                 rs1,
                 rs2,
                 imm: 0,
 
-                handler: remu,
+                handler: remu::<I, O>,
+                _marker: PhantomData,
             },
-            _ => DecodedInst::default(),
+            _ => DecodedInst::<I, O>::default(),
         },
-        _ => DecodedInst::default(),
+        _ => DecodedInst::<I, O>::default(),
     }
 }

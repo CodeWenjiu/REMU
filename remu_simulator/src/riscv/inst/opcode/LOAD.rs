@@ -1,4 +1,6 @@
-use remu_state::{State, StateError};
+use std::marker::PhantomData;
+
+use remu_state::{State, StateError, bus::BusObserver};
 use remu_types::isa::{RvIsa, reg::RegAccess};
 
 use crate::riscv::inst::{DecodedInst, SimulatorError, funct3, imm_i, rd, rs1};
@@ -17,9 +19,9 @@ mod func3 {
 
 macro_rules! load_s {
     ($name:ident, $read_fn:ident, $u:ty, $i:ty) => {
-        fn $name<I: RvIsa>(
+        fn $name<I: RvIsa, M: BusObserver>(
             state: &mut State<I>,
-            inst: &DecodedInst<I>,
+            inst: &DecodedInst<I, M>,
         ) -> Result<(), SimulatorError> {
             let rs1_val = state.reg.gpr.raw_read(inst.rs1.into());
             let addr = rs1_val.wrapping_add(inst.imm);
@@ -39,9 +41,9 @@ macro_rules! load_s {
 
 macro_rules! load_u {
     ($name:ident, $read_fn:ident, $u:ty) => {
-        fn $name<I: RvIsa>(
+        fn $name<I: RvIsa, M: BusObserver>(
             state: &mut State<I>,
-            inst: &DecodedInst<I>,
+            inst: &DecodedInst<I, M>,
         ) -> Result<(), SimulatorError> {
             let rs1_val = state.reg.gpr.raw_read(inst.rs1.into());
             let addr = rs1_val.wrapping_add(inst.imm);
@@ -64,7 +66,7 @@ load_u!(lhu, read_16, u16);
 load_u!(lw, read_32, u32);
 
 #[inline(always)]
-pub(crate) fn decode<I: RvIsa>(inst: u32) -> DecodedInst<I> {
+pub(crate) fn decode<I: RvIsa, O: BusObserver>(inst: u32) -> DecodedInst<I, O> {
     let f3 = funct3(inst);
 
     let rs1 = rs1(inst);
@@ -72,46 +74,51 @@ pub(crate) fn decode<I: RvIsa>(inst: u32) -> DecodedInst<I> {
     let imm = imm_i(inst);
 
     match f3 {
-        func3::LB => DecodedInst {
+        func3::LB => DecodedInst::<I, O> {
             rd,
             rs1,
             rs2: 0,
             imm,
 
-            handler: lb,
+            handler: lb::<I, O>,
+            _marker: PhantomData,
         },
-        func3::LH => DecodedInst {
+        func3::LH => DecodedInst::<I, O> {
             rd,
             rs1,
             rs2: 0,
             imm,
 
-            handler: lh,
+            handler: lh::<I, O>,
+            _marker: PhantomData,
         },
-        func3::LBU => DecodedInst {
+        func3::LBU => DecodedInst::<I, O> {
             rd,
             rs1,
             rs2: 0,
             imm,
 
-            handler: lbu,
+            handler: lbu::<I, O>,
+            _marker: PhantomData,
         },
-        func3::LHU => DecodedInst {
+        func3::LHU => DecodedInst::<I, O> {
             rd,
             rs1,
             rs2: 0,
             imm,
 
-            handler: lhu,
+            handler: lhu::<I, O>,
+            _marker: PhantomData,
         },
-        func3::LW => DecodedInst {
+        func3::LW => DecodedInst::<I, O> {
             rd,
             rs1,
             rs2: 0,
             imm,
 
-            handler: lw,
+            handler: lw::<I, O>,
+            _marker: PhantomData,
         },
-        _ => DecodedInst::default(),
+        _ => DecodedInst::<I, O>::default(),
     }
 }

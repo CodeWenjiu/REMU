@@ -32,7 +32,7 @@ impl<I: RvIsa, const DIFF_TEST: u8> Simulator<I, DIFF_TEST> {
             .bus
             .read_32(pc as usize)
             .map_err(StateError::from)?;
-        let decoded = decode::<I>(inst);
+        let decoded = decode::<I, ()>(inst);
         (decoded.handler)(&mut self.state, &decoded)?;
         if self.func.trace.instruction {
             self.tracer.borrow().disasm(pc as u64, inst);
