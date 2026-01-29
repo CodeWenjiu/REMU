@@ -5,7 +5,7 @@ use remu_types::isa::RvIsa;
 use crate::{bus::Bus, reg::RiscvReg};
 
 remu_macro::mod_pub!(reg, bus);
-remu_macro::mod_flat!(option, command, error, machine);
+remu_macro::mod_flat!(option, command, error);
 
 /// State template
 pub struct State<I: RvIsa> {

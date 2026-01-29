@@ -2,7 +2,7 @@ use std::path::PathBuf;
 
 use clap::ValueHint;
 
-use crate::bus::MemRegionSpec;
+use crate::bus::{MemRegionSpec, device::DeviceConfig};
 
 #[derive(clap::Args, Debug, Clone)]
 pub struct BusOption {
@@ -13,6 +13,14 @@ pub struct BusOption {
         default_value = "ram@0x8000_0000:0x8800_0000"
     )]
     pub mem: Vec<MemRegionSpec>,
+
+    #[arg(
+        long = "dev",
+        value_name = "NAME@START",
+        action = clap::ArgAction::Append,
+        default_value = "uart_simple@0x1000_0000"
+    )]
+    pub devices: Vec<DeviceConfig>,
 
     #[arg(long = "elf", alias = "bin", value_name = "PATH", value_parser = file_exists, value_hint = ValueHint::FilePath)]
     pub elf: Option<PathBuf>,

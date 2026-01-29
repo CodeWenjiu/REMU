@@ -1,16 +1,21 @@
 remu_macro::mod_flat!(
-    error, command, option, memory, device, access, observer, elf_loader
+    error, command, option, parse, memory, access, observer, elf_loader
 );
+
+remu_macro::mod_pub!(device);
 
 use std::{marker::PhantomData, ops::Range};
 
 pub use memory::MemRegionSpec;
 use remu_types::{AllUsize, DynDiagError, isa::RvIsa};
 
+use crate::bus::device::{DeviceAccess, get_device};
+
 // Use the public re-export to avoid shadowing the glob re-exported `Memory`
 
 pub struct Bus<I: RvIsa> {
     memory: Box<[Memory]>,
+    device: Box<[(usize, Box<dyn DeviceAccess>)]>,
     /// Last-hit cache for region lookup.
     ///
     /// This is an extremely effective fast-path when workloads exhibit any locality
@@ -27,6 +32,12 @@ impl<I: RvIsa> Bus<I> {
             .mem
             .into_iter()
             .map(|region| {
+                tracing::info!(
+                    "new memory {} region initialized at 0x{:08x}:0x{:08x}",
+                    region.name,
+                    region.region.start,
+                    region.region.end
+                );
                 Memory::new(region)
                     .expect("invalid memory region spec (should be validated before Bus::new)")
             })
@@ -37,8 +48,25 @@ impl<I: RvIsa> Bus<I> {
         // Keep Bus::new small; perform best-effort ELF loading in a helper.
         try_load_elf_into_memory(&mut memory, &opt.elf, &tracer);
 
+        let device: Vec<(usize, Box<dyn DeviceAccess>)> = opt
+            .devices
+            .iter()
+            .map(|config| {
+                tracing::info!(
+                    "new device {} config initialized at 0x{:08x}",
+                    config.name,
+                    config.start
+                );
+                (
+                    config.start,
+                    get_device(&config.name).expect("invalid device name"),
+                )
+            })
+            .collect();
+
         Self {
             memory,
+            device: device.into_boxed_slice(),
             last_hit: None,
             tracer,
             _marker: PhantomData,
@@ -57,12 +85,12 @@ impl<I: RvIsa> Bus<I> {
     }
 
     #[inline(always)]
-    fn find_memory_mut(&mut self, range: Range<usize>) -> Result<&mut Memory, BusFault> {
+    fn find_memory_mut(&mut self, range: Range<usize>) -> Option<&mut Memory> {
         // Fast path: check last hit first.
         if let Some(i) = self.last_hit {
             // SAFETY: i must be a valid index into self.memory.
             if unsafe { self.memory.get_unchecked(i).contains(range.clone()) } {
-                return Ok(&mut self.memory[i]);
+                return Some(&mut self.memory[i]);
             }
         }
 
@@ -72,18 +100,30 @@ impl<I: RvIsa> Bus<I> {
 
     #[cold]
     #[inline(never)]
-    fn find_memory_mut_slow(&mut self, range: Range<usize>) -> Result<&mut Memory, BusFault> {
+    fn find_memory_mut_slow(&mut self, range: Range<usize>) -> Option<&mut Memory> {
         // First match wins. If you later allow overlapping regions, you must define priority.
         // For now, regions are expected to be non-overlapping.
         for (i, m) in self.memory.iter_mut().enumerate() {
             if m.contains(range.clone()) {
                 self.last_hit = Some(i);
-                return Ok(m);
+                return Some(m);
             }
         }
 
-        // If address isn't mapped, keep last_hit unchanged (it may still be useful).
-        Err(BusFault::Unmapped { addr: range.start })
+        None
+    }
+
+    fn find_device_mut(
+        &mut self,
+        range: Range<usize>,
+    ) -> Option<(usize, &mut Box<dyn DeviceAccess>)> {
+        for (addr, device) in self.device.iter_mut() {
+            if addr == &range.start {
+                return Some((*addr, device));
+            }
+        }
+
+        None
     }
 
     pub(crate) fn execute(&mut self, subcmd: &BusCmd) -> Result<(), BusFault> {

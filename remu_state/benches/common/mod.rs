@@ -49,7 +49,11 @@ pub fn make_state_from_clap_defaults(tag: &'static str) -> State<RV32I> {
     // Sanity check: ensure the clap default actually populated BusOption.mem, so our address
     // range is mapped. If someone changes the default later, this bench will fail loudly
     // instead of producing misleading "unmapped"/error-heavy profiles.
-    let BusOption { mem, elf: _ } = &opt.state.bus;
+    let BusOption {
+        mem,
+        devices: _,
+        elf: _,
+    } = &opt.state.bus;
     assert!(
         !mem.is_empty(),
         "BusOption.mem is empty; clap default for --mem did not apply"

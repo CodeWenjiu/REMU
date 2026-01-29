@@ -25,4 +25,10 @@ pub enum BusFault {
 
     #[error("Memory Fault {0}")]
     MemError(#[from] MemFault),
+
+    #[error("Unsupported Access Width")]
+    UnsupportedAccessWidth(usize),
+
+    #[error("IO Error")]
+    IoError,
 }
