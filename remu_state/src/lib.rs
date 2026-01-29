@@ -5,7 +5,7 @@ use remu_types::isa::RvIsa;
 use crate::{bus::Bus, reg::RiscvReg};
 
 remu_macro::mod_pub!(reg, bus);
-remu_macro::mod_flat!(option, command);
+remu_macro::mod_flat!(option, error, command);
 
 /// State template
 pub struct State<I: RvIsa> {
@@ -25,14 +25,15 @@ impl<I: RvIsa> State<I> {
         }
     }
 
-    pub fn execute(&mut self, subcmd: &StateCmd) {
+    pub fn execute(&mut self, subcmd: &StateCmd) -> Result<(), StateError> {
         match subcmd {
-            StateCmd::Bus { subcmd } => self.bus.execute(subcmd),
+            StateCmd::Bus { subcmd } => self.bus.execute(subcmd)?,
             StateCmd::Reg { subcmd } => self.reg.execute(subcmd),
             StateCmd::MemMap => {
                 let map = self.bus.mem_map();
                 self.tracer.borrow().mem_show_map(map);
             }
         }
+        Ok(())
     }
 }

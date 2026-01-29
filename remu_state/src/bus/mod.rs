@@ -84,7 +84,7 @@ impl<I: RvIsa> Bus<I> {
         Err(BusFault::Unmapped { addr: range.start })
     }
 
-    pub(crate) fn execute(&mut self, subcmd: &BusCmd) {
+    pub(crate) fn execute(&mut self, subcmd: &BusCmd) -> Result<(), BusFault> {
         match subcmd {
             BusCmd::Read { subcmd } => {
                 let (addr, result) = match subcmd {
@@ -116,35 +116,24 @@ impl<I: RvIsa> Bus<I> {
                     .map_err(|e| Box::new(e) as Box<dyn DynDiagError>);
                 self.tracer.borrow_mut().mem_print(*addr, &buf, result);
             }
-            BusCmd::Write { subcmd } => {
-                let result = match subcmd {
-                    WriteCommand::U8 { addr, value } => self.write_8(*addr, *value),
-                    WriteCommand::U16 { addr, value } => self.write_16(*addr, *value),
-                    WriteCommand::U32 { addr, value } => self.write_32(*addr, *value),
-                    WriteCommand::U64 { addr, value } => self.write_64(*addr, *value),
-                    WriteCommand::U128 { addr, value } => self.write_128(*addr, *value),
-                };
-                if let Err(e) = result {
-                    self.tracer
-                        .borrow()
-                        .deal_error(Box::new(e) as Box<dyn DynDiagError>)
-                }
-            }
+            BusCmd::Write { subcmd } => match subcmd {
+                WriteCommand::U8 { addr, value } => self.write_8(*addr, *value)?,
+                WriteCommand::U16 { addr, value } => self.write_16(*addr, *value)?,
+                WriteCommand::U32 { addr, value } => self.write_32(*addr, *value)?,
+                WriteCommand::U64 { addr, value } => self.write_64(*addr, *value)?,
+                WriteCommand::U128 { addr, value } => self.write_128(*addr, *value)?,
+            },
             BusCmd::Set { address, value } => {
                 let mut addr = *address;
                 for chunk in value.iter() {
                     if chunk.is_empty() {
                         continue;
                     }
-                    if let Err(e) = self.write_bytes(addr, chunk) {
-                        self.tracer
-                            .borrow()
-                            .deal_error(Box::new(e) as Box<dyn DynDiagError>);
-                        break;
-                    }
+                    self.write_bytes(addr, chunk)?;
                     addr = addr.saturating_add(chunk.len());
                 }
             }
         }
+        Ok(())
     }
 }

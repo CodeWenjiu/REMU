@@ -78,7 +78,7 @@ impl<I: RvIsa> Debugger<I> {
     }
 
     fn execute_parsed(&mut self, command: &Command) -> Result<bool> {
-        self.simulator.exec(command);
+        self.simulator.exec(command)?;
 
         Ok(true)
     }

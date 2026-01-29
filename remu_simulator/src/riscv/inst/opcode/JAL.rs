@@ -1,5 +1,5 @@
 use remu_state::State;
-use remu_types::isa::RvIsa;
+use remu_types::isa::{RvIsa, reg::RegAccess};
 
 use crate::riscv::inst::{DecodedInst, SimulatorError, imm_j, rd};
 
@@ -8,11 +8,9 @@ pub(crate) const OPCODE: u32 = 0b110_1111;
 pub(crate) const INSTRUCTION_MIX: u32 = 30;
 
 fn jal<I: RvIsa>(state: &mut State<I>, inst: &DecodedInst<I>) -> Result<(), SimulatorError> {
-    let value: u32 = state.reg.read_pc().wrapping_add(4);
-    state.reg.write_gpr(inst.rd.into(), value);
-    state
-        .reg
-        .write_pc(state.reg.read_pc().wrapping_add(inst.imm));
+    let value: u32 = state.reg.pc.wrapping_add(4);
+    state.reg.gpr.raw_write(inst.rd.into(), value);
+    state.reg.pc = state.reg.pc.wrapping_add(inst.imm);
     Ok(())
 }
 

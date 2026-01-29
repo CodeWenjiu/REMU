@@ -39,8 +39,6 @@ pub trait Tracer {
     fn reg_show(&self, index: Gpr, data: u32);
 
     fn disasm(&self, pc: u64, inst: u32);
-
-    fn deal_error(&self, error: Box<dyn DynDiagError>);
 }
 
 pub type TracerDyn = Rc<RefCell<dyn Tracer>>;

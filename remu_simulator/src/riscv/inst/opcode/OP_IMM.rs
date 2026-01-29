@@ -1,5 +1,5 @@
 use remu_state::State;
-use remu_types::isa::RvIsa;
+use remu_types::isa::{RvIsa, reg::RegAccess};
 
 use crate::riscv::inst::{DecodedInst, SimulatorError, funct3, funct7, imm_i, rd, rs1};
 
@@ -29,11 +29,11 @@ macro_rules! imm_op {
             state: &mut State<I>,
             inst: &DecodedInst<I>,
         ) -> Result<(), SimulatorError> {
-            let $rs1_val = state.reg.read_gpr(inst.rs1.into());
+            let $rs1_val = state.reg.gpr.raw_read(inst.rs1.into());
             let $imm_val = inst.imm;
             let value: u32 = $value;
-            state.reg.write_gpr(inst.rd.into(), value);
-            state.reg.write_pc(state.reg.read_pc().wrapping_add(4));
+            state.reg.gpr.raw_write(inst.rd.into(), value);
+            state.reg.pc = state.reg.pc.wrapping_add(4);
             Ok(())
         }
     };

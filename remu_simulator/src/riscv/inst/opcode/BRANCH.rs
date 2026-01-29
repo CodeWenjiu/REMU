@@ -1,5 +1,8 @@
 use remu_state::State;
-use remu_types::{Xlen, isa::RvIsa};
+use remu_types::{
+    Xlen,
+    isa::{RvIsa, reg::RegAccess},
+};
 
 use crate::riscv::inst::{DecodedInst, SimulatorError, funct3, imm_b, rs1, rs2};
 
@@ -22,15 +25,13 @@ macro_rules! branch_op {
             state: &mut State<I>,
             inst: &DecodedInst<I>,
         ) -> Result<(), SimulatorError> {
-            let $a = state.reg.read_gpr(inst.rs1.into());
-            let $b = state.reg.read_gpr(inst.rs2.into());
+            let $a = state.reg.gpr.raw_read(inst.rs1.into());
+            let $b = state.reg.gpr.raw_read(inst.rs2.into());
 
             if $cond {
-                state
-                    .reg
-                    .write_pc(state.reg.read_pc().wrapping_add(inst.imm));
+                state.reg.pc = state.reg.pc.wrapping_add(inst.imm);
             } else {
-                state.reg.write_pc(state.reg.read_pc().wrapping_add(4));
+                state.reg.pc = state.reg.pc.wrapping_add(4);
             }
 
             Ok(())

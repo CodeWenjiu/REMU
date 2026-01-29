@@ -242,7 +242,9 @@ impl Tracer for CLITracer {
             result.bright_white()
         );
     }
+}
 
+impl CLITracer {
     fn deal_error(&self, error: Box<dyn DynDiagError>) {
         println!("{}: {}", "error".red(), error)
     }

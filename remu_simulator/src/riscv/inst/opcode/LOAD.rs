@@ -1,5 +1,5 @@
-use remu_state::State;
-use remu_types::isa::RvIsa;
+use remu_state::{State, StateError};
+use remu_types::isa::{RvIsa, reg::RegAccess};
 
 use crate::riscv::inst::{DecodedInst, SimulatorError, funct3, imm_i, rd, rs1};
 
@@ -21,11 +21,17 @@ macro_rules! load_s {
             state: &mut State<I>,
             inst: &DecodedInst<I>,
         ) -> Result<(), SimulatorError> {
-            let rs1_val = state.reg.read_gpr(inst.rs1.into());
+            let rs1_val = state.reg.gpr.raw_read(inst.rs1.into());
             let addr = rs1_val.wrapping_add(inst.imm);
-            let value: $u = state.bus.$read_fn(addr as usize)?;
-            state.reg.write_gpr(inst.rd.into(), (value as $i) as u32);
-            state.reg.write_pc(state.reg.read_pc().wrapping_add(4));
+            let value: $u = state
+                .bus
+                .$read_fn(addr as usize)
+                .map_err(StateError::from)?;
+            state
+                .reg
+                .gpr
+                .raw_write(inst.rd.into(), (value as $i) as u32);
+            state.reg.pc = state.reg.pc.wrapping_add(4);
             Ok(())
         }
     };
@@ -37,11 +43,14 @@ macro_rules! load_u {
             state: &mut State<I>,
             inst: &DecodedInst<I>,
         ) -> Result<(), SimulatorError> {
-            let rs1_val = state.reg.read_gpr(inst.rs1.into());
+            let rs1_val = state.reg.gpr.raw_read(inst.rs1.into());
             let addr = rs1_val.wrapping_add(inst.imm);
-            let value: $u = state.bus.$read_fn(addr as usize)?;
-            state.reg.write_gpr(inst.rd.into(), value as u32);
-            state.reg.write_pc(state.reg.read_pc().wrapping_add(4));
+            let value: $u = state
+                .bus
+                .$read_fn(addr as usize)
+                .map_err(StateError::from)?;
+            state.reg.gpr.raw_write(inst.rd.into(), value as u32);
+            state.reg.pc = state.reg.pc.wrapping_add(4);
             Ok(())
         }
     };
