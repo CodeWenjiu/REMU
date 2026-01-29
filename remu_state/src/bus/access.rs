@@ -1,6 +1,6 @@
 use remu_types::isa::RvIsa;
 
-use crate::bus::{Bus, BusFault};
+use crate::bus::{Bus, BusFault, BusObserver};
 
 impl<I: RvIsa> Bus<I> {
     #[inline(always)]
@@ -40,26 +40,54 @@ impl<I: RvIsa> Bus<I> {
     }
 
     #[inline(always)]
-    pub fn write_8(&mut self, addr: usize, value: u8) -> Result<(), BusFault> {
+    pub fn write_8<O: BusObserver>(
+        &mut self,
+        addr: usize,
+        value: u8,
+        obs: &mut O,
+    ) -> Result<(), BusFault> {
         let m = self.find_memory_mut(addr..addr + 1)?;
+        obs.on_mem_write(addr, 1, value.into());
+
         Ok(m.write_8(addr, value))
     }
 
     #[inline(always)]
-    pub fn write_16(&mut self, addr: usize, value: u16) -> Result<(), BusFault> {
+    pub fn write_16<O: BusObserver>(
+        &mut self,
+        addr: usize,
+        value: u16,
+        obs: &mut O,
+    ) -> Result<(), BusFault> {
         let m = self.find_memory_mut(addr..addr + 2)?;
+        obs.on_mem_write(addr, 2, value.into());
+
         Ok(m.write_16(addr, value))
     }
 
     #[inline(always)]
-    pub fn write_32(&mut self, addr: usize, value: u32) -> Result<(), BusFault> {
+    pub fn write_32<O: BusObserver>(
+        &mut self,
+        addr: usize,
+        value: u32,
+        obs: &mut O,
+    ) -> Result<(), BusFault> {
         let m = self.find_memory_mut(addr..addr + 4)?;
+        obs.on_mem_write(addr, 4, value.into());
+
         Ok(m.write_32(addr, value))
     }
 
     #[inline(always)]
-    pub fn write_64(&mut self, addr: usize, value: u64) -> Result<(), BusFault> {
+    pub fn write_64<O: BusObserver>(
+        &mut self,
+        addr: usize,
+        value: u64,
+        obs: &mut O,
+    ) -> Result<(), BusFault> {
         let m = self.find_memory_mut(addr..addr + 8)?;
+        obs.on_mem_write(addr, 8, value.into());
+
         Ok(m.write_64(addr, value))
     }
 

@@ -29,21 +29,21 @@ fn run_write_workload(
 
     for &addr in addrs8 {
         let v = (addr as u8).wrapping_mul(3);
-        bus.write_8(addr, v)
+        bus.write_8(addr, v, &mut ())
             .expect("unmapped write_8 in bench workload");
         let r = bus.read_8(addr).expect("unmapped read_8 after write") as u64;
         acc = acc.wrapping_add(r);
     }
     for &addr in addrs16 {
         let v = (addr as u16).wrapping_mul(17);
-        bus.write_16(addr, v)
+        bus.write_16(addr, v, &mut ())
             .expect("unmapped write_16 in bench workload");
         let r = bus.read_16(addr).expect("unmapped read_16 after write") as u64;
         acc = acc.wrapping_add(r);
     }
     for &addr in addrs32 {
         let v = (addr as u32).wrapping_mul(257);
-        bus.write_32(addr, v)
+        bus.write_32(addr, v, &mut ())
             .expect("unmapped write_32 in bench workload");
         let r = bus.read_32(addr).expect("unmapped read_32 after write") as u64;
         acc = acc.wrapping_add(r);

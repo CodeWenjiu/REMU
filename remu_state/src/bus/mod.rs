@@ -1,4 +1,6 @@
-remu_macro::mod_flat!(error, command, option, memory, device, access, elf_loader);
+remu_macro::mod_flat!(
+    error, command, option, memory, device, access, observer, elf_loader
+);
 
 use std::{marker::PhantomData, ops::Range};
 
@@ -117,10 +119,10 @@ impl<I: RvIsa> Bus<I> {
                 self.tracer.borrow_mut().mem_print(*addr, &buf, result);
             }
             BusCmd::Write { subcmd } => match subcmd {
-                WriteCommand::U8 { addr, value } => self.write_8(*addr, *value)?,
-                WriteCommand::U16 { addr, value } => self.write_16(*addr, *value)?,
-                WriteCommand::U32 { addr, value } => self.write_32(*addr, *value)?,
-                WriteCommand::U64 { addr, value } => self.write_64(*addr, *value)?,
+                WriteCommand::U8 { addr, value } => self.write_8(*addr, *value, &mut ())?,
+                WriteCommand::U16 { addr, value } => self.write_16(*addr, *value, &mut ())?,
+                WriteCommand::U32 { addr, value } => self.write_32(*addr, *value, &mut ())?,
+                WriteCommand::U64 { addr, value } => self.write_64(*addr, *value, &mut ())?,
                 WriteCommand::U128 { addr, value } => self.write_128(*addr, *value)?,
             },
             BusCmd::Set { address, value } => {

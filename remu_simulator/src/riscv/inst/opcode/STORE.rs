@@ -18,7 +18,11 @@ fn sb<I: RvIsa>(state: &mut State<I>, inst: &DecodedInst<I>) -> Result<(), Simul
     let addr = rs1.wrapping_add(inst.imm);
     state
         .bus
-        .write_8(addr as usize, state.reg.gpr.raw_read(inst.rs2.into()) as u8)
+        .write_8(
+            addr as usize,
+            state.reg.gpr.raw_read(inst.rs2.into()) as u8,
+            &mut (),
+        )
         .map_err(StateError::from)?;
     state.reg.pc = state.reg.pc.wrapping_add(4);
     Ok(())
@@ -32,6 +36,7 @@ fn sh<I: RvIsa>(state: &mut State<I>, inst: &DecodedInst<I>) -> Result<(), Simul
         .write_16(
             addr as usize,
             state.reg.gpr.raw_read(inst.rs2.into()) as u16,
+            &mut (),
         )
         .map_err(StateError::from)?;
     state.reg.pc = state.reg.pc.wrapping_add(4);
@@ -43,7 +48,11 @@ fn sw<I: RvIsa>(state: &mut State<I>, inst: &DecodedInst<I>) -> Result<(), Simul
     let addr = rs1.wrapping_add(inst.imm);
     state
         .bus
-        .write_32(addr as usize, state.reg.gpr.raw_read(inst.rs2.into()))
+        .write_32(
+            addr as usize,
+            state.reg.gpr.raw_read(inst.rs2.into()),
+            &mut (),
+        )
         .map_err(StateError::from)?;
     state.reg.pc = state.reg.pc.wrapping_add(4);
     Ok(())
