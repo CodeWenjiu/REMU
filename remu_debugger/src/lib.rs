@@ -6,7 +6,7 @@ use remu_simulator::Simulator;
 use remu_types::TracerDyn;
 
 pub struct Debugger<P: DebuggerPolicy> {
-    simulator: Simulator<P::SimPolicy>,
+    simulator: Simulator<P>,
 }
 
 impl<P: DebuggerPolicy> Debugger<P> {

@@ -34,6 +34,9 @@ pub enum BusCmd {
         #[arg(value_parser = parse_byte_vec)]
         value: Vec<Vec<u8>>,
     },
+
+    /// Show current memory map (name | begin | end)
+    MemMap,
 }
 
 #[derive(Debug, clap::Subcommand)]

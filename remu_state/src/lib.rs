@@ -1,26 +1,21 @@
 use std::marker::PhantomData;
 
-use remu_types::isa::RvIsa;
-
 use crate::{bus::Bus, reg::RiscvReg};
 
 remu_macro::mod_pub!(reg, bus);
-remu_macro::mod_flat!(option, command, error);
+remu_macro::mod_flat!(option, policy, command, error);
 
-/// State template
-pub struct State<I: RvIsa> {
-    pub bus: Bus<I>,
-    pub reg: RiscvReg<I>,
-    tracer: remu_types::TracerDyn,
-    _marker: PhantomData<I>,
+pub struct State<P: StatePolicy> {
+    pub bus: Bus<P::ISA, P::Observer>,
+    pub reg: RiscvReg<P::ISA>,
+    _marker: PhantomData<P>,
 }
 
-impl<I: RvIsa> State<I> {
+impl<P: StatePolicy> State<P> {
     pub fn new(opt: StateOption, tracer: remu_types::TracerDyn) -> Self {
         Self {
             bus: Bus::new(opt.bus, tracer.clone()),
             reg: RiscvReg::new(opt.reg, tracer.clone()),
-            tracer,
             _marker: PhantomData,
         }
     }
@@ -29,10 +24,6 @@ impl<I: RvIsa> State<I> {
         match subcmd {
             StateCmd::Bus { subcmd } => self.bus.execute(subcmd)?,
             StateCmd::Reg { subcmd } => self.reg.execute(subcmd),
-            StateCmd::MemMap => {
-                let map = self.bus.mem_map();
-                self.tracer.borrow().mem_show_map(map);
-            }
         }
         Ok(())
     }

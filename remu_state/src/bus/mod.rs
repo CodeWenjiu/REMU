@@ -11,22 +11,16 @@ use remu_types::{AllUsize, DynDiagError, isa::RvIsa};
 
 use crate::bus::device::{DeviceAccess, get_device};
 
-// Use the public re-export to avoid shadowing the glob re-exported `Memory`
-
-pub struct Bus<I: RvIsa> {
+pub struct Bus<I: RvIsa, O: BusObserver> {
     memory: Box<[Memory]>,
     device: Box<[(usize, Box<dyn DeviceAccess>)]>,
-    /// Last-hit cache for region lookup.
-    ///
-    /// This is an extremely effective fast-path when workloads exhibit any locality
-    /// (or when there is only a single region): we first check the previously-hit
-    /// region and fall back to scanning only if it doesn't match.
     last_hit: Option<usize>,
     tracer: remu_types::TracerDyn,
+    observer: O,
     _marker: PhantomData<I>,
 }
 
-impl<I: RvIsa> Bus<I> {
+impl<I: RvIsa, O: BusObserver> Bus<I, O> {
     pub(crate) fn new(opt: BusOption, tracer: remu_types::TracerDyn) -> Self {
         let memory: Vec<Memory> = opt
             .mem
@@ -69,24 +63,9 @@ impl<I: RvIsa> Bus<I> {
             device: device.into_boxed_slice(),
             last_hit: None,
             tracer,
+            observer: O::new(),
             _marker: PhantomData,
         }
-    }
-
-    /// Return a snapshot of the current memory map as (name, address range) pairs.
-    ///
-    /// This is intended for frontends (via `State` -> `Tracer`) to render a memory map table.
-    /// The returned `Vec` is small (number of regions) and cheap to build.
-    pub fn mem_map(&self) -> Vec<(String, Range<usize>)> {
-        self.memory
-            .iter()
-            .map(|m| (m.name.clone(), m.range.clone()))
-            .chain(
-                self.device
-                    .iter()
-                    .map(|d| (d.1.name().to_string(), d.0..d.0 + d.1.size())),
-            )
-            .collect()
     }
 
     #[inline(always)]
@@ -131,7 +110,6 @@ impl<I: RvIsa> Bus<I> {
     }
 
     pub(crate) fn execute(&mut self, subcmd: &BusCmd) -> Result<(), BusFault> {
-        let mut obs = MmioObserver::new();
         match subcmd {
             BusCmd::Read { subcmd } => {
                 let (addr, result) = match subcmd {
@@ -164,11 +142,11 @@ impl<I: RvIsa> Bus<I> {
                 self.tracer.borrow_mut().mem_print(*addr, &buf, result);
             }
             BusCmd::Write { subcmd } => match subcmd {
-                WriteCommand::U8 { addr, value } => self.write_8(*addr, *value, &mut obs)?,
-                WriteCommand::U16 { addr, value } => self.write_16(*addr, *value, &mut obs)?,
-                WriteCommand::U32 { addr, value } => self.write_32(*addr, *value, &mut obs)?,
-                WriteCommand::U64 { addr, value } => self.write_64(*addr, *value, &mut obs)?,
-                WriteCommand::U128 { addr, value } => self.write_128(*addr, *value, &mut obs)?,
+                WriteCommand::U8 { addr, value } => self.write_8(*addr, *value)?,
+                WriteCommand::U16 { addr, value } => self.write_16(*addr, *value)?,
+                WriteCommand::U32 { addr, value } => self.write_32(*addr, *value)?,
+                WriteCommand::U64 { addr, value } => self.write_64(*addr, *value)?,
+                WriteCommand::U128 { addr, value } => self.write_128(*addr, *value)?,
             },
             BusCmd::Set { address, value } => {
                 let mut addr = *address;
@@ -179,6 +157,19 @@ impl<I: RvIsa> Bus<I> {
                     self.write_bytes(addr, chunk)?;
                     addr = addr.saturating_add(chunk.len());
                 }
+            }
+            BusCmd::MemMap => {
+                self.tracer.borrow().mem_show_map(
+                    self.memory
+                        .iter()
+                        .map(|m| (m.name.clone(), m.range.clone()))
+                        .chain(
+                            self.device
+                                .iter()
+                                .map(|d| (d.1.name().to_string(), d.0..d.0 + d.1.size())),
+                        )
+                        .collect(),
+                );
             }
         }
         Ok(())

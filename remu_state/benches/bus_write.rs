@@ -18,33 +18,28 @@ const BENCH_WRITE_NAME_SMALL_WS: &str = "bus_write_mixed_1_1_1_u8_u16_u32_small_
 
 #[inline(never)]
 fn run_write_workload(
-    bus: &mut Bus<RV32I>,
+    bus: &mut Bus<RV32I, FastObserver>,
     addrs8: &[usize],
     addrs16: &[usize],
     addrs32: &[usize],
 ) {
-    // Keep writes "observable" (avoid being optimized away):
-    // write values derived from address and read them back.
     let mut acc: u64 = 0;
 
     for &addr in addrs8 {
         let v = (addr as u8).wrapping_mul(3);
-        bus.write_8(addr, v, &mut FastObserver)
-            .expect("unmapped write_8 in bench workload");
+        bus.write_8(addr, v).expect("unmapped write_8 in bench workload");
         let r = bus.read_8(addr).expect("unmapped read_8 after write") as u64;
         acc = acc.wrapping_add(r);
     }
     for &addr in addrs16 {
         let v = (addr as u16).wrapping_mul(17);
-        bus.write_16(addr, v, &mut FastObserver)
-            .expect("unmapped write_16 in bench workload");
+        bus.write_16(addr, v).expect("unmapped write_16 in bench workload");
         let r = bus.read_16(addr).expect("unmapped read_16 after write") as u64;
         acc = acc.wrapping_add(r);
     }
     for &addr in addrs32 {
         let v = (addr as u32).wrapping_mul(257);
-        bus.write_32(addr, v, &mut FastObserver)
-            .expect("unmapped write_32 in bench workload");
+        bus.write_32(addr, v).expect("unmapped write_32 in bench workload");
         let r = bus.read_32(addr).expect("unmapped read_32 after write") as u64;
         acc = acc.wrapping_add(r);
     }

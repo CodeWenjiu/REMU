@@ -1,27 +1,12 @@
-use std::marker::PhantomData;
-
+use remu_state::{StateFastProfile, StateMmioProfile};
 use remu_simulator::SimulatorPolicy;
 use remu_types::isa::RvIsa;
 
-pub trait DebuggerPolicy {
-    type SimPolicy: SimulatorPolicy;
-}
+pub trait DebuggerPolicy: SimulatorPolicy {}
 
-pub struct DebuggerProfile<ISA, SimPolicy>
-where
-    ISA: RvIsa,
-    SimPolicy: SimulatorPolicy,
-{
-    _marker_isa: PhantomData<(ISA, SimPolicy)>,
-}
+impl<ISA> DebuggerPolicy for StateFastProfile<ISA> where ISA: RvIsa {}
 
-impl<ISA, SimPolicy> DebuggerPolicy for DebuggerProfile<ISA, SimPolicy>
-where
-    ISA: RvIsa,
-    SimPolicy: SimulatorPolicy,
-{
-    type SimPolicy = SimPolicy;
-}
+impl<ISA> DebuggerPolicy for StateMmioProfile<ISA> where ISA: RvIsa {}
 
 pub trait DebuggerRunner {
     fn run<P: DebuggerPolicy>(self, option: crate::DebuggerOption);

@@ -1,7 +1,7 @@
 use std::marker::PhantomData;
 
-use remu_state::{State, StateError, bus::BusObserver};
-use remu_types::isa::{RvIsa, reg::RegAccess};
+use remu_state::{State, StateError, StatePolicy};
+use remu_types::isa::reg::RegAccess;
 
 use crate::riscv::inst::{DecodedInst, SimulatorError, funct3, imm_s, rs1, rs2};
 
@@ -15,65 +15,50 @@ mod func3 {
     pub const SW: u32 = 0b010; // Store Word
 }
 
-fn sb<I: RvIsa, O: BusObserver>(
-    state: &mut State<I>,
-    inst: &DecodedInst<I, O>,
-    obs: &mut O,
+fn sb<P: StatePolicy>(
+    state: &mut State<P>,
+    inst: &DecodedInst<P>,
 ) -> Result<(), SimulatorError> {
     let rs1 = state.reg.gpr.raw_read(inst.rs1.into());
     let addr = rs1.wrapping_add(inst.imm);
     state
         .bus
-        .write_8(
-            addr as usize,
-            state.reg.gpr.raw_read(inst.rs2.into()) as u8,
-            obs,
-        )
+        .write_8(addr as usize, state.reg.gpr.raw_read(inst.rs2.into()) as u8)
         .map_err(StateError::from)?;
     state.reg.pc = state.reg.pc.wrapping_add(4);
     Ok(())
 }
 
-fn sh<I: RvIsa, O: BusObserver>(
-    state: &mut State<I>,
-    inst: &DecodedInst<I, O>,
-    obs: &mut O,
+fn sh<P: StatePolicy>(
+    state: &mut State<P>,
+    inst: &DecodedInst<P>,
 ) -> Result<(), SimulatorError> {
     let rs1 = state.reg.gpr.raw_read(inst.rs1.into());
     let addr = rs1.wrapping_add(inst.imm);
     state
         .bus
-        .write_16(
-            addr as usize,
-            state.reg.gpr.raw_read(inst.rs2.into()) as u16,
-            obs,
-        )
+        .write_16(addr as usize, state.reg.gpr.raw_read(inst.rs2.into()) as u16)
         .map_err(StateError::from)?;
     state.reg.pc = state.reg.pc.wrapping_add(4);
     Ok(())
 }
 
-fn sw<I: RvIsa, O: BusObserver>(
-    state: &mut State<I>,
-    inst: &DecodedInst<I, O>,
-    obs: &mut O,
+fn sw<P: StatePolicy>(
+    state: &mut State<P>,
+    inst: &DecodedInst<P>,
 ) -> Result<(), SimulatorError> {
     let rs1 = state.reg.gpr.raw_read(inst.rs1.into());
     let addr = rs1.wrapping_add(inst.imm);
     state
         .bus
-        .write_32(
-            addr as usize,
-            state.reg.gpr.raw_read(inst.rs2.into()),
-            obs,
-        )
+        .write_32(addr as usize, state.reg.gpr.raw_read(inst.rs2.into()))
         .map_err(StateError::from)?;
     state.reg.pc = state.reg.pc.wrapping_add(4);
     Ok(())
 }
 
 #[inline(always)]
-pub(crate) fn decode<I: RvIsa, O: BusObserver>(inst: u32) -> DecodedInst<I, O> {
+pub(crate) fn decode<P: StatePolicy>(inst: u32) -> DecodedInst<P> {
     let f3 = funct3(inst);
 
     let rs1 = rs1(inst);
@@ -81,33 +66,33 @@ pub(crate) fn decode<I: RvIsa, O: BusObserver>(inst: u32) -> DecodedInst<I, O> {
     let imm = imm_s(inst);
 
     match f3 {
-        func3::SB => DecodedInst::<I, O> {
+        func3::SB => DecodedInst::<P> {
             rd: 0,
             rs1,
             rs2,
             imm,
 
-            handler: sb::<I, O>,
+            handler: sb::<P>,
             _marker: PhantomData,
         },
-        func3::SH => DecodedInst::<I, O> {
+        func3::SH => DecodedInst::<P> {
             rd: 0,
             rs1,
             rs2,
             imm,
 
-            handler: sh::<I, O>,
+            handler: sh::<P>,
             _marker: PhantomData,
         },
-        func3::SW => DecodedInst::<I, O> {
+        func3::SW => DecodedInst::<P> {
             rd: 0,
             rs1,
             rs2,
             imm,
 
-            handler: sw::<I, O>,
+            handler: sw::<P>,
             _marker: PhantomData,
         },
-        _ => DecodedInst::<I, O>::default(),
+        _ => DecodedInst::<P>::default(),
     }
 }

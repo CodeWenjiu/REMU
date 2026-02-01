@@ -1280,6 +1280,7 @@ version = "0.1.0"
 dependencies = [
  "remu_debugger",
  "remu_simulator",
+ "remu_state",
  "remu_types",
  "target-lexicon",
 ]

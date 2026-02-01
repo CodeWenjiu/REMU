@@ -2,8 +2,8 @@ use std::ops::Range;
 
 use clap::Parser;
 
-use remu_state::bus::BusOption;
-use remu_state::{State, StateOption};
+use remu_state::bus::{BusOption, FastObserver};
+use remu_state::{State, StateOption, StateProfile};
 use remu_types::isa::reg::Gpr;
 use remu_types::{AllUsize, DynDiagError, Tracer, TracerDyn, isa::extension_enum::RV32I};
 
@@ -36,7 +36,7 @@ impl Tracer for BenchTracer {
 }
 
 #[inline(never)]
-pub fn make_state_from_clap_defaults(tag: &'static str) -> State<RV32I> {
+pub fn make_state_from_clap_defaults(tag: &'static str) -> State<StateProfile<RV32I, FastObserver>> {
     // We intentionally reuse clap defaults so benches match real configuration.
     #[derive(clap::Parser, Debug)]
     struct Opt {

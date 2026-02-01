@@ -1,10 +1,7 @@
 use std::marker::PhantomData;
 
-use remu_state::{State, bus::BusObserver};
-use remu_types::{
-    Xlen,
-    isa::{RvIsa, reg::RegAccess},
-};
+use remu_state::{State, StatePolicy};
+use remu_types::{isa::reg::RegAccess, Xlen};
 
 use crate::riscv::inst::{DecodedInst, SimulatorError, funct3, imm_b, rs1, rs2};
 
@@ -23,10 +20,9 @@ mod func3 {
 
 macro_rules! branch_op {
     ($name:ident, |$a:ident, $b:ident| $cond:expr) => {
-        fn $name<I: RvIsa, O: BusObserver>(
-            state: &mut State<I>,
-            inst: &DecodedInst<I, O>,
-            _obs: &mut O,
+        fn $name<P: StatePolicy>(
+            state: &mut State<P>,
+            inst: &DecodedInst<P>,
         ) -> Result<(), SimulatorError> {
             let $a = state.reg.gpr.raw_read(inst.rs1.into());
             let $b = state.reg.gpr.raw_read(inst.rs2.into());
@@ -50,7 +46,7 @@ branch_op!(bltu, |rs1, rs2| rs1 < rs2);
 branch_op!(bgeu, |rs1, rs2| rs1 >= rs2);
 
 #[inline(always)]
-pub(crate) fn decode<I: RvIsa, O: BusObserver>(inst: u32) -> DecodedInst<I, O> {
+pub(crate) fn decode<P: StatePolicy>(inst: u32) -> DecodedInst<P> {
     let f3 = funct3(inst);
 
     let rs1 = rs1(inst);
@@ -58,60 +54,60 @@ pub(crate) fn decode<I: RvIsa, O: BusObserver>(inst: u32) -> DecodedInst<I, O> {
     let imm = imm_b(inst);
 
     match f3 {
-        func3::BEQ => DecodedInst::<I, O> {
+        func3::BEQ => DecodedInst::<P> {
             rd: 0,
             rs1,
             rs2,
             imm,
 
-            handler: beq::<I, O>,
+            handler: beq::<P>,
             _marker: PhantomData,
         },
-        func3::BNE => DecodedInst::<I, O> {
+        func3::BNE => DecodedInst::<P> {
             rd: 0,
             rs1,
             rs2,
             imm,
 
-            handler: bne::<I, O>,
+            handler: bne::<P>,
             _marker: PhantomData,
         },
-        func3::BLT => DecodedInst::<I, O> {
+        func3::BLT => DecodedInst::<P> {
             rd: 0,
             rs1,
             rs2,
             imm,
 
-            handler: blt::<I, O>,
+            handler: blt::<P>,
             _marker: PhantomData,
         },
-        func3::BGE => DecodedInst::<I, O> {
+        func3::BGE => DecodedInst::<P> {
             rd: 0,
             rs1,
             rs2,
             imm,
 
-            handler: bge::<I, O>,
+            handler: bge::<P>,
             _marker: PhantomData,
         },
-        func3::BLTU => DecodedInst::<I, O> {
+        func3::BLTU => DecodedInst::<P> {
             rd: 0,
             rs1,
             rs2,
             imm,
 
-            handler: bltu::<I, O>,
+            handler: bltu::<P>,
             _marker: PhantomData,
         },
-        func3::BGEU => DecodedInst::<I, O> {
+        func3::BGEU => DecodedInst::<P> {
             rd: 0,
             rs1,
             rs2,
             imm,
 
-            handler: bgeu::<I, O>,
+            handler: bgeu::<P>,
             _marker: PhantomData,
         },
-        _ => DecodedInst::<I, O>::default(),
+        _ => DecodedInst::<P>::default(),
     }
 }
