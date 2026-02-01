@@ -5,8 +5,9 @@ edition = "2024"
 
 [dependencies]
 remu_macro = { path = "../remu_macro" }
-remu_simulator = { path = "../remu_simulator" }
+remu_state = { path = "../remu_state" }
 remu_types = { path = "../remu_types" }
+remu_simulator = { path = "../remu_simulator" }
 
 clap = { workspace = true, features = [ "derive", "color" ] }
 
@@ -17,3 +18,5 @@ tracing.workspace = true
 
 petgraph.workspace = true
 winnow.workspace = true
+
+target-lexicon.workspace = true

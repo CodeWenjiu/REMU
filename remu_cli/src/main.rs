@@ -7,16 +7,9 @@ use reedline::{
     ColumnarMenu, DefaultHinter, Emacs, FileBackedHistory, KeyCode, KeyModifiers, MenuBuilder,
     Reedline, ReedlineEvent, ReedlineMenu, Signal, default_emacs_keybindings,
 };
-use remu_simulator::SimulatorOption;
-use remu_types::{
-    TracerDyn,
-    isa::{
-        RvIsa,
-        extension_enum::{RV32I, RV32IM},
-    },
-};
+use remu_debugger::{DebuggerBootLoader, DebuggerOption, DebuggerPolicy, DebuggerRunner};
+use remu_types::TracerDyn;
 use std::{cell::RefCell, rc::Rc};
-use target_lexicon::{Architecture, Riscv32Architecture};
 
 remu_macro::mod_flat!(compeleter, highlighter, validator, prompt, tracer);
 
@@ -85,28 +78,32 @@ fn hello() {
     println!("{}", output.text);
 }
 
-fn run_debugger<I: RvIsa>(option: SimulatorOption) {
-    let tracer: TracerDyn = Rc::new(RefCell::new(CLITracer::new(option.isa.clone())));
-    let mut debugger = remu_debugger::Debugger::<I>::new(option, tracer);
+struct APPRunner;
 
-    let mut line_editor = get_editor();
-    let prompt = get_prompt();
+impl DebuggerRunner for APPRunner {
+    fn run<P: DebuggerPolicy>(self, option: DebuggerOption) {
+        let tracer: TracerDyn = Rc::new(RefCell::new(CLITracer::new(option.isa.clone())));
+        let mut debugger = remu_debugger::Debugger::<P>::new(option, tracer);
 
-    hello();
+        let mut line_editor = get_editor();
+        let prompt = get_prompt();
 
-    loop {
-        let sig = line_editor.read_line(&prompt);
-        match sig {
-            Ok(Signal::Success(buffer)) => {
-                if let Err(e) = debugger.execute_line(buffer) {
-                    println!("{:?}", miette::Report::new(e));
+        hello();
+
+        loop {
+            let sig = line_editor.read_line(&prompt);
+            match sig {
+                Ok(Signal::Success(buffer)) => {
+                    if let Err(e) = debugger.execute_line(buffer) {
+                        println!("{:?}", miette::Report::new(e));
+                    }
                 }
+                Ok(Signal::CtrlD) => {
+                    println!("{}", "Quiting...".cyan());
+                    break;
+                }
+                _ => {}
             }
-            Ok(Signal::CtrlD) => {
-                println!("{}", "Quiting...".cyan());
-                break;
-            }
-            _ => {}
         }
     }
 }
@@ -114,16 +111,9 @@ fn run_debugger<I: RvIsa>(option: SimulatorOption) {
 fn main() -> Result<()> {
     let _guard = remu_logger::set_logger("target/logs", "remu.log")?;
 
-    let option = SimulatorOption::parse();
+    let option = DebuggerOption::parse();
 
-    match option.isa.0 {
-        Architecture::Riscv32(arch) => match arch {
-            Riscv32Architecture::Riscv32i => run_debugger::<RV32I>(option),
-            Riscv32Architecture::Riscv32im => run_debugger::<RV32IM>(option),
-            _ => unreachable!(),
-        },
-        _ => unreachable!(),
-    }
+    DebuggerBootLoader::boot(option, APPRunner);
 
     Ok(())
 }

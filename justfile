@@ -2,13 +2,13 @@ _default:
     @just --list
 
 dev *args:
-    @cargo run {{ args }}
+    @cargo run -- {{ args }}
 
 build:
     @cargo build
 
 run *args:
-    @cargo run --release {{ args }}
+    @cargo run --release -- {{ args }}
 
 bench CRATE BENCH:
     @cargo bench -p remu_{{ CRATE }} --bench {{ BENCH }}

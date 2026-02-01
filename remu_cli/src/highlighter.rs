@@ -1,7 +1,7 @@
 use nu_ansi_term::{Color, Style};
 use petgraph::graph::{Graph, NodeIndex};
 use reedline::{Highlighter, StyledText};
-use remu_simulator::SimulatorCommand;
+use remu_debugger::DebuggerCommand;
 use winnow::prelude::*;
 use winnow::token::take_while;
 
@@ -202,7 +202,7 @@ impl RemuHighlighter {
                 }
             }
 
-            let clap_parse_result = <SimulatorCommand as clap::Parser>::try_parse_from(argv);
+            let clap_parse_result = <DebuggerCommand as clap::Parser>::try_parse_from(argv);
             let clap_valid = match &clap_parse_result {
                 Ok(_) => true,
                 Err(e) => matches!(

@@ -81,6 +81,11 @@ impl<I: RvIsa> Bus<I> {
         self.memory
             .iter()
             .map(|m| (m.name.clone(), m.range.clone()))
+            .chain(
+                self.device
+                    .iter()
+                    .map(|d| (d.1.name().to_string(), d.0..d.0 + d.1.size())),
+            )
             .collect()
     }
 
@@ -98,8 +103,7 @@ impl<I: RvIsa> Bus<I> {
         self.find_memory_mut_slow(range)
     }
 
-    #[cold]
-    #[inline(never)]
+    #[inline(always)]
     fn find_memory_mut_slow(&mut self, range: Range<usize>) -> Option<&mut Memory> {
         // First match wins. If you later allow overlapping regions, you must define priority.
         // For now, regions are expected to be non-overlapping.
@@ -127,6 +131,7 @@ impl<I: RvIsa> Bus<I> {
     }
 
     pub(crate) fn execute(&mut self, subcmd: &BusCmd) -> Result<(), BusFault> {
+        let mut obs = FastObserver;
         match subcmd {
             BusCmd::Read { subcmd } => {
                 let (addr, result) = match subcmd {
@@ -159,11 +164,11 @@ impl<I: RvIsa> Bus<I> {
                 self.tracer.borrow_mut().mem_print(*addr, &buf, result);
             }
             BusCmd::Write { subcmd } => match subcmd {
-                WriteCommand::U8 { addr, value } => self.write_8(*addr, *value, &mut ())?,
-                WriteCommand::U16 { addr, value } => self.write_16(*addr, *value, &mut ())?,
-                WriteCommand::U32 { addr, value } => self.write_32(*addr, *value, &mut ())?,
-                WriteCommand::U64 { addr, value } => self.write_64(*addr, *value, &mut ())?,
-                WriteCommand::U128 { addr, value } => self.write_128(*addr, *value)?,
+                WriteCommand::U8 { addr, value } => self.write_8(*addr, *value, &mut obs)?,
+                WriteCommand::U16 { addr, value } => self.write_16(*addr, *value, &mut obs)?,
+                WriteCommand::U32 { addr, value } => self.write_32(*addr, *value, &mut obs)?,
+                WriteCommand::U64 { addr, value } => self.write_64(*addr, *value, &mut obs)?,
+                WriteCommand::U128 { addr, value } => self.write_128(*addr, *value, &mut obs)?,
             },
             BusCmd::Set { address, value } => {
                 let mut addr = *address;

@@ -1,6 +1,7 @@
-use clap::CommandFactory;
+use clap::{CommandFactory, builder::styling};
 use petgraph::graph::{Graph, NodeIndex};
-use remu_simulator::SimulatorCommand;
+use remu_simulator::FuncCmd;
+use remu_state::StateCmd;
 
 fn populate_graph(cmd: &clap::Command, graph: &mut Graph<String, ()>, parent: NodeIndex) {
     let mut has_children = false;
@@ -24,7 +25,50 @@ fn populate_graph(cmd: &clap::Command, graph: &mut Graph<String, ()>, parent: No
 pub fn get_command_graph() -> (Graph<String, ()>, NodeIndex) {
     let mut graph = Graph::<String, ()>::new();
     let root = graph.add_node(env!("CARGO_PKG_NAME").to_string());
-    let command = SimulatorCommand::command();
+    let command = DebuggerCommand::command();
     populate_graph(&command, &mut graph, root);
     (graph, root)
+}
+
+#[derive(clap::Parser, Debug)]
+#[command(
+    author,
+    version,
+    about,
+    disable_help_flag = true,
+    disable_version_flag = true,
+    styles = styling::Styles::styled()
+    .header(styling::AnsiColor::Green.on_default().bold())
+    .usage(styling::AnsiColor::Green.on_default().bold())
+    .literal(styling::AnsiColor::Blue.on_default().bold())
+    .placeholder(styling::AnsiColor::Cyan.on_default())
+)]
+pub struct DebuggerCommand {
+    #[command(subcommand)]
+    pub command: Command,
+}
+
+#[derive(Debug, clap::Subcommand)]
+pub enum Command {
+    /// continue the emulator
+    Continue,
+
+    /// Step
+    Step {
+        /// Number of steps to take
+        #[arg(default_value_t = 1)]
+        times: usize,
+    },
+
+    /// Func Command
+    Func {
+        #[command(subcommand)]
+        subcmd: FuncCmd,
+    },
+
+    /// State Command
+    State {
+        #[command(subcommand)]
+        subcmd: StateCmd,
+    },
 }

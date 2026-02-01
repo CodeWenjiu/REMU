@@ -9,9 +9,8 @@ remu_logger = { path = "../remu_logger" }
 remu_types = { path = "../remu_types" }
 remu_fmt = { path = "../remu_fmt" }
 
-remu_debugger = { path = "../remu_debugger" }
 remu_simulator = { path = "../remu_simulator" }
-
+remu_debugger = { path = "../remu_debugger" }
 
 tracing.workspace = true
 
@@ -29,5 +28,3 @@ cfonts = "1.3.0"
 
 clap = { workspace = true, features = [ "derive", "color" ] }
 winnow.workspace = true
-
-target-lexicon.workspace = true

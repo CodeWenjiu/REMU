@@ -1,18 +1,18 @@
 use clap::Parser;
 
-remu_macro::mod_flat!(command, error, compound_command);
+remu_macro::mod_flat!(command, option, policy, error, compound_command);
 pub use command::get_command_graph;
-use remu_simulator::{Command, Simulator, SimulatorCommand, SimulatorOption};
-use remu_types::{TracerDyn, isa::RvIsa};
+use remu_simulator::Simulator;
+use remu_types::TracerDyn;
 
-pub struct Debugger<I: RvIsa> {
-    simulator: Simulator<I>,
+pub struct Debugger<P: DebuggerPolicy> {
+    simulator: Simulator<P::SimPolicy>,
 }
 
-impl<I: RvIsa> Debugger<I> {
-    pub fn new(opt: SimulatorOption, tracer: TracerDyn) -> Self {
+impl<P: DebuggerPolicy> Debugger<P> {
+    pub fn new(opt: DebuggerOption, tracer: TracerDyn) -> Self {
         Debugger {
-            simulator: Simulator::new(opt, tracer),
+            simulator: Simulator::new(opt.sim, tracer),
         }
     }
 
@@ -63,12 +63,12 @@ impl<I: RvIsa> Debugger<I> {
         Ok(())
     }
 
-    fn parse_block(&self, mut tokens: Vec<String>) -> Result<SimulatorCommand> {
+    fn parse_block(&self, mut tokens: Vec<String>) -> Result<DebuggerCommand> {
         let mut commands = Vec::with_capacity(tokens.len() + 1);
         commands.push(env!("CARGO_PKG_NAME").to_string());
         commands.append(&mut tokens);
 
-        match SimulatorCommand::try_parse_from(commands) {
+        match DebuggerCommand::try_parse_from(commands) {
             Ok(v) => Ok(v),
             Err(e) => {
                 let _ = e.print(); // keep clap colorized output
@@ -78,8 +78,27 @@ impl<I: RvIsa> Debugger<I> {
     }
 
     fn execute_parsed(&mut self, command: &Command) -> Result<bool> {
-        self.simulator.exec(command)?;
-
+        match command {
+            Command::Step { times } => {
+                for _ in 0..*times {
+                    self.simulator.step_once()?;
+                }
+            }
+            Command::Continue => {
+                for _ in 0..usize::MAX {
+                    self.simulator.step_once()?;
+                }
+            }
+            Command::Func { subcmd } => {
+                self.simulator.func_exec(subcmd);
+            }
+            Command::State { subcmd } => {
+                if let Err(e) = self.simulator.state_exec(subcmd) {
+                    eprintln!("{}", e);
+                    return Ok(false);
+                }
+            }
+        }
         Ok(true)
     }
 }

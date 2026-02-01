@@ -19,37 +19,18 @@ impl DeviceAccess for SimpleUart {
         1
     }
 
-    fn read(&mut self, len: usize, offset: usize) -> Result<&[u8], BusFault> {
-        // 既然 size 是 1，Bus 逻辑保证了 offset 只能是 0
-        if offset != 0 {
-            return Err(BusFault::Unmapped { addr: offset });
-        }
-
-        if len != 1 {
-            return Err(BusFault::UnsupportedAccessWidth(len));
-        }
-
-        Ok(&[0])
+    fn read_8(&mut self, offset: usize) -> Result<u8, BusFault> {
+        let _ = offset;
+        Ok(0)
     }
 
-    fn write(&mut self, len: usize, offset: usize, data: &[u8]) -> Result<(), BusFault> {
-        if offset != 0 {
-            return Err(BusFault::Unmapped { addr: offset });
-        }
-
-        if len != 1 {
-            return Err(BusFault::UnsupportedAccessWidth(len));
-        }
-
-        let byte = data[0];
+    fn write_8(&mut self, offset: usize, value: u8) -> Result<(), BusFault> {
+        let _ = offset;
 
         let stdout = io::stdout();
         let mut handle = stdout.lock();
-
-        handle.write_all(&[byte]).map_err(|_| BusFault::IoError)?;
-
+        handle.write_all(&[value]).map_err(|_| BusFault::IoError)?;
         handle.flush().map_err(|_| BusFault::IoError)?;
-
         Ok(())
     }
 }

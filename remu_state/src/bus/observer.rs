@@ -21,23 +21,154 @@ pub trait BusObserver {
     /// (like `()`) to guarantee that no assembly instructions are generated.
     const ENABLED: bool = true;
 
-    #[inline(always)]
-    fn on_mem_write(&mut self, addr: usize, len: usize, val: u64) {
-        let _ = (addr, len, val);
-    }
+    fn new() -> Self;
 
     #[inline(always)]
-    fn on_mmio_read(&mut self, addr: usize, val: u64) {
+    fn on_mem_read_8(&mut self, addr: usize, val: u8) {
+        let _ = (addr, val);
+    }
+    #[inline(always)]
+    fn on_mem_read_16(&mut self, addr: usize, val: u16) {
+        let _ = (addr, val);
+    }
+    #[inline(always)]
+    fn on_mem_read_32(&mut self, addr: usize, val: u32) {
+        let _ = (addr, val);
+    }
+    #[inline(always)]
+    fn on_mem_read_64(&mut self, addr: usize, val: u64) {
+        let _ = (addr, val);
+    }
+    #[inline(always)]
+    fn on_mem_read_128(&mut self, addr: usize, val: u128) {
         let _ = (addr, val);
     }
 
     #[inline(always)]
-    fn on_mmio_write(&mut self, addr: usize, val: u64) {
+    fn on_mem_write_8(&mut self, addr: usize, val: u8) {
+        let _ = (addr, val);
+    }
+    #[inline(always)]
+    fn on_mem_write_16(&mut self, addr: usize, val: u16) {
+        let _ = (addr, val);
+    }
+    #[inline(always)]
+    fn on_mem_write_32(&mut self, addr: usize, val: u32) {
+        let _ = (addr, val);
+    }
+    #[inline(always)]
+    fn on_mem_write_64(&mut self, addr: usize, val: u64) {
+        let _ = (addr, val);
+    }
+    #[inline(always)]
+    fn on_mem_write_128(&mut self, addr: usize, val: u128) {
+        let _ = (addr, val);
+    }
+
+    #[inline(always)]
+    fn on_mmio_read_8(&mut self, addr: usize, val: u8) {
+        let _ = (addr, val);
+    }
+    #[inline(always)]
+    fn on_mmio_read_16(&mut self, addr: usize, val: u16) {
+        let _ = (addr, val);
+    }
+    #[inline(always)]
+    fn on_mmio_read_32(&mut self, addr: usize, val: u32) {
+        let _ = (addr, val);
+    }
+    #[inline(always)]
+    fn on_mmio_read_64(&mut self, addr: usize, val: u64) {
+        let _ = (addr, val);
+    }
+    #[inline(always)]
+    fn on_mmio_read_128(&mut self, addr: usize, val: u128) {
+        let _ = (addr, val);
+    }
+
+    #[inline(always)]
+    fn on_mmio_write_8(&mut self, addr: usize, val: u8) {
+        let _ = (addr, val);
+    }
+    #[inline(always)]
+    fn on_mmio_write_16(&mut self, addr: usize, val: u16) {
+        let _ = (addr, val);
+    }
+    #[inline(always)]
+    fn on_mmio_write_32(&mut self, addr: usize, val: u32) {
+        let _ = (addr, val);
+    }
+    #[inline(always)]
+    fn on_mmio_write_64(&mut self, addr: usize, val: u64) {
+        let _ = (addr, val);
+    }
+    #[inline(always)]
+    fn on_mmio_write_128(&mut self, addr: usize, val: u128) {
         let _ = (addr, val);
     }
 }
 
-impl BusObserver for () {
+#[derive(Debug, Clone, Copy)]
+pub struct FastObserver;
+
+impl BusObserver for FastObserver {
     // Explicitly disable to trigger Dead Code Elimination.
     const ENABLED: bool = false;
+
+    fn new() -> Self {
+        Self {}
+    }
+}
+
+#[derive(Debug, Clone, Copy)]
+pub struct MmioObserver {
+    pub is_modified: bool,
+}
+
+impl BusObserver for MmioObserver {
+    fn new() -> Self {
+        Self { is_modified: false }
+    }
+
+    fn on_mmio_read_8(&mut self, addr: usize, val: u8) {
+        let _ = (addr, val);
+        self.is_modified = true;
+    }
+    fn on_mmio_read_16(&mut self, addr: usize, val: u16) {
+        let _ = (addr, val);
+        self.is_modified = true;
+    }
+    fn on_mmio_read_32(&mut self, addr: usize, val: u32) {
+        let _ = (addr, val);
+        self.is_modified = true;
+    }
+    fn on_mmio_read_64(&mut self, addr: usize, val: u64) {
+        let _ = (addr, val);
+        self.is_modified = true;
+    }
+    fn on_mmio_read_128(&mut self, addr: usize, val: u128) {
+        let _ = (addr, val);
+        self.is_modified = true;
+    }
+
+    fn on_mmio_write_8(&mut self, addr: usize, val: u8) {
+        let _ = (addr, val);
+        self.is_modified = true;
+    }
+    fn on_mmio_write_16(&mut self, addr: usize, val: u16) {
+        let _ = (addr, val);
+        self.is_modified = true;
+    }
+    fn on_mmio_write_32(&mut self, addr: usize, val: u32) {
+        let _ = (addr, val);
+        self.is_modified = true;
+    }
+    fn on_mmio_write_64(&mut self, addr: usize, val: u64) {
+        let _ = (addr, val);
+        self.is_modified = true;
+    }
+    fn on_mmio_write_128(&mut self, addr: usize, val: u128) {
+        let _ = (addr, val);
+        self.is_modified = true;
+    }
 }

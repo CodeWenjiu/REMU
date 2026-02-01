@@ -1,6 +1,9 @@
 use std::marker::PhantomData;
 
-use remu_state::{State, StateError, bus::BusObserver};
+use remu_state::{
+    State, StateError,
+    bus::{BusObserver, FastObserver},
+};
 use remu_types::isa::{RvIsa, reg::RegAccess};
 
 use crate::riscv::inst::{DecodedInst, SimulatorError, funct3, imm_s, rs1, rs2};
@@ -26,7 +29,7 @@ fn sb<I: RvIsa, O: BusObserver>(
         .write_8(
             addr as usize,
             state.reg.gpr.raw_read(inst.rs2.into()) as u8,
-            &mut (),
+            &mut FastObserver,
         )
         .map_err(StateError::from)?;
     state.reg.pc = state.reg.pc.wrapping_add(4);
@@ -44,7 +47,7 @@ fn sh<I: RvIsa, O: BusObserver>(
         .write_16(
             addr as usize,
             state.reg.gpr.raw_read(inst.rs2.into()) as u16,
-            &mut (),
+            &mut FastObserver,
         )
         .map_err(StateError::from)?;
     state.reg.pc = state.reg.pc.wrapping_add(4);
@@ -62,7 +65,7 @@ fn sw<I: RvIsa, O: BusObserver>(
         .write_32(
             addr as usize,
             state.reg.gpr.raw_read(inst.rs2.into()),
-            &mut (),
+            &mut FastObserver,
         )
         .map_err(StateError::from)?;
     state.reg.pc = state.reg.pc.wrapping_add(4);
