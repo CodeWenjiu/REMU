@@ -18,5 +18,3 @@ tracing.workspace = true
 
 petgraph.workspace = true
 winnow.workspace = true
-
-target-lexicon.workspace = true

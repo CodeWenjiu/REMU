@@ -12,6 +12,7 @@ pub(crate) const INSTRUCTION_MIX: u32 = 20;
 fn auipc<I: RvIsa, O: BusObserver>(
     state: &mut State<I>,
     inst: &DecodedInst<I, O>,
+    _obs: &mut O,
 ) -> Result<(), SimulatorError> {
     let value: u32 = state.reg.pc.wrapping_add(inst.imm);
     state.reg.gpr.raw_write(inst.rd.into(), value);

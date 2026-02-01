@@ -18,3 +18,24 @@ difftest不可能说仿真进行到一般再开启，这一定是通过主函数
 
 ## 如何实现
 既然我们如此大量的使用泛型，那么就不得不考虑不一个好的处理了，我打算沿用decition中对command和option分层处理的哲学，想要让泛型在不同层分层处理，向上层掩盖细节
+
+比如说，我想要的是这样，debugger只需要通过一个类型或者泛型常量向下层simulator表示出“我想要difftest”的意愿，simulator自动将其转化为对应的Obserber,比如说如果不想要difftest,就对应到FastObserver(这个observer实际上不会监视任何事情，这能让代码最快的运行)，如果想要，那可以对应到MMioObserver,监视是否出现了mmio访问
+
+为了实现这个功能，我将单层所有的泛型可能抽象化为一个trait,叫做Policy,为了承载这个trait,需要有一个空的struct,叫做Profile,比如remu_debugger/src/policy.rs中的DebuggerPolicy和DebuggerProfile，类似的，还有SimulatorPolicy,这个具体在Simulator中定义了，这样的话就实现了上层包含下层，因为debugger中的Simulator就可以定义为Simulator<P::SimPolicy>
+
+但是组装仍然有问题，譬如说，ISA这个参数实际上不应该是debugger应该关心的，我的期望是，simulator层根据isa参数自己决定应该匹配什么样的泛型，但是我不知道怎么做，所以目前的做法仍然是在debugger中match isa,然后将不同的类型转给simulator,就像是
+```rust
+match option.isa.0 {
+    Architecture::Riscv32(arch) => match arch {
+        Riscv32Architecture::Riscv32i => {
+            runner.run::<DebuggerProfile<RV32I, SimulatorFastProfile<RV32I>>>(option)
+        }
+
+        Riscv32Architecture::Riscv32im => {
+            runner.run::<DebuggerProfile<RV32I, SimulatorFastProfile<RV32IM>>>(option)
+        }
+        _ => unreachable!(),
+    },
+    _ => unreachable!(),
+}
+```

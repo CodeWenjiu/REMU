@@ -26,6 +26,7 @@ macro_rules! branch_op {
         fn $name<I: RvIsa, O: BusObserver>(
             state: &mut State<I>,
             inst: &DecodedInst<I, O>,
+            _obs: &mut O,
         ) -> Result<(), SimulatorError> {
             let $a = state.reg.gpr.raw_read(inst.rs1.into());
             let $b = state.reg.gpr.raw_read(inst.rs2.into());

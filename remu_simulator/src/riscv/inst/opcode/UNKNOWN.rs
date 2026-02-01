@@ -13,6 +13,7 @@ pub(crate) const INSTRUCTION_MIX: u32 = 2;
 fn trap_unknown_instruction<I: RvIsa, O: BusObserver>(
     state: &mut State<I>,
     inst: &DecodedInst<I, O>,
+    _obs: &mut O,
 ) -> Result<(), SimulatorError> {
     let _ = state;
     let _ = inst;

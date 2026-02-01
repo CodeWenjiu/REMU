@@ -27,9 +27,10 @@ mod func7 {
 
 macro_rules! imm_op {
     ($name:ident, |$rs1_val:ident, $imm_val:ident| $value:expr) => {
-        fn $name<I: RvIsa, M: BusObserver>(
+        fn $name<I: RvIsa, O: BusObserver>(
             state: &mut State<I>,
-            inst: &DecodedInst<I, M>,
+            inst: &DecodedInst<I, O>,
+            _obs: &mut O,
         ) -> Result<(), SimulatorError> {
             let $rs1_val = state.reg.gpr.raw_read(inst.rs1.into());
             let $imm_val = inst.imm;

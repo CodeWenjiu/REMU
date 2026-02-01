@@ -1,9 +1,6 @@
 use std::marker::PhantomData;
 
-use remu_state::{
-    State, StateError,
-    bus::{BusObserver, FastObserver},
-};
+use remu_state::{State, StateError, bus::BusObserver};
 use remu_types::isa::{RvIsa, reg::RegAccess};
 
 use crate::riscv::inst::{DecodedInst, SimulatorError, funct3, imm_s, rs1, rs2};
@@ -21,6 +18,7 @@ mod func3 {
 fn sb<I: RvIsa, O: BusObserver>(
     state: &mut State<I>,
     inst: &DecodedInst<I, O>,
+    obs: &mut O,
 ) -> Result<(), SimulatorError> {
     let rs1 = state.reg.gpr.raw_read(inst.rs1.into());
     let addr = rs1.wrapping_add(inst.imm);
@@ -29,7 +27,7 @@ fn sb<I: RvIsa, O: BusObserver>(
         .write_8(
             addr as usize,
             state.reg.gpr.raw_read(inst.rs2.into()) as u8,
-            &mut FastObserver,
+            obs,
         )
         .map_err(StateError::from)?;
     state.reg.pc = state.reg.pc.wrapping_add(4);
@@ -39,6 +37,7 @@ fn sb<I: RvIsa, O: BusObserver>(
 fn sh<I: RvIsa, O: BusObserver>(
     state: &mut State<I>,
     inst: &DecodedInst<I, O>,
+    obs: &mut O,
 ) -> Result<(), SimulatorError> {
     let rs1 = state.reg.gpr.raw_read(inst.rs1.into());
     let addr = rs1.wrapping_add(inst.imm);
@@ -47,7 +46,7 @@ fn sh<I: RvIsa, O: BusObserver>(
         .write_16(
             addr as usize,
             state.reg.gpr.raw_read(inst.rs2.into()) as u16,
-            &mut FastObserver,
+            obs,
         )
         .map_err(StateError::from)?;
     state.reg.pc = state.reg.pc.wrapping_add(4);
@@ -57,6 +56,7 @@ fn sh<I: RvIsa, O: BusObserver>(
 fn sw<I: RvIsa, O: BusObserver>(
     state: &mut State<I>,
     inst: &DecodedInst<I, O>,
+    obs: &mut O,
 ) -> Result<(), SimulatorError> {
     let rs1 = state.reg.gpr.raw_read(inst.rs1.into());
     let addr = rs1.wrapping_add(inst.imm);
@@ -65,7 +65,7 @@ fn sw<I: RvIsa, O: BusObserver>(
         .write_32(
             addr as usize,
             state.reg.gpr.raw_read(inst.rs2.into()),
-            &mut FastObserver,
+            obs,
         )
         .map_err(StateError::from)?;
     state.reg.pc = state.reg.pc.wrapping_add(4);

@@ -17,6 +17,6 @@ pub struct DecodedInst<I: RvIsa, O: BusObserver> {
     /// Public so the decode bench (separate crate) can use it; others use pub(crate).
     pub imm: u32,
 
-    pub(crate) handler: fn(&mut State<I>, &DecodedInst<I, O>) -> Result<(), SimulatorError>,
+    pub(crate) handler: fn(&mut State<I>, &DecodedInst<I, O>, &mut O) -> Result<(), SimulatorError>,
     pub(crate) _marker: PhantomData<fn(O) -> O>,
 }

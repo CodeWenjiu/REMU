@@ -40,6 +40,7 @@ macro_rules! op_op {
         fn $name<I: RvIsa, O: BusObserver>(
             state: &mut State<I>,
             inst: &DecodedInst<I, O>,
+            _obs: &mut O,
         ) -> Result<(), SimulatorError> {
             let $rs1_val = state.reg.gpr.raw_read(inst.rs1.into());
             let $rs2_val = state.reg.gpr.raw_read(inst.rs2.into());

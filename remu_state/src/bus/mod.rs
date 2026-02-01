@@ -131,7 +131,7 @@ impl<I: RvIsa> Bus<I> {
     }
 
     pub(crate) fn execute(&mut self, subcmd: &BusCmd) -> Result<(), BusFault> {
-        let mut obs = FastObserver;
+        let mut obs = MmioObserver::new();
         match subcmd {
             BusCmd::Read { subcmd } => {
                 let (addr, result) = match subcmd {

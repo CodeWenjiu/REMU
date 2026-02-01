@@ -9,8 +9,9 @@ remu_logger = { path = "../remu_logger" }
 remu_types = { path = "../remu_types" }
 remu_fmt = { path = "../remu_fmt" }
 
-remu_simulator = { path = "../remu_simulator" }
+remu_boot = { path = "../remu_boot" }
 remu_debugger = { path = "../remu_debugger" }
+remu_simulator = { path = "../remu_simulator" }
 
 tracing.workspace = true
 

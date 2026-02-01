@@ -1,54 +1,28 @@
 use std::marker::PhantomData;
 
-use remu_simulator::{SimulatorFastProfile, SimulatorPolicy};
-use remu_types::isa::{
-    RvIsa,
-    extension_enum::{RV32I, RV32IM},
-};
-use target_lexicon::{Architecture, Riscv32Architecture};
-
-use crate::DebuggerOption;
+use remu_simulator::SimulatorPolicy;
+use remu_types::isa::RvIsa;
 
 pub trait DebuggerPolicy {
     type SimPolicy: SimulatorPolicy;
 }
 
-pub struct DebuggerProfile<ISA, SimProlicy>
+pub struct DebuggerProfile<ISA, SimPolicy>
 where
     ISA: RvIsa,
-    SimProlicy: SimulatorPolicy,
+    SimPolicy: SimulatorPolicy,
 {
-    _marker_isa: PhantomData<(ISA, SimProlicy)>,
+    _marker_isa: PhantomData<(ISA, SimPolicy)>,
 }
 
-impl<ISA, SimProlicy> DebuggerPolicy for DebuggerProfile<ISA, SimProlicy>
+impl<ISA, SimPolicy> DebuggerPolicy for DebuggerProfile<ISA, SimPolicy>
 where
     ISA: RvIsa,
-    SimProlicy: SimulatorPolicy,
+    SimPolicy: SimulatorPolicy,
 {
-    type SimPolicy = SimProlicy;
+    type SimPolicy = SimPolicy;
 }
 
 pub trait DebuggerRunner {
-    fn run<P: DebuggerPolicy>(self, option: DebuggerOption);
-}
-
-pub struct DebuggerBootLoader;
-
-impl DebuggerBootLoader {
-    pub fn boot(option: DebuggerOption, runner: impl DebuggerRunner) {
-        match option.isa.0 {
-            Architecture::Riscv32(arch) => match arch {
-                Riscv32Architecture::Riscv32i => {
-                    runner.run::<DebuggerProfile<RV32I, SimulatorFastProfile<RV32I>>>(option)
-                }
-
-                Riscv32Architecture::Riscv32im => {
-                    runner.run::<DebuggerProfile<RV32I, SimulatorFastProfile<RV32IM>>>(option)
-                }
-                _ => unreachable!(),
-            },
-            _ => unreachable!(),
-        }
-    }
+    fn run<P: DebuggerPolicy>(self, option: crate::DebuggerOption);
 }

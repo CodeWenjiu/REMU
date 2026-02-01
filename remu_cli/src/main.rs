@@ -7,7 +7,8 @@ use reedline::{
     ColumnarMenu, DefaultHinter, Emacs, FileBackedHistory, KeyCode, KeyModifiers, MenuBuilder,
     Reedline, ReedlineEvent, ReedlineMenu, Signal, default_emacs_keybindings,
 };
-use remu_debugger::{DebuggerBootLoader, DebuggerOption, DebuggerPolicy, DebuggerRunner};
+use remu_boot::boot;
+use remu_debugger::{DebuggerOption, DebuggerPolicy, DebuggerRunner};
 use remu_types::TracerDyn;
 use std::{cell::RefCell, rc::Rc};
 
@@ -113,7 +114,7 @@ fn main() -> Result<()> {
 
     let option = DebuggerOption::parse();
 
-    DebuggerBootLoader::boot(option, APPRunner);
+    boot(option, APPRunner);
 
     Ok(())
 }

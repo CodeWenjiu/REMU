@@ -1,5 +1,5 @@
 remu_macro::mod_pub!(isa);
-remu_macro::mod_flat!(platform, wordlen);
+remu_macro::mod_flat!(difftest, platform, wordlen);
 
 use std::{cell::RefCell, error::Error, fmt::Display, ops::Range, rc::Rc};
 

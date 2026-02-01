@@ -6,6 +6,7 @@ members = [
     "remu_types",
     "remu_fmt",
 
+    "remu_boot",
     "remu_cli",
 
     "remu_debugger",

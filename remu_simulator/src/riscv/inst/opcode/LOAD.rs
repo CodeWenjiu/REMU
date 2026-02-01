@@ -19,9 +19,10 @@ mod func3 {
 
 macro_rules! load_s {
     ($name:ident, $read_fn:ident, $u:ty, $i:ty) => {
-        fn $name<I: RvIsa, M: BusObserver>(
+        fn $name<I: RvIsa, O: BusObserver>(
             state: &mut State<I>,
-            inst: &DecodedInst<I, M>,
+            inst: &DecodedInst<I, O>,
+            _obs: &mut O,
         ) -> Result<(), SimulatorError> {
             let rs1_val = state.reg.gpr.raw_read(inst.rs1.into());
             let addr = rs1_val.wrapping_add(inst.imm);
@@ -41,9 +42,10 @@ macro_rules! load_s {
 
 macro_rules! load_u {
     ($name:ident, $read_fn:ident, $u:ty) => {
-        fn $name<I: RvIsa, M: BusObserver>(
+        fn $name<I: RvIsa, O: BusObserver>(
             state: &mut State<I>,
-            inst: &DecodedInst<I, M>,
+            inst: &DecodedInst<I, O>,
+            _obs: &mut O,
         ) -> Result<(), SimulatorError> {
             let rs1_val = state.reg.gpr.raw_read(inst.rs1.into());
             let addr = rs1_val.wrapping_add(inst.imm);

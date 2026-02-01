@@ -2,12 +2,13 @@ remu_macro::mod_pub!(riscv);
 remu_macro::mod_flat!(option, policy, func);
 
 use crate::riscv::{SimulatorError, inst::opcode::decode};
-use remu_state::{State, StateCmd, StateError, bus::FastObserver};
+use remu_state::{State, StateCmd, StateError, bus::BusObserver};
 use remu_types::TracerDyn;
 
 /// As a template
 pub struct Simulator<P: SimulatorPolicy> {
     state: State<P::ISA>,
+    observer: P::Observer,
     func: Func,
     tracer: TracerDyn,
 }
@@ -16,6 +17,7 @@ impl<P: SimulatorPolicy> Simulator<P> {
     pub fn new(opt: SimulatorOption, tracer: TracerDyn) -> Self {
         Self {
             state: State::new(opt.state.clone(), tracer.clone()),
+            observer: P::Observer::new(),
             func: Func::new(),
             tracer,
         }
@@ -29,8 +31,8 @@ impl<P: SimulatorPolicy> Simulator<P> {
             .bus
             .read_32(pc as usize)
             .map_err(StateError::from)?;
-        let decoded = decode::<P::ISA, FastObserver>(inst);
-        (decoded.handler)(&mut self.state, &decoded)?;
+        let decoded = decode::<P::ISA, P::Observer>(inst);
+        (decoded.handler)(&mut self.state, &decoded, &mut self.observer)?;
         if self.func.trace.instruction {
             self.tracer.borrow().disasm(pc as u64, inst);
         }
