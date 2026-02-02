@@ -82,9 +82,9 @@ fn hello() {
 struct APPRunner;
 
 impl DebuggerRunner for APPRunner {
-    fn run<P: DebuggerPolicy>(self, option: DebuggerOption) {
+    fn run<P: DebuggerPolicy, R: remu_simulator::SimulatorTrait<P>>(self, option: DebuggerOption) {
         let tracer: TracerDyn = Rc::new(RefCell::new(CLITracer::new(option.isa.clone())));
-        let mut debugger = remu_debugger::Debugger::<P>::new(option, tracer);
+        let mut debugger = remu_debugger::Debugger::<P, R>::new(option, tracer);
 
         let mut line_editor = get_editor();
         let prompt = get_prompt();

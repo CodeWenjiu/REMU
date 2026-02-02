@@ -1,7 +1,6 @@
 use clap::{CommandFactory, builder::styling};
 use petgraph::graph::{Graph, NodeIndex};
-use remu_simulator::FuncCmd;
-use remu_state::StateCmd;
+use remu_harness::{FuncCmd, StateCmd};
 
 fn populate_graph(cmd: &clap::Command, graph: &mut Graph<String, ()>, parent: NodeIndex) {
     let mut has_children = false;

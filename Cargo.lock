@@ -1279,7 +1279,7 @@ name = "remu_boot"
 version = "0.1.0"
 dependencies = [
  "remu_debugger",
- "remu_simulator",
+ "remu_harness",
  "remu_state",
  "remu_types",
  "target-lexicon",
@@ -1316,8 +1316,8 @@ dependencies = [
  "clap",
  "miette",
  "petgraph",
+ "remu_harness",
  "remu_macro",
- "remu_simulator",
  "remu_state",
  "remu_types",
  "thiserror",
@@ -1335,6 +1335,17 @@ dependencies = [
  "thiserror",
  "tracing",
  "winnow",
+]
+
+[[package]]
+name = "remu_harness"
+version = "0.1.0"
+dependencies = [
+ "clap",
+ "remu_macro",
+ "remu_simulator",
+ "remu_state",
+ "remu_types",
 ]
 
 [[package]]

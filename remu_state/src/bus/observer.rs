@@ -1,3 +1,8 @@
+pub enum ObserverEvent {
+    None,
+    MmioiAccess,
+}
+
 pub trait BusObserver {
     /// Indicates whether this observer is enabled.
     ///
@@ -106,6 +111,11 @@ pub trait BusObserver {
     fn on_mmio_write_128(&mut self, addr: usize, val: u128) {
         let _ = (addr, val);
     }
+
+    #[inline(always)]
+    fn get_enent_and_clear(&mut self) -> ObserverEvent {
+        ObserverEvent::None
+    }
 }
 
 #[derive(Debug, Clone, Copy)]
@@ -170,5 +180,14 @@ impl BusObserver for MmioObserver {
     fn on_mmio_write_128(&mut self, addr: usize, val: u128) {
         let _ = (addr, val);
         self.is_modified = true;
+    }
+
+    fn get_enent_and_clear(&mut self) -> ObserverEvent {
+        if self.is_modified {
+            self.is_modified = false;
+            ObserverEvent::MmioiAccess
+        } else {
+            ObserverEvent::None
+        }
     }
 }

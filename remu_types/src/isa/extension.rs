@@ -2,17 +2,17 @@ use crate::isa::reg::FprAccess;
 
 pub trait Extension {
     const ENABLED: bool;
-    type State: Default + Copy + std::fmt::Debug + FprAccess;
+    type State: Default + Copy + PartialEq + std::fmt::Debug + FprAccess;
 }
 
-#[derive(Debug, Clone, Copy, Default)]
+#[derive(Debug, Clone, Copy, Default, PartialEq)]
 pub struct Enabled<T>(pub T)
 where
-    T: Default + Copy + std::fmt::Debug + FprAccess;
+    T: Default + Copy + PartialEq + std::fmt::Debug + FprAccess;
 
 impl<T> Extension for Enabled<T>
 where
-    T: Default + Copy + std::fmt::Debug + FprAccess,
+    T: Default + Copy + PartialEq + std::fmt::Debug + FprAccess,
 {
     const ENABLED: bool = true;
     type State = T;

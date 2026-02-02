@@ -1,5 +1,5 @@
 use clap::builder::styling;
-use remu_simulator::SimulatorOption;
+use remu_harness::HarnessOption;
 use remu_types::{DifftestRef, isa::IsaSpec};
 
 #[derive(clap::Parser, Debug, Clone)]
@@ -14,9 +14,9 @@ use remu_types::{DifftestRef, isa::IsaSpec};
     .placeholder(styling::AnsiColor::Cyan.on_default())
 )]
 pub struct DebuggerOption {
-    /// Simulator Option
+    /// Harness Option
     #[command(flatten)]
-    pub sim: SimulatorOption,
+    pub sim: HarnessOption,
 
     /// ISA Option
     #[arg(long, default_value = "riscv32i")]

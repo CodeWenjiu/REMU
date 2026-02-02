@@ -1,4 +1,5 @@
 use remu_debugger::{DebuggerOption, DebuggerRunner};
+use remu_harness::SimulatorRemu;
 use remu_state::{StateFastProfile, StateMmioProfile};
 use remu_types::{
     DifftestRef,
@@ -7,15 +8,17 @@ use remu_types::{
 };
 use target_lexicon::{Architecture, Riscv32Architecture};
 
-fn boot_with_isa<ISA, R>(option: DebuggerOption, runner: R)
+fn boot_with_isa<ISA, Run>(option: DebuggerOption, runner: Run)
 where
     ISA: RvIsa,
-    R: DebuggerRunner,
+    Run: DebuggerRunner,
 {
     let difftest = option.difftest;
     match difftest {
-        None => runner.run::<StateFastProfile<ISA>>(option),
-        Some(DifftestRef::Remu) => runner.run::<StateMmioProfile<ISA>>(option),
+        None => runner.run::<StateFastProfile<ISA>, ()>(option),
+        Some(DifftestRef::Remu) => {
+            runner.run::<StateMmioProfile<ISA>, SimulatorRemu<StateMmioProfile<ISA>>>(option)
+        }
     }
 }
 

@@ -2,17 +2,17 @@ use clap::Parser;
 
 remu_macro::mod_flat!(command, option, policy, error, compound_command);
 pub use command::get_command_graph;
-use remu_simulator::Simulator;
+use remu_harness::{Harness, SimulatorDut, SimulatorTrait};
 use remu_types::TracerDyn;
 
-pub struct Debugger<P: DebuggerPolicy> {
-    simulator: Simulator<P>,
+pub struct Debugger<P: DebuggerPolicy, R: SimulatorTrait<P>> {
+    harness: Harness<SimulatorDut<P>, R>,
 }
 
-impl<P: DebuggerPolicy> Debugger<P> {
+impl<P: DebuggerPolicy, R: SimulatorTrait<P>> Debugger<P, R> {
     pub fn new(opt: DebuggerOption, tracer: TracerDyn) -> Self {
         Debugger {
-            simulator: Simulator::new(opt.sim, tracer),
+            harness: Harness::new(opt.sim, tracer),
         }
     }
 
@@ -81,19 +81,19 @@ impl<P: DebuggerPolicy> Debugger<P> {
         match command {
             Command::Step { times } => {
                 for _ in 0..*times {
-                    self.simulator.step_once()?;
+                    self.harness.step_once()?;
                 }
             }
             Command::Continue => {
                 for _ in 0..usize::MAX {
-                    self.simulator.step_once()?;
+                    self.harness.step_once()?;
                 }
             }
             Command::Func { subcmd } => {
-                self.simulator.func_exec(subcmd);
+                self.harness.func_exec(subcmd);
             }
             Command::State { subcmd } => {
-                if let Err(e) = self.simulator.state_exec(subcmd) {
+                if let Err(e) = self.harness.state_exec(subcmd) {
                     eprintln!("{}", e);
                     return Ok(false);
                 }

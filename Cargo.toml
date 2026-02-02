@@ -10,6 +10,7 @@ members = [
     "remu_cli",
 
     "remu_debugger",
+    "remu_harness",
     "remu_simulator",
     "remu_state",
 ]

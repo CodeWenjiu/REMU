@@ -1,5 +1,5 @@
 use miette::Diagnostic;
-use remu_simulator::riscv::SimulatorError;
+use remu_harness::SimulatorError;
 use thiserror::Error;
 
 use crate::compound_command::ParseError;

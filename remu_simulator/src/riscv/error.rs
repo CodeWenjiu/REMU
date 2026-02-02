@@ -5,4 +5,7 @@ use thiserror::Error;
 pub enum SimulatorError {
     #[error("State access error {0}")]
     StateAccessError(#[from] StateError),
+
+    #[error("Difftest mismatch: ref and DUT register state differ")]
+    DifftestMismatch,
 }
