@@ -6,29 +6,29 @@ use crate::riscv::SimulatorError;
 use crate::riscv::inst::opcode::decode;
 use crate::{Func, FuncCmd, SimulatorOption};
 
-pub struct SimulatorRemu<P: SimulatorPolicy> {
+pub struct SimulatorRemu<P: SimulatorPolicy, const IS_DUT: bool> {
     state: State<P>,
     func: Func,
     tracer: TracerDyn,
 }
 
-impl<P: SimulatorPolicy> SimulatorPolicyOf for SimulatorRemu<P> {
+impl<P: SimulatorPolicy, const IS_DUT: bool> SimulatorPolicyOf for SimulatorRemu<P, IS_DUT> {
     type Policy = P;
 }
 
-impl<P: SimulatorPolicy> SimulatorTrait<P> for SimulatorRemu<P> {
+impl<P: SimulatorPolicy, const IS_DUT: bool> SimulatorTrait<P, IS_DUT> for SimulatorRemu<P, IS_DUT> {
     const ENABLE: bool = true;
 
     fn new(opt: SimulatorOption, tracer: TracerDyn) -> Self {
         Self {
-            state: State::new(opt.state.clone(), tracer.clone()),
+            state: State::new(opt.state.clone(), tracer.clone(), IS_DUT),
             func: Func::new(),
             tracer,
         }
     }
 
-    fn state(&self) -> Option<&State<P>> {
-        Some(&self.state)
+    fn state(&self) -> &State<P> {
+        &self.state
     }
 
     fn step_once(&mut self) -> Result<(), SimulatorError> {
@@ -40,7 +40,7 @@ impl<P: SimulatorPolicy> SimulatorTrait<P> for SimulatorRemu<P> {
             .map_err(StateError::from)?;
         let decoded = decode::<P>(inst);
         (decoded.handler)(&mut self.state, &decoded)?;
-        if self.func.trace.instruction {
+        if self.func.trace.instruction && IS_DUT {
             self.tracer.borrow().disasm(pc as u64, inst);
         }
         Ok(())
@@ -70,15 +70,12 @@ impl<P: SimulatorPolicy> SimulatorTrait<P> for SimulatorRemu<P> {
     }
 }
 
-pub trait SimulatorTrait<P: remu_state::StatePolicy> {
+pub trait SimulatorTrait<P: remu_state::StatePolicy, const IS_DUT: bool = true> {
     const ENABLE: bool = true;
 
     fn new(opt: SimulatorOption, tracer: TracerDyn) -> Self;
 
-    #[inline(always)]
-    fn state(&self) -> Option<&State<P>> {
-        None
-    }
+    fn state(&self) -> &State<P>;
 
     #[inline(always)]
     fn step_once(&mut self) -> Result<(), SimulatorError> {
@@ -109,10 +106,14 @@ pub trait SimulatorTrait<P: remu_state::StatePolicy> {
     }
 }
 
-impl<P: remu_state::StatePolicy> SimulatorTrait<P> for () {
+impl<P: remu_state::StatePolicy> SimulatorTrait<P, false> for () {
     const ENABLE: bool = false;
 
     fn new(_opt: SimulatorOption, _tracer: TracerDyn) -> Self {
         ()
+    }
+
+    fn state(&self) -> &State<P> {
+        unreachable!("state() must not be called when ENABLE is false (ref is ())")
     }
 }

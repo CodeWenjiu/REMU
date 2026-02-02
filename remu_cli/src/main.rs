@@ -82,7 +82,7 @@ fn hello() {
 struct APPRunner;
 
 impl DebuggerRunner for APPRunner {
-    fn run<P: HarnessPolicy, R: remu_simulator::SimulatorTrait<P>>(self, option: DebuggerOption) {
+    fn run<P: HarnessPolicy, R: remu_simulator::SimulatorTrait<P, false>>(self, option: DebuggerOption) {
         let tracer: TracerDyn = Rc::new(RefCell::new(CLITracer::new(option.isa.clone())));
         let mut debugger = remu_debugger::Debugger::<P, R>::new(option, tracer);
 

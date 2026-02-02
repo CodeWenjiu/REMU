@@ -60,7 +60,7 @@ pub fn make_state_from_clap_defaults(tag: &'static str) -> State<StateProfile<RV
     );
 
     let tracer: TracerDyn = std::rc::Rc::new(std::cell::RefCell::new(BenchTracer));
-    State::new(opt.state, tracer)
+    State::new(opt.state, tracer, true)
 }
 
 #[inline(never)]

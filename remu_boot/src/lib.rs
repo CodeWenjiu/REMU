@@ -1,5 +1,5 @@
 use remu_debugger::{DebuggerOption, DebuggerRunner};
-use remu_harness::DutSim;
+use remu_harness::RefSim;
 use remu_state::{StateFastProfile, StateMmioProfile};
 use remu_types::{DifftestRef, isa::RvIsa, isa::extension_enum::{RV32I, RV32IM}};
 use target_lexicon::{Architecture, Riscv32Architecture};
@@ -12,7 +12,7 @@ where
     match option.difftest {
         None => runner.run::<StateFastProfile<ISA>, ()>(option),
         Some(DifftestRef::Remu) => {
-            runner.run::<StateMmioProfile<ISA>, DutSim<StateMmioProfile<ISA>>>(option)
+            runner.run::<StateMmioProfile<ISA>, RefSim<StateMmioProfile<ISA>>>(option)
         }
     }
 }

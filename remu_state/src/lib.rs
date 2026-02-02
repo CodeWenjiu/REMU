@@ -12,9 +12,9 @@ pub struct State<P: StatePolicy> {
 }
 
 impl<P: StatePolicy> State<P> {
-    pub fn new(opt: StateOption, tracer: remu_types::TracerDyn) -> Self {
+    pub fn new(opt: StateOption, tracer: remu_types::TracerDyn, is_dut: bool) -> Self {
         Self {
-            bus: Bus::new(opt.bus, tracer.clone()),
+            bus: Bus::new(opt.bus, tracer.clone(), is_dut),
             reg: RiscvReg::new(opt.reg, tracer.clone()),
             _marker: PhantomData,
         }

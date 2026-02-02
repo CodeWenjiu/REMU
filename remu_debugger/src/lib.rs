@@ -5,11 +5,11 @@ pub use command::get_command_graph;
 use remu_harness::{DutSim, Harness};
 use remu_types::TracerDyn;
 
-pub struct Debugger<P: HarnessPolicy, R: SimulatorTrait<P>> {
+pub struct Debugger<P: HarnessPolicy, R: SimulatorTrait<P, false>> {
     harness: Harness<DutSim<P>, R>,
 }
 
-impl<P: HarnessPolicy, R: SimulatorTrait<P>> Debugger<P, R> {
+impl<P: HarnessPolicy, R: SimulatorTrait<P, false>> Debugger<P, R> {
     pub fn new(opt: DebuggerOption, tracer: TracerDyn) -> Self {
         Debugger {
             harness: Harness::new(opt.sim, tracer),

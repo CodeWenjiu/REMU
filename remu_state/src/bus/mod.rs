@@ -21,13 +21,15 @@ pub struct Bus<I: RvIsa, O: BusObserver> {
 }
 
 impl<I: RvIsa, O: BusObserver> Bus<I, O> {
-    pub(crate) fn new(opt: BusOption, tracer: remu_types::TracerDyn) -> Self {
+    pub(crate) fn new(opt: BusOption, tracer: remu_types::TracerDyn, is_dut: bool) -> Self {
+        let prefix = if is_dut { "[DUT]" } else { "[REF]" };
         let memory: Vec<Memory> = opt
             .mem
             .into_iter()
             .map(|region| {
                 tracing::info!(
-                    "new memory {} region initialized at 0x{:08x}:0x{:08x}",
+                    "{} new memory {} region initialized at 0x{:08x}:0x{:08x}",
+                    prefix,
                     region.name,
                     region.region.start,
                     region.region.end
@@ -39,24 +41,27 @@ impl<I: RvIsa, O: BusObserver> Bus<I, O> {
 
         let mut memory = memory.into_boxed_slice();
 
-        // Keep Bus::new small; perform best-effort ELF loading in a helper.
         try_load_elf_into_memory(&mut memory, &opt.elf, &tracer);
 
-        let device: Vec<(usize, Box<dyn DeviceAccess>)> = opt
-            .devices
-            .iter()
-            .map(|config| {
-                tracing::info!(
-                    "new device {} config initialized at 0x{:08x}",
-                    config.name,
-                    config.start
-                );
-                (
-                    config.start,
-                    get_device(&config.name).expect("invalid device name"),
-                )
-            })
-            .collect();
+        let device: Vec<(usize, Box<dyn DeviceAccess>)> = if is_dut {
+            opt.devices
+                .iter()
+                .map(|config| {
+                    tracing::info!(
+                        "{} new device {} config initialized at 0x{:08x}",
+                        prefix,
+                        config.name,
+                        config.start
+                    );
+                    (
+                        config.start,
+                        get_device(&config.name).expect("invalid device name"),
+                    )
+                })
+                .collect()
+        } else {
+            Vec::new()
+        };
 
         Self {
             memory,

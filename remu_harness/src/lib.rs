@@ -10,7 +10,8 @@ pub use remu_simulator::{
 };
 pub use remu_state::StateCmd;
 
-pub type DutSim<P> = SimulatorRemu<P>;
+pub type DutSim<P> = SimulatorRemu<P, true>;
+pub type RefSim<P> = SimulatorRemu<P, false>;
 
 use remu_types::TracerDyn;
 
@@ -21,8 +22,8 @@ pub struct Harness<D, R> {
 
 impl<D, R> Harness<D, R>
 where
-    D: SimulatorPolicyOf + SimulatorTrait<D::Policy>,
-    R: SimulatorTrait<D::Policy>,
+    D: SimulatorPolicyOf + SimulatorTrait<D::Policy, true>,
+    R: SimulatorTrait<D::Policy, false>,
 {
     pub fn new(opt: HarnessOption, tracer: TracerDyn) -> Self {
         Self {
@@ -36,10 +37,9 @@ where
         self.dut_model.step_once()?;
         if R::ENABLE {
             self.ref_model.step_once()?;
-            if let Some(dut_state) = self.dut_model.state() {
-                if !self.ref_model.regs_match(dut_state) {
-                    return Err(SimulatorError::DifftestMismatch);
-                }
+            let dut_state = self.dut_model.state();
+            if !self.ref_model.regs_match(dut_state) {
+                return Err(SimulatorError::DifftestMismatch);
             }
         }
         Ok(())
