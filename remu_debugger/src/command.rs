@@ -70,4 +70,10 @@ pub enum Command {
         #[command(subcommand)]
         subcmd: StateCmd,
     },
+
+    /// Ref State Command
+    RefState {
+        #[command(subcommand)]
+        subcmd: StateCmd,
+    },
 }

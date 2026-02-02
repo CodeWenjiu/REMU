@@ -2,11 +2,11 @@ use clap::Parser;
 
 remu_macro::mod_flat!(command, option, policy, error, compound_command);
 pub use command::get_command_graph;
-use remu_harness::{Harness, SimulatorDut, SimulatorTrait};
+use remu_harness::{Harness, SimulatorRemu, SimulatorTrait};
 use remu_types::TracerDyn;
 
 pub struct Debugger<P: DebuggerPolicy, R: SimulatorTrait<P>> {
-    harness: Harness<SimulatorDut<P>, R>,
+    harness: Harness<SimulatorRemu<P>, R>,
 }
 
 impl<P: DebuggerPolicy, R: SimulatorTrait<P>> Debugger<P, R> {
@@ -94,6 +94,12 @@ impl<P: DebuggerPolicy, R: SimulatorTrait<P>> Debugger<P, R> {
             }
             Command::State { subcmd } => {
                 if let Err(e) = self.harness.state_exec(subcmd) {
+                    eprintln!("{}", e);
+                    return Ok(false);
+                }
+            }
+            Command::RefState { subcmd } => {
+                if let Err(e) = self.harness.ref_state_exec(subcmd) {
                     eprintln!("{}", e);
                     return Ok(false);
                 }
