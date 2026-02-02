@@ -17,7 +17,7 @@ impl<P: SimulatorPolicy> SimulatorPolicyOf for SimulatorRemu<P> {
 }
 
 impl<P: SimulatorPolicy> SimulatorTrait<P> for SimulatorRemu<P> {
-    const ENABLED: bool = true;
+    const ENABLE: bool = true;
 
     fn new(opt: SimulatorOption, tracer: TracerDyn) -> Self {
         Self {
@@ -71,7 +71,7 @@ impl<P: SimulatorPolicy> SimulatorTrait<P> for SimulatorRemu<P> {
 }
 
 pub trait SimulatorTrait<P: remu_state::StatePolicy> {
-    const ENABLED: bool = true;
+    const ENABLE: bool = true;
 
     fn new(opt: SimulatorOption, tracer: TracerDyn) -> Self;
 
@@ -110,7 +110,7 @@ pub trait SimulatorTrait<P: remu_state::StatePolicy> {
 }
 
 impl<P: remu_state::StatePolicy> SimulatorTrait<P> for () {
-    const ENABLED: bool = false;
+    const ENABLE: bool = false;
 
     fn new(_opt: SimulatorOption, _tracer: TracerDyn) -> Self {
         ()

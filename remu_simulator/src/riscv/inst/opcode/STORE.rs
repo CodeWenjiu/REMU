@@ -1,24 +1,21 @@
 use std::marker::PhantomData;
 
-use remu_state::{State, StateError, StatePolicy};
+use remu_state::StateError;
 use remu_types::isa::reg::RegAccess;
 
-use crate::riscv::inst::{DecodedInst, SimulatorError, funct3, imm_s, rs1, rs2};
+use crate::riscv::inst::{funct3, imm_s, rs1, rs2, DecodedInst};
 
 pub(crate) const OPCODE: u32 = 0b010_0011;
 
 pub(crate) const INSTRUCTION_MIX: u32 = 110;
 
 mod func3 {
-    pub const SB: u32 = 0b000; // Store Byte
-    pub const SH: u32 = 0b001; // Store Halfword
-    pub const SW: u32 = 0b010; // Store Word
+    pub const SB: u32 = 0b000;
+    pub const SH: u32 = 0b001;
+    pub const SW: u32 = 0b010;
 }
 
-fn sb<P: StatePolicy>(
-    state: &mut State<P>,
-    inst: &DecodedInst<P>,
-) -> Result<(), SimulatorError> {
+handler!(sb, state, inst, {
     let rs1 = state.reg.gpr.raw_read(inst.rs1.into());
     let addr = rs1.wrapping_add(inst.imm);
     state
@@ -27,12 +24,9 @@ fn sb<P: StatePolicy>(
         .map_err(StateError::from)?;
     state.reg.pc = state.reg.pc.wrapping_add(4);
     Ok(())
-}
+});
 
-fn sh<P: StatePolicy>(
-    state: &mut State<P>,
-    inst: &DecodedInst<P>,
-) -> Result<(), SimulatorError> {
+handler!(sh, state, inst, {
     let rs1 = state.reg.gpr.raw_read(inst.rs1.into());
     let addr = rs1.wrapping_add(inst.imm);
     state
@@ -41,12 +35,9 @@ fn sh<P: StatePolicy>(
         .map_err(StateError::from)?;
     state.reg.pc = state.reg.pc.wrapping_add(4);
     Ok(())
-}
+});
 
-fn sw<P: StatePolicy>(
-    state: &mut State<P>,
-    inst: &DecodedInst<P>,
-) -> Result<(), SimulatorError> {
+handler!(sw, state, inst, {
     let rs1 = state.reg.gpr.raw_read(inst.rs1.into());
     let addr = rs1.wrapping_add(inst.imm);
     state
@@ -55,10 +46,9 @@ fn sw<P: StatePolicy>(
         .map_err(StateError::from)?;
     state.reg.pc = state.reg.pc.wrapping_add(4);
     Ok(())
-}
+});
 
-#[inline(always)]
-pub(crate) fn decode<P: StatePolicy>(inst: u32) -> DecodedInst<P> {
+define_decode!(inst, {
     let f3 = funct3(inst);
 
     let rs1 = rs1(inst);
@@ -95,4 +85,4 @@ pub(crate) fn decode<P: StatePolicy>(inst: u32) -> DecodedInst<P> {
         },
         _ => DecodedInst::<P>::default(),
     }
-}
+});

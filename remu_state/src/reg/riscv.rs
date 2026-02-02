@@ -1,15 +1,11 @@
-use remu_types::isa::{
-    ArchConfig, RvIsa,
-    extension::Extension,
-    reg::{Gpr, RegAccess},
-};
+use remu_types::isa::{reg::{Gpr, RegAccess}, RvIsa};
 
 use crate::reg::{RegCmd, RegOption};
 
 pub struct RiscvReg<I: RvIsa> {
     pub pc: u32,
     pub gpr: [u32; 32],
-    pub fpr: <<<I as RvIsa>::Conf as ArchConfig>::F as Extension>::State,
+    pub fpr: I::FprState,
     tracer: remu_types::TracerDyn,
 }
 

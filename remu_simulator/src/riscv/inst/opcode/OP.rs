@@ -1,9 +1,8 @@
 use std::marker::PhantomData;
 
-use remu_state::{State, StatePolicy};
 use remu_types::isa::{reg::RegAccess, RvIsa};
 
-use crate::riscv::inst::{DecodedInst, SimulatorError, funct3, funct7, rd, rs1, rs2};
+use crate::riscv::inst::{funct3, funct7, rd, rs1, rs2, DecodedInst};
 
 pub(crate) const OPCODE: u32 = 0b011_0011;
 
@@ -37,17 +36,14 @@ mod func7 {
 
 macro_rules! op_op {
     ($name:ident, |$rs1_val:ident, $rs2_val:ident| $value:expr) => {
-        fn $name<P: StatePolicy>(
-            state: &mut State<P>,
-            inst: &DecodedInst<P>,
-        ) -> Result<(), SimulatorError> {
+        handler!($name, state, inst, {
             let $rs1_val = state.reg.gpr.raw_read(inst.rs1.into());
             let $rs2_val = state.reg.gpr.raw_read(inst.rs2.into());
             let value: u32 = $value;
             state.reg.gpr.raw_write(inst.rd.into(), value);
             state.reg.pc = state.reg.pc.wrapping_add(4);
             Ok(())
-        }
+        });
     };
 }
 
@@ -95,8 +91,7 @@ op_op!(remu, |rs1, rs2| if rs2 == 0 {
     rs1.wrapping_rem(rs2)
 });
 
-#[inline(always)]
-pub(crate) fn decode<P: StatePolicy>(inst: u32) -> DecodedInst<P> {
+define_decode!(inst, {
     let f3 = funct3(inst);
     let f7 = funct7(inst);
 
@@ -264,4 +259,4 @@ pub(crate) fn decode<P: StatePolicy>(inst: u32) -> DecodedInst<P> {
         },
         _ => DecodedInst::<P>::default(),
     }
-}
+});

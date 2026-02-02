@@ -3,6 +3,26 @@
 use remu_state::StatePolicy;
 
 use crate::riscv::inst::{DecodedInst, opcode};
+
+#[macro_export]
+macro_rules! handler {
+    ($name:ident, $state:ident, $inst:ident, $body:block) => {
+        fn $name<P: remu_state::StatePolicy>(
+            $state: &mut remu_state::State<P>,
+            $inst: &$crate::riscv::inst::DecodedInst<P>,
+        ) -> Result<(), $crate::riscv::SimulatorError> $body
+    };
+}
+
+#[macro_export]
+macro_rules! define_decode {
+    ($inst:ident, $body:block) => {
+        #[inline(always)]
+        pub(crate) fn decode<P: remu_state::StatePolicy>(
+            $inst: u32,
+        ) -> $crate::riscv::inst::DecodedInst<P> $body
+    };
+}
 remu_macro::mod_flat!(
     LUI, AUIPC, JAL, JALR, BRANCH, OP_IMM, OP, LOAD, STORE, UNKNOWN
 );

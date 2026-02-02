@@ -1,13 +1,16 @@
 mod option;
+mod policy;
 
 pub use option::HarnessOption;
+pub use policy::HarnessPolicy;
 
-// Re-exports：Debugger 等仅依赖 remu_harness 即可。
 pub use remu_simulator::riscv::SimulatorError;
 pub use remu_simulator::{
     FuncCmd, SimulatorPolicy, SimulatorPolicyOf, SimulatorRemu, SimulatorTrait,
 };
 pub use remu_state::StateCmd;
+
+pub type DutSim<P> = SimulatorRemu<P>;
 
 use remu_types::TracerDyn;
 
@@ -31,7 +34,7 @@ where
     #[inline(always)]
     pub fn step_once(&mut self) -> Result<(), SimulatorError> {
         self.dut_model.step_once()?;
-        if R::ENABLED {
+        if R::ENABLE {
             self.ref_model.step_once()?;
             if let Some(dut_state) = self.dut_model.state() {
                 if !self.ref_model.regs_match(dut_state) {

@@ -39,3 +39,6 @@ match option.isa.0 {
     _ => unreachable!(),
 }
 ```
+
+## 当前最严重的问题
+泛型配置混乱，经过和cursor的几轮交互后，代码能够work,但是实现非常混乱

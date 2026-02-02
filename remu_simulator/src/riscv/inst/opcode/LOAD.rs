@@ -1,9 +1,9 @@
 use std::marker::PhantomData;
 
-use remu_state::{State, StateError, StatePolicy};
+use remu_state::StateError;
 use remu_types::isa::reg::RegAccess;
 
-use crate::riscv::inst::{DecodedInst, SimulatorError, funct3, imm_i, rd, rs1};
+use crate::riscv::inst::{funct3, imm_i, rd, rs1, DecodedInst};
 
 pub(crate) const OPCODE: u32 = 0b000_0011;
 
@@ -19,10 +19,7 @@ mod func3 {
 
 macro_rules! load_s {
     ($name:ident, $read_fn:ident, $u:ty, $i:ty) => {
-        fn $name<P: StatePolicy>(
-            state: &mut State<P>,
-            inst: &DecodedInst<P>,
-        ) -> Result<(), SimulatorError> {
+        handler!($name, state, inst, {
             let rs1_val = state.reg.gpr.raw_read(inst.rs1.into());
             let addr = rs1_val.wrapping_add(inst.imm);
             let value: $u = state
@@ -35,16 +32,13 @@ macro_rules! load_s {
                 .raw_write(inst.rd.into(), (value as $i) as u32);
             state.reg.pc = state.reg.pc.wrapping_add(4);
             Ok(())
-        }
+        });
     };
 }
 
 macro_rules! load_u {
     ($name:ident, $read_fn:ident, $u:ty) => {
-        fn $name<P: StatePolicy>(
-            state: &mut State<P>,
-            inst: &DecodedInst<P>,
-        ) -> Result<(), SimulatorError> {
+        handler!($name, state, inst, {
             let rs1_val = state.reg.gpr.raw_read(inst.rs1.into());
             let addr = rs1_val.wrapping_add(inst.imm);
             let value: $u = state
@@ -54,19 +48,17 @@ macro_rules! load_u {
             state.reg.gpr.raw_write(inst.rd.into(), value as u32);
             state.reg.pc = state.reg.pc.wrapping_add(4);
             Ok(())
-        }
+        });
     };
 }
 
-// 用法
 load_s!(lb, read_8, u8, i8);
 load_s!(lh, read_16, u16, i16);
 load_u!(lbu, read_8, u8);
 load_u!(lhu, read_16, u16);
 load_u!(lw, read_32, u32);
 
-#[inline(always)]
-pub(crate) fn decode<P: StatePolicy>(inst: u32) -> DecodedInst<P> {
+define_decode!(inst, {
     let f3 = funct3(inst);
 
     let rs1 = rs1(inst);
@@ -121,4 +113,4 @@ pub(crate) fn decode<P: StatePolicy>(inst: u32) -> DecodedInst<P> {
         },
         _ => DecodedInst::<P>::default(),
     }
-}
+});

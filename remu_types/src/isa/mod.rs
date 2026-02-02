@@ -16,6 +16,8 @@ pub trait RvIsa: 'static + Copy {
     type XLEN: Xlen;
     type Conf: ArchConfig;
 
+    type FprState: Default + Copy + PartialEq + std::fmt::Debug + crate::isa::reg::FprAccess;
+
     const HAS_M: bool = <Self::Conf as ArchConfig>::M::ENABLED;
     const HAS_F: bool = <Self::Conf as ArchConfig>::F::ENABLED;
 }

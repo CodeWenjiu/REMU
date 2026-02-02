@@ -1,7 +1,4 @@
-use crate::isa::{
-    ArchConfig, RvIsa,
-    extension::{Disabled, Enabled},
-};
+use crate::isa::{ArchConfig, RvIsa, extension::{Disabled, Enabled}};
 
 #[derive(Clone, Copy)]
 pub struct ConfigRV32I;
@@ -14,6 +11,7 @@ pub struct RV32I;
 impl RvIsa for RV32I {
     type XLEN = u32;
     type Conf = ConfigRV32I;
+    type FprState = ();
 }
 
 #[derive(Clone, Copy)]
@@ -27,6 +25,7 @@ pub struct RV32IM;
 impl RvIsa for RV32IM {
     type XLEN = u32;
     type Conf = ConfigRV32IM;
+    type FprState = ();
 }
 
 #[derive(Clone, Copy)]
@@ -40,4 +39,5 @@ pub struct RV32IF;
 impl RvIsa for RV32IF {
     type XLEN = u32;
     type Conf = ConfigRV32IF;
+    type FprState = [u32; 32];
 }

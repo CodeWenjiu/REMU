@@ -8,7 +8,7 @@ use reedline::{
     Reedline, ReedlineEvent, ReedlineMenu, Signal, default_emacs_keybindings,
 };
 use remu_boot::boot;
-use remu_debugger::{DebuggerOption, DebuggerPolicy, DebuggerRunner};
+use remu_debugger::{DebuggerOption, DebuggerRunner, HarnessPolicy};
 use remu_types::TracerDyn;
 use std::{cell::RefCell, rc::Rc};
 
@@ -82,7 +82,7 @@ fn hello() {
 struct APPRunner;
 
 impl DebuggerRunner for APPRunner {
-    fn run<P: DebuggerPolicy, R: remu_simulator::SimulatorTrait<P>>(self, option: DebuggerOption) {
+    fn run<P: HarnessPolicy, R: remu_simulator::SimulatorTrait<P>>(self, option: DebuggerOption) {
         let tracer: TracerDyn = Rc::new(RefCell::new(CLITracer::new(option.isa.clone())));
         let mut debugger = remu_debugger::Debugger::<P, R>::new(option, tracer);
 
