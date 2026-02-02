@@ -1,9 +1,8 @@
 ## 构建
 
-构建工具使用cargo,不过调用者是just,具体规则查看根目录下的justfile
+构建工具使用 cargo，入口为 just，规则见根目录 justfile。
 
-## 构建
-可用于检查是否有编译错误
+可用于检查是否有编译错误：
 ```nu
 just build
 ```
@@ -18,11 +17,11 @@ just run <主函数参数>
 just dev <主函数参数>
 ```
 
-## 运行benchmark
-```nu
-bench <CRATE_NAME> <BENCH_NAME>
+## 运行 benchmark
+```bash
+just bench <CRATE> <BENCH>
 ```
-注意crate_name会自动忽视remu_前缀，比如可以这样
-```nu
-bench state bus_write
+CRATE 不带 remu_ 前缀（just 会自动加），例如：
+```bash
+just bench state bus_write
 ```

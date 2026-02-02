@@ -1,5 +1,5 @@
 ### 注释和文档
-由于目前项目正在快速演进，我认为任意形式的注释和文档暂时都是没有意义的，因此请暂时不要添加任何的注释
+不在业务逻辑里添加冗长注释；仅在复杂泛型或 unsafe 处允许必要注释
 
 ### 分层处理
 很多crate都有option和command这两个文件，分别定义了需要在当前处理的主函数参数和命令，option通过flatten转给上层，而command作为subcommand作为上层的子成员，上层不需要关注底层指令的细节，只需要注意在match到对应项后将subcmd转给下层，每一层只处理与自己相关的工作
@@ -24,9 +24,9 @@ State本来应该作为debugger的子成员而非simulator的自成员，但毕�
 
 ### 泛型与 Policy 约定
 
-- **谁用 Policy 泛型 P**：只在上层「组装层」用。具体：`State<P>`、`SimulatorRemu<P>`、`DecodedInst<P>`、顶层 `decode::<P>`、`Debugger<P, R>`、以及 Harness 的 DUT 类型通过 `D::Policy` 与 P 对应。这些类型或函数统一只带 `P: StatePolicy`、`P: SimulatorPolicy` 或 `P: HarnessPolicy`（按所在层），不在同一处再写 ISA / Observer 泛型。
+- **谁用 Policy 泛型 P**：只在上层「组装层」用。具体：`State<P>`、`SimulatorRemu<P, IS_DUT>`、`DecodedInst<P>`、顶层 `decode::<P>`、`Debugger<P, R>`、以及 Harness 的 DUT 类型通过 `D::Policy` 与 P 对应。这些类型或函数统一只带 `P: StatePolicy`、`P: SimulatorPolicy` 或 `P: HarnessPolicy`（按所在层），不在同一处再写 ISA / Observer 泛型。
 - **谁用 ISA / Observer 泛型 I、O**：只作为 State 内部实现细节。`Bus<I: RvIsa, O: BusObserver>`、`RiscvReg<I: RvIsa>` 仅由 `State<P>` 在构造时拆开：`Bus<P::ISA, P::Observer>`、`RiscvReg<P::ISA>`。除 state 内部外，不在其他层再写 `I`/`O` 泛型。
 - **P 与 I、O 的关系**：唯一拆解点在 `State<P>`：`P::ISA`、`P::Observer` 只在这里用于构造 Bus 和 RiscvReg。其余代码只认 P，不直接依赖 ISA / Observer 类型。
 - **Harness 与 Debugger 的 P、D、R**：`Debugger<P, R>` 中 P 为 `HarnessPolicy`、R 为 Ref 模拟器类型；内部为 `Harness<DutSim<P>, R>`，其中 remu_harness 提供 `type DutSim<P> = SimulatorRemu<P, true>`、`type RefSim<P> = SimulatorRemu<P, false>`，使 P 与 DUT/Ref 类型的对应关系显式化。即 Debugger 直辖 Harness，P 为 harness 边界的 Policy（`D::Policy = P`），R 为 Ref 模拟器类型。约定：只在这一层用 P/R（或 D/R），不在此之外再引入一层 Policy 泛型。
-- **Simulator 身份（DUT / Ref）**：`SimulatorTrait<P, const IS_DUT: bool>` 通过泛型常量区分身份；D 约束为 `SimulatorTrait<D::Policy, true>`（DUT），R 约束为 `SimulatorTrait<D::Policy, false>`（Ref）。`SimulatorRemu<P, IS_DUT>` 单 impl，可根据 IS_DUT 执行不同行为（如 step_once 中 `if self.func.trace.instruction && IS_DUT` 打 trace，Ref 单例时编译器 DCE 零开销）。该 bool 继续向下传播：`State::new(opt, tracer, is_dut)`、`Bus::new(opt, tracer, is_dut)`，调用处传入常量 `IS_DUT`；Bus 在 new 中根据 `is_dut` 以 `[DUT]` 或 `[REF]` 为前缀打 log；仅 DUT 初始化设备（`is_dut` 为 true 时创建设备列表），Ref 不仿真设备（`is_dut` 为 false 时 device 为空）。
+- **Simulator 身份（DUT / Ref）**：`SimulatorTrait<P, const IS_DUT: bool>` 通过泛型常量区分身份；D 约束为 `SimulatorTrait<D::Policy, true>`（DUT），R 约束为 `SimulatorTrait<D::Policy, false>`（Ref）。`SimulatorRemu<P, IS_DUT>` 单 impl，可根据 IS_DUT 执行不同行为（如 step_once 中 `if self.func.trace.instruction && IS_DUT` 打 trace，Ref 单例时编译器 DCE 零开销）。该 bool 继续向下传播：`State::new(opt, tracer, is_dut)`、`Bus::new(opt, tracer, is_dut)`，调用处传入常量 `IS_DUT`；Bus 在 new 中根据 `is_dut` 以 `[DUT]` 或 `[REF]` 为前缀打 log；仅 DUT 初始化设备（`is_dut` 为 true 时创建设备列表），Ref 不仿真设备（`is_dut` 为 false 时 device 为空）。`state()` 返回 `&State<P>`（非 Option）；R 为 `()` 时 Harness 不进入 `if R::ENABLE`，故不会对 ref 调用 `state()`，上层无需处理 None。
 - **ISA 派生类型的可扩展约定**：由 ISA（或 ArchConfig/Extension）推导出的「状态类型」等，一律在 `RvIsa` 上增加关联类型命名（如 `FprState`），调用方使用 `I::FprState`，不在多处写长链。新增类似需求时（如其他扩展的状态类型），在 remu_types 的 `RvIsa` 上增加新关联类型，并在各 ISA 的 impl 中指定具体类型。
