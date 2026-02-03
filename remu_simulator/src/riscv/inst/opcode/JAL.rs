@@ -11,7 +11,7 @@ pub(crate) const INSTRUCTION_MIX: u32 = 30;
 handler!(jal, state, inst, {
     let value: u32 = state.reg.pc.wrapping_add(4);
     state.reg.gpr.raw_write(inst.rd.into(), value);
-    state.reg.pc = state.reg.pc.wrapping_add(inst.imm);
+    *state.reg.pc = state.reg.pc.wrapping_add(inst.imm);
     Ok(())
 });
 

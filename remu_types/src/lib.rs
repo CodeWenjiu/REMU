@@ -7,7 +7,7 @@ use crate::isa::reg::Gpr;
 pub trait DynDiagError: Error {}
 impl<T> DynDiagError for T where T: Error {}
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub enum AllUsize {
     U8(u8),
     U16(u16),

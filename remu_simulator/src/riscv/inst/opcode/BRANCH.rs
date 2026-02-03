@@ -23,9 +23,9 @@ macro_rules! branch_op {
             let $a = state.reg.gpr.raw_read(inst.rs1.into());
             let $b = state.reg.gpr.raw_read(inst.rs2.into());
             if $cond {
-                state.reg.pc = state.reg.pc.wrapping_add(inst.imm);
+                *state.reg.pc = state.reg.pc.wrapping_add(inst.imm);
             } else {
-                state.reg.pc = state.reg.pc.wrapping_add(4);
+                *state.reg.pc = state.reg.pc.wrapping_add(4);
             }
             Ok(())
         });

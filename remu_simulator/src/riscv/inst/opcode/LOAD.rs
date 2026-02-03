@@ -30,7 +30,7 @@ macro_rules! load_s {
                 .reg
                 .gpr
                 .raw_write(inst.rd.into(), (value as $i) as u32);
-            state.reg.pc = state.reg.pc.wrapping_add(4);
+            *state.reg.pc = state.reg.pc.wrapping_add(4);
             Ok(())
         });
     };
@@ -46,7 +46,7 @@ macro_rules! load_u {
                 .$read_fn(addr as usize)
                 .map_err(StateError::from)?;
             state.reg.gpr.raw_write(inst.rd.into(), value as u32);
-            state.reg.pc = state.reg.pc.wrapping_add(4);
+            *state.reg.pc = state.reg.pc.wrapping_add(4);
             Ok(())
         });
     };

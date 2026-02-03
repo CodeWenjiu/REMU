@@ -31,7 +31,7 @@ macro_rules! imm_op {
             let $imm_val = inst.imm;
             let value: u32 = $value;
             state.reg.gpr.raw_write(inst.rd.into(), value);
-            state.reg.pc = state.reg.pc.wrapping_add(4);
+            *state.reg.pc = state.reg.pc.wrapping_add(4);
             Ok(())
         });
     };

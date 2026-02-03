@@ -38,8 +38,11 @@ where
         if R::ENABLE {
             self.ref_model.step_once()?;
             let dut_state = self.dut_model.state();
-            if !self.ref_model.regs_match(dut_state) {
-                return Err(SimulatorError::DifftestMismatch);
+            let diff = self.ref_model.regs_diff(dut_state);
+            if !diff.is_empty() {
+                return Err(SimulatorError::DifftestMismatch(
+                    remu_simulator::riscv::DifftestMismatchList(diff),
+                ));
             }
         }
         Ok(())

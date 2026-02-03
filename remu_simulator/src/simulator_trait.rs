@@ -1,5 +1,5 @@
 use remu_state::{State, StateCmd, StateError};
-use remu_types::TracerDyn;
+use remu_types::{DifftestMismatchItem, RegGroup, TracerDyn};
 
 use crate::policy::{SimulatorPolicy, SimulatorPolicyOf};
 use crate::riscv::SimulatorError;
@@ -16,7 +16,9 @@ impl<P: SimulatorPolicy, const IS_DUT: bool> SimulatorPolicyOf for SimulatorRemu
     type Policy = P;
 }
 
-impl<P: SimulatorPolicy, const IS_DUT: bool> SimulatorTrait<P, IS_DUT> for SimulatorRemu<P, IS_DUT> {
+impl<P: SimulatorPolicy, const IS_DUT: bool> SimulatorTrait<P, IS_DUT>
+    for SimulatorRemu<P, IS_DUT>
+{
     const ENABLE: bool = true;
 
     fn new(opt: SimulatorOption, tracer: TracerDyn) -> Self {
@@ -32,7 +34,7 @@ impl<P: SimulatorPolicy, const IS_DUT: bool> SimulatorTrait<P, IS_DUT> for Simul
     }
 
     fn step_once(&mut self) -> Result<(), SimulatorError> {
-        let pc = self.state.reg.pc;
+        let pc = *self.state.reg.pc;
         let inst = self
             .state
             .bus
@@ -55,9 +57,38 @@ impl<P: SimulatorPolicy, const IS_DUT: bool> SimulatorTrait<P, IS_DUT> for Simul
 
     #[inline(always)]
     fn regs_match(&self, dut: &State<P>) -> bool {
-        self.state.reg.pc == dut.reg.pc
-            && self.state.reg.gpr == dut.reg.gpr
-            && self.state.reg.fpr == dut.reg.fpr
+        self.regs_diff(dut).is_empty()
+    }
+
+    fn regs_diff(&self, dut: &State<P>) -> Vec<DifftestMismatchItem> {
+        use remu_types::isa::reg::RegDiff;
+        let mut out = Vec::new();
+        let (r, d) = (&self.state.reg, &dut.reg);
+        for (name, ref_val, dut_val) in <P::ISA as remu_types::isa::RvIsa>::PcState::diff(&r.pc, &d.pc) {
+            out.push(DifftestMismatchItem {
+                group: RegGroup::Pc,
+                name,
+                ref_val,
+                dut_val,
+            });
+        }
+        for (name, ref_val, dut_val) in <P::ISA as remu_types::isa::RvIsa>::GprState::diff(&r.gpr, &d.gpr) {
+            out.push(DifftestMismatchItem {
+                group: RegGroup::Gpr,
+                name,
+                ref_val,
+                dut_val,
+            });
+        }
+        for (name, ref_val, dut_val) in <P::ISA as remu_types::isa::RvIsa>::FprState::diff(&r.fpr, &d.fpr) {
+            out.push(DifftestMismatchItem {
+                group: RegGroup::Fpr,
+                name,
+                ref_val,
+                dut_val,
+            });
+        }
+        out
     }
 
     fn func_exec(&mut self, subcmd: &FuncCmd) {
@@ -90,8 +121,13 @@ pub trait SimulatorTrait<P: remu_state::StatePolicy, const IS_DUT: bool = true> 
 
     #[inline(always)]
     fn regs_match(&self, dut: &State<P>) -> bool {
+        self.regs_diff(dut).is_empty()
+    }
+
+    #[inline(always)]
+    fn regs_diff(&self, dut: &State<P>) -> Vec<DifftestMismatchItem> {
         let _ = (self, dut);
-        true
+        vec![]
     }
 
     #[inline(always)]

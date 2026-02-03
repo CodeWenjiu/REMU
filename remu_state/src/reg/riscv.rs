@@ -3,8 +3,8 @@ use remu_types::isa::{reg::{Gpr, RegAccess}, RvIsa};
 use crate::reg::{RegCmd, RegOption};
 
 pub struct RiscvReg<I: RvIsa> {
-    pub pc: u32,
-    pub gpr: [u32; 32],
+    pub pc: I::PcState,
+    pub gpr: I::GprState,
     pub fpr: I::FprState,
     tracer: remu_types::TracerDyn,
 }
@@ -12,8 +12,8 @@ pub struct RiscvReg<I: RvIsa> {
 impl<I: RvIsa> RiscvReg<I> {
     pub(crate) fn new(opt: RegOption, tracer: remu_types::TracerDyn) -> Self {
         Self {
-            pc: opt.init_pc,
-            gpr: [0; 32],
+            pc: opt.init_pc.into(),
+            gpr: Default::default(),
             fpr: Default::default(),
             tracer,
         }

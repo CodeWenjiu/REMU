@@ -22,7 +22,7 @@ handler!(sb, state, inst, {
         .bus
         .write_8(addr as usize, state.reg.gpr.raw_read(inst.rs2.into()) as u8)
         .map_err(StateError::from)?;
-    state.reg.pc = state.reg.pc.wrapping_add(4);
+    *state.reg.pc = state.reg.pc.wrapping_add(4);
     Ok(())
 });
 
@@ -33,7 +33,7 @@ handler!(sh, state, inst, {
         .bus
         .write_16(addr as usize, state.reg.gpr.raw_read(inst.rs2.into()) as u16)
         .map_err(StateError::from)?;
-    state.reg.pc = state.reg.pc.wrapping_add(4);
+    *state.reg.pc = state.reg.pc.wrapping_add(4);
     Ok(())
 });
 
@@ -44,7 +44,7 @@ handler!(sw, state, inst, {
         .bus
         .write_32(addr as usize, state.reg.gpr.raw_read(inst.rs2.into()))
         .map_err(StateError::from)?;
-    state.reg.pc = state.reg.pc.wrapping_add(4);
+    *state.reg.pc = state.reg.pc.wrapping_add(4);
     Ok(())
 });
 
