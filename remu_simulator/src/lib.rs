@@ -1,5 +1,5 @@
-remu_macro::mod_pub!(riscv);
-remu_macro::mod_flat!(option, policy, simulator_trait, func);
+remu_macro::mod_flat!(option, policy, simulator_trait, error, func);
 
-pub use policy::SimulatorPolicy;
-pub use simulator_trait::{SimulatorRemu, SimulatorTrait};
+pub use error::{DifftestMismatchList, SimulatorError};
+pub use policy::{SimulatorPolicy, SimulatorPolicyOf};
+pub use simulator_trait::SimulatorTrait;

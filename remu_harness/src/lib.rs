@@ -4,10 +4,8 @@ mod policy;
 pub use option::HarnessOption;
 pub use policy::HarnessPolicy;
 
-pub use remu_simulator::riscv::SimulatorError;
-pub use remu_simulator::{
-    FuncCmd, SimulatorPolicy, SimulatorPolicyOf, SimulatorRemu, SimulatorTrait,
-};
+pub use remu_simulator::{DifftestMismatchList, SimulatorError, SimulatorPolicy, SimulatorPolicyOf, SimulatorTrait};
+pub use remu_simulator_remu::{FuncCmd, SimulatorRemu};
 pub use remu_state::StateCmd;
 
 pub type DutSim<P> = SimulatorRemu<P, true>;
@@ -41,7 +39,7 @@ where
             let diff = self.ref_model.regs_diff(dut_state);
             if !diff.is_empty() {
                 return Err(SimulatorError::DifftestMismatch(
-                    remu_simulator::riscv::DifftestMismatchList(diff),
+                    DifftestMismatchList(diff),
                 ));
             }
         }

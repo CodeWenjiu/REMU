@@ -1,0 +1,26 @@
+[package]
+name = "remu_simulator_remu"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+remu_simulator = { path = "../.." }
+remu_macro = { path = "../../../remu_macro" }
+remu_types = { path = "../../../remu_types" }
+remu_state = { path = "../../../remu_state" }
+
+thiserror.workspace = true
+tracing.workspace = true
+
+clap = { workspace = true, features = [ "derive", "color" ] }
+target-lexicon.workspace = true
+
+rand = "0.9.2"
+
+[dev-dependencies]
+criterion.workspace = true
+pprof = { workspace = true, features = [ "criterion", "flamegraph" ] }
+
+[[bench]]
+name = "decode"
+harness = false

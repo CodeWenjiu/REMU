@@ -1344,6 +1344,7 @@ dependencies = [
  "clap",
  "remu_macro",
  "remu_simulator",
+ "remu_simulator_remu",
  "remu_state",
  "remu_types",
 ]
@@ -1368,10 +1369,25 @@ name = "remu_simulator"
 version = "0.1.0"
 dependencies = [
  "clap",
+ "rand",
+ "remu_macro",
+ "remu_state",
+ "remu_types",
+ "target-lexicon",
+ "thiserror",
+ "tracing",
+]
+
+[[package]]
+name = "remu_simulator_remu"
+version = "0.1.0"
+dependencies = [
+ "clap",
  "criterion",
  "pprof",
  "rand",
  "remu_macro",
+ "remu_simulator",
  "remu_state",
  "remu_types",
  "target-lexicon",

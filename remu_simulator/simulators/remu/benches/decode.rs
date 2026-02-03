@@ -6,7 +6,7 @@ use rand::{
     distr::{Distribution, weighted::WeightedIndex},
     rngs::ThreadRng,
 };
-use remu_simulator::riscv::inst::opcode::{self, RV32_INSTRUCTION_MIX};
+use remu_simulator_remu::riscv::inst::opcode::{self, RV32_INSTRUCTION_MIX};
 use remu_state::StateFastProfile;
 use remu_types::isa::extension_enum::RV32I;
 
@@ -90,9 +90,9 @@ fn bench_decode(c: &mut Criterion) {
 //
 // Quick commands:
 // - Normal benchmark (for comparison):
-//     cargo bench -p remu_simulator --bench decode
+//     cargo bench -p remu_simulator_remu --bench decode
 // - Flamegraph (for hotspots; profiling mode, analysis disabled):
-//     cargo bench -p remu_simulator --bench decode -- --profile-time 20
+//     cargo bench -p remu_simulator_remu --bench decode -- --profile-time 20
 criterion_group!(
     name = benches;
     config = Criterion::default().with_profiler(PProfProfiler::new(100, Output::Flamegraph(None)));
