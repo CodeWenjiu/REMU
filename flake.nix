@@ -25,8 +25,8 @@
       in
       {
         devShells.default = pkgs.mkShell {
-          # 避免 Nix 使用不存在的 /tmp/nix-shell.xxx 导致 rustc/rust-analyzer proc-macro 退出 101
           TMPDIR = "/tmp";
+          LIBCLANG_PATH = "${pkgs.libclang.lib}/lib";
 
           buildInputs = with pkgs; [
             # rust toolchain
@@ -42,11 +42,14 @@
             cargo-machete
 
             clang
+            libclang
+            cmake
+            pkg-config
+
             mold
           ];
 
           shellHook = ''
-            # 确保 TMPDIR 指向存在的目录，避免 rustc/rust-analyzer proc-macro 因无法创建临时目录而退出 101
             if [ -z "$TMPDIR" ] || [ ! -d "$TMPDIR" ]; then
               export TMPDIR=/tmp
             fi

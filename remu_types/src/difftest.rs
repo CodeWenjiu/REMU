@@ -6,6 +6,7 @@ use crate::AllUsize;
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum DifftestRef {
     Remu,
+    Unicorn,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -44,9 +45,11 @@ impl FromStr for DifftestRef {
     type Err = String;
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
-        match s.trim().eq_ignore_ascii_case("remu") {
-            true => Ok(DifftestRef::Remu),
-            false => Err(format!("未知的 difftest ref: '{}'，当前仅支持: remu", s)),
+        let s_lower = s.trim().to_ascii_lowercase();
+        match s_lower.as_str() {
+            "remu" => Ok(DifftestRef::Remu),
+            "unicorn" => Ok(DifftestRef::Unicorn),
+            _ => Err(format!("未知的 difftest ref: '{}'，当前仅支持: remu, unicorn", s)),
         }
     }
 }

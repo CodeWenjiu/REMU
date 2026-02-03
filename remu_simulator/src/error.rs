@@ -23,4 +23,7 @@ pub enum SimulatorError {
 
     #[error("Difftest mismatch: ref and DUT register state differ:\n{0}")]
     DifftestMismatch(DifftestMismatchList),
+
+    #[error("Reference simulator error: {0}")]
+    RefError(String),
 }

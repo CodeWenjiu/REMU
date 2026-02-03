@@ -5,7 +5,7 @@ dev *args:
     @cargo run -- {{ args }}
 
 build:
-    @cargo build
+    @cargo build -p remu_cli
 
 run *args:
     @cargo run --release -- {{ args }}

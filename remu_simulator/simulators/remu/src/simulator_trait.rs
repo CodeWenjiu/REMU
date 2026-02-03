@@ -1,7 +1,9 @@
 use remu_state::{State, StateCmd, StateError};
 use remu_types::{DifftestMismatchItem, RegGroup, TracerDyn};
 
-use remu_simulator::{SimulatorError, SimulatorOption, SimulatorPolicy, SimulatorPolicyOf, SimulatorTrait};
+use remu_simulator::{
+    SimulatorError, SimulatorOption, SimulatorPolicy, SimulatorPolicyOf, SimulatorTrait,
+};
 
 use crate::riscv::inst::opcode::decode;
 use crate::{Func, FuncCmd};
@@ -40,11 +42,11 @@ impl<P: SimulatorPolicy, const IS_DUT: bool> SimulatorTrait<P, IS_DUT>
             .bus
             .read_32(pc as usize)
             .map_err(StateError::from)?;
-        let decoded = decode::<P>(inst);
-        (decoded.handler)(&mut self.state, &decoded)?;
         if self.func.trace.instruction && IS_DUT {
             self.tracer.borrow().disasm(pc as u64, inst);
         }
+        let decoded = decode::<P>(inst);
+        (decoded.handler)(&mut self.state, &decoded)?;
         Ok(())
     }
 
@@ -64,7 +66,9 @@ impl<P: SimulatorPolicy, const IS_DUT: bool> SimulatorTrait<P, IS_DUT>
         use remu_types::isa::reg::RegDiff;
         let mut out = Vec::new();
         let (r, d) = (&self.state.reg, &dut.reg);
-        for (name, ref_val, dut_val) in <P::ISA as remu_types::isa::RvIsa>::PcState::diff(&r.pc, &d.pc) {
+        for (name, ref_val, dut_val) in
+            <P::ISA as remu_types::isa::RvIsa>::PcState::diff(&r.pc, &d.pc)
+        {
             out.push(DifftestMismatchItem {
                 group: RegGroup::Pc,
                 name,
@@ -72,7 +76,9 @@ impl<P: SimulatorPolicy, const IS_DUT: bool> SimulatorTrait<P, IS_DUT>
                 dut_val,
             });
         }
-        for (name, ref_val, dut_val) in <P::ISA as remu_types::isa::RvIsa>::GprState::diff(&r.gpr, &d.gpr) {
+        for (name, ref_val, dut_val) in
+            <P::ISA as remu_types::isa::RvIsa>::GprState::diff(&r.gpr, &d.gpr)
+        {
             out.push(DifftestMismatchItem {
                 group: RegGroup::Gpr,
                 name,
@@ -80,7 +86,9 @@ impl<P: SimulatorPolicy, const IS_DUT: bool> SimulatorTrait<P, IS_DUT>
                 dut_val,
             });
         }
-        for (name, ref_val, dut_val) in <P::ISA as remu_types::isa::RvIsa>::FprState::diff(&r.fpr, &d.fpr) {
+        for (name, ref_val, dut_val) in
+            <P::ISA as remu_types::isa::RvIsa>::FprState::diff(&r.fpr, &d.fpr)
+        {
             out.push(DifftestMismatchItem {
                 group: RegGroup::Fpr,
                 name,

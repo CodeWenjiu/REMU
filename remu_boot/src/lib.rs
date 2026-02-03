@@ -14,6 +14,9 @@ where
         Some(DifftestRef::Remu) => {
             runner.run::<StateMmioProfile<ISA>, RefSim<StateMmioProfile<ISA>>>(option)
         }
+        Some(DifftestRef::Unicorn) => {
+            runner.run::<StateMmioProfile<ISA>, remu_simulator_unicorn::SimulatorUnicorn<StateMmioProfile<ISA>>>(option);
+        }
     }
 }
 
