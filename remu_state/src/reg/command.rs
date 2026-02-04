@@ -1,11 +1,9 @@
 use std::ops::Range;
 
 use remu_fmt::parse_prefixed_uint;
-use remu_types::isa::reg::Gpr;
+use remu_types::isa::reg::{Gpr, Fpr};
 
 fn parse_half_open_range_usize(s: &str) -> Result<Range<usize>, String> {
-    // Support half-open ranges of the form: `start..end`
-    // `start` and `end` use the same prefixed-integer syntax as elsewhere (0x/0o/0b/0d, '_' allowed).
     let s = s.trim();
     let (start_s, end_s) = s
         .split_once("..")
@@ -21,29 +19,76 @@ fn parse_half_open_range_usize(s: &str) -> Result<Range<usize>, String> {
     Ok(start..end)
 }
 
+
 #[derive(Debug, clap::Subcommand)]
 pub enum RegCmd {
-    /// Read With Specefic Width
+    /// General Purpose Registers (x0–x31 / ra, sp, …)
+    Gpr {
+        #[command(subcommand)]
+        subcmd: GprRegCmd,
+    },
+
+    /// Floating-point Registers (f0–f31 / ft0, fa0, fs0 等 ABI 名)
+    Fpr {
+        #[command(subcommand)]
+        subcmd: FprRegCmd,
+    },
+
+    /// Program Counter pc
+    Pc {
+        #[command(subcommand)]
+        subcmd: PcRegCmd,
+    },
+}
+
+#[derive(Debug, clap::Subcommand)]
+pub enum GprRegCmd {
     Read {
-        /// Address to set
         #[arg()]
         index: Gpr,
     },
 
-    /// Print Reg Values
     Print {
-        /// Range to print (half-open: START..END)
         #[arg(value_parser = parse_half_open_range_usize, default_value = "0..32")]
         range: Range<usize>,
     },
 
-    /// Write Reg Value
     Write {
-        /// Address to set
         #[arg()]
         index: Gpr,
 
-        /// Value to set
+        #[arg(value_parser = parse_prefixed_uint::<u32>)]
+        value: u32,
+    },
+}
+
+#[derive(Debug, clap::Subcommand)]
+pub enum FprRegCmd {
+    Read {
+        #[arg()]
+        index: Fpr,
+    },
+
+    Print {
+        #[arg(value_parser = parse_half_open_range_usize, default_value = "0..32")]
+        range: Range<usize>,
+    },
+
+    /// 写单个 FPR（可用 ABI 名如 fa0 或 f10）
+    Write {
+        #[arg()]
+        index: Fpr,
+
+        #[arg(value_parser = parse_prefixed_uint::<u32>)]
+        value: u32,
+    },
+}
+
+#[derive(Debug, clap::Subcommand)]
+pub enum PcRegCmd {
+    Read,
+
+    Write {
         #[arg(value_parser = parse_prefixed_uint::<u32>)]
         value: u32,
     },

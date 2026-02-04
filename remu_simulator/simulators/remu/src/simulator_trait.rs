@@ -2,7 +2,7 @@ use remu_state::{State, StateCmd, StateError};
 use remu_types::{DifftestMismatchItem, RegGroup, TracerDyn};
 
 use remu_simulator::{
-    SimulatorError, SimulatorOption, SimulatorPolicy, SimulatorPolicyOf, SimulatorTrait,
+    SimulatorInnerError, SimulatorOption, SimulatorPolicy, SimulatorPolicyOf, SimulatorTrait,
 };
 
 use crate::riscv::inst::opcode::decode;
@@ -35,7 +35,11 @@ impl<P: SimulatorPolicy, const IS_DUT: bool> SimulatorTrait<P, IS_DUT>
         &self.state
     }
 
-    fn step_once(&mut self) -> Result<(), SimulatorError> {
+    fn state_mut(&mut self) -> &mut State<P> {
+        &mut self.state
+    }
+
+    fn step_once(&mut self) -> Result<(), SimulatorInnerError> {
         let pc = *self.state.reg.pc;
         let inst = self
             .state
@@ -103,7 +107,7 @@ impl<P: SimulatorPolicy, const IS_DUT: bool> SimulatorTrait<P, IS_DUT>
         self.func.execute(subcmd);
     }
 
-    fn state_exec(&mut self, subcmd: &StateCmd) -> Result<(), SimulatorError> {
+    fn state_exec(&mut self, subcmd: &StateCmd) -> Result<(), SimulatorInnerError> {
         self.state.execute(subcmd)?;
         Ok(())
     }

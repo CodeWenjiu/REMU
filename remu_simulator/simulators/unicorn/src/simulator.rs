@@ -6,7 +6,9 @@ use unicorn_engine::{
     unicorn_const::{Arch, Mode, Prot, RegisterRISCV},
 };
 
-use remu_simulator::{SimulatorError, SimulatorOption, SimulatorPolicy, SimulatorPolicyOf, SimulatorTrait};
+use remu_simulator::{
+    SimulatorInnerError, SimulatorOption, SimulatorPolicy, SimulatorPolicyOf, SimulatorTrait,
+};
 
 const PAGE_SIZE: usize = 4096;
 
@@ -25,7 +27,7 @@ impl<P: SimulatorPolicy> SimulatorTrait<P, false> for SimulatorUnicorn<P> {
     fn new(opt: SimulatorOption, tracer: TracerDyn) -> Self {
         let mut state: State<P> = State::new(opt.state.clone(), tracer.clone(), false);
         let mut unicorn = Unicorn::new(Arch::RISCV, Mode::RISCV32)
-            .map_err(|e| SimulatorError::RefError(format!("Unicorn init: {}", e)))
+            .map_err(|e| SimulatorInnerError::RefError(format!("Unicorn init: {}", e)))
             .expect("unicorn new");
 
         for region in &opt.state.bus.mem {
@@ -34,7 +36,7 @@ impl<P: SimulatorPolicy> SimulatorTrait<P, false> for SimulatorUnicorn<P> {
             let size = ((len + PAGE_SIZE - 1) / PAGE_SIZE) * PAGE_SIZE;
             unicorn
                 .mem_map(start as u64, size as u64, Prot::ALL)
-                .map_err(|e| SimulatorError::RefError(format!("Unicorn mem_map: {}", e)))
+                .map_err(|e| SimulatorInnerError::RefError(format!("Unicorn mem_map: {}", e)))
                 .expect("mem_map");
             let mut buf = vec![0u8; len];
             if state.bus.read_bytes(start, &mut buf).is_ok() {
@@ -60,7 +62,11 @@ impl<P: SimulatorPolicy> SimulatorTrait<P, false> for SimulatorUnicorn<P> {
         &self.state
     }
 
-    fn step_once(&mut self) -> Result<(), SimulatorError> {
+    fn state_mut(&mut self) -> &mut State<P> {
+        &mut self.state
+    }
+
+    fn step_once(&mut self) -> Result<(), SimulatorInnerError> {
         let pc = self.unicorn.pc_read().map_err(uc_err)?;
         self.unicorn.emu_start(pc, 0, 0, 1).map_err(uc_err)?;
         sync_regs_from_unicorn(&mut self.unicorn, &mut self.state);
@@ -116,10 +122,10 @@ impl<P: SimulatorPolicy> SimulatorTrait<P, false> for SimulatorUnicorn<P> {
         out
     }
 
-    fn state_exec(&mut self, subcmd: &StateCmd) -> Result<(), SimulatorError> {
+    fn state_exec(&mut self, subcmd: &StateCmd) -> Result<(), SimulatorInnerError> {
         self.state
             .execute(subcmd)
-            .map_err(SimulatorError::StateAccessError)?;
+            .map_err(SimulatorInnerError::from)?;
         Ok(())
     }
 }
@@ -172,6 +178,6 @@ fn sync_regs_from_unicorn<P: SimulatorPolicy>(unicorn: &mut Unicorn<'_, ()>, sta
     }
 }
 
-fn uc_err(e: unicorn_engine::unicorn_const::uc_error) -> SimulatorError {
-    SimulatorError::RefError(e.to_string())
+fn uc_err(e: unicorn_engine::unicorn_const::uc_error) -> SimulatorInnerError {
+    SimulatorInnerError::RefError(e.to_string())
 }

@@ -7,6 +7,7 @@ remu_macro::mod_pub!(device);
 use std::{marker::PhantomData, ops::Range};
 
 pub use memory::MemRegionSpec;
+pub use observer::ObserverEvent;
 use remu_types::{AllUsize, DynDiagError, isa::RvIsa};
 
 use crate::bus::device::{DeviceAccess, get_device};
@@ -71,6 +72,12 @@ impl<I: RvIsa, O: BusObserver> Bus<I, O> {
             observer: O::new(),
             _marker: PhantomData,
         }
+    }
+
+    /// 取回并清空本步的 observer 事件（上层根据事件类型决定行为，如 difftest 时 MmioiAccess 则 ref 不 step 而 sync）。
+    #[inline(always)]
+    pub fn take_observer_event(&mut self) -> observer::ObserverEvent {
+        self.observer.get_enent_and_clear()
     }
 
     #[inline(always)]

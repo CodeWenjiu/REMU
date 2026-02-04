@@ -5,7 +5,8 @@ use colored::Colorize;
 use nu_ansi_term::{Color, Style};
 use reedline::{
     ColumnarMenu, DefaultHinter, Emacs, FileBackedHistory, KeyCode, KeyModifiers, MenuBuilder,
-    Reedline, ReedlineEvent, ReedlineMenu, Signal, default_emacs_keybindings,
+    Reedline, ReedlineEvent, ReedlineMenu, SearchFilter, SearchQuery, Signal,
+    default_emacs_keybindings,
 };
 use remu_boot::boot;
 use remu_debugger::{DebuggerOption, DebuggerRunner, HarnessPolicy};
@@ -95,8 +96,23 @@ impl DebuggerRunner for APPRunner {
             let sig = line_editor.read_line(&prompt);
             match sig {
                 Ok(Signal::Success(buffer)) => {
-                    if let Err(e) = debugger.execute_line(buffer) {
-                        println!("{:?}", miette::Report::new(e));
+                    let to_run = if buffer.trim().is_empty() {
+                        line_editor
+                            .history()
+                            .search(SearchQuery::last_with_search(SearchFilter::anything(
+                                line_editor.get_history_session_id(),
+                            )))
+                            .ok()
+                            .and_then(|v| v.into_iter().next())
+                            .map(|h| h.command_line)
+                            .unwrap_or(buffer)
+                    } else {
+                        buffer
+                    };
+                    if !to_run.trim().is_empty() {
+                        if let Err(e) = debugger.execute_line(to_run) {
+                            println!("{:?}", miette::Report::new(e));
+                        }
                     }
                 }
                 Ok(Signal::CtrlD) => {

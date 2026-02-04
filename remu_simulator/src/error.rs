@@ -17,13 +17,22 @@ impl fmt::Display for DifftestMismatchList {
 }
 
 #[derive(Debug, Error)]
-pub enum SimulatorError {
+pub enum SimulatorInnerError {
     #[error("State access error {0}")]
     StateAccessError(#[from] StateError),
 
-    #[error("Difftest mismatch: ref and DUT register state differ:\n{0}")]
-    DifftestMismatch(DifftestMismatchList),
-
     #[error("Reference simulator error: {0}")]
     RefError(String),
+}
+
+#[derive(Debug, Error)]
+pub enum SimulatorError {
+    #[error("Ref error: {0}")]
+    Ref(SimulatorInnerError),
+
+    #[error("Dut error: {0}")]
+    Dut(SimulatorInnerError),
+
+    #[error("Difftest mismatch: ref and DUT register state differ:\n{0}")]
+    Difftest(DifftestMismatchList),
 }

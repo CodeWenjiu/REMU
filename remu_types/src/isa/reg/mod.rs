@@ -1,4 +1,4 @@
-remu_macro::mod_flat!(gpr);
+remu_macro::mod_flat!(gpr, fpr);
 
 use core::ops::{Deref, DerefMut, Index};
 
@@ -60,7 +60,9 @@ impl RegAccess for GprState {
     }
     #[inline(always)]
     fn raw_write(&mut self, idx: usize, val: u32) {
-        self.0.raw_write(idx, val);
+        if idx != 0 {
+            self.0.raw_write(idx, val);
+        }
     }
 }
 impl Index<usize> for GprState {
@@ -111,9 +113,12 @@ impl RegDiff for FprRegs {
     fn diff(ref_this: &FprRegs, dut: &FprRegs) -> Vec<(String, AllUsize, AllUsize)> {
         (0..32)
             .filter_map(|i| {
-                let (r, d) = (ref_this.0[i], dut.0[i]);
+                let (r, d) = (ref_this.0.raw_read(i), dut.0.raw_read(i));
                 if r != d {
-                    Some((format!("f{i}"), AllUsize::U32(r), AllUsize::U32(d)))
+                    let name = Fpr::from_repr(i)
+                        .map(|f| f.to_string())
+                        .unwrap_or_else(|| format!("f{i}"));
+                    Some((name, AllUsize::U32(r), AllUsize::U32(d)))
                 } else {
                     None
                 }

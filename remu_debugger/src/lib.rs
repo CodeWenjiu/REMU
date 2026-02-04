@@ -37,10 +37,6 @@ impl<P: HarnessPolicy, R: SimulatorTrait<P, false>> Debugger<P, R> {
             parsed.push(self.parse_block(block)?);
         }
 
-        if parsed.is_empty() {
-            return Ok(());
-        }
-
         let mut parsed_iter = parsed.into_iter();
         let first_cmd = match parsed_iter.next() {
             Some(cmd) => cmd,

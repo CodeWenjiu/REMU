@@ -4,7 +4,7 @@ use std::marker::PhantomData;
 
 use remu_state::{State, StatePolicy};
 
-use crate::riscv::SimulatorError;
+use crate::riscv::SimulatorInnerError;
 remu_macro::mod_pub!(opcode);
 remu_macro::mod_flat!(bytes);
 
@@ -15,6 +15,6 @@ pub struct DecodedInst<P: StatePolicy> {
     pub(crate) rd: u8,
     pub imm: u32,
 
-    pub(crate) handler: fn(&mut State<P>, &DecodedInst<P>) -> Result<(), SimulatorError>,
+    pub(crate) handler: fn(&mut State<P>, &DecodedInst<P>) -> Result<(), SimulatorInnerError>,
     pub(crate) _marker: PhantomData<P>,
 }

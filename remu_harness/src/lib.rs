@@ -4,9 +4,13 @@ mod policy;
 pub use option::HarnessOption;
 pub use policy::HarnessPolicy;
 
-pub use remu_simulator::{DifftestMismatchList, SimulatorError, SimulatorPolicy, SimulatorPolicyOf, SimulatorTrait};
+pub use remu_simulator::{
+    DifftestMismatchList, SimulatorError, SimulatorInnerError, SimulatorPolicy, SimulatorPolicyOf,
+    SimulatorTrait,
+};
 pub use remu_simulator_remu::{FuncCmd, SimulatorRemu};
 pub use remu_state::StateCmd;
+pub use remu_state::bus::ObserverEvent;
 
 pub type DutSim<P> = SimulatorRemu<P, true>;
 pub type RefSim<P> = SimulatorRemu<P, false>;
@@ -32,15 +36,27 @@ where
 
     #[inline(always)]
     pub fn step_once(&mut self) -> Result<(), SimulatorError> {
-        self.dut_model.step_once()?;
+        self.dut_model
+            .step_once()
+            .map_err(SimulatorError::Dut)?;
         if R::ENABLE {
-            self.ref_model.step_once()?;
-            let dut_state = self.dut_model.state();
-            let diff = self.ref_model.regs_diff(dut_state);
-            if !diff.is_empty() {
-                return Err(SimulatorError::DifftestMismatch(
-                    DifftestMismatchList(diff),
-                ));
+            let event = self.dut_model.state_mut().bus.take_observer_event();
+            match event {
+                ObserverEvent::None => {
+                    self.ref_model
+                        .step_once()
+                        .map_err(SimulatorError::Ref)?;
+                    let dut_state = self.dut_model.state();
+                    let diff = self.ref_model.regs_diff(dut_state);
+                    if !diff.is_empty() {
+                        return Err(SimulatorError::Difftest(
+                            DifftestMismatchList(diff),
+                        ));
+                    }
+                }
+                ObserverEvent::MmioiAccess => {
+                    self.ref_model.sync_from(self.dut_model.state());
+                }
             }
         }
         Ok(())
@@ -51,10 +67,14 @@ where
     }
 
     pub fn state_exec(&mut self, subcmd: &StateCmd) -> Result<(), SimulatorError> {
-        self.dut_model.state_exec(subcmd)
+        self.dut_model
+            .state_exec(subcmd)
+            .map_err(SimulatorError::Dut)
     }
 
     pub fn ref_state_exec(&mut self, subcmd: &StateCmd) -> Result<(), SimulatorError> {
-        self.ref_model.state_exec(subcmd)
+        self.ref_model
+            .state_exec(subcmd)
+            .map_err(SimulatorError::Ref)
     }
 }

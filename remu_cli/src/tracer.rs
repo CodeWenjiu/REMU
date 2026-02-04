@@ -4,7 +4,7 @@ use colored::Colorize;
 use remu_fmt::ByteGuesser;
 use remu_types::{
     DynDiagError, Tracer,
-    isa::{IsaSpec, reg::Gpr},
+    isa::{IsaSpec, reg::{Gpr, Fpr}},
 };
 use tabled::{
     Table, Tabled,
@@ -74,6 +74,13 @@ fn fmt_hex(v: &u32) -> String {
 pub struct RegTable {
     #[tabled()]
     register: Gpr,
+    #[tabled(display = "fmt_hex")]
+    data: u32,
+}
+
+#[derive(Tabled)]
+pub struct FprTable {
+    register: String,
     #[tabled(display = "fmt_hex")]
     data: u32,
 }
@@ -228,6 +235,41 @@ impl Tracer for CLITracer {
             format!("{}", index).yellow(),
             format!("0x{:08x}", data).blue()
         )
+    }
+
+    fn reg_show_pc(&self, data: u32) {
+        println!(
+            "pc: {}",
+            format!("0x{:08x}", data).blue()
+        )
+    }
+
+    fn reg_show_fpr(&self, index: usize, data: u32) {
+        let name = Fpr::from_repr(index)
+            .map(|f| f.to_string())
+            .unwrap_or_else(|| format!("f{index}"));
+        println!(
+            "{}: {}",
+            name.yellow(),
+            format!("0x{:08x}", data).blue()
+        )
+    }
+
+    fn reg_print_fpr(&self, regs: &[(usize, u32)], _range: Range<usize>) {
+        let rows: Vec<FprTable> = regs
+            .iter()
+            .map(|(i, data)| FprTable {
+                register: Fpr::from_repr(*i)
+                    .map(|f| f.to_string())
+                    .unwrap_or_else(|| format!("f{i}")),
+                data: *data,
+            })
+            .collect();
+        let mut table = Table::new(rows);
+        table.with(Style::rounded());
+        table.modify(Columns::one(0), Color::FG_YELLOW);
+        table.modify(Columns::one(1), Color::FG_CYAN);
+        println!("{table}");
     }
 
     fn disasm(&self, pc: u64, inst: u32) {

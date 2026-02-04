@@ -1,7 +1,7 @@
 use remu_state::{State, StateCmd};
 use remu_types::{DifftestMismatchItem, TracerDyn};
 
-use crate::error::SimulatorError;
+use crate::error::SimulatorInnerError;
 use crate::{FuncCmd, SimulatorOption};
 
 pub trait SimulatorTrait<P: remu_state::StatePolicy, const IS_DUT: bool = true> {
@@ -11,8 +11,10 @@ pub trait SimulatorTrait<P: remu_state::StatePolicy, const IS_DUT: bool = true> 
 
     fn state(&self) -> &State<P>;
 
+    fn state_mut(&mut self) -> &mut State<P>;
+
     #[inline(always)]
-    fn step_once(&mut self) -> Result<(), SimulatorError> {
+    fn step_once(&mut self) -> Result<(), SimulatorInnerError> {
         let _ = self;
         Ok(())
     }
@@ -39,7 +41,7 @@ pub trait SimulatorTrait<P: remu_state::StatePolicy, const IS_DUT: bool = true> 
     }
 
     #[inline(always)]
-    fn state_exec(&mut self, _subcmd: &StateCmd) -> Result<(), SimulatorError> {
+    fn state_exec(&mut self, _subcmd: &StateCmd) -> Result<(), SimulatorInnerError> {
         let _ = self;
         Ok(())
     }
@@ -54,5 +56,9 @@ impl<P: remu_state::StatePolicy> SimulatorTrait<P, false> for () {
 
     fn state(&self) -> &State<P> {
         unreachable!("state() must not be called when ENABLE is false (ref is ())")
+    }
+
+    fn state_mut(&mut self) -> &mut State<P> {
+        unreachable!("state_mut() must not be called when ENABLE is false (ref is ())")
     }
 }

@@ -38,6 +38,16 @@ pub trait Tracer {
     fn reg_print(&self, regs: &[(Gpr, u32); 32], range: Range<usize>);
     fn reg_show(&self, index: Gpr, data: u32);
 
+    fn reg_show_pc(&self, data: u32) {
+        let _ = data;
+    }
+    fn reg_show_fpr(&self, index: usize, data: u32) {
+        let _ = (index, data);
+    }
+    fn reg_print_fpr(&self, regs: &[(usize, u32)], range: Range<usize>) {
+        let _ = (regs, range);
+    }
+
     fn disasm(&self, pc: u64, inst: u32);
 }
 
