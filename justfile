@@ -2,6 +2,9 @@ _default:
     @just --list
 
 dev *args:
+    @RUST_BACKTRACE=1 cargo run -- {{ args }}
+
+dev-raw *args:
     @cargo run -- {{ args }}
 
 build:

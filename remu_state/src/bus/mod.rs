@@ -121,7 +121,7 @@ impl<I: RvIsa, O: BusObserver> Bus<I, O> {
         None
     }
 
-    pub(crate) fn execute(&mut self, subcmd: &BusCmd) -> Result<(), BusFault> {
+    pub(crate) fn execute(&mut self, subcmd: &BusCmd) -> Result<(), BusError> {
         match subcmd {
             BusCmd::Read { subcmd } => {
                 let (addr, result) = match subcmd {

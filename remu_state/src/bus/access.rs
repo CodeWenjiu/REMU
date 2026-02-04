@@ -1,10 +1,10 @@
 use remu_types::isa::RvIsa;
 
-use crate::bus::{Bus, BusFault, BusObserver};
+use crate::bus::{Bus, BusError, BusObserver};
 
 impl<I: RvIsa, O: BusObserver> Bus<I, O> {
     #[inline(always)]
-    pub fn read_8(&mut self, addr: usize) -> Result<u8, BusFault> {
+    pub fn read_8(&mut self, addr: usize) -> Result<u8, BusError> {
         if let Some(m) = self.find_memory_mut(addr..addr + 1) {
             return Ok(m.read_8(addr));
         }
@@ -13,11 +13,11 @@ impl<I: RvIsa, O: BusObserver> Bus<I, O> {
             return Ok(d.1.read_8(addr - d.0)?);
         }
 
-        Err(BusFault::Unmapped { addr })
+        Err(BusError::unmapped(addr))
     }
 
     #[inline(always)]
-    pub fn read_16(&mut self, addr: usize) -> Result<u16, BusFault> {
+    pub fn read_16(&mut self, addr: usize) -> Result<u16, BusError> {
         if let Some(m) = self.find_memory_mut(addr..addr + 2) {
             return Ok(m.read_16(addr));
         }
@@ -26,11 +26,11 @@ impl<I: RvIsa, O: BusObserver> Bus<I, O> {
             return Ok(d.1.read_16(addr - d.0)?);
         }
 
-        Err(BusFault::Unmapped { addr })
+        Err(BusError::unmapped(addr))
     }
 
     #[inline(always)]
-    pub fn read_32(&mut self, addr: usize) -> Result<u32, BusFault> {
+    pub fn read_32(&mut self, addr: usize) -> Result<u32, BusError> {
         if let Some(m) = self.find_memory_mut(addr..addr + 4) {
             return Ok(m.read_32(addr));
         }
@@ -39,11 +39,11 @@ impl<I: RvIsa, O: BusObserver> Bus<I, O> {
             return Ok(d.1.read_32(addr - d.0)?);
         }
 
-        Err(BusFault::Unmapped { addr })
+        Err(BusError::unmapped(addr))
     }
 
     #[inline(always)]
-    pub fn read_64(&mut self, addr: usize) -> Result<u64, BusFault> {
+    pub fn read_64(&mut self, addr: usize) -> Result<u64, BusError> {
         if let Some(m) = self.find_memory_mut(addr..addr + 8) {
             return Ok(m.read_64(addr));
         }
@@ -52,11 +52,11 @@ impl<I: RvIsa, O: BusObserver> Bus<I, O> {
             return Ok(d.1.read_64(addr - d.0)?);
         }
 
-        Err(BusFault::Unmapped { addr })
+        Err(BusError::unmapped(addr))
     }
 
     #[inline(always)]
-    pub fn read_128(&mut self, addr: usize) -> Result<u128, BusFault> {
+    pub fn read_128(&mut self, addr: usize) -> Result<u128, BusError> {
         if let Some(m) = self.find_memory_mut(addr..addr + 16) {
             return Ok(m.read_128(addr));
         }
@@ -65,20 +65,20 @@ impl<I: RvIsa, O: BusObserver> Bus<I, O> {
             return Ok(d.1.read_128(addr - d.0)?);
         }
 
-        Err(BusFault::Unmapped { addr })
+        Err(BusError::unmapped(addr))
     }
 
     #[inline(always)]
-    pub fn read_bytes(&mut self, addr: usize, buf: &mut [u8]) -> Result<(), BusFault> {
+    pub fn read_bytes(&mut self, addr: usize, buf: &mut [u8]) -> Result<(), BusError> {
         if let Some(m) = self.find_memory_mut(addr..addr + buf.len()) {
             return Ok(m.read_bytes(addr, buf));
         }
 
-        Err(BusFault::Unmapped { addr })
+        Err(BusError::unmapped(addr))
     }
 
     #[inline(always)]
-    pub fn write_8(&mut self, addr: usize, value: u8) -> Result<(), BusFault> {
+    pub fn write_8(&mut self, addr: usize, value: u8) -> Result<(), BusError> {
         if let Some(m) = self.find_memory_mut(addr..addr + 1) {
             m.write_8(addr, value);
 
@@ -99,11 +99,11 @@ impl<I: RvIsa, O: BusObserver> Bus<I, O> {
             return Ok(());
         }
 
-        Err(BusFault::Unmapped { addr })
+        Err(BusError::unmapped(addr))
     }
 
     #[inline(always)]
-    pub fn write_16(&mut self, addr: usize, value: u16) -> Result<(), BusFault> {
+    pub fn write_16(&mut self, addr: usize, value: u16) -> Result<(), BusError> {
         if let Some(m) = self.find_memory_mut(addr..addr + 2) {
             m.write_16(addr, value);
 
@@ -124,11 +124,11 @@ impl<I: RvIsa, O: BusObserver> Bus<I, O> {
             return Ok(());
         }
 
-        Err(BusFault::Unmapped { addr })
+        Err(BusError::unmapped(addr))
     }
 
     #[inline(always)]
-    pub fn write_32(&mut self, addr: usize, value: u32) -> Result<(), BusFault> {
+    pub fn write_32(&mut self, addr: usize, value: u32) -> Result<(), BusError> {
         if let Some(m) = self.find_memory_mut(addr..addr + 4) {
             m.write_32(addr, value);
 
@@ -149,11 +149,11 @@ impl<I: RvIsa, O: BusObserver> Bus<I, O> {
             return Ok(());
         }
 
-        Err(BusFault::Unmapped { addr })
+        Err(BusError::unmapped(addr))
     }
 
     #[inline(always)]
-    pub fn write_64(&mut self, addr: usize, value: u64) -> Result<(), BusFault> {
+    pub fn write_64(&mut self, addr: usize, value: u64) -> Result<(), BusError> {
         if let Some(m) = self.find_memory_mut(addr..addr + 8) {
             m.write_64(addr, value);
 
@@ -174,11 +174,11 @@ impl<I: RvIsa, O: BusObserver> Bus<I, O> {
             return Ok(());
         }
 
-        Err(BusFault::Unmapped { addr })
+        Err(BusError::unmapped(addr))
     }
 
     #[inline(always)]
-    pub fn write_128(&mut self, addr: usize, value: u128) -> Result<(), BusFault> {
+    pub fn write_128(&mut self, addr: usize, value: u128) -> Result<(), BusError> {
         if let Some(m) = self.find_memory_mut(addr..addr + 16) {
             m.write_128(addr, value);
 
@@ -199,15 +199,15 @@ impl<I: RvIsa, O: BusObserver> Bus<I, O> {
             return Ok(());
         }
 
-        Err(BusFault::Unmapped { addr })
+        Err(BusError::unmapped(addr))
     }
 
     #[inline(always)]
-    pub fn write_bytes(&mut self, addr: usize, buf: &[u8]) -> Result<(), BusFault> {
+    pub fn write_bytes(&mut self, addr: usize, buf: &[u8]) -> Result<(), BusError> {
         if let Some(m) = self.find_memory_mut(addr..addr + buf.len()) {
             return Ok(m.write_bytes(addr, buf));
         }
 
-        Err(BusFault::Unmapped { addr })
+        Err(BusError::unmapped(addr))
     }
 }

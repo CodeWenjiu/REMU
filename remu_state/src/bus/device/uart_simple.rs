@@ -1,6 +1,6 @@
 use std::io::{self, Write};
 
-use crate::bus::{BusFault, device::DeviceAccess};
+use crate::bus::{BusError, device::DeviceAccess};
 
 pub struct SimpleUart;
 
@@ -19,18 +19,22 @@ impl DeviceAccess for SimpleUart {
         1
     }
 
-    fn read_8(&mut self, offset: usize) -> Result<u8, BusFault> {
+    fn read_8(&mut self, offset: usize) -> Result<u8, BusError> {
         let _ = offset;
         Ok(0)
     }
 
-    fn write_8(&mut self, offset: usize, value: u8) -> Result<(), BusFault> {
+    fn write_8(&mut self, offset: usize, value: u8) -> Result<(), BusError> {
         let _ = offset;
 
         let stdout = io::stdout();
         let mut handle = stdout.lock();
-        handle.write_all(&[value]).map_err(|_| BusFault::IoError)?;
-        handle.flush().map_err(|_| BusFault::IoError)?;
+        handle
+            .write_all(&[value])
+            .map_err(|_| BusError::IoError(format!("{}", std::backtrace::Backtrace::capture())))?;
+        handle
+            .flush()
+            .map_err(|_| BusError::IoError(format!("{}", std::backtrace::Backtrace::capture())))?;
         Ok(())
     }
 }

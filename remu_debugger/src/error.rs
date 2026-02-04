@@ -17,4 +17,14 @@ pub enum DebuggerError {
     CommandExec(#[from] SimulatorError),
 }
 
+impl DebuggerError {
+    #[inline(always)]
+    pub fn backtrace(&self) -> Option<&str> {
+        match self {
+            DebuggerError::CommandExec(sim) => sim.backtrace(),
+            _ => None,
+        }
+    }
+}
+
 pub(crate) type Result<T> = std::result::Result<T, DebuggerError>;

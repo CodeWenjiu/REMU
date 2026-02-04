@@ -25,6 +25,16 @@ pub enum SimulatorInnerError {
     RefError(String),
 }
 
+impl SimulatorInnerError {
+    #[inline(always)]
+    pub fn backtrace(&self) -> Option<&str> {
+        match self {
+            SimulatorInnerError::StateAccessError(e) => e.backtrace(),
+            SimulatorInnerError::RefError(_) => None,
+        }
+    }
+}
+
 #[derive(Debug, Error)]
 pub enum SimulatorError {
     #[error("Ref error: {0}")]
@@ -35,4 +45,14 @@ pub enum SimulatorError {
 
     #[error("Difftest mismatch: ref and DUT register state differ:\n{0}")]
     Difftest(DifftestMismatchList),
+}
+
+impl SimulatorError {
+    #[inline(always)]
+    pub fn backtrace(&self) -> Option<&str> {
+        match self {
+            SimulatorError::Dut(e) | SimulatorError::Ref(e) => e.backtrace(),
+            SimulatorError::Difftest(_) => None,
+        }
+    }
 }

@@ -1,51 +1,81 @@
 remu_macro::mod_flat!(uart_simple);
 
-use crate::bus::{BusFault, parse_usize_allow_hex_underscore};
+use crate::bus::{BusError, parse_usize_allow_hex_underscore};
 
 pub(crate) trait DeviceAccess: Send + Sync {
     fn name(&self) -> &str;
     fn size(&self) -> usize;
 
-    fn read_8(&mut self, offset: usize) -> Result<u8, BusFault> {
+    fn read_8(&mut self, offset: usize) -> Result<u8, BusError> {
         let _ = offset;
-        Err(BusFault::UnsupportedAccessWidth(8))
+        Err(BusError::UnsupportedAccessWidth(
+            8,
+            format!("{}", std::backtrace::Backtrace::capture()),
+        ))
     }
-    fn read_16(&mut self, offset: usize) -> Result<u16, BusFault> {
+    fn read_16(&mut self, offset: usize) -> Result<u16, BusError> {
         let _ = offset;
-        Err(BusFault::UnsupportedAccessWidth(16))
+        Err(BusError::UnsupportedAccessWidth(
+            16,
+            format!("{}", std::backtrace::Backtrace::capture()),
+        ))
     }
-    fn read_32(&mut self, offset: usize) -> Result<u32, BusFault> {
+    fn read_32(&mut self, offset: usize) -> Result<u32, BusError> {
         let _ = offset;
-        Err(BusFault::UnsupportedAccessWidth(32))
+        Err(BusError::UnsupportedAccessWidth(
+            32,
+            format!("{}", std::backtrace::Backtrace::capture()),
+        ))
     }
-    fn read_64(&mut self, offset: usize) -> Result<u64, BusFault> {
+    fn read_64(&mut self, offset: usize) -> Result<u64, BusError> {
         let _ = offset;
-        Err(BusFault::UnsupportedAccessWidth(64))
+        Err(BusError::UnsupportedAccessWidth(
+            64,
+            format!("{}", std::backtrace::Backtrace::capture()),
+        ))
     }
-    fn read_128(&mut self, offset: usize) -> Result<u128, BusFault> {
+    fn read_128(&mut self, offset: usize) -> Result<u128, BusError> {
         let _ = offset;
-        Err(BusFault::UnsupportedAccessWidth(128))
+        Err(BusError::UnsupportedAccessWidth(
+            128,
+            format!("{}", std::backtrace::Backtrace::capture()),
+        ))
     }
 
-    fn write_8(&mut self, offset: usize, value: u8) -> Result<(), BusFault> {
+    fn write_8(&mut self, offset: usize, value: u8) -> Result<(), BusError> {
         let _ = (offset, value);
-        Err(BusFault::UnsupportedAccessWidth(8))
+        Err(BusError::UnsupportedAccessWidth(
+            8,
+            format!("{}", std::backtrace::Backtrace::capture()),
+        ))
     }
-    fn write_16(&mut self, offset: usize, value: u16) -> Result<(), BusFault> {
+    fn write_16(&mut self, offset: usize, value: u16) -> Result<(), BusError> {
         let _ = (offset, value);
-        Err(BusFault::UnsupportedAccessWidth(16))
+        Err(BusError::UnsupportedAccessWidth(
+            16,
+            format!("{}", std::backtrace::Backtrace::capture()),
+        ))
     }
-    fn write_32(&mut self, offset: usize, value: u32) -> Result<(), BusFault> {
+    fn write_32(&mut self, offset: usize, value: u32) -> Result<(), BusError> {
         let _ = (offset, value);
-        Err(BusFault::UnsupportedAccessWidth(32))
+        Err(BusError::UnsupportedAccessWidth(
+            32,
+            format!("{}", std::backtrace::Backtrace::capture()),
+        ))
     }
-    fn write_64(&mut self, offset: usize, value: u64) -> Result<(), BusFault> {
+    fn write_64(&mut self, offset: usize, value: u64) -> Result<(), BusError> {
         let _ = (offset, value);
-        Err(BusFault::UnsupportedAccessWidth(64))
+        Err(BusError::UnsupportedAccessWidth(
+            64,
+            format!("{}", std::backtrace::Backtrace::capture()),
+        ))
     }
-    fn write_128(&mut self, offset: usize, value: u128) -> Result<(), BusFault> {
+    fn write_128(&mut self, offset: usize, value: u128) -> Result<(), BusError> {
         let _ = (offset, value);
-        Err(BusFault::UnsupportedAccessWidth(128))
+        Err(BusError::UnsupportedAccessWidth(
+            128,
+            format!("{}", std::backtrace::Backtrace::capture()),
+        ))
     }
 }
 
