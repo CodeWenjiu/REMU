@@ -47,19 +47,20 @@ macro_rules! op_op {
     };
 }
 
-op_op!(addi, |rs1, rs2| rs1.wrapping_add(rs2));
-op_op!(slli, |rs1, rs2| rs1.wrapping_shl(rs2 & 0x1F));
-op_op!(slti, |rs1, rs2| if (rs1 as i32) < (rs2 as i32) {
+op_op!(add, |rs1, rs2| rs1.wrapping_add(rs2));
+op_op!(sub, |rs1, rs2| rs1.wrapping_sub(rs2));
+op_op!(sll, |rs1, rs2| rs1.wrapping_shl(rs2 & 0x1F));
+op_op!(slt, |rs1, rs2| if (rs1 as i32) < (rs2 as i32) {
     1
 } else {
     0
 });
-op_op!(sltiu, |rs1, rs2| if rs1 < rs2 { 1 } else { 0 });
-op_op!(xori, |rs1, rs2| rs1 ^ rs2);
-op_op!(ori, |rs1, rs2| rs1 | rs2);
-op_op!(andi, |rs1, rs2| rs1 & rs2);
-op_op!(srli, |rs1, rs2| rs1.wrapping_shr(rs2 & 0x1F));
-op_op!(srai, |rs1, rs2| ((rs1 as i32).wrapping_shr(rs2 & 0x1F))
+op_op!(sltu, |rs1, rs2| if rs1 < rs2 { 1 } else { 0 });
+op_op!(xor, |rs1, rs2| rs1 ^ rs2);
+op_op!(or, |rs1, rs2| rs1 | rs2);
+op_op!(and, |rs1, rs2| rs1 & rs2);
+op_op!(srl, |rs1, rs2| rs1.wrapping_shr(rs2 & 0x1F));
+op_op!(sra, |rs1, rs2| ((rs1 as i32).wrapping_shr(rs2 & 0x1F))
     as u32);
 
 op_op!(mul, |rs1, rs2| rs1.wrapping_mul(rs2));
@@ -106,7 +107,16 @@ define_decode!(inst, {
             rs2,
             imm: 0,
 
-            handler: addi::<P>,
+            handler: add::<P>,
+            _marker: PhantomData,
+        },
+        (func3::ADD, func7::ALT) => DecodedInst::<P> {
+            rd,
+            rs1,
+            rs2,
+            imm: 0,
+
+            handler: sub::<P>,
             _marker: PhantomData,
         },
         (func3::SLL, func7::NORMAL) => DecodedInst::<P> {
@@ -115,7 +125,7 @@ define_decode!(inst, {
             rs2,
             imm: 0,
 
-            handler: slli::<P>,
+            handler: sll::<P>,
             _marker: PhantomData,
         },
         (func3::SLT, func7::NORMAL) => DecodedInst::<P> {
@@ -124,7 +134,7 @@ define_decode!(inst, {
             rs2,
             imm: 0,
 
-            handler: slti::<P>,
+            handler: slt::<P>,
             _marker: PhantomData,
         },
         (func3::SLTU, func7::NORMAL) => DecodedInst::<P> {
@@ -133,7 +143,7 @@ define_decode!(inst, {
             rs2,
             imm: 0,
 
-            handler: sltiu::<P>,
+            handler: sltu::<P>,
             _marker: PhantomData,
         },
         (func3::XOR, func7::NORMAL) => DecodedInst::<P> {
@@ -142,7 +152,7 @@ define_decode!(inst, {
             rs2,
             imm: 0,
 
-            handler: xori::<P>,
+            handler: xor::<P>,
             _marker: PhantomData,
         },
         (func3::OR, func7::NORMAL) => DecodedInst::<P> {
@@ -151,7 +161,7 @@ define_decode!(inst, {
             rs2,
             imm: 0,
 
-            handler: ori::<P>,
+            handler: or::<P>,
             _marker: PhantomData,
         },
         (func3::SR, func7::NORMAL) => DecodedInst::<P> {
@@ -160,7 +170,7 @@ define_decode!(inst, {
             rs2,
             imm: 0,
 
-            handler: srli::<P>,
+            handler: srl::<P>,
             _marker: PhantomData,
         },
         (func3::SR, func7::ALT) => DecodedInst::<P> {
@@ -169,7 +179,7 @@ define_decode!(inst, {
             rs2,
             imm: 0,
 
-            handler: srai::<P>,
+            handler: sra::<P>,
             _marker: PhantomData,
         },
         (func3::AND, func7::NORMAL) => DecodedInst::<P> {
@@ -178,7 +188,7 @@ define_decode!(inst, {
             rs2,
             imm: 0,
 
-            handler: andi::<P>,
+            handler: and::<P>,
             _marker: PhantomData,
         },
 
