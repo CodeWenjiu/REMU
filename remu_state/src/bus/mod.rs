@@ -74,7 +74,6 @@ impl<I: RvIsa, O: BusObserver> Bus<I, O> {
         }
     }
 
-    /// 取回并清空本步的 observer 事件（上层根据事件类型决定行为，如 difftest 时 MmioiAccess 则 ref 不 step 而 sync）。
     #[inline(always)]
     pub fn take_observer_event(&mut self) -> observer::ObserverEvent {
         self.observer.get_enent_and_clear()
@@ -113,7 +112,8 @@ impl<I: RvIsa, O: BusObserver> Bus<I, O> {
         range: Range<usize>,
     ) -> Option<(usize, &mut Box<dyn DeviceAccess>)> {
         for (addr, device) in self.device.iter_mut() {
-            if addr == &range.start {
+            let device_end = *addr + device.size();
+            if range.start >= *addr && range.end <= device_end {
                 return Some((*addr, device));
             }
         }

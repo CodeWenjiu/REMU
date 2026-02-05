@@ -10,7 +10,11 @@ impl<I: RvIsa, O: BusObserver> Bus<I, O> {
         }
 
         if let Some(d) = self.find_device_mut(addr..addr + 1) {
-            return Ok(d.1.read_8(addr - d.0)?);
+            let val = d.1.read_8(addr - d.0)?;
+            if O::ENABLED {
+                self.observer.on_mmio_read_8(addr, val);
+            }
+            return Ok(val);
         }
 
         Err(BusError::unmapped(addr))
@@ -22,8 +26,12 @@ impl<I: RvIsa, O: BusObserver> Bus<I, O> {
             return Ok(m.read_16(addr));
         }
 
-        if let Some(d) = self.find_device_mut(addr..addr + 1) {
-            return Ok(d.1.read_16(addr - d.0)?);
+        if let Some(d) = self.find_device_mut(addr..addr + 2) {
+            let val = d.1.read_16(addr - d.0)?;
+            if O::ENABLED {
+                self.observer.on_mmio_read_16(addr, val);
+            }
+            return Ok(val);
         }
 
         Err(BusError::unmapped(addr))
@@ -35,8 +43,12 @@ impl<I: RvIsa, O: BusObserver> Bus<I, O> {
             return Ok(m.read_32(addr));
         }
 
-        if let Some(d) = self.find_device_mut(addr..addr + 1) {
-            return Ok(d.1.read_32(addr - d.0)?);
+        if let Some(d) = self.find_device_mut(addr..addr + 4) {
+            let val = d.1.read_32(addr - d.0)?;
+            if O::ENABLED {
+                self.observer.on_mmio_read_32(addr, val);
+            }
+            return Ok(val);
         }
 
         Err(BusError::unmapped(addr))
@@ -48,8 +60,12 @@ impl<I: RvIsa, O: BusObserver> Bus<I, O> {
             return Ok(m.read_64(addr));
         }
 
-        if let Some(d) = self.find_device_mut(addr..addr + 1) {
-            return Ok(d.1.read_64(addr - d.0)?);
+        if let Some(d) = self.find_device_mut(addr..addr + 8) {
+            let val = d.1.read_64(addr - d.0)?;
+            if O::ENABLED {
+                self.observer.on_mmio_read_64(addr, val);
+            }
+            return Ok(val);
         }
 
         Err(BusError::unmapped(addr))
@@ -61,8 +77,12 @@ impl<I: RvIsa, O: BusObserver> Bus<I, O> {
             return Ok(m.read_128(addr));
         }
 
-        if let Some(d) = self.find_device_mut(addr..addr + 1) {
-            return Ok(d.1.read_128(addr - d.0)?);
+        if let Some(d) = self.find_device_mut(addr..addr + 16) {
+            let val = d.1.read_128(addr - d.0)?;
+            if O::ENABLED {
+                self.observer.on_mmio_read_128(addr, val);
+            }
+            return Ok(val);
         }
 
         Err(BusError::unmapped(addr))
