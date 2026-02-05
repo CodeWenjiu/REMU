@@ -31,10 +31,10 @@ impl DeviceAccess for SimpleUart {
         let mut handle = stdout.lock();
         handle
             .write_all(&[value])
-            .map_err(|_| BusError::IoError(format!("{}", std::backtrace::Backtrace::capture())))?;
+            .map_err(|_| BusError::IoError(std::backtrace::Backtrace::capture()))?;
         handle
             .flush()
-            .map_err(|_| BusError::IoError(format!("{}", std::backtrace::Backtrace::capture())))?;
+            .map_err(|_| BusError::IoError(std::backtrace::Backtrace::capture()))?;
         Ok(())
     }
 }

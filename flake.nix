@@ -29,8 +29,8 @@
           LIBCLANG_PATH = "${pkgs.libclang.lib}/lib";
 
           buildInputs = with pkgs; [
-            # rust toolchain
-            (rust-bin.stable.latest.default.override {
+            # rust toolchain (nightly for error_generic_member_access / #[backtrace])
+            (rust-bin.nightly.latest.default.override {
               extensions = [
                 "rust-src"
                 "clippy"

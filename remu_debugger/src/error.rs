@@ -19,7 +19,7 @@ pub enum DebuggerError {
 
 impl DebuggerError {
     #[inline(always)]
-    pub fn backtrace(&self) -> Option<&str> {
+    pub fn backtrace(&self) -> Option<&std::backtrace::Backtrace> {
         match self {
             DebuggerError::CommandExec(sim) => sim.backtrace(),
             _ => None,

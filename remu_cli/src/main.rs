@@ -111,15 +111,8 @@ impl DebuggerRunner for APPRunner {
                     };
                     if !to_run.trim().is_empty() {
                         if let Err(e) = debugger.execute_line(to_run) {
-                            let bt = e.backtrace().map(|s| s.to_string());
-                            println!("{:?}", miette::Report::new(e));
-                            if let Some(bt) = bt {
-                                if bt.is_empty() {
-                                    eprintln!("\n(set RUST_BACKTRACE=1 or RUST_LIB_BACKTRACE=1 to capture backtrace)");
-                                } else {
-                                    eprintln!("\nbacktrace (error site):\n{bt}");
-                                }
-                            }
+                            let err = anyhow::Error::from(e);
+                            eprintln!("{:?}", err);
                         }
                     }
                 }

@@ -39,6 +39,7 @@ impl<P: SimulatorPolicy, const IS_DUT: bool> SimulatorTrait<P, IS_DUT>
         &mut self.state
     }
 
+    #[inline(always)]
     fn step_once(&mut self) -> Result<(), SimulatorInnerError> {
         let pc = *self.state.reg.pc;
         let inst = self

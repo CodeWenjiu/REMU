@@ -27,7 +27,7 @@ pub enum SimulatorInnerError {
 
 impl SimulatorInnerError {
     #[inline(always)]
-    pub fn backtrace(&self) -> Option<&str> {
+    pub fn backtrace(&self) -> Option<&std::backtrace::Backtrace> {
         match self {
             SimulatorInnerError::StateAccessError(e) => e.backtrace(),
             SimulatorInnerError::RefError(_) => None,
@@ -49,7 +49,7 @@ pub enum SimulatorError {
 
 impl SimulatorError {
     #[inline(always)]
-    pub fn backtrace(&self) -> Option<&str> {
+    pub fn backtrace(&self) -> Option<&std::backtrace::Backtrace> {
         match self {
             SimulatorError::Dut(e) | SimulatorError::Ref(e) => e.backtrace(),
             SimulatorError::Difftest(_) => None,

@@ -1,8 +1,9 @@
+use std::backtrace::Backtrace;
 use thiserror::Error;
 
 use crate::bus::BusError;
 
-#[derive(Debug, Error, Clone)]
+#[derive(Debug, Error)]
 pub enum StateError {
     #[error("bus error: {0}")]
     BusError(#[from] BusError),
@@ -10,9 +11,9 @@ pub enum StateError {
 
 impl StateError {
     #[inline(always)]
-    pub fn backtrace(&self) -> Option<&str> {
+    pub fn backtrace(&self) -> Option<&Backtrace> {
         match self {
-            StateError::BusError(b) => Some(b.backtrace()),
+            StateError::BusError(b) => b.backtrace(),
         }
     }
 }

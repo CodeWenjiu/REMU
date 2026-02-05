@@ -1,3 +1,5 @@
+#![feature(error_generic_member_access)]
+
 use std::marker::PhantomData;
 
 use crate::{bus::Bus, reg::RiscvReg};

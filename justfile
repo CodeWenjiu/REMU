@@ -4,14 +4,11 @@ _default:
 dev *args:
     @RUST_BACKTRACE=1 cargo run -- {{ args }}
 
-dev-raw *args:
-    @cargo run -- {{ args }}
-
 build:
     @cargo build -p remu_cli
 
 run *args:
-    @cargo run --release -- {{ args }}
+    @RUST_BACKTRACE=1 cargo run --release -- {{ args }}
 
 bench CRATE BENCH:
     @cargo bench -p remu_{{ CRATE }} --bench {{ BENCH }}
