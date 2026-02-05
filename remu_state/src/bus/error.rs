@@ -39,6 +39,9 @@ pub enum BusError {
 
     #[error("IO Error")]
     IoError(#[backtrace] Backtrace),
+
+    #[error("program exit with code {0}")]
+    ProgramExit(u32),
 }
 
 impl BusError {
@@ -58,6 +61,7 @@ impl BusError {
             BusError::MemError(_, backtrace) => Some(backtrace),
             BusError::UnsupportedAccessWidth(_, backtrace) => Some(backtrace),
             BusError::IoError(backtrace) => Some(backtrace),
+            BusError::ProgramExit(_) => None,
         }
     }
 }

@@ -1,18 +1,20 @@
 use clap::Parser;
 
-remu_macro::mod_flat!(command, option, policy, error, compound_command);
+remu_macro::mod_flat!(command, option, policy, error, compound_command, run_state);
 pub use command::get_command_graph;
-use remu_harness::{DutSim, Harness};
+use remu_harness::{DutSim, Harness, SimulatorError, SimulatorInnerError};
 use remu_types::TracerDyn;
 
 pub struct Debugger<P: HarnessPolicy, R: SimulatorTrait<P, false>> {
     harness: Harness<DutSim<P>, R>,
+    run_state: RunState,
 }
 
 impl<P: HarnessPolicy, R: SimulatorTrait<P, false>> Debugger<P, R> {
     pub fn new(opt: DebuggerOption, tracer: TracerDyn) -> Self {
         Debugger {
             harness: Harness::new(opt.sim, tracer),
+            run_state: RunState::Idle,
         }
     }
 
@@ -76,14 +78,10 @@ impl<P: HarnessPolicy, R: SimulatorTrait<P, false>> Debugger<P, R> {
     fn execute_parsed(&mut self, command: &Command) -> Result<bool> {
         match command {
             Command::Step { times } => {
-                for _ in 0..*times {
-                    self.harness.step_once()?;
-                }
+                self.run_step_loop(Some(*times))?;
             }
             Command::Continue => {
-                for _ in 0..usize::MAX {
-                    self.harness.step_once()?;
-                }
+                self.run_step_loop(None)?;
             }
             Command::Func { subcmd } => {
                 self.harness.func_exec(subcmd);
@@ -102,5 +100,28 @@ impl<P: HarnessPolicy, R: SimulatorTrait<P, false>> Debugger<P, R> {
             }
         }
         Ok(true)
+    }
+
+    fn run_step_loop(&mut self, max_steps: Option<usize>) -> Result<()> {
+        if self.run_state == RunState::Exit {
+            return Err(DebuggerError::ExitRequested);
+        }
+
+        let mut steps = 0usize;
+        loop {
+            if let Some(limit) = max_steps {
+                if steps >= limit {
+                    return Ok(());
+                }
+            }
+            if let Err(e) = self.harness.step_once() {
+                if let SimulatorError::Dut(SimulatorInnerError::ProgramExit(code)) = e {
+                    self.run_state = RunState::Exit;
+                    return Err(DebuggerError::ProgramExit(code));
+                }
+                return Err(DebuggerError::CommandExec(e));
+            }
+            steps += 1;
+        }
     }
 }

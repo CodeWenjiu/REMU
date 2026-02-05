@@ -40,6 +40,7 @@
             })
             cargo-edit
             cargo-machete
+            cargo-show-asm
 
             clang
             libclang
@@ -48,17 +49,6 @@
 
             mold
           ];
-
-          shellHook = ''
-            if [ -z "$TMPDIR" ] || [ ! -d "$TMPDIR" ]; then
-              export TMPDIR=/tmp
-            fi
-
-            if [ -z "''${_NU_LAUNCHED:-}" ]; then
-              export _NU_LAUNCHED=1
-              nu
-            fi
-          '';
         };
       }
     );

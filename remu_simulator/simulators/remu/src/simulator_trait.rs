@@ -2,7 +2,8 @@ use remu_state::{State, StateCmd, StateError};
 use remu_types::{DifftestMismatchItem, RegGroup, TracerDyn};
 
 use remu_simulator::{
-    SimulatorInnerError, SimulatorOption, SimulatorPolicy, SimulatorPolicyOf, SimulatorTrait,
+    from_state_error, SimulatorInnerError, SimulatorOption, SimulatorPolicy, SimulatorPolicyOf,
+    SimulatorTrait,
 };
 
 use crate::riscv::inst::opcode::decode;
@@ -46,12 +47,12 @@ impl<P: SimulatorPolicy, const IS_DUT: bool> SimulatorTrait<P, IS_DUT>
             .state
             .bus
             .read_32(pc as usize)
-            .map_err(StateError::from)?;
+            .map_err(|e| from_state_error(StateError::from(e)))?;
         if self.func.trace.instruction && IS_DUT {
             self.tracer.borrow().disasm(pc as u64, inst);
         }
         let decoded = decode::<P>(inst);
-        (decoded.handler)(&mut self.state, &decoded)?;
+        (decoded.handler)(&mut self.state, &decoded).map_err(from_state_error)?;
         Ok(())
     }
 
@@ -109,7 +110,7 @@ impl<P: SimulatorPolicy, const IS_DUT: bool> SimulatorTrait<P, IS_DUT>
     }
 
     fn state_exec(&mut self, subcmd: &StateCmd) -> Result<(), SimulatorInnerError> {
-        self.state.execute(subcmd)?;
+        self.state.execute(subcmd).map_err(from_state_error)?;
         Ok(())
     }
 }

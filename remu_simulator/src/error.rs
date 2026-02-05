@@ -23,6 +23,9 @@ pub enum SimulatorInnerError {
 
     #[error("Reference simulator error: {0}")]
     RefError(String),
+
+    #[error("program exit with code {0}")]
+    ProgramExit(u32),
 }
 
 impl SimulatorInnerError {
@@ -30,8 +33,16 @@ impl SimulatorInnerError {
     pub fn backtrace(&self) -> Option<&std::backtrace::Backtrace> {
         match self {
             SimulatorInnerError::StateAccessError(e) => e.backtrace(),
-            SimulatorInnerError::RefError(_) => None,
+            SimulatorInnerError::RefError(_) | SimulatorInnerError::ProgramExit(_) => None,
         }
+    }
+}
+
+pub fn from_state_error(e: StateError) -> SimulatorInnerError {
+    if let Some(code) = e.program_exit_code() {
+        SimulatorInnerError::ProgramExit(code)
+    } else {
+        SimulatorInnerError::StateAccessError(e)
     }
 }
 

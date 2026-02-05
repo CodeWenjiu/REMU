@@ -18,3 +18,6 @@ flame CRATE BENCH:
 
 clean:
     @cargo clean
+
+look:
+    @cargo asm --release -p remu_cli run_step_loop

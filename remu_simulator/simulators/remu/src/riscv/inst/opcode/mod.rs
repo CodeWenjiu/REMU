@@ -10,7 +10,7 @@ macro_rules! handler {
         fn $name<P: remu_state::StatePolicy>(
             $state: &mut remu_state::State<P>,
             $inst: &$crate::riscv::inst::DecodedInst<P>,
-        ) -> Result<(), $crate::riscv::SimulatorInnerError> $body
+        ) -> Result<(), remu_state::StateError> $body
     };
 }
 

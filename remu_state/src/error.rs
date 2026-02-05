@@ -16,4 +16,12 @@ impl StateError {
             StateError::BusError(b) => b.backtrace(),
         }
     }
+
+    #[inline(always)]
+    pub fn program_exit_code(&self) -> Option<u32> {
+        match self {
+            StateError::BusError(BusError::ProgramExit(code)) => Some(*code),
+            _ => None,
+        }
+    }
 }

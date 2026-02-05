@@ -15,6 +15,12 @@ pub enum DebuggerError {
 
     #[error("Command execution error")]
     CommandExec(#[from] SimulatorError),
+
+    #[error("exit requested (run state EXIT)")]
+    ExitRequested,
+
+    #[error("program exit with code {0}")]
+    ProgramExit(u32),
 }
 
 impl DebuggerError {
@@ -26,5 +32,6 @@ impl DebuggerError {
         }
     }
 }
+
 
 pub(crate) type Result<T> = std::result::Result<T, DebuggerError>;

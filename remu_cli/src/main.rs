@@ -1,4 +1,5 @@
 use anyhow::Result;
+use std::error::Error;
 use cfonts::{Colors, Fonts, Options, render};
 use clap::Parser;
 use colored::Colorize;
@@ -111,8 +112,15 @@ impl DebuggerRunner for APPRunner {
                     };
                     if !to_run.trim().is_empty() {
                         if let Err(e) = debugger.execute_line(to_run) {
-                            let err = anyhow::Error::from(e);
-                            eprintln!("{:?}", err);
+                            eprintln!("{}", e);
+                            let mut src: Option<&(dyn Error + 'static)> = e.source();
+                            while let Some(s) = src {
+                                eprintln!("  caused by: {}", s);
+                                src = s.source();
+                            }
+                            if let Some(bt) = e.backtrace() {
+                                eprintln!("\nStack backtrace:\n{}", bt);
+                            }
                         }
                     }
                 }
