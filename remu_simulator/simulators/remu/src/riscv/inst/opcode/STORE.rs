@@ -3,7 +3,7 @@ use std::marker::PhantomData;
 use remu_state::StateError;
 use remu_types::isa::reg::RegAccess;
 
-use crate::riscv::inst::{funct3, imm_s, rs1, rs2, DecodedInst};
+use crate::riscv::inst::{DecodedInst, funct3, imm_s, rs1, rs2};
 
 pub(crate) const OPCODE: u32 = 0b010_0011;
 
@@ -31,7 +31,10 @@ handler!(sh, state, inst, {
     let addr = rs1.wrapping_add(inst.imm);
     state
         .bus
-        .write_16(addr as usize, state.reg.gpr.raw_read(inst.rs2.into()) as u16)
+        .write_16(
+            addr as usize,
+            state.reg.gpr.raw_read(inst.rs2.into()) as u16,
+        )
         .map_err(StateError::from)?;
     *state.reg.pc = state.reg.pc.wrapping_add(4);
     Ok(())

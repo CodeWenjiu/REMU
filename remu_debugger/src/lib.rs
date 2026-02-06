@@ -18,7 +18,7 @@ impl<P: HarnessPolicy, R: SimulatorTrait<P, false>> Debugger<P, R> {
         }
     }
 
-    pub fn execute_line(&mut self, buffer: String) -> Result<()> {
+    pub fn execute_line(&mut self, buffer: String) -> Result<(), DebuggerError> {
         let trimmed = buffer.trim();
 
         // If the command expression itself is invalid (e.g. bad braces like "{]"),
@@ -61,7 +61,7 @@ impl<P: HarnessPolicy, R: SimulatorTrait<P, false>> Debugger<P, R> {
         Ok(())
     }
 
-    fn parse_block(&self, mut tokens: Vec<String>) -> Result<DebuggerCommand> {
+    fn parse_block(&self, mut tokens: Vec<String>) -> Result<DebuggerCommand, DebuggerError> {
         let mut commands = Vec::with_capacity(tokens.len() + 1);
         commands.push(env!("CARGO_PKG_NAME").to_string());
         commands.append(&mut tokens);
@@ -75,7 +75,7 @@ impl<P: HarnessPolicy, R: SimulatorTrait<P, false>> Debugger<P, R> {
         }
     }
 
-    fn execute_parsed(&mut self, command: &Command) -> Result<bool> {
+    fn execute_parsed(&mut self, command: &Command) -> Result<bool, DebuggerError> {
         match command {
             Command::Step { times } => {
                 self.run_step_loop(Some(*times))?;
@@ -102,7 +102,7 @@ impl<P: HarnessPolicy, R: SimulatorTrait<P, false>> Debugger<P, R> {
         Ok(true)
     }
 
-    fn run_step_loop(&mut self, max_steps: Option<usize>) -> Result<()> {
+    fn run_step_loop(&mut self, max_steps: Option<usize>) -> Result<(), DebuggerError> {
         if self.run_state == RunState::Exit {
             return Err(DebuggerError::ExitRequested);
         }
@@ -115,9 +115,11 @@ impl<P: HarnessPolicy, R: SimulatorTrait<P, false>> Debugger<P, R> {
                 }
             }
             if let Err(e) = self.harness.step_once() {
-                if let SimulatorError::Dut(SimulatorInnerError::ProgramExit(code)) = e {
-                    self.run_state = RunState::Exit;
-                    return Err(DebuggerError::ProgramExit(code));
+                if let SimulatorError::Dut(inner) = &e {
+                    if let SimulatorInnerError::ProgramExit(code) = inner {
+                        self.run_state = RunState::Exit;
+                        return Err(DebuggerError::ProgramExit(*code));
+                    }
                 }
                 return Err(DebuggerError::CommandExec(e));
             }

@@ -2,8 +2,8 @@ use remu_state::{State, StateCmd, StateError};
 use remu_types::{DifftestMismatchItem, RegGroup, TracerDyn};
 
 use remu_simulator::{
-    from_state_error, SimulatorInnerError, SimulatorOption, SimulatorPolicy, SimulatorPolicyOf,
-    SimulatorTrait,
+    SimulatorInnerError, SimulatorOption, SimulatorPolicy, SimulatorPolicyOf, SimulatorTrait,
+    from_state_error,
 };
 
 use crate::riscv::inst::opcode::decode;

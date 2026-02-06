@@ -3,7 +3,7 @@ use std::marker::PhantomData;
 use remu_state::StateError;
 use remu_types::isa::reg::RegAccess;
 
-use crate::riscv::inst::{funct3, imm_i, rd, rs1, DecodedInst};
+use crate::riscv::inst::{DecodedInst, funct3, imm_i, rd, rs1};
 
 pub(crate) const OPCODE: u32 = 0b000_0011;
 

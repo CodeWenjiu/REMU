@@ -6,7 +6,14 @@ use crate::bus::BusError;
 #[derive(Debug, Error)]
 pub enum StateError {
     #[error("bus error: {0}")]
-    BusError(#[from] BusError),
+    BusError(Box<BusError>),
+}
+
+impl From<BusError> for StateError {
+    #[inline(always)]
+    fn from(e: BusError) -> Self {
+        StateError::BusError(Box::new(e))
+    }
 }
 
 impl StateError {
@@ -20,8 +27,10 @@ impl StateError {
     #[inline(always)]
     pub fn program_exit_code(&self) -> Option<u32> {
         match self {
-            StateError::BusError(BusError::ProgramExit(code)) => Some(*code),
-            _ => None,
+            StateError::BusError(b) => match b.as_ref() {
+                BusError::ProgramExit(code) => Some(*code),
+                _ => None,
+            },
         }
     }
 }

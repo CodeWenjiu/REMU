@@ -18,7 +18,7 @@ pub struct BusOption {
         long = "dev",
         value_name = "NAME@START",
         action = clap::ArgAction::Append,
-        default_values = ["uart16550@0x1000_0000", "sifive_test_finisher@0x0010_0000"]
+        default_values = ["uart16550@0x1000_0000", "sifive_test_finisher@0x0010_0000", "clint@0x0200_0000"]
     )]
     pub devices: Vec<DeviceConfig>,
 

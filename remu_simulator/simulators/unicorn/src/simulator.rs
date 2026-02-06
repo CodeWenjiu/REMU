@@ -7,7 +7,8 @@ use unicorn_engine::{
 };
 
 use remu_simulator::{
-    SimulatorInnerError, SimulatorOption, SimulatorPolicy, SimulatorPolicyOf, SimulatorTrait,
+    from_state_error, SimulatorInnerError, SimulatorOption, SimulatorPolicy, SimulatorPolicyOf,
+    SimulatorTrait,
 };
 
 const PAGE_SIZE: usize = 4096;
@@ -125,7 +126,7 @@ impl<P: SimulatorPolicy> SimulatorTrait<P, false> for SimulatorUnicorn<P> {
     fn state_exec(&mut self, subcmd: &StateCmd) -> Result<(), SimulatorInnerError> {
         self.state
             .execute(subcmd)
-            .map_err(SimulatorInnerError::from)?;
+            .map_err(from_state_error)?;
         Ok(())
     }
 }

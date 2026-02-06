@@ -1,4 +1,4 @@
-remu_macro::mod_flat!(uart_simple, uart16550, sifive_test_finisher);
+remu_macro::mod_flat!(uart_simple, uart16550, sifive_test_finisher, clint);
 
 use std::backtrace::Backtrace;
 
@@ -91,6 +91,7 @@ pub(crate) fn get_device(name: &str) -> Option<Box<dyn DeviceAccess>> {
         "uart_simple" => Some(Box::new(uart_simple::SimpleUart::new())),
         "uart16550" => Some(Box::new(uart16550::Uart16550::new())),
         "sifive_test_finisher" => Some(Box::new(sifive_test_finisher::SifiveTestFinisher::new())),
+        "clint" => Some(Box::new(clint::Clint::new())),
         _ => None,
     }
 }
