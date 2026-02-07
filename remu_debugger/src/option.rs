@@ -25,4 +25,12 @@ pub struct DebuggerOption {
     /// Difftest Option
     #[arg(long, value_name = "REF")]
     pub difftest: Option<DifftestRef>,
+
+    /// Batch Mode
+    #[arg(long)]
+    pub batch: bool,
+
+    /// Startup sequence: run this command expression after the debugger is created (tokens joined with spaces; e.g. --startup '{' state reg pc write 0x1000 '}')
+    #[arg(long = "startup", value_name = "TOKEN", num_args = 1..)]
+    pub startup: Vec<String>,
 }

@@ -2,6 +2,7 @@ use clap::Parser;
 
 remu_macro::mod_flat!(command, option, policy, error, compound_command, run_state);
 pub use command::get_command_graph;
+pub use compound_command::{CommandExpr, Op, ParseError};
 use remu_harness::{DutSim, Harness, SimulatorError, SimulatorInnerError};
 use remu_types::TracerDyn;
 
@@ -11,23 +12,32 @@ pub struct Debugger<P: HarnessPolicy, R: SimulatorTrait<P, false>> {
 }
 
 impl<P: HarnessPolicy, R: SimulatorTrait<P, false>> Debugger<P, R> {
-    pub fn new(opt: DebuggerOption, tracer: TracerDyn) -> Self {
-        Debugger {
+    pub fn new(opt: DebuggerOption, tracer: TracerDyn) -> Result<Self, DebuggerError> {
+        let mut debugger = Debugger {
             harness: Harness::new(opt.sim, tracer),
             run_state: RunState::Idle,
-        }
+        };
+
+        let startup_tokens = opt.startup.as_slice();
+        let expr = crate::compound_command::startup_to_expr(startup_tokens);
+        let startup = if opt.batch {
+            expr.with_continue_prepended().with_quit_appended()
+        } else {
+            expr
+        };
+        debugger.execute_command_expr(&startup)?;
+
+        Ok(debugger)
     }
 
     pub fn execute_line(&mut self, buffer: String) -> Result<(), DebuggerError> {
-        let trimmed = buffer.trim();
+        let expr = compound_command::parse_expression(&buffer)?;
+        self.execute_command_expr(&expr)
+    }
 
-        // If the command expression itself is invalid (e.g. bad braces like "{]"),
-        // surface that parse error to the user instead of swallowing it and later
-        // falling back to clap's "unrecognized subcommand".
-        let expr = compound_command::parse_expression(trimmed)?;
-
-        // Parse all blocks up front; abort early on any invalid block
-        let compound_command::CommandExpr { first, tail } = expr;
+    /// Execute a pre-parsed command expression (e.g. from startup sequence).
+    pub fn execute_command_expr(&mut self, expr: &CommandExpr) -> Result<(), DebuggerError> {
+        let CommandExpr { first, tail } = expr;
 
         let blocks_iter = std::iter::once(first.clone()).chain(tail.iter().map(|(_, b)| b.clone()));
 
@@ -46,8 +56,8 @@ impl<P: HarnessPolicy, R: SimulatorTrait<P, false>> Debugger<P, R> {
         };
 
         let mut result = self.execute_parsed(&first_cmd.command)?;
-        for ((op, _), cmd_wrapper) in tail.into_iter().zip(parsed_iter) {
-            match (op, result) {
+        for ((op, _), cmd_wrapper) in tail.iter().zip(parsed_iter) {
+            match (*op, result) {
                 (compound_command::Op::And, true) => {
                     result = self.execute_parsed(&cmd_wrapper.command)?;
                 }
@@ -98,6 +108,7 @@ impl<P: HarnessPolicy, R: SimulatorTrait<P, false>> Debugger<P, R> {
                     return Ok(false);
                 }
             }
+            Command::Quit => return Err(DebuggerError::ExitRequested),
         }
         Ok(true)
     }

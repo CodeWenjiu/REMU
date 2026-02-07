@@ -1,3 +1,6 @@
+use std::fmt;
+use std::str::FromStr;
+
 use miette::Diagnostic;
 use thiserror::Error;
 use winnow::Parser as _;
@@ -8,16 +11,70 @@ use winnow::token::{take_till, take_until};
 
 /// Logical operators supported in command expressions.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub(crate) enum Op {
+pub enum Op {
     And,
     Or,
 }
 
 /// AST for a command expression: first block plus zero or more (op, block).
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub(crate) struct CommandExpr {
-    pub(crate) first: Vec<String>,
-    pub(crate) tail: Vec<(Op, Vec<String>)>,
+pub struct CommandExpr {
+    pub first: Vec<String>,
+    pub tail: Vec<(Op, Vec<String>)>,
+}
+
+impl Default for CommandExpr {
+    fn default() -> Self {
+        CommandExpr {
+            first: Vec::new(),
+            tail: Vec::new(),
+        }
+    }
+}
+
+impl fmt::Display for CommandExpr {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        if self.first.is_empty() && self.tail.is_empty() {
+            return write!(f, "");
+        }
+        write!(f, "{}", self.first.join(" "))?;
+        for (op, block) in &self.tail {
+            let op_str = match op {
+                Op::And => " and ",
+                Op::Or => " or ",
+            };
+            write!(f, "{}{}", op_str, block.join(" "))?;
+        }
+        Ok(())
+    }
+}
+
+impl CommandExpr {
+    /// Returns `{ continue } and { self }`, so the expression runs `continue` then this expression.
+    pub fn with_continue_prepended(&self) -> Self {
+        let continue_block = vec!["continue".to_string()];
+        let tail = if self.first.is_empty() && self.tail.is_empty() {
+            Vec::new()
+        } else {
+            std::iter::once((Op::And, self.first.clone()))
+                .chain(self.tail.clone())
+                .collect()
+        };
+        CommandExpr {
+            first: continue_block,
+            tail,
+        }
+    }
+
+    /// Returns `{ self } and { quit }`, so the expression runs this expression then `quit`.
+    pub fn with_quit_appended(&self) -> Self {
+        let mut tail = self.tail.clone();
+        tail.push((Op::And, vec!["quit".to_string()]));
+        CommandExpr {
+            first: self.first.clone(),
+            tail,
+        }
+    }
 }
 
 #[derive(Debug, Error, Diagnostic)]
@@ -32,51 +89,57 @@ pub enum ParseError {
     InvalidQuoting,
 }
 
-pub(crate) fn parse_expression(input: &str) -> Result<CommandExpr, ParseError> {
-    let input = input.trim();
-
-    if input.is_empty() {
-        return Ok(CommandExpr {
-            first: Vec::new(),
-            tail: Vec::new(),
-        });
-    }
-
-    let result: Result<CommandExpr, ParseError> = (|| {
-        let mut s = input;
-
-        // Equivalent to the pest grammar:
-        // expr = SOI ~ block ~ (WS* ~ (and|or) ~ WS* ~ block)* ~ WS* ~ EOI
-        let mut expr = (
-            multispace0,
-            parse_block,
-            repeat(0.., (multispace0, parse_op, multispace0, parse_block)),
-            multispace0,
-            eof,
-        )
-            .map(
-                |(_, first, tail, _, _): (_, Vec<String>, Vec<(_, Op, _, Vec<String>)>, _, _)| {
-                    CommandExpr {
-                        first,
-                        tail: tail
-                            .into_iter()
-                            .map(|(_, op, _, block)| (op, block))
-                            .collect(),
-                    }
-                },
-            );
-
-        expr.parse_next(&mut s)
-            .map_err(|e| ParseError::Winnow(format!("{e:?}")))
-    })();
-
-    match result {
+/// Parses a command expression, printing any parse error to stderr.
+pub fn parse_expression(input: &str) -> Result<CommandExpr, ParseError> {
+    match parse_expression_quiet(input) {
         Ok(expr) => Ok(expr),
         Err(e) => {
             let _ = eprintln!("{}", e);
             Err(ParseError::WinnowHandled)
         }
     }
+}
+
+/// Builds a `CommandExpr` from CLI startup tokens (e.g. from `--startup '{' state reg pc '}'`).
+/// Tokens are joined with spaces and parsed; on parse error returns empty expr and prints to stderr.
+pub fn startup_to_expr(tokens: &[String]) -> CommandExpr {
+    if tokens.is_empty() {
+        return CommandExpr::default();
+    }
+    let s = tokens.join(" ");
+    parse_expression_quiet(&s).unwrap_or_else(|e| {
+        eprintln!("startup: parse error: {}", e);
+        CommandExpr::default()
+    })
+}
+
+/// Parses a command expression without printing on error (e.g. for FromStr / clap).
+pub fn parse_expression_quiet(input: &str) -> Result<CommandExpr, ParseError> {
+    let mut s = input;
+
+    // Equivalent to the pest grammar:
+    // expr = SOI ~ block ~ (WS* ~ (and|or) ~ WS* ~ block)* ~ WS* ~ EOI
+    let mut expr = (
+        multispace0,
+        parse_block,
+        repeat(0.., (multispace0, parse_op, multispace0, parse_block)),
+        multispace0,
+        eof,
+    )
+        .map(
+            |(_, first, tail, _, _): (_, Vec<String>, Vec<(_, Op, _, Vec<String>)>, _, _)| {
+                CommandExpr {
+                    first,
+                    tail: tail
+                        .into_iter()
+                        .map(|(_, op, _, block)| (op, block))
+                        .collect(),
+                }
+            },
+        );
+
+    expr.parse_next(&mut s)
+        .map_err(|e| ParseError::Winnow(format!("{e:?}")))
 }
 
 fn parse_op(input: &mut &str) -> winnow::Result<Op, ErrMode<ContextError>> {
@@ -204,4 +267,12 @@ fn parse_command(input: &mut &str) -> winnow::Result<Vec<String>, ErrMode<Contex
     *input = &rest[idx..];
 
     Ok(tokens)
+}
+
+impl FromStr for CommandExpr {
+    type Err = ParseError;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        parse_expression_quiet(s)
+    }
 }

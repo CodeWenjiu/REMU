@@ -76,4 +76,7 @@ pub enum Command {
         #[command(subcommand)]
         subcmd: StateCmd,
     },
+
+    /// Quit the debugger
+    Quit,
 }

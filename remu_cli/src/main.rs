@@ -1,5 +1,4 @@
 use anyhow::Result;
-use std::error::Error;
 use cfonts::{Colors, Fonts, Options, render};
 use clap::Parser;
 use colored::Colorize;
@@ -10,8 +9,9 @@ use reedline::{
     default_emacs_keybindings,
 };
 use remu_boot::boot;
-use remu_debugger::{DebuggerOption, DebuggerRunner, HarnessPolicy};
+use remu_debugger::{DebuggerError, DebuggerOption, DebuggerRunner, HarnessPolicy};
 use remu_types::TracerDyn;
+use std::error::Error;
 use std::{cell::RefCell, rc::Rc};
 
 remu_macro::mod_flat!(compeleter, highlighter, validator, prompt, tracer);
@@ -84,9 +84,23 @@ fn hello() {
 struct APPRunner;
 
 impl DebuggerRunner for APPRunner {
-    fn run<P: HarnessPolicy, R: remu_simulator::SimulatorTrait<P, false>>(self, option: DebuggerOption) {
+    fn run<P: HarnessPolicy, R: remu_simulator::SimulatorTrait<P, false>>(
+        self,
+        option: DebuggerOption,
+    ) {
         let tracer: TracerDyn = Rc::new(RefCell::new(CLITracer::new(option.isa.clone())));
-        let mut debugger = remu_debugger::Debugger::<P, R>::new(option, tracer);
+
+        let mut debugger = match remu_debugger::Debugger::<P, R>::new(option, tracer) {
+            Ok(d) => d,
+            Err(DebuggerError::ExitRequested) => {
+                println!("{}", "Quiting...".cyan());
+                return;
+            }
+            Err(e) => {
+                eprintln!("startup: {}", e);
+                return;
+            }
+        };
 
         let mut line_editor = get_editor();
         let prompt = get_prompt();
@@ -112,6 +126,10 @@ impl DebuggerRunner for APPRunner {
                     };
                     if !to_run.trim().is_empty() {
                         if let Err(e) = debugger.execute_line(to_run) {
+                            if matches!(&e, DebuggerError::ExitRequested) {
+                                println!("{}", "Quiting...".cyan());
+                                break;
+                            }
                             eprintln!("{}", e);
                             let mut src: Option<&(dyn Error + 'static)> = e.source();
                             while let Some(s) = src {
