@@ -11,6 +11,7 @@ pub(crate) const INSTRUCTION_MIX: u32 = 2;
 handler!(trap_unknown_instruction, state, inst, {
     let _ = state;
     let _ = inst;
+    tracing::info!("Illegal Instruction");
     Ok(())
 });
 

@@ -35,7 +35,7 @@ impl FromStr for IsaSpec {
         let normalized_s = if s.contains('-') {
             s.to_string()
         } else {
-            format!("{}-unkonwn-none-elf", s)
+            format!("{}-unknown-none-elf", s)
         };
 
         let architecture = normalized_s

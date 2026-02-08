@@ -13,7 +13,7 @@ pub enum DebuggerError {
     #[error("Command expression parse error (handled)")]
     CommandExprHandled,
 
-    #[error("Command execution error")]
+    #[error("Command execution error: {0}")]
     CommandExec(SimulatorError),
 
     #[error("exit requested (run state EXIT)")]

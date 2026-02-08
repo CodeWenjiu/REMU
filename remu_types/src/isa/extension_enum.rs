@@ -1,5 +1,5 @@
 use crate::isa::reg::{FprRegs, GprState, PcState};
-use crate::isa::{ArchConfig, RvIsa, extension::{Disabled, Enabled}};
+use crate::isa::{extension::{Disabled, Enabled}, ArchConfig, RvIsa};
 
 #[derive(Clone, Copy)]
 pub struct ConfigRV32I;
@@ -20,7 +20,7 @@ impl RvIsa for RV32I {
 #[derive(Clone, Copy)]
 pub struct ConfigRV32IM;
 impl ArchConfig for ConfigRV32IM {
-    type M = Disabled;
+    type M = Enabled<()>;
     type F = Disabled;
 }
 #[derive(Clone, Copy)]
