@@ -89,8 +89,9 @@ impl DeviceAccess for Uart16550 {
                 if !self.dlab() {
                     let stdout = io::stdout();
                     let mut handle = stdout.lock();
+                    let bytes = if value == b'\n' { b"\r\n" } else { std::slice::from_ref(&value) };
                     handle
-                        .write_all(&[value])
+                        .write_all(bytes)
                         .map_err(|_| BusError::IoError(std::backtrace::Backtrace::capture()))?;
                     handle
                         .flush()

@@ -1391,6 +1391,7 @@ dependencies = [
  "cfonts",
  "clap",
  "colored",
+ "crossterm",
  "miette",
  "nu-ansi-term",
  "petgraph",

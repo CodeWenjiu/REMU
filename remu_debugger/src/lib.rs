@@ -1,3 +1,6 @@
+use std::sync::atomic::Ordering;
+use std::sync::Arc;
+
 use clap::Parser;
 
 remu_macro::mod_flat!(command, option, policy, error, compound_command, run_state);
@@ -9,13 +12,19 @@ use remu_types::TracerDyn;
 pub struct Debugger<P: HarnessPolicy, R: SimulatorTrait<P, false>> {
     harness: Harness<DutSim<P>, R>,
     run_state: RunState,
+    interrupt: Arc<std::sync::atomic::AtomicBool>,
 }
 
 impl<P: HarnessPolicy, R: SimulatorTrait<P, false>> Debugger<P, R> {
-    pub fn new(opt: DebuggerOption, tracer: TracerDyn) -> Result<Self, DebuggerError> {
+    pub fn new(
+        opt: DebuggerOption,
+        tracer: TracerDyn,
+        interrupt: Arc<std::sync::atomic::AtomicBool>,
+    ) -> Result<Self, DebuggerError> {
         let mut debugger = Debugger {
             harness: Harness::new(opt.sim, tracer),
             run_state: RunState::Idle,
+            interrupt,
         };
 
         let startup_tokens = opt.startup.as_slice();
@@ -122,6 +131,12 @@ impl<P: HarnessPolicy, R: SimulatorTrait<P, false>> Debugger<P, R> {
         loop {
             if let Some(limit) = max_steps {
                 if steps >= limit {
+                    return Ok(());
+                }
+            }
+            if steps % 1024 == 0 {
+                if self.interrupt.load(Ordering::Relaxed) {
+                    self.interrupt.store(false, Ordering::Relaxed);
                     return Ok(());
                 }
             }

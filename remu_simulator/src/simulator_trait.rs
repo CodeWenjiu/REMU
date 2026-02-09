@@ -36,13 +36,13 @@ pub trait SimulatorTrait<P: remu_state::StatePolicy, const IS_DUT: bool = true> 
     }
 
     #[inline(always)]
-    fn func_exec(&mut self, _subcmd: &FuncCmd) {
-        let _ = self;
+    fn func_exec(&mut self, subcmd: &FuncCmd) {
+        let _ = (self, subcmd);
     }
 
     #[inline(always)]
-    fn state_exec(&mut self, _subcmd: &StateCmd) -> Result<(), SimulatorInnerError> {
-        let _ = self;
+    fn state_exec(&mut self, subcmd: &StateCmd) -> Result<(), SimulatorInnerError> {
+        let _ = (self, subcmd);
         Ok(())
     }
 }

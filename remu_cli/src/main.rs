@@ -8,6 +8,14 @@ use reedline::{
     Reedline, ReedlineEvent, ReedlineMenu, SearchFilter, SearchQuery, Signal,
     default_emacs_keybindings,
 };
+use std::sync::atomic::AtomicBool;
+use std::sync::atomic::Ordering;
+use std::sync::Arc;
+use std::thread;
+use std::time::Duration;
+
+use crossterm::event::{self, Event, KeyCode as CtKeyCode, KeyEventKind, KeyModifiers as CtKeyModifiers};
+use crossterm::terminal::{disable_raw_mode, enable_raw_mode};
 use remu_boot::boot;
 use remu_debugger::{DebuggerError, DebuggerOption, DebuggerRunner, HarnessPolicy};
 use remu_types::TracerDyn;
@@ -68,6 +76,49 @@ fn get_editor() -> Reedline {
         ))
 }
 
+/// Runs `f` while a background thread polls for Ctrl+C and sets `interrupt` when seen.
+/// CLI-internal: how we feed interrupt during long-running commands (e.g. continue/step).
+fn run_with_interrupt_polling<R, F>(interrupt: &Arc<AtomicBool>, f: F) -> R
+where
+    F: FnOnce() -> R,
+{
+    let running = Arc::new(AtomicBool::new(true));
+    let thread_handle = thread::spawn({
+        let running = Arc::clone(&running);
+        let interrupt = Arc::clone(interrupt);
+        move || {
+            if enable_raw_mode().is_err() {
+                return;
+            }
+            while running.load(Ordering::Relaxed) {
+                if event::poll(Duration::from_millis(100)).unwrap_or(false) {
+                    if let Ok(Event::Key(key)) = event::read() {
+                        if key.kind != KeyEventKind::Press {
+                            continue;
+                        }
+                        let is_ctrl_c = match key.code {
+                            CtKeyCode::Char('c') | CtKeyCode::Char('C') => {
+                                key.modifiers.contains(CtKeyModifiers::CONTROL)
+                            }
+                            CtKeyCode::Char(c) if c == '\x03' => true,
+                            _ => false,
+                        };
+                        if is_ctrl_c {
+                            interrupt.store(true, Ordering::Relaxed);
+                            break;
+                        }
+                    }
+                }
+            }
+            let _ = disable_raw_mode();
+        }
+    });
+    let result = f();
+    running.store(false, Ordering::Relaxed);
+    let _ = thread_handle.join();
+    result
+}
+
 fn hello() {
     let output = render(Options {
         text: String::from("remu"),
@@ -87,10 +138,12 @@ impl DebuggerRunner for APPRunner {
     fn run<P: HarnessPolicy, R: remu_simulator::SimulatorTrait<P, false>>(
         self,
         option: DebuggerOption,
+        interrupt: Arc<AtomicBool>,
     ) {
         let tracer: TracerDyn = Rc::new(RefCell::new(CLITracer::new(option.isa.clone())));
+        let interrupt_for_polling = Arc::clone(&interrupt);
 
-        let mut debugger = match remu_debugger::Debugger::<P, R>::new(option, tracer) {
+        let mut debugger = match remu_debugger::Debugger::<P, R>::new(option, tracer, interrupt) {
             Ok(d) => d,
             Err(DebuggerError::ExitRequested) => {
                 println!("{}", "Quiting...".cyan());
@@ -125,7 +178,8 @@ impl DebuggerRunner for APPRunner {
                         buffer
                     };
                     if !to_run.trim().is_empty() {
-                        if let Err(e) = debugger.execute_line(to_run) {
+                        let result = run_with_interrupt_polling(&interrupt_for_polling, || debugger.execute_line(to_run));
+                        if let Err(e) = result {
                             if matches!(&e, DebuggerError::ExitRequested) {
                                 println!("{}", "Quiting...".cyan());
                                 break;
@@ -157,7 +211,8 @@ fn main() -> Result<()> {
 
     let option = DebuggerOption::parse();
 
-    boot(option, APPRunner);
+    let interrupt = Arc::new(AtomicBool::new(false));
+    boot(option, APPRunner, interrupt);
 
     Ok(())
 }
