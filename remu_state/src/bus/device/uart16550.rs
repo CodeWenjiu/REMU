@@ -12,7 +12,7 @@
 
 use std::io::{self, Write};
 
-use crate::bus::{device::DeviceAccess, BusError};
+use crate::bus::{BusError, device::DeviceAccess};
 
 /// LSR bit: Transmitter Holding Register Empty (always ready in emulation).
 const LSR_THRE: u8 = 1 << 5;
@@ -89,9 +89,8 @@ impl DeviceAccess for Uart16550 {
                 if !self.dlab() {
                     let stdout = io::stdout();
                     let mut handle = stdout.lock();
-                    let bytes = if value == b'\n' { b"\r\n" } else { std::slice::from_ref(&value) };
                     handle
-                        .write_all(bytes)
+                        .write_all(&[value])
                         .map_err(|_| BusError::IoError(std::backtrace::Backtrace::capture()))?;
                     handle
                         .flush()

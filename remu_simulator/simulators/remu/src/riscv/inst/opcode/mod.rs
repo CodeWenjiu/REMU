@@ -24,7 +24,7 @@ macro_rules! define_decode {
     };
 }
 remu_macro::mod_flat!(
-    LUI, AUIPC, JAL, JALR, BRANCH, OP_IMM, OP, LOAD, STORE, UNKNOWN
+    LUI, AUIPC, JAL, JALR, BRANCH, OP_IMM, OP, LOAD, STORE, SYSTEM, UNKNOWN
 );
 
 #[inline(always)]
@@ -40,6 +40,7 @@ pub fn decode<P: StatePolicy>(inst: u32) -> DecodedInst<P> {
         STORE::OPCODE => STORE::decode::<P>(inst),
         OP_IMM::OPCODE => OP_IMM::decode::<P>(inst),
         OP::OPCODE => OP::decode::<P>(inst),
+        SYSTEM::OPCODE => SYSTEM::decode::<P>(inst),
         _ => DecodedInst::<P>::default(),
     }
 }
@@ -55,5 +56,6 @@ pub const RV32_INSTRUCTION_MIX: &[(u32, u32)] = &[
     (OP::OPCODE, OP::INSTRUCTION_MIX),
     (OP_IMM::OPCODE, OP_IMM::INSTRUCTION_MIX),
     (STORE::OPCODE, STORE::INSTRUCTION_MIX),
+    (SYSTEM::OPCODE, SYSTEM::INSTRUCTION_MIX),
     (UNKNOWN::OPCODE, UNKNOWN::INSTRUCTION_MIX),
 ];

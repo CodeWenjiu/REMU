@@ -85,10 +85,8 @@ pub(crate) fn imm_j(inst: u32) -> u32 {
     sign_extend(raw, 21)
 }
 
-// === CSR-Type (Immediate form, 5-bit zero-extended) ===
-// format: inst[19:15] (uimm)
-#[allow(unused)]
+// === CSR address (12-bit, inst[31:20]) ===
 #[inline(always)]
-pub(crate) fn imm_z(inst: u32) -> u32 {
-    (inst >> 15) & 0x1F
+pub(crate) fn csr(inst: u32) -> u32 {
+    (inst >> 20) & 0xFFF
 }

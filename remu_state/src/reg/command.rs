@@ -1,7 +1,7 @@
 use std::ops::Range;
 
 use remu_fmt::parse_prefixed_uint;
-use remu_types::isa::reg::{Gpr, Fpr};
+use remu_types::isa::reg::{Csr as CsrReg, Fpr, Gpr};
 
 fn parse_half_open_range_usize(s: &str) -> Result<Range<usize>, String> {
     let s = s.trim();
@@ -38,6 +38,12 @@ pub enum RegCmd {
     Pc {
         #[command(subcommand)]
         subcmd: PcRegCmd,
+    },
+
+    /// Control and Status Registers (mstatus, mepc, …)
+    Csr {
+        #[command(subcommand)]
+        subcmd: CsrRegCmd,
     },
 }
 
@@ -78,6 +84,22 @@ pub enum FprRegCmd {
     Write {
         #[arg()]
         index: Fpr,
+
+        #[arg(value_parser = parse_prefixed_uint::<u32>)]
+        value: u32,
+    },
+}
+
+#[derive(Debug, clap::Subcommand)]
+pub enum CsrRegCmd {
+    Read {
+        #[arg()]
+        index: CsrReg,
+    },
+
+    Write {
+        #[arg()]
+        index: CsrReg,
 
         #[arg(value_parser = parse_prefixed_uint::<u32>)]
         value: u32,

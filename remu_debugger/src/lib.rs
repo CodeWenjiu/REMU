@@ -1,5 +1,5 @@
-use std::sync::atomic::Ordering;
 use std::sync::Arc;
+use std::sync::atomic::Ordering;
 
 use clap::Parser;
 
@@ -20,13 +20,15 @@ impl<P: HarnessPolicy, R: SimulatorTrait<P, false>> Debugger<P, R> {
         opt: DebuggerOption,
         tracer: TracerDyn,
         interrupt: Arc<std::sync::atomic::AtomicBool>,
-    ) -> Result<Self, DebuggerError> {
-        let mut debugger = Debugger {
+    ) -> Self {
+        Self {
             harness: Harness::new(opt.sim, tracer),
             run_state: RunState::Idle,
             interrupt,
-        };
+        }
+    }
 
+    pub fn run_startup(&mut self, opt: &DebuggerOption) -> Result<(), DebuggerError> {
         let startup_tokens = opt.startup.as_slice();
         let expr = crate::compound_command::startup_to_expr(startup_tokens);
         let startup = if opt.batch {
@@ -34,9 +36,7 @@ impl<P: HarnessPolicy, R: SimulatorTrait<P, false>> Debugger<P, R> {
         } else {
             expr
         };
-        debugger.execute_command_expr(&startup)?;
-
-        Ok(debugger)
+        self.execute_command_expr(&startup)
     }
 
     pub fn execute_line(&mut self, buffer: String) -> Result<(), DebuggerError> {
@@ -137,7 +137,7 @@ impl<P: HarnessPolicy, R: SimulatorTrait<P, false>> Debugger<P, R> {
             if steps % 1024 == 0 {
                 if self.interrupt.load(Ordering::Relaxed) {
                     self.interrupt.store(false, Ordering::Relaxed);
-                    return Ok(());
+                    return Err(DebuggerError::Interrupted);
                 }
             }
             if let Err(e) = self.harness.step_once() {

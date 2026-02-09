@@ -140,11 +140,11 @@ pub(crate) fn try_load_elf_into_memory(
         }
     }
 
-    tracer.borrow().print(&format!(
+    tracing::info!(
         "Loaded ELF into memory region '{}' at [{:#x}:{:#x}) from {}",
         memory[i].name,
         start,
         end,
         path.display()
-    ));
+    );
 }

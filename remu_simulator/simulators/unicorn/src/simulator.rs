@@ -78,6 +78,7 @@ impl<P: SimulatorPolicy> SimulatorTrait<P, false> for SimulatorUnicorn<P> {
         self.state.reg.pc = dut.reg.pc;
         self.state.reg.gpr = dut.reg.gpr;
         self.state.reg.fpr = dut.reg.fpr;
+        self.state.reg.csr = dut.reg.csr.clone();
         let pc: u64 = (*self.state.reg.pc).into();
         let _ = self.unicorn.set_pc(pc);
         for i in 0..32u32 {

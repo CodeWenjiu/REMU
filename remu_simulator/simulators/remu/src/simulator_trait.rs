@@ -61,6 +61,7 @@ impl<P: SimulatorPolicy, const IS_DUT: bool> SimulatorTrait<P, IS_DUT>
         self.state.reg.pc = dut.reg.pc;
         self.state.reg.gpr = dut.reg.gpr;
         self.state.reg.fpr = dut.reg.fpr;
+        self.state.reg.csr = dut.reg.csr.clone();
     }
 
     #[inline(always)]

@@ -21,6 +21,9 @@ pub enum DebuggerError {
 
     #[error("program exit with code {0}")]
     ProgramExit(u32),
+
+    #[error("Interrupted")]
+    Interrupted,
 }
 
 impl DebuggerError {
