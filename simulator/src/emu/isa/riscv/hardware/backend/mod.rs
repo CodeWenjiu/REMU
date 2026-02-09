@@ -1,1 +1,0 @@
-remu_macro::mod_flat!(arithmetic_logic, load_store, write_back);
