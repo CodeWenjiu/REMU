@@ -5,14 +5,19 @@ use capstone::{
 use target_lexicon::Architecture;
 use thiserror::Error;
 
-fn format_insn(insn: &capstone::Insn) -> String {
-    let mnemonic = insn.mnemonic().unwrap_or("");
-    let op_str = insn.op_str().unwrap_or("");
+fn format_insn(insn: &Option<&capstone::Insn>) -> String {
+    match insn {
+        Some(inst) => {
+            let mnemonic = inst.mnemonic().unwrap_or("");
+            let op_str = inst.op_str().unwrap_or("");
 
-    if op_str.is_empty() {
-        mnemonic.to_string()
-    } else {
-        format!("{mnemonic} {op_str}")
+            if op_str.is_empty() {
+                mnemonic.to_string()
+            } else {
+                format!("{mnemonic} {op_str}")
+            }
+        }
+        None => "???".to_string(),
     }
 }
 
@@ -91,14 +96,15 @@ impl ByteGuesser {
 
     pub fn disassemble(&self, addr: u64, bytes: u32) -> Result<String, GuessError> {
         let insns = self.cs.disasm_count(&bytes.to_le_bytes(), addr, 1)?;
-        Ok(format_insn(&insns[0]))
+        Ok(format_insn(&insns.get(0)))
     }
 
     pub fn guess(&self, addr: u64, bytes: u32) -> String {
         // 1) Try to decode as an instruction.
         if let Ok(insns) = self.cs.disasm_count(&bytes.to_le_bytes(), addr, 1) {
-            if let Some(insn) = insns.get(0) {
-                return format_insn(insn);
+            let inst = insns.get(0);
+            if inst.is_some() {
+                return format_insn(&inst);
             }
         }
 
