@@ -24,6 +24,13 @@ pub trait SimulatorTrait<P: remu_state::StatePolicy, const IS_DUT: bool = true> 
         let _ = (self, dut);
     }
 
+    /// Sync only registers from DUT. Use when DUT performed MMIO (no RAM change).
+    /// Default: same as sync_from. Override for ref simulators that do expensive mem sync.
+    #[inline(always)]
+    fn sync_regs_from(&mut self, dut: &State<P>) {
+        self.sync_from(dut);
+    }
+
     #[inline(always)]
     fn regs_match(&self, dut: &State<P>) -> bool {
         self.regs_diff(dut).is_empty()

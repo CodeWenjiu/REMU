@@ -6,7 +6,8 @@ remu_macro::mod_pub!(device);
 
 use std::{marker::PhantomData, ops::Range};
 
-pub use memory::MemRegionSpec;
+pub use elf_loader::try_load_elf_into_memory;
+pub use memory::{MemRegionSpec, Memory};
 pub use observer::ObserverEvent;
 use remu_types::{AllUsize, DynDiagError, isa::RvIsa};
 
@@ -77,6 +78,29 @@ impl<I: RvIsa, O: BusObserver> Bus<I, O> {
     #[inline(always)]
     pub fn take_observer_event(&mut self) -> observer::ObserverEvent {
         self.observer.get_enent_and_clear()
+    }
+
+    pub fn mem_regions_for_difftest(&mut self) -> Vec<(usize, *mut u8, usize)> {
+        self.memory
+            .iter_mut()
+            .map(|m| m.difftest_raw_region())
+            .collect()
+    }
+
+    pub fn mem_regions_for_sync(&self) -> Vec<(usize, *const u8, usize)> {
+        self.memory
+            .iter()
+            .map(|m| m.difftest_raw_region_read())
+            .collect()
+    }
+
+    pub fn write_bytes_at(&mut self, addr: usize, data: &[u8]) -> Result<(), crate::bus::BusError> {
+        if let Some(m) = self.find_memory_mut(addr..addr + data.len()) {
+            m.write_bytes(addr, data);
+            Ok(())
+        } else {
+            Err(crate::bus::BusError::unmapped(addr))
+        }
     }
 
     #[inline(always)]

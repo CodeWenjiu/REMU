@@ -7,3 +7,6 @@ edition = "2024"
 remu_simulator = { path = "../.." }
 remu_state = { path = "../../../remu_state" }
 remu_types = { path = "../../../remu_types" }
+
+[build-dependencies]
+cc = "1.2.55"

@@ -153,6 +153,24 @@ impl Memory {
         })
     }
 
+    #[inline(always)]
+    pub fn difftest_raw_region(&mut self) -> (usize, *mut u8, usize) {
+        (
+            self.range.start,
+            self.storage.as_mut_ptr(),
+            self.range.end - self.range.start,
+        )
+    }
+
+    #[inline(always)]
+    pub fn difftest_raw_region_read(&self) -> (usize, *const u8, usize) {
+        (
+            self.range.start,
+            self.storage.as_ptr(),
+            self.range.end - self.range.start,
+        )
+    }
+
     /// Returns whether `addr` is contained in this region.
     #[inline(always)]
     pub fn contains(&self, range: Range<usize>) -> bool {

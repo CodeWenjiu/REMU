@@ -55,7 +55,7 @@ where
                     }
                 }
                 ObserverEvent::MmioiAccess => {
-                    self.ref_model.sync_from(self.dut_model.state());
+                    self.ref_model.sync_regs_from(self.dut_model.state());
                 }
             }
         }

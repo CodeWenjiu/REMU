@@ -2,7 +2,7 @@ use object::{Object as _, ObjectSegment as _};
 
 use crate::bus::Memory;
 
-pub(crate) fn try_load_elf_into_memory(
+pub fn try_load_elf_into_memory(
     memory: &mut [Memory],
     elf: &Option<std::path::PathBuf>,
     tracer: &remu_types::TracerDyn,

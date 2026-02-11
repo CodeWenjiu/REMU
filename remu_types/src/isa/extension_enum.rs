@@ -15,6 +15,8 @@ impl RvIsa for RV32I {
     type PcState = PcState;
     type GprState = GprState;
     type FprState = ();
+
+    const ISA_STR: &'static str = "rv32i";
 }
 
 #[derive(Clone, Copy)]
@@ -31,6 +33,8 @@ impl RvIsa for RV32IM {
     type PcState = PcState;
     type GprState = GprState;
     type FprState = ();
+
+    const ISA_STR: &'static str = "rv32im";
 }
 
 #[derive(Clone, Copy)]
@@ -47,4 +51,6 @@ impl RvIsa for RV32IF {
     type PcState = PcState;
     type GprState = GprState;
     type FprState = FprRegs;
+
+    const ISA_STR: &'static str = "rv32if";
 }
