@@ -67,7 +67,6 @@ private:
 };
 
 struct spike_difftest_ctx {
-    difftest_regs_t regs;  /* owned by Spike; get_regs returns its address */
     std::string isa_str;
     cfg_t cfg;
     difftest_simif_t* simif;
@@ -79,14 +78,6 @@ static void sync_regs_to_spike(const difftest_regs_t* r, processor_t* p) {
     s->pc = r->pc;
     for (int i = 0; i < 32; i++) {
         s->XPR.write(i, r->gpr[i]);
-    }
-}
-
-static void sync_regs_from_spike(processor_t* p, difftest_regs_t* r) {
-    state_t* s = p->get_state();
-    r->pc = static_cast<uint32_t>(s->pc);
-    for (int i = 0; i < 32; i++) {
-        r->gpr[i] = static_cast<uint32_t>(s->XPR[i]);
     }
 }
 
@@ -137,14 +128,15 @@ spike_difftest_ctx_t* spike_difftest_init(const difftest_mem_layout_t* layout,
                                 ctx->simif, 0, false, nullptr, null_out);
     ctx->simif->set_proc(ctx->proc);
 
-    ctx->regs.pc = init_pc;
+    difftest_regs_t init_regs;
+    init_regs.pc = init_pc;
     if (init_gpr) {
         for (int i = 0; i < 32; i++)
-            ctx->regs.gpr[i] = init_gpr[i];
+            init_regs.gpr[i] = init_gpr[i];
     } else {
-        memset(ctx->regs.gpr, 0, sizeof(ctx->regs.gpr));
+        memset(init_regs.gpr, 0, sizeof(init_regs.gpr));
     }
-    sync_regs_to_spike(&ctx->regs, ctx->proc);
+    sync_regs_to_spike(&init_regs, ctx->proc);
 
     return ctx;
 }
@@ -217,26 +209,44 @@ int spike_difftest_step(spike_difftest_ctx_t* ctx)
 {
     if (!ctx || !ctx->proc) return -1;
 
+    /* Lazy regs: no sync after step. Rust reads directly from Spike state via get_*_ptr. */
     try {
         ctx->proc->step(1);
-        sync_regs_from_spike(ctx->proc, &ctx->regs);
         return 0;
     } catch (trap_machine_ecall&) {
+        /* Bare-metal: ecall with a0=93 (exit) or SYS_exit_group => program end.
+         * TODO: For OS (Linux) support, let Spike handle ecall via htif/syscall proxy
+         * instead of catching here. */
         reg_t a0 = ctx->proc->get_state()->XPR[17];
-        sync_regs_from_spike(ctx->proc, &ctx->regs);
         if (a0 == 93 || a0 == SYS_exit_group) {
             return 1;
         }
         return -1;
     } catch (trap_t&) {
-        sync_regs_from_spike(ctx->proc, &ctx->regs);
         return -1;
     }
 }
 
-const difftest_regs_t* spike_difftest_get_regs(spike_difftest_ctx_t* ctx)
+const uint32_t* spike_difftest_get_pc_ptr(spike_difftest_ctx_t* ctx)
 {
-    return ctx ? &ctx->regs : nullptr;
+    if (!ctx || !ctx->proc) return nullptr;
+    state_t* s = ctx->proc->get_state();
+    return reinterpret_cast<const uint32_t*>(&s->pc);
+}
+
+const uint32_t* spike_difftest_get_gpr_ptr(spike_difftest_ctx_t* ctx)
+{
+    if (!ctx || !ctx->proc) return nullptr;
+    state_t* s = ctx->proc->get_state();
+    /* XPR is reg_t[32]; reg_t is uint64_t. For rv32, low 32 bits at 2*i. */
+    return reinterpret_cast<const uint32_t*>(&s->XPR[0]);
+}
+
+uint32_t spike_difftest_get_csr(spike_difftest_ctx_t* ctx, uint16_t csr_addr)
+{
+    if (!ctx || !ctx->proc) return 0;
+    reg_t val = ctx->proc->get_csr(static_cast<int>(csr_addr));
+    return static_cast<uint32_t>(val);
 }
 
 void spike_difftest_sync_regs_to_spike(spike_difftest_ctx_t* ctx,

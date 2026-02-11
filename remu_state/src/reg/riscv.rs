@@ -3,11 +3,10 @@ use remu_types::isa::{RvIsa, reg::RegAccess};
 
 use crate::reg::{CsrRegCmd, FprRegCmd, GprRegCmd, PcRegCmd, RegCmd, RegOption};
 
-#[derive(Debug, Clone, Default)]
+#[derive(Debug, Clone)]
 pub struct Csr {
     // Machine Trap Setup
     pub mstatus: u32,
-    pub misa: u32,
     pub mie: u32,
     pub mtvec: u32,
     // Machine Trap Handling
@@ -16,6 +15,21 @@ pub struct Csr {
     pub mcause: u32,
     pub mtval: u32,
     pub mip: u32,
+}
+
+impl Default for Csr {
+    fn default() -> Self {
+        Self {
+            mstatus: 0x0000_1800, // MPP = 3 (machine mode)
+            mie: 0,
+            mtvec: 0,
+            mscratch: 0,
+            mepc: 0,
+            mcause: 0,
+            mtval: 0,
+            mip: 0,
+        }
+    }
 }
 
 impl Csr {
@@ -79,7 +93,6 @@ impl Csr {
     pub fn read(&self, reg: CsrKind) -> u32 {
         match reg {
             CsrKind::Mstatus => self.mstatus,
-            CsrKind::Misa => self.misa,
             CsrKind::Mie => self.mie,
             CsrKind::Mtvec => self.mtvec,
             CsrKind::Mscratch => self.mscratch,
@@ -94,7 +107,6 @@ impl Csr {
     pub fn write(&mut self, reg: CsrKind, value: u32) {
         match reg {
             CsrKind::Mstatus => self.mstatus = value,
-            CsrKind::Misa => self.misa = value,
             CsrKind::Mie => self.mie = value,
             CsrKind::Mtvec => self.mtvec = value,
             CsrKind::Mscratch => self.mscratch = value,
@@ -102,7 +114,7 @@ impl Csr {
             CsrKind::Mcause => self.mcause = value,
             CsrKind::Mtval => self.mtval = value,
             CsrKind::Mip => self.mip = value,
-            _ => (),
+            _ => (), // Misa and other read-only: no-op
         }
     }
 }
@@ -123,6 +135,16 @@ impl<I: RvIsa> RiscvReg<I> {
             fpr: Default::default(),
             csr: Csr::default(),
             tracer,
+        }
+    }
+
+    /// Read CSR value: from state for stateful CSRs, from ISA for read-only (e.g. Misa).
+    #[inline(always)]
+    pub fn read_csr(&self, reg: CsrKind) -> u32 {
+        if reg == CsrKind::Misa {
+            I::MISA
+        } else {
+            self.csr.read(reg)
         }
     }
 
@@ -148,7 +170,7 @@ impl<I: RvIsa> RiscvReg<I> {
     fn execute_csr(&mut self, cmd: &CsrRegCmd) {
         match cmd {
             CsrRegCmd::Read { index } => {
-                let value = self.csr.read(*index);
+                let value = self.read_csr(*index);
                 self.tracer
                     .borrow()
                     .print(&format!("{} = {:#010x}", index, value));

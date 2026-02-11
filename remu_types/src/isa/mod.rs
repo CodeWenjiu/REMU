@@ -41,6 +41,9 @@ pub trait RvIsa: 'static + Copy {
 
     const ISA_STR: &'static str = "rv32i";
 
+    /// Read-only MISA value (XLEN + extensions). Used for CSR read and difftest.
+    const MISA: u32 = 0x4000_0100; // rv32i default
+
     const HAS_M: bool = <Self::Conf as ArchConfig>::M::ENABLED;
     const HAS_F: bool = <Self::Conf as ArchConfig>::F::ENABLED;
 }

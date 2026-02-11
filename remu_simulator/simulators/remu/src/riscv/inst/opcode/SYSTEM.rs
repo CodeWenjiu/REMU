@@ -35,42 +35,42 @@ fn do_csr<P: remu_state::StatePolicy>(
 
 handler!(csrrw, state, inst, {
     let k = CsrKind::from_repr((inst.imm & 0xFFF) as u16).unwrap();
-    let old = state.reg.csr.read(k);
+    let old = state.reg.read_csr(k);
     let new_val = state.reg.gpr.raw_read(inst.rs1.into());
     do_csr(state, inst, old, new_val)
 });
 
 handler!(csrrs, state, inst, {
     let k = CsrKind::from_repr((inst.imm & 0xFFF) as u16).unwrap();
-    let old = state.reg.csr.read(k);
+    let old = state.reg.read_csr(k);
     let new_val = old | state.reg.gpr.raw_read(inst.rs1.into());
     do_csr(state, inst, old, new_val)
 });
 
 handler!(csrrc, state, inst, {
     let k = CsrKind::from_repr((inst.imm & 0xFFF) as u16).unwrap();
-    let old = state.reg.csr.read(k);
+    let old = state.reg.read_csr(k);
     let new_val = old & !state.reg.gpr.raw_read(inst.rs1.into());
     do_csr(state, inst, old, new_val)
 });
 
 handler!(csrrwi, state, inst, {
     let k = CsrKind::from_repr((inst.imm & 0xFFF) as u16).unwrap();
-    let old = state.reg.csr.read(k);
+    let old = state.reg.read_csr(k);
     let zimm = inst.rs1 as u32;
     do_csr(state, inst, old, zimm)
 });
 
 handler!(csrrsi, state, inst, {
     let k = CsrKind::from_repr((inst.imm & 0xFFF) as u16).unwrap();
-    let old = state.reg.csr.read(k);
+    let old = state.reg.read_csr(k);
     let new_val = old | (inst.rs1 as u32);
     do_csr(state, inst, old, new_val)
 });
 
 handler!(csrrci, state, inst, {
     let k = CsrKind::from_repr((inst.imm & 0xFFF) as u16).unwrap();
-    let old = state.reg.csr.read(k);
+    let old = state.reg.read_csr(k);
     let new_val = old & !(inst.rs1 as u32);
     do_csr(state, inst, old, new_val)
 });

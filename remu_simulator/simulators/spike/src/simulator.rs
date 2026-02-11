@@ -5,7 +5,7 @@ use std::os::raw::c_uint;
 use remu_state::bus::{BusOption, Memory, try_load_elf_into_memory};
 use remu_state::{State, StateCmd};
 use remu_types::isa::RvIsa;
-use remu_types::isa::reg::{Gpr, RegAccess};
+use remu_types::isa::reg::{Csr as CsrKind, Gpr, RegAccess};
 use remu_types::{AllUsize, DifftestMismatchItem, RegGroup, TracerDyn, Xlen};
 
 use remu_simulator::{
@@ -13,10 +13,10 @@ use remu_simulator::{
 };
 
 use crate::ffi::{
-    DifftestMemLayout, DifftestRegs, SpikeDifftestCtx, spike_difftest_copy_mem,
-    spike_difftest_fini, spike_difftest_get_regs, spike_difftest_init, spike_difftest_read_mem,
-    spike_difftest_step, spike_difftest_sync_mem, spike_difftest_sync_regs_to_spike,
-    spike_difftest_write_mem,
+    spike_difftest_copy_mem, spike_difftest_fini, spike_difftest_get_csr, spike_difftest_get_gpr_ptr,
+    spike_difftest_get_pc_ptr, spike_difftest_init, spike_difftest_read_mem, spike_difftest_step,
+    spike_difftest_sync_regs_to_spike, spike_difftest_sync_mem, spike_difftest_write_mem,
+    DifftestMemLayout, DifftestRegs, SpikeDifftestCtx,
 };
 
 pub struct SimulatorSpike<P: SimulatorPolicy> {
@@ -158,24 +158,26 @@ impl<P: SimulatorPolicy> SimulatorTrait<P, false> for SimulatorSpike<P> {
             return vec![];
         };
 
-        let ref_regs = unsafe { spike_difftest_get_regs(ctx) };
-        let Some(ref_regs) = (unsafe { ref_regs.as_ref() }) else {
+        let pc_ptr = unsafe { spike_difftest_get_pc_ptr(ctx) };
+        let gpr_ptr = unsafe { spike_difftest_get_gpr_ptr(ctx) };
+        if pc_ptr.is_null() || gpr_ptr.is_null() {
             return vec![];
-        };
+        }
 
         let mut out = Vec::new();
+        let ref_pc = unsafe { *pc_ptr };
 
-        if ref_regs.pc != *dut.reg.pc {
+        if ref_pc != *dut.reg.pc {
             out.push(DifftestMismatchItem {
                 group: RegGroup::Pc,
                 name: "pc".to_string(),
-                ref_val: AllUsize::U32(ref_regs.pc),
+                ref_val: AllUsize::U32(ref_pc),
                 dut_val: AllUsize::U32(*dut.reg.pc),
             });
         }
 
         for i in 0..32 {
-            let r = ref_regs.gpr[i];
+            let r = unsafe { *gpr_ptr.add(2 * i) };
             let d = dut.reg.gpr.raw_read(i);
             if r != d {
                 let name = Gpr::from_repr(i)
@@ -186,6 +188,23 @@ impl<P: SimulatorPolicy> SimulatorTrait<P, false> for SimulatorSpike<P> {
                     name,
                     ref_val: AllUsize::U32(r),
                     dut_val: AllUsize::U32(d),
+                });
+            }
+        }
+
+        for csr in CsrKind::csrs_for_difftest() {
+            let mask = csr.diff_mask();
+            if mask == 0 {
+                continue;
+            }
+            let ref_val = unsafe { spike_difftest_get_csr(ctx, csr.addr()) };
+            let dut_val = dut.reg.read_csr(*csr);
+            if (ref_val & mask) != (dut_val & mask) {
+                out.push(DifftestMismatchItem {
+                    group: RegGroup::Csr,
+                    name: csr.to_string(),
+                    ref_val: AllUsize::U32(ref_val),
+                    dut_val: AllUsize::U32(dut_val),
                 });
             }
         }
@@ -238,20 +257,28 @@ fn state_exec_reg(
 ) -> Result<(), SimulatorInnerError> {
     use remu_state::reg::{CsrRegCmd, FprRegCmd, PcRegCmd};
 
-    let ref_regs = unsafe { spike_difftest_get_regs(ctx) };
-    let regs = unsafe { ref_regs.as_ref() }.ok_or_else(|| {
-        SimulatorInnerError::RefError("spike_difftest_get_regs returned null".to_string())
-    })?;
+    let pc_ptr = unsafe { spike_difftest_get_pc_ptr(ctx) };
+    let gpr_ptr = unsafe { spike_difftest_get_gpr_ptr(ctx) };
+    if pc_ptr.is_null() || gpr_ptr.is_null() {
+        return Err(SimulatorInnerError::RefError(
+            "spike_difftest_get_*_ptr returned null".to_string(),
+        ));
+    }
+    let pc = unsafe { *pc_ptr };
 
     match cmd {
         remu_state::reg::RegCmd::Pc { subcmd } => match subcmd {
             PcRegCmd::Read => {
-                tracer.borrow().reg_show_pc(regs.pc);
+                tracer.borrow().reg_show_pc(pc);
             }
             PcRegCmd::Write { value } => {
+                let mut new_gpr = [0u32; 32];
+                for i in 0..32 {
+                    new_gpr[i] = unsafe { *gpr_ptr.add(2 * i) };
+                }
                 let new_regs = DifftestRegs {
                     pc: *value,
-                    gpr: regs.gpr,
+                    gpr: new_gpr,
                 };
                 unsafe { spike_difftest_sync_regs_to_spike(ctx, &new_regs) };
             }
@@ -259,22 +286,24 @@ fn state_exec_reg(
         remu_state::reg::RegCmd::Gpr { subcmd } => match subcmd {
             remu_state::reg::GprRegCmd::Read { index } => {
                 let idx = index.idx();
-                tracer.borrow().reg_show(*index, regs.gpr[idx]);
+                let val = unsafe { *gpr_ptr.add(2 * idx) };
+                tracer.borrow().reg_show(*index, val);
             }
             remu_state::reg::GprRegCmd::Print { range } => {
-                let regs_arr: [(Gpr, u32); 32] =
-                    core::array::from_fn(|i| (Gpr::from_repr(i).expect("valid"), regs.gpr[i]));
+                let regs_arr: [(Gpr, u32); 32] = core::array::from_fn(|i| {
+                    (Gpr::from_repr(i).expect("valid"), unsafe { *gpr_ptr.add(2 * i) })
+                });
                 tracer.borrow().reg_print(&regs_arr, range.clone());
             }
             remu_state::reg::GprRegCmd::Write { index, value } => {
-                let mut new_gpr = regs.gpr;
+                let mut new_gpr = [0u32; 32];
+                for i in 0..32 {
+                    new_gpr[i] = unsafe { *gpr_ptr.add(2 * i) };
+                }
                 if index.idx() != 0 {
                     new_gpr[index.idx()] = *value;
                 }
-                let new_regs = DifftestRegs {
-                    pc: regs.pc,
-                    gpr: new_gpr,
-                };
+                let new_regs = DifftestRegs { pc, gpr: new_gpr };
                 unsafe { spike_difftest_sync_regs_to_spike(ctx, &new_regs) };
             }
         },
@@ -317,9 +346,11 @@ fn state_exec_bus(
                 ReadCommand::U64(a) => (a.addr, 8),
                 ReadCommand::U128(a) => (a.addr, 16),
             };
-            let mut buf = vec![0u8; width];
-            let result = if unsafe { spike_difftest_read_mem(ctx, addr, buf.as_mut_ptr(), width) }
-                == 0
+            let mut buf = [0u8; 16];
+            let buf_slice = &mut buf[..width];
+            let result = if unsafe {
+                spike_difftest_read_mem(ctx, addr, buf_slice.as_mut_ptr(), width)
+            } == 0
             {
                 let v = match width {
                     1 => AllUsize::U8(buf[0]),
@@ -329,8 +360,8 @@ fn state_exec_bus(
                         buf[0], buf[1], buf[2], buf[3], buf[4], buf[5], buf[6], buf[7],
                     ])),
                     16 => AllUsize::U128(u128::from_le_bytes([
-                        buf[0], buf[1], buf[2], buf[3], buf[4], buf[5], buf[6], buf[7], buf[8],
-                        buf[9], buf[10], buf[11], buf[12], buf[13], buf[14], buf[15],
+                        buf[0], buf[1], buf[2], buf[3], buf[4], buf[5], buf[6], buf[7],
+                        buf[8], buf[9], buf[10], buf[11], buf[12], buf[13], buf[14], buf[15],
                     ])),
                     _ => unreachable!(),
                 };
@@ -341,15 +372,19 @@ fn state_exec_bus(
             tracer.borrow().mem_show(addr, result);
         }
         remu_state::bus::BusCmd::Print { addr, count } => {
-            let mut buf = vec![0u8; *count];
-            let result = if unsafe { spike_difftest_read_mem(ctx, *addr, buf.as_mut_ptr(), *count) }
-                == 0
+            const PRINT_BUF_SIZE: usize = 256;
+            let count = (*count).min(PRINT_BUF_SIZE);
+            let mut buf = [0u8; PRINT_BUF_SIZE];
+            let buf_slice = &mut buf[..count];
+            let result = if unsafe {
+                spike_difftest_read_mem(ctx, *addr, buf_slice.as_mut_ptr(), count)
+            } == 0
             {
                 Ok(())
             } else {
                 Err(Box::new(remu_state::bus::BusError::unmapped(*addr)) as Box<dyn DynDiagError>)
             };
-            tracer.borrow().mem_print(*addr, &buf, result);
+            tracer.borrow().mem_print(*addr, buf_slice, result);
         }
         remu_state::bus::BusCmd::Write { subcmd } => match subcmd {
             WriteCommand::U8 { addr, value } => {

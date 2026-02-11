@@ -14,6 +14,7 @@ pub enum RegGroup {
     Pc,
     Gpr,
     Fpr,
+    Csr,
 }
 
 #[derive(Debug, Clone)]
@@ -33,6 +34,7 @@ impl fmt::Display for DifftestMismatchItem {
                 RegGroup::Pc => "pc",
                 RegGroup::Gpr => "gpr",
                 RegGroup::Fpr => "fpr",
+                RegGroup::Csr => "csr",
             },
             self.name,
             self.ref_val,

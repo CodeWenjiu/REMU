@@ -63,8 +63,14 @@ unsafe extern "C" {
     /// Returns 0 success, 1 program exit, -1 error
     pub fn spike_difftest_step(ctx: SpikeDifftestCtx) -> c_int;
 
-    /// Returns regs pointer held by Spike; valid until next step/sync
-    pub fn spike_difftest_get_regs(ctx: SpikeDifftestCtx) -> *const DifftestRegs;
+    /// Pointer to Spike internal PC; for rv32 use as *const u32. Valid until next step/sync.
+    pub fn spike_difftest_get_pc_ptr(ctx: SpikeDifftestCtx) -> *const u32;
+
+    /// Pointer to Spike internal GPR; reg_t layout, gpr[i] at ptr[2*i] for rv32.
+    pub fn spike_difftest_get_gpr_ptr(ctx: SpikeDifftestCtx) -> *const u32;
+
+    /// Read one CSR by address (e.g. 0x300). Returns low 32 bits; 0 if not present.
+    pub fn spike_difftest_get_csr(ctx: SpikeDifftestCtx, csr_addr: u16) -> u32;
 
     pub fn spike_difftest_sync_regs_to_spike(ctx: SpikeDifftestCtx, regs: *const DifftestRegs);
 

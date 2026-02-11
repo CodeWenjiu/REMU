@@ -99,4 +99,42 @@ impl Csr {
     pub fn idx(self) -> usize {
         self.addr() as usize
     }
+
+    /// CSRs that have concrete state (stored in reg file), as opposed to read-only CSRs
+    /// like Misa that are determined by ISA.
+    #[inline(always)]
+    pub fn csrs_with_state() -> &'static [Csr] {
+        use Csr::*;
+        const CSRS: &[Csr] = &[
+            Mstatus, Mie, Mtvec, Mscratch, Mepc, Mcause, Mtval, Mip,
+        ];
+        CSRS
+    }
+
+    /// CSRs included in difftest (state CSRs + read-only like Misa). Order: Misa first, then state.
+    #[inline(always)]
+    pub fn csrs_for_difftest() -> &'static [Csr] {
+        use Csr::*;
+        const CSRS: &[Csr] = &[
+            Misa, Mstatus, Mie, Mtvec, Mscratch, Mepc, Mcause, Mtval, Mip,
+        ];
+        CSRS
+    }
+
+    /// Mask for difftest: bits to compare. 0 = skip this CSR (platform/impl-defined or counter).
+    /// Compare passes when (ref_val & mask) == (dut_val & mask).
+    #[inline(always)]
+    pub fn diff_mask(self) -> u32 {
+        use Csr::*;
+        match self {
+            Mvendorid | Marchid | Mimpid | Mhartid => 0,
+            Mstatus => {
+                // RV32: mask off SD (bit 31) and WPRI/reserved. Compare MIE, MPIE, MPP, SPP, SIE, etc.
+                0x0000_1888
+            }
+            Misa | Mie | Mtvec | Mscratch | Mepc | Mcause | Mtval | Mip => 0xFFFF_FFFF,
+            Medeleg | Mideleg | Mcounteren => 0,
+            Mcycle | Minstret | Mcycleh | Minstreth => 0,
+        }
+    }
 }

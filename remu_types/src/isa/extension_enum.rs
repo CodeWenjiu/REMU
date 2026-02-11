@@ -17,6 +17,7 @@ impl RvIsa for RV32I {
     type FprState = ();
 
     const ISA_STR: &'static str = "rv32i";
+    const MISA: u32 = 0x4000_0100; // RV32, I
 }
 
 #[derive(Clone, Copy)]
@@ -35,6 +36,7 @@ impl RvIsa for RV32IM {
     type FprState = ();
 
     const ISA_STR: &'static str = "rv32im";
+    const MISA: u32 = 0x4000_1100; // RV32, I, M
 }
 
 #[derive(Clone, Copy)]
@@ -53,4 +55,5 @@ impl RvIsa for RV32IF {
     type FprState = FprRegs;
 
     const ISA_STR: &'static str = "rv32if";
+    const MISA: u32 = 0x4000_0120; // RV32, I, F
 }

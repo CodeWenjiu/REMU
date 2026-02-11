@@ -84,10 +84,23 @@ int spike_difftest_write_mem(spike_difftest_ctx_t* ctx,
 int spike_difftest_step(spike_difftest_ctx_t* ctx);
 
 /**
- * Get Spike current register state
- * Returns pointer held by Spike; valid until next step/sync
+ * Get pointer to Spike's internal PC (reg_t).
+ * For rv32, use low 32 bits. Valid until next step/sync.
  */
-const difftest_regs_t* spike_difftest_get_regs(spike_difftest_ctx_t* ctx);
+const uint32_t* spike_difftest_get_pc_ptr(spike_difftest_ctx_t* ctx);
+
+/**
+ * Get pointer to Spike's internal GPR[0].
+ * Spike uses reg_t (uint64_t) per reg; for rv32, low 32 bits at offset 2*i.
+ * I.e. (const uint32_t*)ptr, then gpr[i] = ptr[2*i]. Valid until next step/sync.
+ */
+const uint32_t* spike_difftest_get_gpr_ptr(spike_difftest_ctx_t* ctx);
+
+/**
+ * Read one CSR from Spike by address (e.g. 0x300 = mstatus).
+ * Returns low 32 bits. For non-existent CSR, returns 0.
+ */
+uint32_t spike_difftest_get_csr(spike_difftest_ctx_t* ctx, uint16_t csr_addr);
 
 /**
  * Sync regs to spike processor (for sync_from)
