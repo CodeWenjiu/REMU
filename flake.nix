@@ -42,6 +42,8 @@
             cargo-machete
             cargo-show-asm
 
+            gawk
+
             clang
             libclang
             cmake

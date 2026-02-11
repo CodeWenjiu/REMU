@@ -4,134 +4,82 @@ use std::marker::PhantomData;
 
 use remu_types::isa::reg::{Csr as CsrKind, RegAccess};
 
-use crate::riscv::inst::{DecodedInst, csr, funct3, rd, rs1};
+use crate::riscv::inst::{csr, funct3, rd, rs1, DecodedInst, Inst};
 
 pub(crate) const OPCODE: u32 = 0b111_0011;
-
 pub(crate) const INSTRUCTION_MIX: u32 = 20;
 
 mod func3 {
-    pub const CSRRW: u32 = 0b001;
-    pub const CSRRS: u32 = 0b010;
-    pub const CSRRC: u32 = 0b011;
-    pub const CSRRWI: u32 = 0b101;
-    pub const CSRRSI: u32 = 0b110;
-    pub const CSRRCI: u32 = 0b111;
+    pub(super) const CSRRW: u32 = 0b001;
+    pub(super) const CSRRS: u32 = 0b010;
+    pub(super) const CSRRC: u32 = 0b011;
+    pub(super) const CSRRWI: u32 = 0b101;
+    pub(super) const CSRRSI: u32 = 0b110;
+    pub(super) const CSRRCI: u32 = 0b111;
+}
+
+#[derive(Clone, Copy, Debug)]
+pub(crate) enum SystemInst {
+    Csrrw,
+    Csrrs,
+    Csrrc,
+    Csrrwi,
+    Csrrsi,
+    Csrrci,
+}
+
+#[inline(always)]
+pub(crate) fn decode<P: remu_state::StatePolicy>(inst: u32) -> DecodedInst<P> {
+    let f3 = funct3(inst);
+    let sys = match f3 {
+        func3::CSRRW => SystemInst::Csrrw,
+        func3::CSRRS => SystemInst::Csrrs,
+        func3::CSRRC => SystemInst::Csrrc,
+        func3::CSRRWI => SystemInst::Csrrwi,
+        func3::CSRRSI => SystemInst::Csrrsi,
+        func3::CSRRCI => SystemInst::Csrrci,
+        _ => return DecodedInst::default(),
+    };
+    let csr_addr = csr(inst);
+    DecodedInst {
+        rd: rd(inst),
+        rs1: rs1(inst),
+        rs2: 0,
+        imm: csr_addr,
+        inst: Inst::System(sys),
+        _marker: PhantomData,
+    }
 }
 
 #[inline(always)]
 fn do_csr<P: remu_state::StatePolicy>(
     state: &mut remu_state::State<P>,
-    inst: &crate::riscv::inst::DecodedInst<P>,
+    decoded: &DecodedInst<P>,
     old_val: u32,
     new_val: u32,
 ) -> Result<(), remu_state::StateError> {
-    let csr_kind = CsrKind::from_repr((inst.imm & 0xFFF) as u16).unwrap();
+    let csr_kind = CsrKind::from_repr((decoded.imm & 0xFFF) as u16).unwrap();
     state.reg.csr.write(csr_kind, new_val);
-    state.reg.gpr.raw_write(inst.rd.into(), old_val);
+    state.reg.gpr.raw_write(decoded.rd.into(), old_val);
     *state.reg.pc = state.reg.pc.wrapping_add(4);
     Ok(())
 }
 
-handler!(csrrw, state, inst, {
-    let k = CsrKind::from_repr((inst.imm & 0xFFF) as u16).unwrap();
+#[inline(always)]
+pub(crate) fn execute<P: remu_state::StatePolicy>(
+    state: &mut remu_state::State<P>,
+    decoded: &DecodedInst<P>,
+) -> Result<(), remu_state::StateError> {
+    let Inst::System(sys) = decoded.inst else { unreachable!() };
+    let k = CsrKind::from_repr((decoded.imm & 0xFFF) as u16).unwrap();
     let old = state.reg.read_csr(k);
-    let new_val = state.reg.gpr.raw_read(inst.rs1.into());
-    do_csr(state, inst, old, new_val)
-});
-
-handler!(csrrs, state, inst, {
-    let k = CsrKind::from_repr((inst.imm & 0xFFF) as u16).unwrap();
-    let old = state.reg.read_csr(k);
-    let new_val = old | state.reg.gpr.raw_read(inst.rs1.into());
-    do_csr(state, inst, old, new_val)
-});
-
-handler!(csrrc, state, inst, {
-    let k = CsrKind::from_repr((inst.imm & 0xFFF) as u16).unwrap();
-    let old = state.reg.read_csr(k);
-    let new_val = old & !state.reg.gpr.raw_read(inst.rs1.into());
-    do_csr(state, inst, old, new_val)
-});
-
-handler!(csrrwi, state, inst, {
-    let k = CsrKind::from_repr((inst.imm & 0xFFF) as u16).unwrap();
-    let old = state.reg.read_csr(k);
-    let zimm = inst.rs1 as u32;
-    do_csr(state, inst, old, zimm)
-});
-
-handler!(csrrsi, state, inst, {
-    let k = CsrKind::from_repr((inst.imm & 0xFFF) as u16).unwrap();
-    let old = state.reg.read_csr(k);
-    let new_val = old | (inst.rs1 as u32);
-    do_csr(state, inst, old, new_val)
-});
-
-handler!(csrrci, state, inst, {
-    let k = CsrKind::from_repr((inst.imm & 0xFFF) as u16).unwrap();
-    let old = state.reg.read_csr(k);
-    let new_val = old & !(inst.rs1 as u32);
-    do_csr(state, inst, old, new_val)
-});
-
-define_decode!(inst, {
-    let f3 = funct3(inst);
-    let csr_addr = csr(inst);
-    let rd = rd(inst);
-    let rs1 = rs1(inst);
-    // Store 12-bit CSR address in imm for handlers
-    let imm = csr_addr;
-
-    match f3 {
-        func3::CSRRW => DecodedInst::<P> {
-            rd,
-            rs1,
-            rs2: 0,
-            imm,
-            handler: csrrw::<P>,
-            _marker: PhantomData,
-        },
-        func3::CSRRS => DecodedInst::<P> {
-            rd,
-            rs1,
-            rs2: 0,
-            imm,
-            handler: csrrs::<P>,
-            _marker: PhantomData,
-        },
-        func3::CSRRC => DecodedInst::<P> {
-            rd,
-            rs1,
-            rs2: 0,
-            imm,
-            handler: csrrc::<P>,
-            _marker: PhantomData,
-        },
-        func3::CSRRWI => DecodedInst::<P> {
-            rd,
-            rs1,
-            rs2: 0,
-            imm,
-            handler: csrrwi::<P>,
-            _marker: PhantomData,
-        },
-        func3::CSRRSI => DecodedInst::<P> {
-            rd,
-            rs1,
-            rs2: 0,
-            imm,
-            handler: csrrsi::<P>,
-            _marker: PhantomData,
-        },
-        func3::CSRRCI => DecodedInst::<P> {
-            rd,
-            rs1,
-            rs2: 0,
-            imm,
-            handler: csrrci::<P>,
-            _marker: PhantomData,
-        },
-        _ => DecodedInst::<P>::default(),
-    }
-});
+    let new_val = match sys {
+        SystemInst::Csrrw => state.reg.gpr.raw_read(decoded.rs1.into()),
+        SystemInst::Csrrs => old | state.reg.gpr.raw_read(decoded.rs1.into()),
+        SystemInst::Csrrc => old & !state.reg.gpr.raw_read(decoded.rs1.into()),
+        SystemInst::Csrrwi => decoded.rs1 as u32,
+        SystemInst::Csrrsi => old | (decoded.rs1 as u32),
+        SystemInst::Csrrci => old & !(decoded.rs1 as u32),
+    };
+    do_csr(state, decoded, old, new_val)
+}

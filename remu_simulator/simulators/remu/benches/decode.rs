@@ -6,7 +6,7 @@ use rand::{
     distr::{Distribution, weighted::WeightedIndex},
     rngs::ThreadRng,
 };
-use remu_simulator_remu::riscv::inst::opcode::{self, RV32_INSTRUCTION_MIX};
+use remu_simulator_remu::riscv::inst::{decode, RV32_INSTRUCTION_MIX};
 use remu_state::StateFastProfile;
 use remu_types::isa::extension_enum::RV32I;
 
@@ -54,7 +54,7 @@ fn build_inst_stream(len: usize) -> Vec<u32> {
 fn run_decode_workload(insts: &[u32]) {
     let mut acc: u64 = 0;
     for &inst in insts {
-        let decoded = opcode::decode::<StateFastProfile<RV32I>>(inst);
+        let decoded = decode::<StateFastProfile<RV32I>>(inst);
         acc = acc.wrapping_add(decoded.imm as u64);
     }
     black_box(acc);

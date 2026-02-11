@@ -2,271 +2,157 @@ use std::marker::PhantomData;
 
 use remu_types::isa::{reg::RegAccess, RvIsa};
 
-use crate::riscv::inst::{funct3, funct7, rd, rs1, rs2, DecodedInst};
+use crate::riscv::inst::{funct3, funct7, rd, rs1, rs2, DecodedInst, Inst};
 
 pub(crate) const OPCODE: u32 = 0b011_0011;
-
 pub(crate) const INSTRUCTION_MIX: u32 = 130;
 
 mod func3 {
-    pub const ADD: u32 = 0b000;
-    pub const SLL: u32 = 0b001;
-    pub const SLT: u32 = 0b010;
-    pub const SLTU: u32 = 0b011;
-    pub const XOR: u32 = 0b100;
-    pub const SR: u32 = 0b101;
-    pub const OR: u32 = 0b110;
-    pub const AND: u32 = 0b111;
-
-    pub const MUL: u32 = 0b000;
-    pub const MULH: u32 = 0b001;
-    pub const MULHSU: u32 = 0b010;
-    pub const MULHU: u32 = 0b011;
-    pub const DIV: u32 = 0b100;
-    pub const DIVU: u32 = 0b101;
-    pub const REM: u32 = 0b110;
-    pub const REMU: u32 = 0b111;
+    pub(super) const ADD: u32 = 0b000;
+    pub(super) const SLL: u32 = 0b001;
+    pub(super) const SLT: u32 = 0b010;
+    pub(super) const SLTU: u32 = 0b011;
+    pub(super) const XOR: u32 = 0b100;
+    pub(super) const SR: u32 = 0b101;
+    pub(super) const OR: u32 = 0b110;
+    pub(super) const AND: u32 = 0b111;
+    pub(super) const MUL: u32 = 0b000;
+    pub(super) const MULH: u32 = 0b001;
+    pub(super) const MULHSU: u32 = 0b010;
+    pub(super) const MULHU: u32 = 0b011;
+    pub(super) const DIV: u32 = 0b100;
+    pub(super) const DIVU: u32 = 0b101;
+    pub(super) const REM: u32 = 0b110;
+    pub(super) const REMU: u32 = 0b111;
 }
-
 mod func7 {
-    pub const NORMAL: u32 = 0b0000000;
-    pub const ALT: u32 = 0b0100000;
-    pub const MAD: u32 = 0b0000001;
+    pub(super) const NORMAL: u32 = 0b0000000;
+    pub(super) const ALT: u32 = 0b0100000;
+    pub(super) const MAD: u32 = 0b0000001;
 }
 
-macro_rules! op_op {
-    ($name:ident, |$rs1_val:ident, $rs2_val:ident| $value:expr) => {
-        handler!($name, state, inst, {
-            let $rs1_val = state.reg.gpr.raw_read(inst.rs1.into());
-            let $rs2_val = state.reg.gpr.raw_read(inst.rs2.into());
-            let value: u32 = $value;
-            state.reg.gpr.raw_write(inst.rd.into(), value);
-            *state.reg.pc = state.reg.pc.wrapping_add(4);
-            Ok(())
-        });
-    };
+#[derive(Clone, Copy, Debug)]
+pub(crate) enum OpInst {
+    Add,
+    Sub,
+    Sll,
+    Slt,
+    Sltu,
+    Xor,
+    Srl,
+    Sra,
+    Or,
+    And,
+    Mul,
+    Mulh,
+    Mulhsu,
+    Mulhu,
+    Div,
+    Divu,
+    Rem,
+    Remu,
 }
 
-op_op!(add, |rs1, rs2| rs1.wrapping_add(rs2));
-op_op!(sub, |rs1, rs2| rs1.wrapping_sub(rs2));
-op_op!(sll, |rs1, rs2| rs1.wrapping_shl(rs2 & 0x1F));
-op_op!(slt, |rs1, rs2| if (rs1 as i32) < (rs2 as i32) {
-    1
-} else {
-    0
-});
-op_op!(sltu, |rs1, rs2| if rs1 < rs2 { 1 } else { 0 });
-op_op!(xor, |rs1, rs2| rs1 ^ rs2);
-op_op!(or, |rs1, rs2| rs1 | rs2);
-op_op!(and, |rs1, rs2| rs1 & rs2);
-op_op!(srl, |rs1, rs2| rs1.wrapping_shr(rs2 & 0x1F));
-op_op!(sra, |rs1, rs2| ((rs1 as i32).wrapping_shr(rs2 & 0x1F))
-    as u32);
-
-op_op!(mul, |rs1, rs2| rs1.wrapping_mul(rs2));
-op_op!(
-    mulh,
-    |rs1, rs2| (rs1 as i64).wrapping_mul(rs2 as i64).wrapping_shr(32) as u32
-);
-op_op!(mulhsu, |rs1, rs2| (rs1 as i32 as i64)
-    .wrapping_mul(rs2 as u32 as i64)
-    .wrapping_shr(32) as u32);
-op_op!(
-    mulhu,
-    |rs1, rs2| (rs1 as u64).wrapping_mul(rs2 as u64).wrapping_shr(32) as u32
-);
-op_op!(div, |rs1, rs2| if rs2 == 0 {
-    0xFFFFFFFF
-} else {
-    (rs1 as i32).wrapping_div(rs2 as i32) as u32
-});
-op_op!(divu, |rs1, rs2| if rs2 == 0 {
-    0xFFFFFFFF
-} else {
-    rs1.wrapping_div(rs2)
-});
-op_op!(rem, |rs1, rs2| (rs1 as i32).wrapping_rem(rs2 as i32) as u32);
-op_op!(remu, |rs1, rs2| if rs2 == 0 {
-    rs1
-} else {
-    rs1.wrapping_rem(rs2)
-});
-
-define_decode!(inst, {
+#[inline(always)]
+pub(crate) fn decode<P: remu_state::StatePolicy>(inst: u32) -> DecodedInst<P> {
     let f3 = funct3(inst);
     let f7 = funct7(inst);
-
     let rd = rd(inst);
     let rs1 = rs1(inst);
     let rs2 = rs2(inst);
-
-    match (f3, f7) {
-        (func3::ADD, func7::NORMAL) => DecodedInst::<P> {
-            rd,
-            rs1,
-            rs2,
-            imm: 0,
-
-            handler: add::<P>,
-            _marker: PhantomData,
-        },
-        (func3::ADD, func7::ALT) => DecodedInst::<P> {
-            rd,
-            rs1,
-            rs2,
-            imm: 0,
-
-            handler: sub::<P>,
-            _marker: PhantomData,
-        },
-        (func3::SLL, func7::NORMAL) => DecodedInst::<P> {
-            rd,
-            rs1,
-            rs2,
-            imm: 0,
-
-            handler: sll::<P>,
-            _marker: PhantomData,
-        },
-        (func3::SLT, func7::NORMAL) => DecodedInst::<P> {
-            rd,
-            rs1,
-            rs2,
-            imm: 0,
-
-            handler: slt::<P>,
-            _marker: PhantomData,
-        },
-        (func3::SLTU, func7::NORMAL) => DecodedInst::<P> {
-            rd,
-            rs1,
-            rs2,
-            imm: 0,
-
-            handler: sltu::<P>,
-            _marker: PhantomData,
-        },
-        (func3::XOR, func7::NORMAL) => DecodedInst::<P> {
-            rd,
-            rs1,
-            rs2,
-            imm: 0,
-
-            handler: xor::<P>,
-            _marker: PhantomData,
-        },
-        (func3::OR, func7::NORMAL) => DecodedInst::<P> {
-            rd,
-            rs1,
-            rs2,
-            imm: 0,
-
-            handler: or::<P>,
-            _marker: PhantomData,
-        },
-        (func3::SR, func7::NORMAL) => DecodedInst::<P> {
-            rd,
-            rs1,
-            rs2,
-            imm: 0,
-
-            handler: srl::<P>,
-            _marker: PhantomData,
-        },
-        (func3::SR, func7::ALT) => DecodedInst::<P> {
-            rd,
-            rs1,
-            rs2,
-            imm: 0,
-
-            handler: sra::<P>,
-            _marker: PhantomData,
-        },
-        (func3::AND, func7::NORMAL) => DecodedInst::<P> {
-            rd,
-            rs1,
-            rs2,
-            imm: 0,
-
-            handler: and::<P>,
-            _marker: PhantomData,
-        },
-
+    let op = match (f3, f7) {
+        (func3::ADD, func7::NORMAL) => OpInst::Add,
+        (func3::ADD, func7::ALT) => OpInst::Sub,
+        (func3::SLL, func7::NORMAL) => OpInst::Sll,
+        (func3::SLT, func7::NORMAL) => OpInst::Slt,
+        (func3::SLTU, func7::NORMAL) => OpInst::Sltu,
+        (func3::XOR, func7::NORMAL) => OpInst::Xor,
+        (func3::SR, func7::NORMAL) => OpInst::Srl,
+        (func3::SR, func7::ALT) => OpInst::Sra,
+        (func3::OR, func7::NORMAL) => OpInst::Or,
+        (func3::AND, func7::NORMAL) => OpInst::And,
         (f3, func7::MAD) if P::ISA::HAS_M => match f3 {
-            func3::MUL => DecodedInst::<P> {
-                rd,
-                rs1,
-                rs2,
-                imm: 0,
-
-                handler: mul::<P>,
-                _marker: PhantomData,
-            },
-            func3::MULH => DecodedInst::<P> {
-                rd,
-                rs1,
-                rs2,
-                imm: 0,
-
-                handler: mulh::<P>,
-                _marker: PhantomData,
-            },
-            func3::MULHSU => DecodedInst::<P> {
-                rd,
-                rs1,
-                rs2,
-                imm: 0,
-
-                handler: mulhsu::<P>,
-                _marker: PhantomData,
-            },
-            func3::MULHU => DecodedInst::<P> {
-                rd,
-                rs1,
-                rs2,
-                imm: 0,
-
-                handler: mulhu::<P>,
-                _marker: PhantomData,
-            },
-            func3::DIV => DecodedInst::<P> {
-                rd,
-                rs1,
-                rs2,
-                imm: 0,
-
-                handler: div::<P>,
-                _marker: PhantomData,
-            },
-            func3::DIVU => DecodedInst::<P> {
-                rd,
-                rs1,
-                rs2,
-                imm: 0,
-
-                handler: divu::<P>,
-                _marker: PhantomData,
-            },
-            func3::REM => DecodedInst::<P> {
-                rd,
-                rs1,
-                rs2,
-                imm: 0,
-
-                handler: rem::<P>,
-                _marker: PhantomData,
-            },
-            func3::REMU => DecodedInst::<P> {
-                rd,
-                rs1,
-                rs2,
-                imm: 0,
-
-                handler: remu::<P>,
-                _marker: PhantomData,
-            },
-            _ => DecodedInst::<P>::default(),
+            func3::MUL => OpInst::Mul,
+            func3::MULH => OpInst::Mulh,
+            func3::MULHSU => OpInst::Mulhsu,
+            func3::MULHU => OpInst::Mulhu,
+            func3::DIV => OpInst::Div,
+            func3::DIVU => OpInst::Divu,
+            func3::REM => OpInst::Rem,
+            func3::REMU => OpInst::Remu,
+            _ => return DecodedInst::default(),
         },
-        _ => DecodedInst::<P>::default(),
+        _ => return DecodedInst::default(),
+    };
+    DecodedInst {
+        rd,
+        rs1,
+        rs2,
+        imm: 0,
+        inst: Inst::Op(op),
+        _marker: PhantomData,
     }
-});
+}
+
+#[inline(always)]
+pub(crate) fn execute<P: remu_state::StatePolicy>(
+    state: &mut remu_state::State<P>,
+    decoded: &DecodedInst<P>,
+) -> Result<(), remu_state::StateError> {
+    let Inst::Op(op) = decoded.inst else { unreachable!() };
+    let rs1_val = state.reg.gpr.raw_read(decoded.rs1.into());
+    let rs2_val = state.reg.gpr.raw_read(decoded.rs2.into());
+    let value: u32 = match op {
+        OpInst::Add => rs1_val.wrapping_add(rs2_val),
+        OpInst::Sub => rs1_val.wrapping_sub(rs2_val),
+        OpInst::Sll => rs1_val.wrapping_shl(rs2_val & 0x1F),
+        OpInst::Slt => {
+            if (rs1_val as i32) < (rs2_val as i32) {
+                1
+            } else {
+                0
+            }
+        }
+        OpInst::Sltu => if rs1_val < rs2_val { 1 } else { 0 },
+        OpInst::Xor => rs1_val ^ rs2_val,
+        OpInst::Srl => rs1_val.wrapping_shr(rs2_val & 0x1F),
+        OpInst::Sra => ((rs1_val as i32).wrapping_shr(rs2_val & 0x1F)) as u32,
+        OpInst::Or => rs1_val | rs2_val,
+        OpInst::And => rs1_val & rs2_val,
+        OpInst::Mul => rs1_val.wrapping_mul(rs2_val),
+        OpInst::Mulh => (rs1_val as i64)
+            .wrapping_mul(rs2_val as i64)
+            .wrapping_shr(32) as u32,
+        OpInst::Mulhsu => (rs1_val as i32 as i64)
+            .wrapping_mul(rs2_val as u32 as i64)
+            .wrapping_shr(32) as u32,
+        OpInst::Mulhu => (rs1_val as u64)
+            .wrapping_mul(rs2_val as u64)
+            .wrapping_shr(32) as u32,
+        OpInst::Div => {
+            if rs2_val == 0 {
+                0xFFFFFFFF
+            } else {
+                (rs1_val as i32).wrapping_div(rs2_val as i32) as u32
+            }
+        }
+        OpInst::Divu => {
+            if rs2_val == 0 {
+                0xFFFFFFFF
+            } else {
+                rs1_val.wrapping_div(rs2_val)
+            }
+        }
+        OpInst::Rem => (rs1_val as i32).wrapping_rem(rs2_val as i32) as u32,
+        OpInst::Remu => {
+            if rs2_val == 0 {
+                rs1_val
+            } else {
+                rs1_val.wrapping_rem(rs2_val)
+            }
+        }
+    };
+    state.reg.gpr.raw_write(decoded.rd.into(), value);
+    *state.reg.pc = state.reg.pc.wrapping_add(4);
+    Ok(())
+}

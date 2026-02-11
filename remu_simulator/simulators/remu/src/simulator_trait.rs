@@ -6,7 +6,7 @@ use remu_simulator::{
     from_state_error,
 };
 
-use crate::riscv::inst::opcode::decode;
+use crate::riscv::inst::{decode, execute};
 use crate::{Func, FuncCmd};
 
 pub struct SimulatorRemu<P: SimulatorPolicy, const IS_DUT: bool> {
@@ -52,7 +52,7 @@ impl<P: SimulatorPolicy, const IS_DUT: bool> SimulatorTrait<P, IS_DUT>
             self.tracer.borrow().disasm(pc as u64, inst);
         }
         let decoded = decode::<P>(inst);
-        (decoded.handler)(&mut self.state, &decoded).map_err(from_state_error)?;
+        execute(&mut self.state, &decoded).map_err(from_state_error)?;
         Ok(())
     }
 

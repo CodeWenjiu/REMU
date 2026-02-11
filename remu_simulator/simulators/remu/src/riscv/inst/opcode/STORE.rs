@@ -3,89 +3,68 @@ use std::marker::PhantomData;
 use remu_state::StateError;
 use remu_types::isa::reg::RegAccess;
 
-use crate::riscv::inst::{DecodedInst, funct3, imm_s, rs1, rs2};
+use crate::riscv::inst::{funct3, imm_s, rs1, rs2, DecodedInst, Inst};
 
 pub(crate) const OPCODE: u32 = 0b010_0011;
-
 pub(crate) const INSTRUCTION_MIX: u32 = 110;
 
 mod func3 {
-    pub const SB: u32 = 0b000;
-    pub const SH: u32 = 0b001;
-    pub const SW: u32 = 0b010;
+    pub(super) const SB: u32 = 0b000;
+    pub(super) const SH: u32 = 0b001;
+    pub(super) const SW: u32 = 0b010;
 }
 
-handler!(sb, state, inst, {
-    let rs1 = state.reg.gpr.raw_read(inst.rs1.into());
-    let addr = rs1.wrapping_add(inst.imm);
-    state
-        .bus
-        .write_8(addr as usize, state.reg.gpr.raw_read(inst.rs2.into()) as u8)
-        .map_err(StateError::from)?;
-    *state.reg.pc = state.reg.pc.wrapping_add(4);
-    Ok(())
-});
+#[derive(Clone, Copy, Debug)]
+pub(crate) enum StoreInst {
+    Sb,
+    Sh,
+    Sw,
+}
 
-handler!(sh, state, inst, {
-    let rs1 = state.reg.gpr.raw_read(inst.rs1.into());
-    let addr = rs1.wrapping_add(inst.imm);
-    state
-        .bus
-        .write_16(
-            addr as usize,
-            state.reg.gpr.raw_read(inst.rs2.into()) as u16,
-        )
-        .map_err(StateError::from)?;
-    *state.reg.pc = state.reg.pc.wrapping_add(4);
-    Ok(())
-});
-
-handler!(sw, state, inst, {
-    let rs1 = state.reg.gpr.raw_read(inst.rs1.into());
-    let addr = rs1.wrapping_add(inst.imm);
-    state
-        .bus
-        .write_32(addr as usize, state.reg.gpr.raw_read(inst.rs2.into()))
-        .map_err(StateError::from)?;
-    *state.reg.pc = state.reg.pc.wrapping_add(4);
-    Ok(())
-});
-
-define_decode!(inst, {
+#[inline(always)]
+pub(crate) fn decode<P: remu_state::StatePolicy>(inst: u32) -> DecodedInst<P> {
     let f3 = funct3(inst);
-
-    let rs1 = rs1(inst);
-    let rs2 = rs2(inst);
-    let imm = imm_s(inst);
-
-    match f3 {
-        func3::SB => DecodedInst::<P> {
-            rd: 0,
-            rs1,
-            rs2,
-            imm,
-
-            handler: sb::<P>,
-            _marker: PhantomData,
-        },
-        func3::SH => DecodedInst::<P> {
-            rd: 0,
-            rs1,
-            rs2,
-            imm,
-
-            handler: sh::<P>,
-            _marker: PhantomData,
-        },
-        func3::SW => DecodedInst::<P> {
-            rd: 0,
-            rs1,
-            rs2,
-            imm,
-
-            handler: sw::<P>,
-            _marker: PhantomData,
-        },
-        _ => DecodedInst::<P>::default(),
+    let store = match f3 {
+        func3::SB => StoreInst::Sb,
+        func3::SH => StoreInst::Sh,
+        func3::SW => StoreInst::Sw,
+        _ => return DecodedInst::default(),
+    };
+    DecodedInst {
+        rd: 0,
+        rs1: rs1(inst),
+        rs2: rs2(inst),
+        imm: imm_s(inst),
+        inst: Inst::Store(store),
+        _marker: PhantomData,
     }
-});
+}
+
+#[inline(always)]
+pub(crate) fn execute<P: remu_state::StatePolicy>(
+    state: &mut remu_state::State<P>,
+    decoded: &DecodedInst<P>,
+) -> Result<(), remu_state::StateError> {
+    let Inst::Store(store) = decoded.inst else { unreachable!() };
+    let rs1_val = state.reg.gpr.raw_read(decoded.rs1.into());
+    let addr = rs1_val.wrapping_add(decoded.imm);
+    match store {
+        StoreInst::Sb => state
+            .bus
+            .write_8(addr as usize, state.reg.gpr.raw_read(decoded.rs2.into()) as u8)
+            .map_err(StateError::from)?,
+        StoreInst::Sh => state
+            .bus
+            .write_16(
+                addr as usize,
+                state.reg.gpr.raw_read(decoded.rs2.into()) as u16,
+            )
+            .map_err(StateError::from)?,
+        StoreInst::Sw => state
+            .bus
+            .write_32(addr as usize, state.reg.gpr.raw_read(decoded.rs2.into()))
+            .map_err(StateError::from)?,
+    }
+    *state.reg.pc = state.reg.pc.wrapping_add(4);
+    Ok(())
+}
