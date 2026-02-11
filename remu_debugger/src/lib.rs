@@ -124,7 +124,7 @@ impl<P: HarnessPolicy, R: SimulatorTrait<P, false>> Debugger<P, R> {
 
     fn run_step_loop(&mut self, max_steps: Option<usize>) -> Result<(), DebuggerError> {
         if self.run_state == RunState::Exit {
-            return Err(DebuggerError::ExitRequested);
+            return Ok(());
         }
 
         let mut steps = 0usize;
@@ -142,9 +142,9 @@ impl<P: HarnessPolicy, R: SimulatorTrait<P, false>> Debugger<P, R> {
             }
             if let Err(e) = self.harness.step_once() {
                 if let SimulatorError::Dut(inner) = &e {
-                    if let SimulatorInnerError::ProgramExit(code) = inner {
+                    if let SimulatorInnerError::ProgramExit(_code) = inner {
                         self.run_state = RunState::Exit;
-                        return Err(DebuggerError::ProgramExit(*code));
+                        return Ok(());
                     }
                 }
                 return Err(DebuggerError::CommandExec(e));
