@@ -1,0 +1,3 @@
+[submodule "remu_simulator/simulators/spike/spike"]
+	path = remu_simulator/simulators/spike/spike
+	url = git@github.com:riscv-software-src/riscv-isa-sim.git

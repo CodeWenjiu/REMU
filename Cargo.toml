@@ -15,6 +15,7 @@ members = [
     "remu_simulator",
     "remu_simulator/simulators/remu",
     "remu_simulator/simulators/unicorn",
+    "remu_simulator/simulators/spike",
 
     "remu_state",
 ]

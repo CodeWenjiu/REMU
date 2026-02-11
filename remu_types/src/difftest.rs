@@ -7,6 +7,7 @@ use crate::AllUsize;
 pub enum DifftestRef {
     Remu,
     Unicorn,
+    Spike,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -49,7 +50,8 @@ impl FromStr for DifftestRef {
         match s_lower.as_str() {
             "remu" => Ok(DifftestRef::Remu),
             "unicorn" => Ok(DifftestRef::Unicorn),
-            _ => Err(format!("未知的 difftest ref: '{}'，当前仅支持: remu, unicorn", s)),
+            "spike" => Ok(DifftestRef::Spike),
+            _ => Err(format!("未知的 difftest ref: '{}'，当前仅支持: remu, unicorn, spike", s)),
         }
     }
 }

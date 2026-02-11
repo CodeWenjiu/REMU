@@ -17,7 +17,14 @@ where
             runner.run::<StateMmioProfile<ISA>, RefSim<StateMmioProfile<ISA>>>(option, Arc::clone(&interrupt))
         }
         Some(DifftestRef::Unicorn) => {
-            runner.run::<StateMmioProfile<ISA>, remu_simulator_unicorn::SimulatorUnicorn<StateMmioProfile<ISA>>>(option, interrupt);
+            runner.run::<StateMmioProfile<ISA>, remu_simulator_unicorn::SimulatorUnicorn<StateMmioProfile<ISA>>>(
+                option, Arc::clone(&interrupt),
+            );
+        }
+        Some(DifftestRef::Spike) => {
+            runner.run::<StateMmioProfile<ISA>, remu_simulator_spike::SimulatorSpike<StateMmioProfile<ISA>>>(
+                option, interrupt,
+            );
         }
     }
 }

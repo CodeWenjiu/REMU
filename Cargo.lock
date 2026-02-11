@@ -1442,6 +1442,7 @@ version = "0.1.0"
 dependencies = [
  "remu_debugger",
  "remu_harness",
+ "remu_simulator_spike",
  "remu_simulator_unicorn",
  "remu_state",
  "remu_types",
@@ -1557,6 +1558,15 @@ dependencies = [
  "target-lexicon",
  "thiserror",
  "tracing",
+]
+
+[[package]]
+name = "remu_simulator_spike"
+version = "0.1.0"
+dependencies = [
+ "remu_simulator",
+ "remu_state",
+ "remu_types",
 ]
 
 [[package]]

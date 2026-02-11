@@ -45,9 +45,20 @@
             clang
             libclang
             cmake
-            pkg-config
 
             mold
+
+            gnumake
+            gcc
+            autoconf
+            automake
+            libtool
+            pkg-config
+            dtc
+            bison
+            flex
+            python3
+            zlib
           ];
         };
       }
