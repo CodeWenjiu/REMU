@@ -72,6 +72,9 @@ unsafe extern "C" {
     /// Read one CSR by address (e.g. 0x300). Returns low 32 bits; 0 if not present.
     pub fn spike_difftest_get_csr(ctx: SpikeDifftestCtx, csr_addr: u16) -> u32;
 
+    /// Read one FPR by index (0..31). RV32F: 32-bit float bits. Only valid when ISA has F.
+    pub fn spike_difftest_get_fpr(ctx: SpikeDifftestCtx, index: usize) -> u32;
+
     pub fn spike_difftest_sync_regs_to_spike(ctx: SpikeDifftestCtx, regs: *const DifftestRegs);
 
     pub fn spike_difftest_fini(ctx: SpikeDifftestCtx);

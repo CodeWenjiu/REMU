@@ -20,6 +20,7 @@
 #include "simif.h"
 #include "trap.h"
 #include "decode.h"
+#include "decode_macros.h"
 #include "mmu.h"
 
 #include <cstdlib>
@@ -247,6 +248,13 @@ uint32_t spike_difftest_get_csr(spike_difftest_ctx_t* ctx, uint16_t csr_addr)
     if (!ctx || !ctx->proc) return 0;
     reg_t val = ctx->proc->get_csr(static_cast<int>(csr_addr));
     return static_cast<uint32_t>(val);
+}
+
+uint32_t spike_difftest_get_fpr(spike_difftest_ctx_t* ctx, size_t index)
+{
+    if (!ctx || !ctx->proc || index >= 32) return 0;
+    state_t* s = ctx->proc->get_state();
+    return static_cast<uint32_t>(unboxF32(s->FPR[index]));
 }
 
 void spike_difftest_sync_regs_to_spike(spike_difftest_ctx_t* ctx,

@@ -5,7 +5,7 @@ use std::os::raw::c_uint;
 use remu_state::bus::{BusOption, Memory, try_load_elf_into_memory};
 use remu_state::{State, StateCmd};
 use remu_types::isa::RvIsa;
-use remu_types::isa::reg::{Csr as CsrKind, Gpr, RegAccess};
+use remu_types::isa::reg::{Csr as CsrKind, Fpr, Gpr, RegAccess};
 use remu_types::{AllUsize, DifftestMismatchItem, RegGroup, TracerDyn, Xlen};
 
 use remu_simulator::{
@@ -13,10 +13,11 @@ use remu_simulator::{
 };
 
 use crate::ffi::{
-    spike_difftest_copy_mem, spike_difftest_fini, spike_difftest_get_csr, spike_difftest_get_gpr_ptr,
-    spike_difftest_get_pc_ptr, spike_difftest_init, spike_difftest_read_mem, spike_difftest_step,
-    spike_difftest_sync_regs_to_spike, spike_difftest_sync_mem, spike_difftest_write_mem,
-    DifftestMemLayout, DifftestRegs, SpikeDifftestCtx,
+    spike_difftest_copy_mem, spike_difftest_fini, spike_difftest_get_csr, spike_difftest_get_fpr,
+    spike_difftest_get_gpr_ptr, spike_difftest_get_pc_ptr, spike_difftest_init,
+    spike_difftest_read_mem, spike_difftest_step, spike_difftest_sync_regs_to_spike,
+    spike_difftest_sync_mem, spike_difftest_write_mem, DifftestMemLayout, DifftestRegs,
+    SpikeDifftestCtx,
 };
 
 pub struct SimulatorSpike<P: SimulatorPolicy> {
@@ -189,6 +190,24 @@ impl<P: SimulatorPolicy> SimulatorTrait<P, false> for SimulatorSpike<P> {
                     ref_val: AllUsize::U32(r),
                     dut_val: AllUsize::U32(d),
                 });
+            }
+        }
+
+        if P::ISA::HAS_F {
+            for i in 0..32 {
+                let r = unsafe { spike_difftest_get_fpr(ctx, i) };
+                let d = dut.reg.fpr.raw_read(i);
+                if r != d {
+                    let name = Fpr::from_repr(i)
+                        .map(|f| f.to_string())
+                        .unwrap_or_else(|| format!("f{i}"));
+                    out.push(DifftestMismatchItem {
+                        group: RegGroup::Fpr,
+                        name,
+                        ref_val: AllUsize::U32(r),
+                        dut_val: AllUsize::U32(d),
+                    });
+                }
             }
         }
 

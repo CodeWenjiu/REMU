@@ -103,6 +103,12 @@ const uint32_t* spike_difftest_get_gpr_ptr(spike_difftest_ctx_t* ctx);
 uint32_t spike_difftest_get_csr(spike_difftest_ctx_t* ctx, uint16_t csr_addr);
 
 /**
+ * Read one FPR from Spike by index (0..31).
+ * For RV32F, returns the 32-bit float bits. Only valid when ISA has F extension.
+ */
+uint32_t spike_difftest_get_fpr(spike_difftest_ctx_t* ctx, size_t index);
+
+/**
  * Sync regs to spike processor (for sync_from)
  */
 void spike_difftest_sync_regs_to_spike(spike_difftest_ctx_t* ctx,

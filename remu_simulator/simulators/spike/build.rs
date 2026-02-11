@@ -126,6 +126,7 @@ fn compile_wrapper(manifest_dir: &PathBuf, spike_src: &PathBuf, spike_build: &Pa
         .file(&wrapper_cc)
         .include(&src_dir)
         .include(spike_src.join("riscv"))
+        .include(spike_src.join("softfloat"))
         .include(spike_src.join("fesvr"))
         .include(spike_src)
         .include(spike_build)
