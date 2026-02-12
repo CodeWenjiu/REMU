@@ -6,10 +6,41 @@ use remu_simulator::{
     from_state_error,
 };
 
+use std::cell::Cell;
+use std::ptr;
+
 use crate::icache::Icache;
 use crate::riscv::inst::{decode, execute};
 
 const ICACHE_SIZE: usize = 1 << 16;
+
+thread_local! {
+    /// Icache pointer for fence.i (cold path only). Set by SimulatorRemu, cleared on drop.
+    static FENCE_I_ICACHE: Cell<*mut ()> = const { Cell::new(ptr::null_mut()) };
+}
+
+/// Called only from fence.i execution path. Flushes the thread-local Icache if set.
+#[inline(never)]
+pub(crate) fn fence_i_flush_icache() {
+    FENCE_I_ICACHE.with(|c| {
+        let p = c.get();
+        if !p.is_null() {
+            unsafe { (*p.cast::<Icache<ICACHE_SIZE>>()).flush() }
+        }
+    });
+}
+
+pub(crate) fn set_fence_i_icache(ptr: *mut ()) {
+    FENCE_I_ICACHE.with(|c| c.set(ptr));
+}
+
+pub(crate) fn clear_fence_i_icache(ptr: *mut ()) {
+    FENCE_I_ICACHE.with(|c| {
+        if c.get() == ptr {
+            c.set(ptr::null_mut());
+        }
+    });
+}
 
 pub struct SimulatorRemu<P: SimulatorPolicy, const IS_DUT: bool> {
     state: State<P>,
@@ -21,16 +52,24 @@ impl<P: SimulatorPolicy, const IS_DUT: bool> SimulatorPolicyOf for SimulatorRemu
     type Policy = P;
 }
 
+impl<P: SimulatorPolicy, const IS_DUT: bool> Drop for SimulatorRemu<P, IS_DUT> {
+    fn drop(&mut self) {
+        clear_fence_i_icache((&mut self.icache) as *mut _ as *mut ());
+    }
+}
+
 impl<P: SimulatorPolicy, const IS_DUT: bool> SimulatorTrait<P, IS_DUT>
     for SimulatorRemu<P, IS_DUT>
 {
     const ENABLE: bool = true;
 
     fn new(opt: SimulatorOption, tracer: TracerDyn) -> Self {
+        let mut icache = Icache::new();
+        set_fence_i_icache(&mut icache as *mut _ as *mut ());
         Self {
             state: State::new(opt.state.clone(), tracer.clone(), IS_DUT),
             tracer,
-            icache: Icache::new(),
+            icache,
         }
     }
 

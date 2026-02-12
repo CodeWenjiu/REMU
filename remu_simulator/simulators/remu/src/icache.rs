@@ -42,6 +42,14 @@ impl<const SIZE: usize> Icache<SIZE> {
         let i = Self::index(pc);
         unsafe { self.data.get_unchecked_mut(i) }
     }
+
+    /// Clears all entries (e.g. after fence.i). Next fetch will refill.
+    #[inline(never)]
+    pub fn flush(&mut self) {
+        for entry in self.data.iter_mut() {
+            entry.addr = INVALID_ADDR;
+        }
+    }
 }
 
 impl<const SIZE: usize> Default for Icache<SIZE> {
