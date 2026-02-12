@@ -36,22 +36,16 @@ where
 
     #[inline(always)]
     pub fn step_once(&mut self) -> Result<(), SimulatorError> {
-        self.dut_model
-            .step_once()
-            .map_err(SimulatorError::Dut)?;
+        self.dut_model.step_once().map_err(SimulatorError::Dut)?;
         if R::ENABLE {
             let event = self.dut_model.state_mut().bus.take_observer_event();
             match event {
                 ObserverEvent::None => {
-                    self.ref_model
-                        .step_once()
-                        .map_err(SimulatorError::Ref)?;
+                    self.ref_model.step_once().map_err(SimulatorError::Ref)?;
                     let dut_state = self.dut_model.state();
                     let diff = self.ref_model.regs_diff(dut_state);
                     if !diff.is_empty() {
-                        return Err(SimulatorError::Difftest(
-                            DifftestMismatchList(diff),
-                        ));
+                        return Err(SimulatorError::Difftest(DifftestMismatchList(diff)));
                     }
                 }
                 ObserverEvent::MmioiAccess => {
@@ -60,6 +54,19 @@ where
             }
         }
         Ok(())
+    }
+
+    /// Run up to `n` steps. When ref is enabled, does `n`× step_once (per-instruction difftest).
+    /// When ref is disabled, runs up to `n` instructions in the DUT simulator's inner loop.
+    pub fn step_n(&mut self, n: usize) -> Result<usize, SimulatorError> {
+        if R::ENABLE {
+            for _ in 0..n {
+                self.step_once()?;
+            }
+            Ok(n)
+        } else {
+            self.dut_model.step_n(n).map_err(SimulatorError::Dut)
+        }
     }
 
     pub fn func_exec(&mut self, subcmd: &FuncCmd) {

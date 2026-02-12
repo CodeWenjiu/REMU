@@ -1414,6 +1414,7 @@ dependencies = [
  "remu_simulator_remu",
  "remu_state",
  "remu_types",
+ "tracing",
 ]
 
 [[package]]

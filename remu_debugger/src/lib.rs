@@ -127,6 +127,7 @@ impl<P: HarnessPolicy, R: SimulatorTrait<P, false>> Debugger<P, R> {
             return Ok(());
         }
 
+        const BATCH: usize = 1024;
         let mut steps = 0usize;
         loop {
             if let Some(limit) = max_steps {
@@ -134,22 +135,25 @@ impl<P: HarnessPolicy, R: SimulatorTrait<P, false>> Debugger<P, R> {
                     return Ok(());
                 }
             }
-            if steps % 1024 == 0 {
-                if self.interrupt.load(Ordering::Relaxed) {
-                    self.interrupt.store(false, Ordering::Relaxed);
-                    return Err(DebuggerError::Interrupted);
-                }
+            if self.interrupt.load(Ordering::Relaxed) {
+                self.interrupt.store(false, Ordering::Relaxed);
+                return Err(DebuggerError::Interrupted);
             }
-            if let Err(e) = self.harness.step_once() {
-                if let SimulatorError::Dut(inner) = &e {
-                    if let SimulatorInnerError::ProgramExit(_code) = inner {
-                        self.run_state = RunState::Exit;
-                        return Ok(());
+            let to_run = max_steps
+                .map(|limit| (limit - steps).min(BATCH))
+                .unwrap_or(BATCH);
+            match self.harness.step_n(to_run) {
+                Ok(k) => steps += k,
+                Err(e) => {
+                    if let SimulatorError::Dut(inner) = &e {
+                        if let SimulatorInnerError::ProgramExit(_code) = inner {
+                            self.run_state = RunState::Exit;
+                            return Ok(());
+                        }
                     }
+                    return Err(DebuggerError::CommandExec(e));
                 }
-                return Err(DebuggerError::CommandExec(e));
             }
-            steps += 1;
         }
     }
 }

@@ -11,4 +11,6 @@ remu_macro = { path = "../remu_macro" }
 remu_simulator = { path = "../remu_simulator" }
 remu_simulator_remu = { path = "../remu_simulator/simulators/remu" }
 
+tracing.workspace = true
+
 clap = { workspace = true, features = [ "derive", "color" ] }
