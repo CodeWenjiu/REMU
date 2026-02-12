@@ -6,13 +6,17 @@ use remu_simulator::{
     from_state_error,
 };
 
+use crate::icache::{CacheEntry, Icache};
 use crate::riscv::inst::{decode, execute};
 use crate::{Func, FuncCmd};
+
+const ICACHE_SIZE: usize = 1 << 16;
 
 pub struct SimulatorRemu<P: SimulatorPolicy, const IS_DUT: bool> {
     state: State<P>,
     func: Func,
     tracer: TracerDyn,
+    icache: Icache<ICACHE_SIZE>,
 }
 
 impl<P: SimulatorPolicy, const IS_DUT: bool> SimulatorPolicyOf for SimulatorRemu<P, IS_DUT> {
@@ -29,6 +33,7 @@ impl<P: SimulatorPolicy, const IS_DUT: bool> SimulatorTrait<P, IS_DUT>
             state: State::new(opt.state.clone(), tracer.clone(), IS_DUT),
             func: Func::new(),
             tracer,
+            icache: Icache::new(),
         }
     }
 
@@ -43,15 +48,30 @@ impl<P: SimulatorPolicy, const IS_DUT: bool> SimulatorTrait<P, IS_DUT>
     #[inline(always)]
     fn step_once(&mut self) -> Result<(), SimulatorInnerError> {
         let pc = *self.state.reg.pc;
-        let inst = self
-            .state
-            .bus
-            .read_32(pc as usize)
-            .map_err(|e| from_state_error(StateError::from(e)))?;
-        if self.func.trace.instruction && IS_DUT {
-            self.tracer.borrow().disasm(pc as u64, inst);
-        }
-        let decoded = decode::<P>(inst);
+        let slot = self.icache.slot_mut(pc);
+        let decoded = match slot {
+            Some(entry) if entry.addr == pc => {
+                // Performence: Avoid Unnecessary data copy
+                execute(&mut self.state, &entry.decoded).map_err(from_state_error)?;
+                return Ok(());
+            }
+            _ => {
+                let inst = self
+                    .state
+                    .bus
+                    .read_32(pc as usize)
+                    .map_err(|e| from_state_error(StateError::from(e)))?;
+                if self.func.trace.instruction && IS_DUT {
+                    self.tracer.borrow().disasm(pc as u64, inst);
+                }
+                let d = decode::<P>(inst);
+                *slot = Some(CacheEntry {
+                    addr: pc,
+                    decoded: d,
+                });
+                d
+            }
+        };
         execute(&mut self.state, &decoded).map_err(from_state_error)?;
         Ok(())
     }
