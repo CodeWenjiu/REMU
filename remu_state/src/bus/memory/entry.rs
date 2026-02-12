@@ -2,7 +2,7 @@ use core::ops::Range;
 
 use thiserror::Error;
 
-use crate::bus::parse_usize_allow_hex_underscore;
+use crate::bus::parse::parse_usize_allow_hex_underscore;
 
 #[derive(Debug, Error, Clone, PartialEq, Eq)]
 pub enum MemFault {
@@ -20,11 +20,8 @@ pub enum MemFault {
     },
 }
 
-/// NOTE: `MemRegionSpec` is currently defined in this module so `BusOption` and `Memory` can share
-/// the same type without importing it from elsewhere.
-///
-/// If you later want to move option parsing into another crate, you can re-export this type (or a
-/// separate spec type) from a shared crate, and keep `Memory::new(spec)` unchanged.
+/// NOTE: `MemRegionSpec` is defined in the memory module so `BusOption` and `MemoryEntry` can
+/// share the same type without importing from elsewhere.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct MemRegionSpec {
     pub name: String,
@@ -50,8 +47,6 @@ impl std::str::FromStr for MemRegionSpec {
     type Err = String;
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
-        // Expected format: "<name>@<start>:<end>"
-        // Example: "ram1@0x8000_0000:0x8800_0000"
         let input = s.trim();
         if input.is_empty() {
             return Err("empty mem region spec".to_string());
@@ -99,35 +94,46 @@ pub enum AccessKind {
     Write,
 }
 
-/// A contiguous RAM-backed memory region.
-///
-/// This is a *region* (segment). Higher-level bus/address-space code can keep a `Vec<Memory>`
-/// and perform fast region lookup (binary search, page table, last-hit cache, etc.).
+/// Page size used by D-cache; memory regions must be page-aligned and sized in whole pages.
+pub const PAGE_SIZE: usize = 4096;
+
+/// A contiguous RAM-backed memory region (one segment). The bus keeps a list of `MemoryEntry`
+/// and uses last-hit + D-cache for fast lookup.
 #[derive(Debug)]
-pub struct Memory {
+pub struct MemoryEntry {
     pub name: String,
     pub range: Range<usize>,
     storage: Box<[u8]>,
 }
 
-impl Memory {
-    /// Create a RAM-backed region from a `MemRegionSpec`.
-    ///
-    /// Allocates `size` bytes of zero-filled RAM.
-    ///
-    /// NOTE: Multi-byte reads/writes are currently always little-endian.
+impl MemoryEntry {
+    /// Creates a RAM-backed region from a `MemRegionSpec`. Allocates zero-filled RAM.
     pub fn new(region: MemRegionSpec) -> Result<Self, MemFault> {
         let start = region.region.start;
         let end = region.region.end;
 
         if end < start {
-            // This should be impossible with parsing, but keep it defensive.
             return Err(MemFault::RangeOverflow {
                 name: region.name.clone(),
             });
         }
 
         let size = end - start;
+
+        assert!(
+            start % PAGE_SIZE == 0,
+            "memory region '{}' start 0x{:x} must be page-aligned (page size {})",
+            region.name,
+            start,
+            PAGE_SIZE
+        );
+        assert!(
+            size % PAGE_SIZE == 0,
+            "memory region '{}' size {} must be a multiple of page size {}",
+            region.name,
+            size,
+            PAGE_SIZE
+        );
 
         if size < MemRegionSpec::MIN_REGION_SIZE {
             return Err(MemFault::RegionTooSmall {
@@ -142,8 +148,6 @@ impl Memory {
             size,
         })?;
 
-        // NOTE: this allocates and zero-fills. If you later want faster init for huge RAM,
-        // consider an mmap-backed implementation.
         let storage = vec![0u8; size_usize].into_boxed_slice();
 
         Ok(Self {
@@ -171,10 +175,15 @@ impl Memory {
         )
     }
 
-    /// Returns whether `addr` is contained in this region.
     #[inline(always)]
     pub fn contains(&self, range: Range<usize>) -> bool {
         (range.start >= self.range.start) && (range.end <= self.range.end)
+    }
+
+    #[inline(always)]
+    pub(crate) fn ptr_at_addr(&mut self, addr: usize) -> *mut u8 {
+        let off = addr - self.range.start;
+        unsafe { self.storage.as_mut_ptr().add(off) }
     }
 
     #[inline(always)]
@@ -184,50 +193,34 @@ impl Memory {
 
     #[inline(always)]
     pub fn read_16(&mut self, addr: usize) -> u16 {
-        // SAFETY: `checked_range_rel` guarantees `[r.start, r.start+2)` is in-bounds.
-        // We keep correct unaligned semantics, but add a faster aligned path.
         let off = addr - self.range.start;
         let p = unsafe { self.storage.as_ptr().add(off) as *const u16 };
-        let raw = unsafe { p.read_unaligned() };
-        u16::from_le(raw)
+        u16::from_le(unsafe { p.read_unaligned() })
     }
 
     #[inline(always)]
     pub fn read_32(&mut self, addr: usize) -> u32 {
-        // SAFETY: `checked_range_rel` guarantees `[r.start, r.start+4)` is in-bounds.
-        // We keep correct unaligned semantics, but add a faster aligned path.
         let off = addr - self.range.start;
         let p = unsafe { self.storage.as_ptr().add(off) as *const u32 };
-        let raw = unsafe { p.read_unaligned() };
-        u32::from_le(raw)
+        u32::from_le(unsafe { p.read_unaligned() })
     }
 
     #[inline(always)]
     pub fn read_64(&mut self, addr: usize) -> u64 {
-        // SAFETY: `checked_range_rel` guarantees `[r.start, r.start+8)` is in-bounds.
-        // We keep correct unaligned semantics, but add a faster aligned path.
         let off = addr - self.range.start;
         let p = unsafe { self.storage.as_ptr().add(off) as *const u64 };
-        let raw = unsafe { p.read_unaligned() };
-        u64::from_le(raw)
+        u64::from_le(unsafe { p.read_unaligned() })
     }
 
     #[inline(always)]
     pub fn read_128(&mut self, addr: usize) -> u128 {
-        // SAFETY: `checked_range_rel` guarantees `[r.start, r.start+16)` is in-bounds.
-        // We keep correct unaligned semantics, but add a faster aligned path.
         let off = addr - self.range.start;
         let p = unsafe { self.storage.as_ptr().add(off) as *const u128 };
-        let raw = unsafe { p.read_unaligned() };
-        u128::from_le(raw)
+        u128::from_le(unsafe { p.read_unaligned() })
     }
 
     #[inline(always)]
     pub fn read_bytes(&mut self, addr: usize, buf: &mut [u8]) {
-        // SAFETY:
-        // - `checked_range_rel` guarantees `[r.start, r.start + buf.len())` is in-bounds.
-        // - `buf` is a valid writable slice of length `buf.len()`.
-        // - Source and destination do not overlap (storage and `buf` are distinct allocations).
         unsafe {
             core::ptr::copy_nonoverlapping(
                 self.storage.as_ptr().add(addr - self.range.start),
@@ -239,57 +232,39 @@ impl Memory {
 
     #[inline(always)]
     pub fn write_8(&mut self, addr: usize, value: u8) {
-        unsafe {
-            *self.storage.get_unchecked_mut(addr - self.range.start) = value;
-        }
+        unsafe { *self.storage.get_unchecked_mut(addr - self.range.start) = value };
     }
 
     #[inline(always)]
     pub fn write_16(&mut self, addr: usize, value: u16) {
-        // SAFETY: `checked_range_rel` guarantees `[r.start, r.start+2)` is in-bounds.
-        // We keep correct unaligned semantics, but add a faster aligned path.
         let off = addr - self.range.start;
         let p = unsafe { self.storage.as_mut_ptr().add(off) as *mut u16 };
-        let le = value.to_le();
-        unsafe { p.write_unaligned(le) };
+        unsafe { p.write_unaligned(value.to_le()) };
     }
 
     #[inline(always)]
     pub fn write_32(&mut self, addr: usize, value: u32) {
-        // SAFETY: `checked_range_rel` guarantees `[r.start, r.start+4)` is in-bounds.
-        // We keep correct unaligned semantics, but add a faster aligned path.
         let off = addr - self.range.start;
         let p = unsafe { self.storage.as_mut_ptr().add(off) as *mut u32 };
-        let le = value.to_le();
-        unsafe { p.write_unaligned(le) };
+        unsafe { p.write_unaligned(value.to_le()) };
     }
 
     #[inline(always)]
     pub fn write_64(&mut self, addr: usize, value: u64) {
-        // SAFETY: `checked_range_rel` guarantees `[r.start, r.start+8)` is in-bounds.
-        // We keep correct unaligned semantics, but add a faster aligned path.
         let off = addr - self.range.start;
         let p = unsafe { self.storage.as_mut_ptr().add(off) as *mut u64 };
-        let le = value.to_le();
-        unsafe { p.write_unaligned(le) };
+        unsafe { p.write_unaligned(value.to_le()) };
     }
 
     #[inline(always)]
     pub fn write_128(&mut self, addr: usize, value: u128) {
-        // SAFETY: `checked_range_rel` guarantees `[r.start, r.start+16)` is in-bounds.
-        // We keep correct unaligned semantics, but add a faster aligned path.
         let off = addr - self.range.start;
         let p = unsafe { self.storage.as_mut_ptr().add(off) as *mut u128 };
-        let le = value.to_le();
-        unsafe { p.write_unaligned(le) };
+        unsafe { p.write_unaligned(value.to_le()) };
     }
 
     #[inline(always)]
     pub fn write_bytes(&mut self, addr: usize, buf: &[u8]) {
-        // SAFETY:
-        // - `checked_range_rel` guarantees `[r.start, r.start + buf.len())` is in-bounds.
-        // - `buf` is a valid readable slice of length `buf.len()`.
-        // - Source and destination do not overlap (storage and `buf` are distinct allocations).
         unsafe {
             core::ptr::copy_nonoverlapping(
                 buf.as_ptr(),

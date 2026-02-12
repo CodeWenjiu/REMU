@@ -1,22 +1,22 @@
 remu_macro::mod_flat!(
-    error, command, option, parse, memory, access, observer, elf_loader
+    error, command, option, parse, access, observer
 );
 
-remu_macro::mod_pub!(device);
+remu_macro::mod_pub!(device, memory);
 
 use std::{marker::PhantomData, ops::Range};
 
-pub use elf_loader::try_load_elf_into_memory;
-pub use memory::{MemRegionSpec, Memory};
+pub use memory::{
+    AccessKind, MemFault, MemRegionSpec, Memory, MemoryEntry, try_load_elf_into_memory,
+};
 pub use observer::ObserverEvent;
 use remu_types::{AllUsize, DynDiagError, isa::RvIsa};
 
 use crate::bus::device::{DeviceAccess, get_device};
 
 pub struct Bus<I: RvIsa, O: BusObserver> {
-    memory: Box<[Memory]>,
+    memory: Memory,
     device: Box<[(usize, Box<dyn DeviceAccess>)]>,
-    last_hit: Option<usize>,
     tracer: remu_types::TracerDyn,
     observer: O,
     _marker: PhantomData<I>,
@@ -25,7 +25,7 @@ pub struct Bus<I: RvIsa, O: BusObserver> {
 impl<I: RvIsa, O: BusObserver> Bus<I, O> {
     pub(crate) fn new(opt: BusOption, tracer: remu_types::TracerDyn, is_dut: bool) -> Self {
         let prefix = if is_dut { "[DUT]" } else { "[REF]" };
-        let memory: Vec<Memory> = opt
+        let entries: Vec<MemoryEntry> = opt
             .mem
             .into_iter()
             .map(|region| {
@@ -36,14 +36,13 @@ impl<I: RvIsa, O: BusObserver> Bus<I, O> {
                     region.region.start,
                     region.region.end
                 );
-                Memory::new(region)
+                MemoryEntry::new(region)
                     .expect("invalid memory region spec (should be validated before Bus::new)")
             })
             .collect();
 
-        let mut memory = memory.into_boxed_slice();
-
-        try_load_elf_into_memory(&mut memory, &opt.elf, &tracer);
+        let mut memory = Memory::new(entries.into_boxed_slice());
+        memory.try_load_elf(&opt.elf, &tracer);
 
         let device: Vec<(usize, Box<dyn DeviceAccess>)> = if is_dut {
             opt.devices
@@ -68,7 +67,6 @@ impl<I: RvIsa, O: BusObserver> Bus<I, O> {
         Self {
             memory,
             device: device.into_boxed_slice(),
-            last_hit: None,
             tracer,
             observer: O::new(),
             _marker: PhantomData,
@@ -82,6 +80,7 @@ impl<I: RvIsa, O: BusObserver> Bus<I, O> {
 
     pub fn mem_regions_for_difftest(&mut self) -> Vec<(usize, *mut u8, usize)> {
         self.memory
+            .entries_mut()
             .iter_mut()
             .map(|m| m.difftest_raw_region())
             .collect()
@@ -89,46 +88,18 @@ impl<I: RvIsa, O: BusObserver> Bus<I, O> {
 
     pub fn mem_regions_for_sync(&self) -> Vec<(usize, *const u8, usize)> {
         self.memory
+            .entries()
             .iter()
             .map(|m| m.difftest_raw_region_read())
             .collect()
     }
 
     pub fn write_bytes_at(&mut self, addr: usize, data: &[u8]) -> Result<(), crate::bus::BusError> {
-        if let Some(m) = self.find_memory_mut(addr..addr + data.len()) {
-            m.write_bytes(addr, data);
+        if self.memory.write_bytes(addr, data).is_some() {
             Ok(())
         } else {
             Err(crate::bus::BusError::unmapped(addr))
         }
-    }
-
-    #[inline(always)]
-    fn find_memory_mut(&mut self, range: Range<usize>) -> Option<&mut Memory> {
-        // Fast path: check last hit first.
-        if let Some(i) = self.last_hit {
-            // SAFETY: i must be a valid index into self.memory.
-            if unsafe { self.memory.get_unchecked(i).contains(range.clone()) } {
-                return Some(&mut self.memory[i]);
-            }
-        }
-
-        // Slow path: scan all regions.
-        self.find_memory_mut_slow(range)
-    }
-
-    #[inline(always)]
-    fn find_memory_mut_slow(&mut self, range: Range<usize>) -> Option<&mut Memory> {
-        // First match wins. If you later allow overlapping regions, you must define priority.
-        // For now, regions are expected to be non-overlapping.
-        for (i, m) in self.memory.iter_mut().enumerate() {
-            if m.contains(range.clone()) {
-                self.last_hit = Some(i);
-                return Some(m);
-            }
-        }
-
-        None
     }
 
     fn find_device_mut(
@@ -197,6 +168,7 @@ impl<I: RvIsa, O: BusObserver> Bus<I, O> {
             BusCmd::MemMap => {
                 self.tracer.borrow().mem_show_map(
                     self.memory
+                        .entries()
                         .iter()
                         .map(|m| (m.name.clone(), m.range.clone()))
                         .chain(

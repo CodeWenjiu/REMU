@@ -2,7 +2,7 @@ use std::ffi::CString;
 use std::marker::PhantomData;
 use std::os::raw::c_uint;
 
-use remu_state::bus::{BusOption, Memory, try_load_elf_into_memory};
+use remu_state::bus::{BusOption, MemoryEntry, try_load_elf_into_memory};
 use remu_state::{State, StateCmd};
 use remu_types::isa::RvIsa;
 use remu_types::isa::reg::{Csr as CsrKind, Fpr, Gpr, RegAccess};
@@ -37,11 +37,11 @@ impl<P: SimulatorPolicy> SimulatorTrait<P, false> for SimulatorSpike<P> {
     fn new(opt: SimulatorOption, tracer: TracerDyn) -> Self {
         let bus_option = opt.state.bus.clone();
 
-        let mut memory: Vec<Memory> = bus_option
+        let mut memory: Vec<MemoryEntry> = bus_option
             .mem
             .iter()
             .map(|region| {
-                Memory::new(region.clone())
+                MemoryEntry::new(region.clone())
                     .expect("invalid memory region spec (should be validated before)")
             })
             .collect();

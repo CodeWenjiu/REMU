@@ -1,24 +1,18 @@
 use object::{Object as _, ObjectSegment as _};
 
-use crate::bus::Memory;
+use super::entry::MemoryEntry;
 
+/// Best-effort load an ELF file into the given memory entries. ELF can only be loaded into
+/// RAM (memory entries), never into devices.
 pub fn try_load_elf_into_memory(
-    memory: &mut [Memory],
+    memory: &mut [MemoryEntry],
     elf: &Option<std::path::PathBuf>,
     tracer: &remu_types::TracerDyn,
 ) {
-    // Optional ELF loading: best-effort only.
-    //
-    // Behavior:
-    // - If --elf is not provided: do nothing.
-    // - If provided but missing/unreadable/invalid: print a message via tracer and continue.
-    // - If valid ELF but no mapped region can contain it at its start address: print message and continue.
-    // - If it fits: copy bytes into the matching region.
     let Some(path) = elf.as_ref() else {
         return;
     };
 
-    // Even though clap validates this today, keep behavior robust for programmatic uses.
     if !path.exists() {
         tracer
             .borrow()
@@ -53,12 +47,6 @@ pub fn try_load_elf_into_memory(
         }
     };
 
-    // Compute the overall loaded image range based on segment VAs:
-    // start = min(seg.address)
-    // end   = max(seg.address + seg.size)
-    //
-    // NOTE: We don't try to interpret "loadable" flags here; we just use the
-    // segments() iterator as exposed by the object crate.
     let mut any_seg = false;
     let mut start: u64 = u64::MAX;
     let mut end: u64 = 0;
@@ -85,7 +73,6 @@ pub fn try_load_elf_into_memory(
     let end_usize = end as usize;
     let total_len = end_usize.saturating_sub(start_usize);
 
-    // Find a mapped memory region that can contain [start, end).
     let mut region_idx: Option<usize> = None;
     for (i, m) in memory.iter().enumerate() {
         if start_usize >= m.range.start && end_usize <= m.range.end {
@@ -105,10 +92,7 @@ pub fn try_load_elf_into_memory(
         return;
     };
 
-    // Copy each segment's file-backed bytes into memory at segment VA.
     for seg in obj.segments() {
-        // seg.data() returns the bytes present in the file for the segment.
-        // (This corresponds to filesz; BSS will typically not be included.)
         let seg_bytes = match seg.data() {
             Ok(b) => b,
             Err(err) => {
