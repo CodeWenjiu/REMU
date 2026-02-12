@@ -38,10 +38,11 @@ pub(crate) fn decode<P: remu_state::StatePolicy>(inst: u32) -> DecodedInst {
 }
 
 #[inline(always)]
-pub(crate) fn execute<P: remu_state::StatePolicy>(
-    state: &mut remu_state::State<P>,
+pub(crate) fn execute<P: remu_state::StatePolicy, C: crate::ExecuteContext<P>>(
+    ctx: &mut C,
     decoded: &DecodedInst,
 ) -> Result<(), remu_state::StateError> {
+    let state = ctx.state_mut();
     let Inst::Store(store) = decoded.inst else { unreachable!() };
     let rs1_val = state.reg.gpr.raw_read(decoded.rs1.into());
     let addr = rs1_val.wrapping_add(decoded.imm);

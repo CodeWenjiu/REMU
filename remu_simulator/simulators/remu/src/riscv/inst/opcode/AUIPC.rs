@@ -17,10 +17,11 @@ pub(crate) fn decode<P: remu_state::StatePolicy>(inst: u32) -> DecodedInst {
 }
 
 #[inline(always)]
-pub(crate) fn execute<P: remu_state::StatePolicy>(
-    state: &mut remu_state::State<P>,
+pub(crate) fn execute<P: remu_state::StatePolicy, C: crate::ExecuteContext<P>>(
+    ctx: &mut C,
     decoded: &DecodedInst,
 ) -> Result<(), remu_state::StateError> {
+    let state = ctx.state_mut();
     let value: u32 = state.reg.pc.wrapping_add(decoded.imm);
     state.reg.gpr.raw_write(decoded.rd.into(), value);
     *state.reg.pc = state.reg.pc.wrapping_add(4);

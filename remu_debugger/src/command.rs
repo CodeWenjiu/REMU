@@ -71,12 +71,6 @@ pub enum Command {
         subcmd: StateCmd,
     },
 
-    /// Ref State Command
-    RefState {
-        #[command(subcommand)]
-        subcmd: StateCmd,
-    },
-
     /// Quit the debugger
     Quit,
 }

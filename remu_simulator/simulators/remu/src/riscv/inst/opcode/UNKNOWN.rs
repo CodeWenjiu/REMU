@@ -17,10 +17,11 @@ pub(crate) fn decode<P: remu_state::StatePolicy>(_inst: u32) -> DecodedInst {
 }
 
 #[inline(always)]
-pub(crate) fn execute<P: remu_state::StatePolicy>(
-    state: &mut remu_state::State<P>,
+pub(crate) fn execute<P: remu_state::StatePolicy, C: crate::ExecuteContext<P>>(
+    ctx: &mut C,
     _decoded: &DecodedInst,
 ) -> Result<(), remu_state::StateError> {
+    let state = ctx.state_mut();
     let fault_pc = *state.reg.pc;
     state.reg.csr.mepc = fault_pc;
     state.reg.csr.mcause = Mcause::IllegalInstruction.to_u32();

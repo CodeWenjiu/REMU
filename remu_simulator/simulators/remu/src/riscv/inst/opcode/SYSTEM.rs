@@ -63,10 +63,11 @@ fn do_csr<P: remu_state::StatePolicy>(
 }
 
 #[inline(always)]
-pub(crate) fn execute<P: remu_state::StatePolicy>(
-    state: &mut remu_state::State<P>,
+pub(crate) fn execute<P: remu_state::StatePolicy, C: crate::ExecuteContext<P>>(
+    ctx: &mut C,
     decoded: &DecodedInst,
 ) -> Result<(), remu_state::StateError> {
+    let state = ctx.state_mut();
     let Inst::System(sys) = decoded.inst else { unreachable!() };
     let k = CsrKind::from_repr((decoded.imm & 0xFFF) as u16).unwrap();
     let old = state.reg.read_csr(k);

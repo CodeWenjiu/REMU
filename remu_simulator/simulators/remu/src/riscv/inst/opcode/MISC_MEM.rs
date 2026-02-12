@@ -23,13 +23,14 @@ pub(crate) fn decode<P: remu_state::StatePolicy>(inst: u32) -> DecodedInst {
 }
 
 #[inline(always)]
-pub(crate) fn execute<P: remu_state::StatePolicy>(
-    state: &mut remu_state::State<P>,
+pub(crate) fn execute<P: remu_state::StatePolicy, C: crate::ExecuteContext<P>>(
+    ctx: &mut C,
     decoded: &DecodedInst,
 ) -> Result<(), remu_state::StateError> {
     if matches!(decoded.inst, Inst::FenceI) {
-        crate::fence_i_flush_icache();
+        ctx.flush_icache();
     }
+    let state = ctx.state_mut();
     *state.reg.pc = state.reg.pc.wrapping_add(4);
     Ok(())
 }

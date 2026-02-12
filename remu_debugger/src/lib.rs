@@ -111,12 +111,6 @@ impl<P: HarnessPolicy, R: SimulatorTrait<P, false>> Debugger<P, R> {
                     return Ok(false);
                 }
             }
-            Command::RefState { subcmd } => {
-                if let Err(e) = self.harness.ref_state_exec(subcmd) {
-                    eprintln!("{}", e);
-                    return Ok(false);
-                }
-            }
             Command::Quit => return Err(DebuggerError::ExitRequested),
         }
         Ok(true)

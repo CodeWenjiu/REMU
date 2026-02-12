@@ -6,40 +6,17 @@ use remu_simulator::{
     from_state_error,
 };
 
-use std::cell::Cell;
-use std::ptr;
-
 use crate::icache::Icache;
-use crate::riscv::inst::{decode, execute};
+use crate::riscv::inst::decode;
+use remu_state::StatePolicy;
 
 const ICACHE_SIZE: usize = 1 << 16;
 
-thread_local! {
-    /// Icache pointer for fence.i (cold path only). Set by SimulatorRemu, cleared on drop.
-    static FENCE_I_ICACHE: Cell<*mut ()> = const { Cell::new(ptr::null_mut()) };
-}
-
-/// Called only from fence.i execution path. Flushes the thread-local Icache if set.
-#[inline(never)]
-pub(crate) fn fence_i_flush_icache() {
-    FENCE_I_ICACHE.with(|c| {
-        let p = c.get();
-        if !p.is_null() {
-            unsafe { (*p.cast::<Icache<ICACHE_SIZE>>()).flush() }
-        }
-    });
-}
-
-pub(crate) fn set_fence_i_icache(ptr: *mut ()) {
-    FENCE_I_ICACHE.with(|c| c.set(ptr));
-}
-
-pub(crate) fn clear_fence_i_icache(ptr: *mut ()) {
-    FENCE_I_ICACHE.with(|c| {
-        if c.get() == ptr {
-            c.set(ptr::null_mut());
-        }
-    });
+/// Execution context for decode+execute: provides state and optional icache flush (fence.i).
+pub(crate) trait ExecuteContext<P: StatePolicy> {
+    fn state_mut(&mut self) -> &mut State<P>;
+    #[inline]
+    fn flush_icache(&mut self) {}
 }
 
 pub struct SimulatorRemu<P: SimulatorPolicy, const IS_DUT: bool> {
@@ -52,9 +29,22 @@ impl<P: SimulatorPolicy, const IS_DUT: bool> SimulatorPolicyOf for SimulatorRemu
     type Policy = P;
 }
 
-impl<P: SimulatorPolicy, const IS_DUT: bool> Drop for SimulatorRemu<P, IS_DUT> {
-    fn drop(&mut self) {
-        clear_fence_i_icache((&mut self.icache) as *mut _ as *mut ());
+impl<P: SimulatorPolicy, const IS_DUT: bool> ExecuteContext<P> for SimulatorRemu<P, IS_DUT> {
+    fn state_mut(&mut self) -> &mut State<P> {
+        SimulatorTrait::state_mut(self)
+    }
+    fn flush_icache(&mut self) {
+        self.icache.flush();
+    }
+}
+
+impl<P: SimulatorPolicy, const IS_DUT: bool> SimulatorRemu<P, IS_DUT> {
+    #[inline(always)]
+    fn execute_inst(
+        &mut self,
+        decoded: &crate::riscv::inst::DecodedInst,
+    ) -> Result<(), StateError> {
+        crate::riscv::inst::execute(self, decoded)
     }
 }
 
@@ -64,12 +54,10 @@ impl<P: SimulatorPolicy, const IS_DUT: bool> SimulatorTrait<P, IS_DUT>
     const ENABLE: bool = true;
 
     fn new(opt: SimulatorOption, tracer: TracerDyn) -> Self {
-        let mut icache = Icache::new();
-        set_fence_i_icache(&mut icache as *mut _ as *mut ());
         Self {
             state: State::new(opt.state.clone(), tracer.clone(), IS_DUT),
             tracer,
-            icache,
+            icache: Icache::new(),
         }
     }
 
@@ -86,7 +74,8 @@ impl<P: SimulatorPolicy, const IS_DUT: bool> SimulatorTrait<P, IS_DUT>
         let pc = *self.state.reg.pc;
         let entry = self.icache.get_entry_mut(pc);
         if entry.addr == pc {
-            execute(&mut self.state, &entry.decoded).map_err(from_state_error)?;
+            let decoded = entry.decoded;
+            self.execute_inst(&decoded).map_err(from_state_error)?;
             if ITRACE && IS_DUT {
                 let inst = self
                     .state
@@ -109,7 +98,7 @@ impl<P: SimulatorPolicy, const IS_DUT: bool> SimulatorTrait<P, IS_DUT>
         let d = decode::<P>(inst);
         entry.addr = pc;
         entry.decoded = d;
-        execute(&mut self.state, &d).map_err(from_state_error)?;
+        self.execute_inst(&d).map_err(from_state_error)?;
         Ok(())
     }
 
@@ -119,7 +108,8 @@ impl<P: SimulatorPolicy, const IS_DUT: bool> SimulatorTrait<P, IS_DUT>
             let pc = *self.state.reg.pc;
             let entry = self.icache.get_entry_mut(pc);
             if entry.addr == pc {
-                execute(&mut self.state, &entry.decoded).map_err(from_state_error)?;
+                let decoded = entry.decoded;
+                self.execute_inst(&decoded).map_err(from_state_error)?;
                 executed += 1;
                 if ITRACE && IS_DUT {
                     let inst = self
@@ -143,7 +133,7 @@ impl<P: SimulatorPolicy, const IS_DUT: bool> SimulatorTrait<P, IS_DUT>
             let d = decode::<P>(inst);
             entry.addr = pc;
             entry.decoded = d;
-            execute(&mut self.state, &d).map_err(from_state_error)?;
+            self.execute_inst(&d).map_err(from_state_error)?;
             executed += 1;
         }
         Ok(executed)

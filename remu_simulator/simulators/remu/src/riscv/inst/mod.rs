@@ -1,6 +1,6 @@
 #![allow(non_snake_case)]
 
-use remu_state::{State, StateError, StatePolicy};
+use remu_state::{StateError, StatePolicy};
 
 remu_macro::mod_pub!(opcode);
 remu_macro::mod_flat!(bytes);
@@ -57,23 +57,23 @@ pub fn decode<P: StatePolicy>(inst: u32) -> DecodedInst {
 }
 
 #[inline(always)]
-pub fn execute<P: StatePolicy>(
-    state: &mut State<P>,
+pub(crate) fn execute<P: StatePolicy, C: crate::ExecuteContext<P>>(
+    ctx: &mut C,
     decoded: &DecodedInst,
 ) -> Result<(), StateError> {
     match decoded.inst {
-        Inst::Lui => LUI::execute(state, decoded),
-        Inst::Auipc => AUIPC::execute(state, decoded),
-        Inst::Jal => JAL::execute(state, decoded),
-        Inst::Jalr => JALR::execute(state, decoded),
-        Inst::Branch(..) => BRANCH::execute(state, decoded),
-        Inst::OpImm(..) => OP_IMM::execute(state, decoded),
-        Inst::Op(..) => OP::execute(state, decoded),
-        Inst::Load(..) => LOAD::execute(state, decoded),
-        Inst::Store(..) => STORE::execute(state, decoded),
-        Inst::Fence | Inst::FenceI => MISC_MEM::execute(state, decoded),
-        Inst::System(..) => SYSTEM::execute(state, decoded),
-        Inst::Unknown => UNKNOWN::execute(state, decoded),
+        Inst::Lui => LUI::execute(ctx, decoded),
+        Inst::Auipc => AUIPC::execute(ctx, decoded),
+        Inst::Jal => JAL::execute(ctx, decoded),
+        Inst::Jalr => JALR::execute(ctx, decoded),
+        Inst::Branch(..) => BRANCH::execute(ctx, decoded),
+        Inst::OpImm(..) => OP_IMM::execute(ctx, decoded),
+        Inst::Op(..) => OP::execute(ctx, decoded),
+        Inst::Load(..) => LOAD::execute(ctx, decoded),
+        Inst::Store(..) => STORE::execute(ctx, decoded),
+        Inst::Fence | Inst::FenceI => MISC_MEM::execute(ctx, decoded),
+        Inst::System(..) => SYSTEM::execute(ctx, decoded),
+        Inst::Unknown => UNKNOWN::execute(ctx, decoded),
     }
 }
 
