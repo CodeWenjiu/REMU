@@ -6,7 +6,7 @@ use remu_simulator::{
     from_state_error,
 };
 
-use crate::icache::{CacheEntry, Icache};
+use crate::icache::Icache;
 use crate::riscv::inst::{decode, execute};
 use crate::{Func, FuncCmd};
 
@@ -48,31 +48,23 @@ impl<P: SimulatorPolicy, const IS_DUT: bool> SimulatorTrait<P, IS_DUT>
     #[inline(always)]
     fn step_once(&mut self) -> Result<(), SimulatorInnerError> {
         let pc = *self.state.reg.pc;
-        let slot = self.icache.slot_mut(pc);
-        let decoded = match slot {
-            Some(entry) if entry.addr == pc => {
-                // Performence: Avoid Unnecessary data copy
-                execute(&mut self.state, &entry.decoded).map_err(from_state_error)?;
-                return Ok(());
-            }
-            _ => {
-                let inst = self
-                    .state
-                    .bus
-                    .read_32(pc as usize)
-                    .map_err(|e| from_state_error(StateError::from(e)))?;
-                if self.func.trace.instruction && IS_DUT {
-                    self.tracer.borrow().disasm(pc as u64, inst);
-                }
-                let d = decode::<P>(inst);
-                *slot = Some(CacheEntry {
-                    addr: pc,
-                    decoded: d,
-                });
-                d
-            }
-        };
-        execute(&mut self.state, &decoded).map_err(from_state_error)?;
+        let entry = self.icache.get_entry_mut(pc);
+        if entry.addr == pc {
+            execute(&mut self.state, &entry.decoded).map_err(from_state_error)?;
+            return Ok(());
+        }
+        let inst = self
+            .state
+            .bus
+            .read_32(pc as usize)
+            .map_err(|e| from_state_error(StateError::from(e)))?;
+        if self.func.trace.instruction && IS_DUT {
+            self.tracer.borrow().disasm(pc as u64, inst);
+        }
+        let d = decode::<P>(inst);
+        entry.addr = pc;
+        entry.decoded = d;
+        execute(&mut self.state, &d).map_err(from_state_error)?;
         Ok(())
     }
 

@@ -1,6 +1,9 @@
 use crate::riscv::inst::DecodedInst;
 
-/// I-cache entry: fetch address and decoded instruction.
+/// Sentinel for empty slot. No valid fetch PC equals this (e.g. top of 32-bit space).
+pub(crate) const INVALID_ADDR: u32 = u32::MAX;
+
+/// I-cache entry: fetch address and decoded instruction. Empty slot = addr == INVALID_ADDR.
 #[derive(Clone, Copy)]
 pub struct CacheEntry {
     pub(crate) addr: u32,
@@ -8,8 +11,9 @@ pub struct CacheEntry {
 }
 
 /// Instruction cache. `SIZE` must be a power of 2 so that index `(pc as usize) & (SIZE - 1)` is in bounds.
+/// No Option: invalid slot is represented by CacheEntry { addr: INVALID_ADDR, .. }.
 pub struct Icache<const SIZE: usize> {
-    data: Box<[Option<CacheEntry>; SIZE]>,
+    data: Box<[CacheEntry; SIZE]>,
 }
 
 impl<const SIZE: usize> Icache<SIZE> {
@@ -20,7 +24,10 @@ impl<const SIZE: usize> Icache<SIZE> {
             "Icache SIZE must be a power of 2"
         );
         Self {
-            data: Box::new([None; SIZE]),
+            data: Box::new([CacheEntry {
+                addr: INVALID_ADDR,
+                decoded: DecodedInst::default(),
+            }; SIZE]),
         }
     }
 
@@ -29,9 +36,9 @@ impl<const SIZE: usize> Icache<SIZE> {
         (pc as usize) & (SIZE - 1)
     }
 
-    /// Returns the slot for `pc`. Index is in `0..SIZE` when SIZE is a power of 2.
+    /// Returns the entry for `pc`. Caller checks entry.addr == pc for hit.
     #[inline(always)]
-    pub fn slot_mut(&mut self, pc: u32) -> &mut Option<CacheEntry> {
+    pub fn get_entry_mut(&mut self, pc: u32) -> &mut CacheEntry {
         let i = Self::index(pc);
         unsafe { self.data.get_unchecked_mut(i) }
     }
