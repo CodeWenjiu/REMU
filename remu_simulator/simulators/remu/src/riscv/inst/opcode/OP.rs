@@ -1,4 +1,4 @@
-use std::{hint::unreachable_unchecked, marker::PhantomData};
+use std::hint::unreachable_unchecked;
 
 use remu_types::isa::{RvIsa, reg::RegAccess};
 
@@ -71,7 +71,7 @@ pub(crate) enum OpInst {
 }
 
 #[inline(always)]
-pub(crate) fn decode<P: remu_state::StatePolicy>(inst: u32) -> DecodedInst<P> {
+pub(crate) fn decode<P: remu_state::StatePolicy>(inst: u32) -> DecodedInst {
     let f3 = funct3(inst);
     let f7 = funct7(inst);
     let rd = rd(inst);
@@ -113,14 +113,13 @@ pub(crate) fn decode<P: remu_state::StatePolicy>(inst: u32) -> DecodedInst<P> {
         rs2,
         imm: 0,
         inst: Inst::Op(op),
-        _marker: PhantomData,
     }
 }
 
 #[inline(always)]
 pub(crate) fn execute<P: remu_state::StatePolicy>(
     state: &mut remu_state::State<P>,
-    decoded: &DecodedInst<P>,
+    decoded: &DecodedInst,
 ) -> Result<(), remu_state::StateError> {
     let Inst::Op(op) = decoded.inst else {
         unreachable!()

@@ -1,5 +1,3 @@
-use std::marker::PhantomData;
-
 use remu_types::{isa::reg::RegAccess, Xlen};
 
 use crate::riscv::inst::{funct3, imm_b, rs1, rs2, DecodedInst, Inst};
@@ -27,7 +25,7 @@ pub(crate) enum BranchInst {
 }
 
 #[inline(always)]
-pub(crate) fn decode<P: remu_state::StatePolicy>(inst: u32) -> DecodedInst<P> {
+pub(crate) fn decode<P: remu_state::StatePolicy>(inst: u32) -> DecodedInst {
     let f3 = funct3(inst);
     let branch = match f3 {
         func3::BEQ => BranchInst::Beq,
@@ -44,14 +42,13 @@ pub(crate) fn decode<P: remu_state::StatePolicy>(inst: u32) -> DecodedInst<P> {
         rs2: rs2(inst),
         imm: imm_b(inst),
         inst: Inst::Branch(branch),
-        _marker: PhantomData,
     }
 }
 
 #[inline(always)]
 pub(crate) fn execute<P: remu_state::StatePolicy>(
     state: &mut remu_state::State<P>,
-    decoded: &DecodedInst<P>,
+    decoded: &DecodedInst,
 ) -> Result<(), remu_state::StateError> {
     let Inst::Branch(b) = decoded.inst else { unreachable!() };
     let rs1_val = state.reg.gpr.raw_read(decoded.rs1.into());

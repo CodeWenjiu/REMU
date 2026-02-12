@@ -1,5 +1,3 @@
-use std::marker::PhantomData;
-
 use remu_types::isa::reg::RegAccess;
 
 use crate::riscv::inst::{funct3, funct7, imm_i, rd, rs1, DecodedInst, Inst};
@@ -36,7 +34,7 @@ pub(crate) enum OpImmInst {
 }
 
 #[inline(always)]
-pub(crate) fn decode<P: remu_state::StatePolicy>(inst: u32) -> DecodedInst<P> {
+pub(crate) fn decode<P: remu_state::StatePolicy>(inst: u32) -> DecodedInst {
     let f3 = funct3(inst);
     let f7 = funct7(inst);
     let rd = rd(inst);
@@ -63,14 +61,13 @@ pub(crate) fn decode<P: remu_state::StatePolicy>(inst: u32) -> DecodedInst<P> {
         rs2: 0,
         imm,
         inst: Inst::OpImm(op),
-        _marker: PhantomData,
     }
 }
 
 #[inline(always)]
 pub(crate) fn execute<P: remu_state::StatePolicy>(
     state: &mut remu_state::State<P>,
-    decoded: &DecodedInst<P>,
+    decoded: &DecodedInst,
 ) -> Result<(), remu_state::StateError> {
     let Inst::OpImm(op) = decoded.inst else { unreachable!() };
     let rs1_val = state.reg.gpr.raw_read(decoded.rs1.into());

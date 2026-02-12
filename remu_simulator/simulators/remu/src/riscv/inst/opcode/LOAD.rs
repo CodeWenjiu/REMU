@@ -1,5 +1,3 @@
-use std::marker::PhantomData;
-
 use remu_state::StateError;
 use remu_types::isa::reg::RegAccess;
 
@@ -26,7 +24,7 @@ pub(crate) enum LoadInst {
 }
 
 #[inline(always)]
-pub(crate) fn decode<P: remu_state::StatePolicy>(inst: u32) -> DecodedInst<P> {
+pub(crate) fn decode<P: remu_state::StatePolicy>(inst: u32) -> DecodedInst {
     let f3 = funct3(inst);
     let load = match f3 {
         func3::LB => LoadInst::Lb,
@@ -42,14 +40,13 @@ pub(crate) fn decode<P: remu_state::StatePolicy>(inst: u32) -> DecodedInst<P> {
         rs2: 0,
         imm: imm_i(inst),
         inst: Inst::Load(load),
-        _marker: PhantomData,
     }
 }
 
 #[inline(always)]
 pub(crate) fn execute<P: remu_state::StatePolicy>(
     state: &mut remu_state::State<P>,
-    decoded: &DecodedInst<P>,
+    decoded: &DecodedInst,
 ) -> Result<(), remu_state::StateError> {
     let Inst::Load(load) = decoded.inst else { unreachable!() };
     let rs1_val = state.reg.gpr.raw_read(decoded.rs1.into());

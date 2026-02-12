@@ -1,7 +1,5 @@
 #![allow(non_snake_case)]
 
-use std::marker::PhantomData;
-
 use remu_state::{State, StateError, StatePolicy};
 
 remu_macro::mod_pub!(opcode);
@@ -12,7 +10,7 @@ use crate::riscv::inst::opcode::{
 };
 
 /// Instruction kind: one variant per opcode, with opcode-specific sub-enum where needed.
-#[derive(Clone, Copy, Debug)]
+#[derive(Clone, Copy, Debug, Default)]
 pub(crate) enum Inst {
     Lui,
     Auipc,
@@ -24,34 +22,21 @@ pub(crate) enum Inst {
     Load(LOAD::LoadInst),
     Store(STORE::StoreInst),
     System(SYSTEM::SystemInst),
+    #[default]
     Unknown,
 }
 
-#[derive(Clone, Copy)]
-pub struct DecodedInst<P: StatePolicy> {
+#[derive(Clone, Copy, Default)]
+pub struct DecodedInst {
     pub(crate) rs1: u8,
     pub(crate) rs2: u8,
     pub(crate) rd: u8,
     pub imm: u32,
     pub(crate) inst: Inst,
-    pub(crate) _marker: PhantomData<P>,
-}
-
-impl<P: StatePolicy> Default for DecodedInst<P> {
-    fn default() -> Self {
-        Self {
-            rs1: 0,
-            rs2: 0,
-            rd: 0,
-            imm: 0,
-            inst: Inst::Unknown,
-            _marker: PhantomData,
-        }
-    }
 }
 
 #[inline(always)]
-pub fn decode<P: StatePolicy>(inst: u32) -> DecodedInst<P> {
+pub fn decode<P: StatePolicy>(inst: u32) -> DecodedInst {
     let op = opcode(inst);
     match op {
         LUI::OPCODE => LUI::decode::<P>(inst),
@@ -71,7 +56,7 @@ pub fn decode<P: StatePolicy>(inst: u32) -> DecodedInst<P> {
 #[inline(always)]
 pub fn execute<P: StatePolicy>(
     state: &mut State<P>,
-    decoded: &DecodedInst<P>,
+    decoded: &DecodedInst,
 ) -> Result<(), StateError> {
     match decoded.inst {
         Inst::Lui => LUI::execute(state, decoded),
