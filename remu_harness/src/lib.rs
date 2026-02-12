@@ -1,3 +1,4 @@
+mod func;
 mod option;
 mod policy;
 
@@ -5,10 +6,10 @@ pub use option::HarnessOption;
 pub use policy::HarnessPolicy;
 
 pub use remu_simulator::{
-    DifftestMismatchList, SimulatorError, SimulatorInnerError, SimulatorPolicy, SimulatorPolicyOf,
-    SimulatorTrait,
+    DifftestMismatchList, FuncCmd, SimulatorError, SimulatorInnerError, SimulatorPolicy,
+    SimulatorPolicyOf, SimulatorTrait,
 };
-pub use remu_simulator_remu::{FuncCmd, SimulatorRemu};
+pub use remu_simulator_remu::SimulatorRemu;
 pub use remu_state::StateCmd;
 pub use remu_state::bus::ObserverEvent;
 
@@ -20,6 +21,7 @@ use remu_types::TracerDyn;
 pub struct Harness<D, R> {
     dut_model: D,
     ref_model: R,
+    func: func::Func,
 }
 
 impl<D, R> Harness<D, R>
@@ -31,17 +33,23 @@ where
         Self {
             dut_model: D::new(opt.sim.clone(), tracer.clone()),
             ref_model: R::new(opt.sim, tracer),
+            func: func::Func::new(),
         }
     }
 
     #[inline(always)]
     pub fn step_once(&mut self) -> Result<(), SimulatorError> {
-        self.dut_model.step_once().map_err(SimulatorError::Dut)?;
+        let itrace = self.func.trace.instruction;
+        if itrace {
+            self.dut_model.step_once::<true>().map_err(SimulatorError::Dut)?;
+        } else {
+            self.dut_model.step_once::<false>().map_err(SimulatorError::Dut)?;
+        }
         if R::ENABLE {
             let event = self.dut_model.state_mut().bus.take_observer_event();
             match event {
                 ObserverEvent::None => {
-                    self.ref_model.step_once().map_err(SimulatorError::Ref)?;
+                    self.ref_model.step_once::<false>().map_err(SimulatorError::Ref)?;
                     let dut_state = self.dut_model.state();
                     let diff = self.ref_model.regs_diff(dut_state);
                     if !diff.is_empty() {
@@ -64,13 +72,15 @@ where
                 self.step_once()?;
             }
             Ok(n)
+        } else if self.func.trace.instruction {
+            self.dut_model.step_n::<true>(n).map_err(SimulatorError::Dut)
         } else {
-            self.dut_model.step_n(n).map_err(SimulatorError::Dut)
+            self.dut_model.step_n::<false>(n).map_err(SimulatorError::Dut)
         }
     }
 
     pub fn func_exec(&mut self, subcmd: &FuncCmd) {
-        self.dut_model.func_exec(subcmd);
+        self.func.execute(subcmd);
     }
 
     pub fn state_exec(&mut self, subcmd: &StateCmd) -> Result<(), SimulatorError> {

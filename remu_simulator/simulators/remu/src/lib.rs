@@ -1,5 +1,4 @@
 remu_macro::mod_pub!(riscv);
-remu_macro::mod_flat!(icache, simulator_trait, func);
+remu_macro::mod_flat!(icache, simulator_trait);
 
-pub use remu_simulator::FuncCmd;
 pub use simulator_trait::SimulatorRemu;

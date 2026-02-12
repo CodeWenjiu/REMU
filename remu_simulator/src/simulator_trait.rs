@@ -2,7 +2,7 @@ use remu_state::{State, StateCmd};
 use remu_types::{DifftestMismatchItem, TracerDyn};
 
 use crate::error::SimulatorInnerError;
-use crate::{FuncCmd, SimulatorOption};
+use crate::SimulatorOption;
 
 pub trait SimulatorTrait<P: remu_state::StatePolicy, const IS_DUT: bool = true> {
     const ENABLE: bool = true;
@@ -14,19 +14,19 @@ pub trait SimulatorTrait<P: remu_state::StatePolicy, const IS_DUT: bool = true> 
     fn state_mut(&mut self) -> &mut State<P>;
 
     #[inline(always)]
-    fn step_once(&mut self) -> Result<(), SimulatorInnerError> {
+    fn step_once<const ITRACE: bool>(&mut self) -> Result<(), SimulatorInnerError> {
         let _ = self;
         Ok(())
     }
 
     /// Run up to `n` instructions in a batch. Returns the number of instructions executed.
-    /// Stops on first error. Default implementation loops `step_once()`; simulators may override
+    /// Stops on first error. Default implementation loops `step_once::<ITRACE>()`; simulators may override
     /// with an inner loop for performance when ref/difftest does not require per-instruction sync.
     #[inline(always)]
-    fn step_n(&mut self, n: usize) -> Result<usize, SimulatorInnerError> {
+    fn step_n<const ITRACE: bool>(&mut self, n: usize) -> Result<usize, SimulatorInnerError> {
         let mut k = 0usize;
         while k < n {
-            self.step_once()?;
+            self.step_once::<ITRACE>()?;
             k += 1;
         }
         Ok(k)
@@ -53,11 +53,6 @@ pub trait SimulatorTrait<P: remu_state::StatePolicy, const IS_DUT: bool = true> 
     fn regs_diff(&self, dut: &State<P>) -> Vec<DifftestMismatchItem> {
         let _ = (self, dut);
         vec![]
-    }
-
-    #[inline(always)]
-    fn func_exec(&mut self, subcmd: &FuncCmd) {
-        let _ = (self, subcmd);
     }
 
     #[inline(always)]

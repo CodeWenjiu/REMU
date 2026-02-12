@@ -111,7 +111,7 @@ impl<P: SimulatorPolicy> SimulatorTrait<P, false> for SimulatorSpike<P> {
         unreachable!("state_mut() must not be called on Spike ref simulator")
     }
 
-    fn step_once(&mut self) -> Result<(), SimulatorInnerError> {
+    fn step_once<const ITRACE: bool>(&mut self) -> Result<(), SimulatorInnerError> {
         let Some(ctx) = self.ctx else {
             return Err(SimulatorInnerError::RefError(
                 "spike difftest not initialized (no memory regions or init failed)".to_string(),
