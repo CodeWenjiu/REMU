@@ -5,7 +5,7 @@ use core::ops::Range;
 pub use elf::try_load_elf_into_memory;
 pub use entry::{AccessKind, MemFault, MemRegionSpec, MemoryEntry};
 
-use dcache::{Dcache, PAGE_MASK, PAGE_SHIFT, PAGE_SIZE};
+use dcache::{Dcache, PAGE_MASK, PAGE_SHIFT};
 
 const DCACHE_SIZE: usize = 1 << 16;
 
@@ -53,7 +53,7 @@ impl Memory {
         self.find_memory_mut_slow(range)
     }
 
-    #[inline(always)]
+    #[inline(never)]
     fn find_memory_mut_slow(&mut self, range: Range<usize>) -> Option<&mut MemoryEntry> {
         for (i, m) in self.entries.iter_mut().enumerate() {
             if m.contains(range.clone()) {
@@ -64,58 +64,102 @@ impl Memory {
         None
     }
 
-    /// Returns pointer for `addr`; fills the page-grained cache on miss. One hit covers 4KB.
-    #[inline(always)]
-    fn ptr_for_addr(&mut self, addr: usize) -> Option<*mut u8> {
-        let page = addr >> PAGE_SHIFT;
-        let offset = addr & PAGE_MASK;
-        {
-            let entry = self.dcache.get_entry_mut(addr);
-            if entry.tag == page {
-                return Some(unsafe { entry.base_ptr.add(offset) });
-            }
-        }
+    /// Refill D-cache for the page containing `addr`. Returns addend or None if unmapped.
+    #[inline(never)]
+    fn refill_dcache(&mut self, addr: usize) -> Option<usize> {
         let page_start = addr & !PAGE_MASK;
-        let m = self.find_memory_mut(page_start..page_start + PAGE_SIZE)?;
-        let base_ptr = m.ptr_at_addr(page_start);
+        let m = self.find_memory_mut(page_start..page_start + dcache::PAGE_SIZE)?;
+        let host_base = m.ptr_at_addr(page_start) as usize;
+        let addend = host_base.wrapping_sub(page_start);
         let entry = self.dcache.get_entry_mut(addr);
-        entry.tag = page;
-        entry.base_ptr = base_ptr;
-        Some(unsafe { base_ptr.add(offset) })
+        entry.tag = addr >> PAGE_SHIFT;
+        entry.addend = addend;
+        Some(addend)
     }
 
     #[inline(always)]
     pub(crate) fn read_8(&mut self, addr: usize) -> Option<u8> {
-        let ptr = self.ptr_for_addr(addr)?;
-        Some(unsafe { *ptr })
+        let entry = self.dcache.get_entry_mut(addr);
+        if entry.tag == (addr >> PAGE_SHIFT) {
+            let host_ptr = addr.wrapping_add(entry.addend) as *const u8;
+            return Some(unsafe { *host_ptr });
+        }
+        self.read_8_slow(addr)
+    }
+
+    #[inline(never)]
+    fn read_8_slow(&mut self, addr: usize) -> Option<u8> {
+        let addend = self.refill_dcache(addr)?;
+        let host_ptr = addr.wrapping_add(addend) as *const u8;
+        Some(unsafe { *host_ptr })
     }
 
     #[inline(always)]
     pub(crate) fn read_16(&mut self, addr: usize) -> Option<u16> {
-        let ptr = self.ptr_for_addr(addr)?;
-        let raw = unsafe { (ptr as *const u16).read_unaligned() };
-        Some(u16::from_le(raw))
+        let entry = self.dcache.get_entry_mut(addr);
+        if entry.tag == (addr >> PAGE_SHIFT) {
+            let host_ptr = addr.wrapping_add(entry.addend) as *const u16;
+            return Some(unsafe { host_ptr.read_unaligned() }.to_le());
+        }
+        self.read_16_slow(addr)
+    }
+
+    #[inline(never)]
+    fn read_16_slow(&mut self, addr: usize) -> Option<u16> {
+        let addend = self.refill_dcache(addr)?;
+        let host_ptr = addr.wrapping_add(addend) as *const u16;
+        Some(unsafe { host_ptr.read_unaligned() }.to_le())
     }
 
     #[inline(always)]
     pub(crate) fn read_32(&mut self, addr: usize) -> Option<u32> {
-        let ptr = self.ptr_for_addr(addr)?;
-        let raw = unsafe { (ptr as *const u32).read_unaligned() };
-        Some(u32::from_le(raw))
+        let entry = self.dcache.get_entry_mut(addr);
+        if entry.tag == (addr >> PAGE_SHIFT) {
+            let host_ptr = addr.wrapping_add(entry.addend) as *const u32;
+            return Some(unsafe { host_ptr.read_unaligned() }.to_le());
+        }
+        self.read_32_slow(addr)
+    }
+
+    #[inline(never)]
+    fn read_32_slow(&mut self, addr: usize) -> Option<u32> {
+        let addend = self.refill_dcache(addr)?;
+        let host_ptr = addr.wrapping_add(addend) as *const u32;
+        Some(unsafe { host_ptr.read_unaligned() }.to_le())
     }
 
     #[inline(always)]
     pub(crate) fn read_64(&mut self, addr: usize) -> Option<u64> {
-        let ptr = self.ptr_for_addr(addr)?;
-        let raw = unsafe { (ptr as *const u64).read_unaligned() };
-        Some(u64::from_le(raw))
+        let entry = self.dcache.get_entry_mut(addr);
+        if entry.tag == (addr >> PAGE_SHIFT) {
+            let host_ptr = addr.wrapping_add(entry.addend) as *const u64;
+            return Some(unsafe { host_ptr.read_unaligned() }.to_le());
+        }
+        self.read_64_slow(addr)
+    }
+
+    #[inline(never)]
+    fn read_64_slow(&mut self, addr: usize) -> Option<u64> {
+        let addend = self.refill_dcache(addr)?;
+        let host_ptr = addr.wrapping_add(addend) as *const u64;
+        Some(unsafe { host_ptr.read_unaligned() }.to_le())
     }
 
     #[inline(always)]
     pub(crate) fn read_128(&mut self, addr: usize) -> Option<u128> {
-        let ptr = self.ptr_for_addr(addr)?;
-        let raw = unsafe { (ptr as *const u128).read_unaligned() };
-        Some(u128::from_le(raw))
+        let entry = self.dcache.get_entry_mut(addr);
+        if entry.tag == (addr >> PAGE_SHIFT) {
+            let host_ptr = addr.wrapping_add(entry.addend) as *const u128;
+            return Some(unsafe { host_ptr.read_unaligned() }.to_le());
+        }
+        self.read_128_slow(addr)
+    }
+
+    #[inline(never)]
+    fn read_128_slow(&mut self, addr: usize) -> Option<u128> {
+        let addend = self.refill_dcache(addr)?;
+        let host_ptr = addr.wrapping_add(addend) as *const u128;
+        Some(unsafe { host_ptr.read_unaligned() }.to_le())
     }
 
     #[inline(always)]
@@ -129,36 +173,96 @@ impl Memory {
 
     #[inline(always)]
     pub(crate) fn write_8(&mut self, addr: usize, value: u8) -> Option<()> {
-        let ptr = self.ptr_for_addr(addr)?;
-        unsafe { *ptr = value };
+        let entry = self.dcache.get_entry_mut(addr);
+        if entry.tag == (addr >> PAGE_SHIFT) {
+            let host_ptr = addr.wrapping_add(entry.addend) as *mut u8;
+            unsafe { *host_ptr = value };
+            return Some(());
+        }
+        self.write_8_slow(addr, value)
+    }
+
+    #[inline(never)]
+    fn write_8_slow(&mut self, addr: usize, value: u8) -> Option<()> {
+        let addend = self.refill_dcache(addr)?;
+        let host_ptr = addr.wrapping_add(addend) as *mut u8;
+        unsafe { *host_ptr = value };
         Some(())
     }
 
     #[inline(always)]
     pub(crate) fn write_16(&mut self, addr: usize, value: u16) -> Option<()> {
-        let ptr = self.ptr_for_addr(addr)?;
-        unsafe { (ptr as *mut u16).write_unaligned(value.to_le()) };
+        let entry = self.dcache.get_entry_mut(addr);
+        if entry.tag == (addr >> PAGE_SHIFT) {
+            let host_ptr = addr.wrapping_add(entry.addend) as *mut u16;
+            unsafe { host_ptr.write_unaligned(value.to_le()) };
+            return Some(());
+        }
+        self.write_16_slow(addr, value)
+    }
+
+    #[inline(never)]
+    fn write_16_slow(&mut self, addr: usize, value: u16) -> Option<()> {
+        let addend = self.refill_dcache(addr)?;
+        let host_ptr = addr.wrapping_add(addend) as *mut u16;
+        unsafe { host_ptr.write_unaligned(value.to_le()) };
         Some(())
     }
 
     #[inline(always)]
     pub(crate) fn write_32(&mut self, addr: usize, value: u32) -> Option<()> {
-        let ptr = self.ptr_for_addr(addr)?;
-        unsafe { (ptr as *mut u32).write_unaligned(value.to_le()) };
+        let entry = self.dcache.get_entry_mut(addr);
+        if entry.tag == (addr >> PAGE_SHIFT) {
+            let host_ptr = addr.wrapping_add(entry.addend) as *mut u32;
+            unsafe { host_ptr.write_unaligned(value.to_le()) };
+            return Some(());
+        }
+        self.write_32_slow(addr, value)
+    }
+
+    #[inline(never)]
+    fn write_32_slow(&mut self, addr: usize, value: u32) -> Option<()> {
+        let addend = self.refill_dcache(addr)?;
+        let host_ptr = addr.wrapping_add(addend) as *mut u32;
+        unsafe { host_ptr.write_unaligned(value.to_le()) };
         Some(())
     }
 
     #[inline(always)]
     pub(crate) fn write_64(&mut self, addr: usize, value: u64) -> Option<()> {
-        let ptr = self.ptr_for_addr(addr)?;
-        unsafe { (ptr as *mut u64).write_unaligned(value.to_le()) };
+        let entry = self.dcache.get_entry_mut(addr);
+        if entry.tag == (addr >> PAGE_SHIFT) {
+            let host_ptr = addr.wrapping_add(entry.addend) as *mut u64;
+            unsafe { host_ptr.write_unaligned(value.to_le()) };
+            return Some(());
+        }
+        self.write_64_slow(addr, value)
+    }
+
+    #[inline(never)]
+    fn write_64_slow(&mut self, addr: usize, value: u64) -> Option<()> {
+        let addend = self.refill_dcache(addr)?;
+        let host_ptr = addr.wrapping_add(addend) as *mut u64;
+        unsafe { host_ptr.write_unaligned(value.to_le()) };
         Some(())
     }
 
     #[inline(always)]
     pub(crate) fn write_128(&mut self, addr: usize, value: u128) -> Option<()> {
-        let ptr = self.ptr_for_addr(addr)?;
-        unsafe { (ptr as *mut u128).write_unaligned(value.to_le()) };
+        let entry = self.dcache.get_entry_mut(addr);
+        if entry.tag == (addr >> PAGE_SHIFT) {
+            let host_ptr = addr.wrapping_add(entry.addend) as *mut u128;
+            unsafe { host_ptr.write_unaligned(value.to_le()) };
+            return Some(());
+        }
+        self.write_128_slow(addr, value)
+    }
+
+    #[inline(never)]
+    fn write_128_slow(&mut self, addr: usize, value: u128) -> Option<()> {
+        let addend = self.refill_dcache(addr)?;
+        let host_ptr = addr.wrapping_add(addend) as *mut u128;
+        unsafe { host_ptr.write_unaligned(value.to_le()) };
         Some(())
     }
 

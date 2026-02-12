@@ -6,9 +6,11 @@ const SPIKE_LIBS: &[&str] = &["fesvr", "fdt", "softfloat", "disasm", "riscv"];
 
 fn main() {
     let profile = env::var("PROFILE").unwrap_or_else(|_| "debug".to_string());
+    // Debug: use -O1 for wrapper so glibc _FORTIFY_SOURCE does not warn (it requires -O).
+    // -O1 compiles quickly; spike libs stay -O0 -g for fastest rebuild.
     let (spike_cflags, spike_cxxflags, wrapper_opt) = match profile.as_str() {
         "release" => ("-O3", "-O3", "3"),
-        _ => ("-O0 -g", "-O0 -g", "0"),
+        _ => ("-O0 -g", "-O0 -g", "1"),
     };
 
     let manifest_dir = PathBuf::from(env::var("CARGO_MANIFEST_DIR").unwrap());

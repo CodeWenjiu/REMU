@@ -97,6 +97,10 @@ pub enum AccessKind {
 /// Page size used by D-cache; memory regions must be page-aligned and sized in whole pages.
 pub const PAGE_SIZE: usize = 4096;
 
+/// Extra bytes allocated after each region's logical size so unaligned accesses near the end
+/// do not cross into the next region or OOB.
+pub const REGION_TAIL_PADDING: usize = 128;
+
 /// A contiguous RAM-backed memory region (one segment). The bus keeps a list of `MemoryEntry`
 /// and uses last-hit + D-cache for fast lookup.
 #[derive(Debug)]
@@ -148,7 +152,7 @@ impl MemoryEntry {
             size,
         })?;
 
-        let storage = vec![0u8; size_usize].into_boxed_slice();
+        let storage = vec![0u8; size_usize + REGION_TAIL_PADDING].into_boxed_slice();
 
         Ok(Self {
             name: region.name,
