@@ -1,5 +1,5 @@
 use miette::Diagnostic;
-use remu_harness::SimulatorError;
+use remu_harness::HarnessError;
 use thiserror::Error;
 
 use crate::compound_command::ParseError;
@@ -14,23 +14,20 @@ pub enum DebuggerError {
     CommandExprHandled,
 
     #[error("Command execution error: {0}")]
-    CommandExec(SimulatorError),
+    CommandExec(HarnessError),
 
     #[error("exit requested (run state EXIT)")]
     ExitRequested,
 
     #[error("program exit with code {0}")]
     ProgramExit(u32),
-
-    #[error("Interrupted")]
-    Interrupted,
 }
 
 impl DebuggerError {
     #[inline(always)]
     pub fn backtrace(&self) -> Option<&std::backtrace::Backtrace> {
         match self {
-            DebuggerError::CommandExec(sim) => sim.backtrace(),
+            DebuggerError::CommandExec(harness) => harness.backtrace(),
             _ => None,
         }
     }

@@ -102,9 +102,6 @@ impl DebuggerRunner for APPRunner {
                     println!("{}", "Quiting...".cyan());
                     std::process::exit(0);
                 }
-                DebuggerError::Interrupted => {
-                    println!("{}", "Interrupted".cyan());
-                }
                 _ => {
                     eprintln!("startup execution error: {}", e);
                 }

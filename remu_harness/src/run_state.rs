@@ -1,5 +1,5 @@
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
-pub(crate) enum RunState {
+pub enum RunState {
     #[default]
     Idle,
     Exit,

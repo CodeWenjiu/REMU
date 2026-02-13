@@ -1,9 +1,9 @@
-mod func;
-mod option;
-mod policy;
+remu_macro::mod_flat!(error, func, option, policy, run_state,);
 
+pub use error::HarnessError;
 pub use option::HarnessOption;
 pub use policy::HarnessPolicy;
+pub use run_state::RunState;
 
 pub use remu_simulator::{
     DifftestMismatchList, FuncCmd, SimulatorError, SimulatorInnerError, SimulatorPolicy,
@@ -17,11 +17,15 @@ pub type DutSim<P> = SimulatorRemu<P, true>;
 pub type RefSim<P> = SimulatorRemu<P, false>;
 
 use remu_types::TracerDyn;
+use std::sync::Arc;
+use std::sync::atomic::{AtomicBool, Ordering};
 
 pub struct Harness<D, R> {
     dut_model: D,
     ref_model: R,
     func: func::Func,
+    interrupt: Arc<AtomicBool>,
+    run_state: RunState,
 }
 
 impl<D, R> Harness<D, R>
@@ -29,27 +33,33 @@ where
     D: SimulatorPolicyOf + SimulatorTrait<D::Policy, true>,
     R: SimulatorTrait<D::Policy, false>,
 {
-    pub fn new(opt: HarnessOption, tracer: TracerDyn) -> Self {
+    pub fn new(opt: HarnessOption, tracer: TracerDyn, interrupt: Arc<AtomicBool>) -> Self {
         Self {
             dut_model: D::new(opt.sim.clone(), tracer.clone()),
             ref_model: R::new(opt.sim, tracer),
             func: func::Func::new(),
+            interrupt,
+            run_state: RunState::Idle,
         }
     }
 
     #[inline(always)]
-    pub fn step_once(&mut self) -> Result<(), SimulatorError> {
-        let itrace = self.func.trace.instruction;
-        if itrace {
-            self.dut_model.step_once::<true>().map_err(SimulatorError::Dut)?;
-        } else {
-            self.dut_model.step_once::<false>().map_err(SimulatorError::Dut)?;
-        }
+    pub fn run_state(&self) -> RunState {
+        self.run_state
+    }
+
+    #[inline(always)]
+    fn step_once<const ITRACE: bool>(&mut self) -> Result<(), SimulatorError> {
+        self.dut_model
+            .step_once::<ITRACE>()
+            .map_err(SimulatorError::Dut)?;
         if R::ENABLE {
             let event = self.dut_model.state_mut().bus.take_observer_event();
             match event {
                 ObserverEvent::None => {
-                    self.ref_model.step_once::<false>().map_err(SimulatorError::Ref)?;
+                    self.ref_model
+                        .step_once::<false>()
+                        .map_err(SimulatorError::Ref)?;
                     let dut_state = self.dut_model.state();
                     let diff = self.ref_model.regs_diff(dut_state);
                     if !diff.is_empty() {
@@ -64,34 +74,71 @@ where
         Ok(())
     }
 
-    /// Run up to `n` steps. When ref is enabled, does `n`× step_once (per-instruction difftest).
-    /// When ref is disabled, runs up to `n` instructions in the DUT simulator's inner loop.
-    pub fn step_n(&mut self, n: usize) -> Result<usize, SimulatorError> {
-        if R::ENABLE {
-            for _ in 0..n {
-                self.step_once()?;
-            }
-            Ok(n)
-        } else if self.func.trace.instruction {
-            self.dut_model.step_n::<true>(n).map_err(SimulatorError::Dut)
-        } else {
-            self.dut_model.step_n::<false>(n).map_err(SimulatorError::Dut)
-        }
-    }
-
     pub fn func_exec(&mut self, subcmd: &FuncCmd) {
         self.func.execute(subcmd);
     }
 
-    pub fn state_exec(&mut self, subcmd: &StateCmd) -> Result<(), SimulatorError> {
+    pub fn state_exec(&mut self, subcmd: &StateCmd) -> Result<(), HarnessError> {
         self.dut_model
             .state_exec(subcmd)
             .map_err(SimulatorError::Dut)
+            .map_err(HarnessError::from)
     }
 
-    pub fn ref_state_exec(&mut self, subcmd: &StateCmd) -> Result<(), SimulatorError> {
+    pub fn ref_state_exec(&mut self, subcmd: &StateCmd) -> Result<(), HarnessError> {
         self.ref_model
             .state_exec(subcmd)
             .map_err(SimulatorError::Ref)
+            .map_err(HarnessError::from)
+    }
+
+    /// Run steps in batch until limit reached, interrupt set, program exit, or error.
+    /// Uses the harness's `interrupt` and `run_state`; sets `run_state` to `Exit` on program exit.
+    /// Returns `Err(HarnessError::Interrupted)` when `interrupt` was set.
+    /// Instruction-trace flag is read once and fixed for the whole run.
+    pub fn run_steps(&mut self, max_steps: Option<usize>) -> Result<(), HarnessError> {
+        const BATCH: usize = 4096;
+        if self.run_state == RunState::Exit {
+            return Ok(());
+        }
+        if self.func.trace.instruction {
+            self.run_steps_impl::<true>(max_steps, BATCH)
+        } else {
+            self.run_steps_impl::<false>(max_steps, BATCH)
+        }
+    }
+
+    #[inline(always)]
+    fn run_steps_impl<const ITRACE: bool>(
+        &mut self,
+        max_steps: Option<usize>,
+        batch: usize,
+    ) -> Result<(), HarnessError> {
+        let mut steps = 0usize;
+        loop {
+            if self.interrupt.load(Ordering::Relaxed) {
+                self.interrupt.store(false, Ordering::Relaxed);
+                return Err(HarnessError::Interrupted);
+            }
+            if max_steps.map_or(false, |limit| steps >= limit) {
+                return Ok(());
+            }
+            let to_run = max_steps
+                .map(|limit| (limit - steps).min(batch))
+                .unwrap_or(batch);
+            for _ in 0..to_run {
+                match self.step_once::<ITRACE>() {
+                    Ok(()) => (),
+                    Err(e) => {
+                        if let SimulatorError::Dut(SimulatorInnerError::ProgramExit(_)) = &e {
+                            self.run_state = RunState::Exit;
+                            return Ok(());
+                        }
+                        return Err(HarnessError::from(e));
+                    }
+                }
+                steps += to_run;
+            }
+        }
     }
 }

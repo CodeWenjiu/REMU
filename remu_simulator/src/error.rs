@@ -26,6 +26,9 @@ pub enum SimulatorInnerError {
 
     #[error("program exit with code {0}")]
     ProgramExit(u32),
+
+    #[error("interrupted")]
+    Interrupted,
 }
 
 impl SimulatorInnerError {
@@ -33,7 +36,9 @@ impl SimulatorInnerError {
     pub fn backtrace(&self) -> Option<&std::backtrace::Backtrace> {
         match self {
             SimulatorInnerError::StateAccessError(e) => e.backtrace(),
-            SimulatorInnerError::RefError(_) | SimulatorInnerError::ProgramExit(_) => None,
+            SimulatorInnerError::RefError(_)
+            | SimulatorInnerError::ProgramExit(_)
+            | SimulatorInnerError::Interrupted => None,
         }
     }
 }

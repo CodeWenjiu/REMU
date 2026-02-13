@@ -102,43 +102,6 @@ impl<P: SimulatorPolicy, const IS_DUT: bool> SimulatorTrait<P, IS_DUT>
         Ok(())
     }
 
-    fn step_n<const ITRACE: bool>(&mut self, n: usize) -> Result<usize, SimulatorInnerError> {
-        let mut executed = 0usize;
-        while executed < n {
-            let pc = *self.state.reg.pc;
-            let entry = self.icache.get_entry_mut(pc);
-            if entry.addr == pc {
-                let decoded = entry.decoded;
-                self.execute_inst(&decoded).map_err(from_state_error)?;
-                executed += 1;
-                if ITRACE && IS_DUT {
-                    let inst = self
-                        .state
-                        .bus
-                        .read_32(pc as usize)
-                        .map_err(|e| from_state_error(StateError::from(e)))
-                        .unwrap();
-                    self.tracer.borrow().disasm(pc as u64, inst);
-                }
-                continue;
-            }
-            let inst = self
-                .state
-                .bus
-                .read_32(pc as usize)
-                .map_err(|e| from_state_error(StateError::from(e)))?;
-            if ITRACE && IS_DUT {
-                self.tracer.borrow().disasm(pc as u64, inst);
-            }
-            let d = decode::<P>(inst);
-            entry.addr = pc;
-            entry.decoded = d;
-            self.execute_inst(&d).map_err(from_state_error)?;
-            executed += 1;
-        }
-        Ok(executed)
-    }
-
     #[inline(always)]
     fn sync_from(&mut self, dut: &State<P>) {
         self.state.reg.pc = dut.reg.pc;

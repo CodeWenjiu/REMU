@@ -1,18 +1,15 @@
 use std::sync::Arc;
-use std::sync::atomic::Ordering;
 
 use clap::Parser;
 
-remu_macro::mod_flat!(command, option, policy, error, compound_command, run_state);
+remu_macro::mod_flat!(command, option, policy, error, compound_command);
 pub use command::get_command_graph;
 pub use compound_command::{CommandExpr, Op, ParseError};
-use remu_harness::{DutSim, Harness, SimulatorError, SimulatorInnerError};
+use remu_harness::{DutSim, Harness};
 use remu_types::TracerDyn;
 
 pub struct Debugger<P: HarnessPolicy, R: SimulatorTrait<P, false>> {
     harness: Harness<DutSim<P>, R>,
-    run_state: RunState,
-    interrupt: Arc<std::sync::atomic::AtomicBool>,
 }
 
 impl<P: HarnessPolicy, R: SimulatorTrait<P, false>> Debugger<P, R> {
@@ -22,9 +19,7 @@ impl<P: HarnessPolicy, R: SimulatorTrait<P, false>> Debugger<P, R> {
         interrupt: Arc<std::sync::atomic::AtomicBool>,
     ) -> Self {
         Self {
-            harness: Harness::new(opt.sim, tracer),
-            run_state: RunState::Idle,
-            interrupt,
+            harness: Harness::new(opt.sim, tracer, interrupt),
         }
     }
 
@@ -117,37 +112,6 @@ impl<P: HarnessPolicy, R: SimulatorTrait<P, false>> Debugger<P, R> {
     }
 
     fn run_step_loop(&mut self, max_steps: Option<usize>) -> Result<(), DebuggerError> {
-        if self.run_state == RunState::Exit {
-            return Ok(());
-        }
-
-        const BATCH: usize = 1024;
-        let mut steps = 0usize;
-        loop {
-            if let Some(limit) = max_steps {
-                if steps >= limit {
-                    return Ok(());
-                }
-            }
-            if self.interrupt.load(Ordering::Relaxed) {
-                self.interrupt.store(false, Ordering::Relaxed);
-                return Err(DebuggerError::Interrupted);
-            }
-            let to_run = max_steps
-                .map(|limit| (limit - steps).min(BATCH))
-                .unwrap_or(BATCH);
-            match self.harness.step_n(to_run) {
-                Ok(k) => steps += k,
-                Err(e) => {
-                    if let SimulatorError::Dut(inner) = &e {
-                        if let SimulatorInnerError::ProgramExit(_code) = inner {
-                            self.run_state = RunState::Exit;
-                            return Ok(());
-                        }
-                    }
-                    return Err(DebuggerError::CommandExec(e));
-                }
-            }
-        }
+        self.harness.run_steps(max_steps).map_err(DebuggerError::CommandExec)
     }
 }
