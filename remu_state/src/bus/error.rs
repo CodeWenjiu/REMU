@@ -1,6 +1,8 @@
 use std::backtrace::Backtrace;
 use thiserror::Error;
 
+use remu_types::ExitCode;
+
 use crate::bus::{AccessKind, MemFault};
 
 /// In-memory fault type returned by RAM-backed `Memory` operations.
@@ -40,8 +42,8 @@ pub enum BusError {
     #[error("IO Error")]
     IoError(#[backtrace] Backtrace),
 
-    #[error("program exit with code {0}")]
-    ProgramExit(u32),
+    #[error("program exit: {0}")]
+    ProgramExit(ExitCode),
 }
 
 impl BusError {

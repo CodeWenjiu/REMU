@@ -12,9 +12,30 @@ pub use remu_simulator::{
 pub use remu_simulator_remu::SimulatorRemu;
 pub use remu_state::StateCmd;
 pub use remu_state::bus::ObserverEvent;
+pub use remu_types::ExitCode;
 
 pub type DutSim<P> = SimulatorRemu<P, true>;
 pub type RefSim<P> = SimulatorRemu<P, false>;
+
+/// Outcome of a run (e.g. run_steps). Propagated to debugger and CLI.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum RunOutcome {
+    /// Run stopped without program exit (limit reached or already idle).
+    Done,
+    /// Program requested exit (e.g. ecall).
+    ProgramExit(ExitCode),
+}
+
+impl RunOutcome {
+    /// Prefer ProgramExit over Done when merging outcomes from multiple commands.
+    #[inline(always)]
+    pub fn or_else(self, other: RunOutcome) -> RunOutcome {
+        match self {
+            RunOutcome::ProgramExit(_) => self,
+            RunOutcome::Done => other,
+        }
+    }
+}
 
 use remu_types::TracerDyn;
 use std::sync::Arc;
@@ -94,12 +115,13 @@ where
 
     /// Run steps in batch until limit reached, interrupt set, program exit, or error.
     /// Uses the harness's `interrupt` and `run_state`; sets `run_state` to `Exit` on program exit.
+    /// Returns `Ok(RunOutcome::ProgramExit(code))` when program exited; `Ok(RunOutcome::Done)` when stopped without exit.
     /// Returns `Err(HarnessError::Interrupted)` when `interrupt` was set.
     /// Instruction-trace flag is read once and fixed for the whole run.
-    pub fn run_steps(&mut self, max_steps: Option<usize>) -> Result<(), HarnessError> {
+    pub fn run_steps(&mut self, max_steps: Option<usize>) -> Result<RunOutcome, HarnessError> {
         const BATCH: usize = 4096;
         if self.run_state == RunState::Exit {
-            return Ok(());
+            return Ok(RunOutcome::Done);
         }
         if self.func.trace.instruction {
             self.run_steps_impl::<true>(max_steps, BATCH)
@@ -113,7 +135,7 @@ where
         &mut self,
         max_steps: Option<usize>,
         batch: usize,
-    ) -> Result<(), HarnessError> {
+    ) -> Result<RunOutcome, HarnessError> {
         let mut steps = 0usize;
         loop {
             if self.interrupt.load(Ordering::Relaxed) {
@@ -121,23 +143,20 @@ where
                 return Err(HarnessError::Interrupted);
             }
             if max_steps.map_or(false, |limit| steps >= limit) {
-                return Ok(());
+                return Ok(RunOutcome::Done);
             }
             let to_run = max_steps
                 .map(|limit| (limit - steps).min(batch))
                 .unwrap_or(batch);
             for _ in 0..to_run {
                 match self.step_once::<ITRACE>() {
-                    Ok(()) => (),
-                    Err(e) => {
-                        if let SimulatorError::Dut(SimulatorInnerError::ProgramExit(_)) = &e {
-                            self.run_state = RunState::Exit;
-                            return Ok(());
-                        }
-                        return Err(HarnessError::from(e));
+                    Ok(()) => steps += 1,
+                    Err(SimulatorError::Dut(SimulatorInnerError::ProgramExit(exit_code))) => {
+                        self.run_state = RunState::Exit;
+                        return Ok(RunOutcome::ProgramExit(exit_code));
                     }
+                    Err(e) => return Err(HarnessError::from(e)),
                 }
-                steps += to_run;
             }
         }
     }

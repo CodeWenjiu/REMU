@@ -1,8 +1,8 @@
 use remu_state::{State, StateCmd};
 use remu_types::{DifftestMismatchItem, TracerDyn};
 
-use crate::SimulatorOption;
 use crate::error::SimulatorInnerError;
+use crate::SimulatorOption;
 
 pub trait SimulatorTrait<P: remu_state::StatePolicy, const IS_DUT: bool = true> {
     const ENABLE: bool = true;

@@ -5,6 +5,7 @@ use clap::Parser;
 remu_macro::mod_flat!(command, option, policy, error, compound_command);
 pub use command::get_command_graph;
 pub use compound_command::{CommandExpr, Op, ParseError};
+pub use remu_harness::{ExitCode, RunOutcome};
 use remu_harness::{DutSim, Harness};
 use remu_types::TracerDyn;
 
@@ -31,16 +32,21 @@ impl<P: HarnessPolicy, R: SimulatorTrait<P, false>> Debugger<P, R> {
         } else {
             expr
         };
-        self.execute_command_expr(&startup)
+        self.execute_command_expr(&startup).map(drop)
     }
 
-    pub fn execute_line(&mut self, buffer: String) -> Result<(), DebuggerError> {
+    /// Returns the run outcome (Done or ProgramExit(code)) for the last run, if any.
+    pub fn execute_line(&mut self, buffer: String) -> Result<RunOutcome, DebuggerError> {
         let expr = compound_command::parse_expression(&buffer)?;
         self.execute_command_expr(&expr)
     }
 
     /// Execute a pre-parsed command expression (e.g. from startup sequence).
-    pub fn execute_command_expr(&mut self, expr: &CommandExpr) -> Result<(), DebuggerError> {
+    /// Returns the merged run outcome (ProgramExit wins over Done when multiple commands run).
+    pub fn execute_command_expr(
+        &mut self,
+        expr: &CommandExpr,
+    ) -> Result<RunOutcome, DebuggerError> {
         let CommandExpr { first, tail } = expr;
 
         let blocks_iter = std::iter::once(first.clone()).chain(tail.iter().map(|(_, b)| b.clone()));
@@ -56,23 +62,26 @@ impl<P: HarnessPolicy, R: SimulatorTrait<P, false>> Debugger<P, R> {
         let mut parsed_iter = parsed.into_iter();
         let first_cmd = match parsed_iter.next() {
             Some(cmd) => cmd,
-            None => return Ok(()),
+            None => return Ok(RunOutcome::Done),
         };
 
-        let mut result = self.execute_parsed(&first_cmd.command)?;
+        let (mut result, mut outcome) = self.execute_parsed(&first_cmd.command)?;
         for ((op, _), cmd_wrapper) in tail.iter().zip(parsed_iter) {
             match (*op, result) {
                 (compound_command::Op::And, true) => {
-                    result = self.execute_parsed(&cmd_wrapper.command)?;
+                    let (r, out) = self.execute_parsed(&cmd_wrapper.command)?;
+                    result = r;
+                    outcome = outcome.or_else(out);
                 }
                 (compound_command::Op::Or, false) => {
-                    result = self.execute_parsed(&cmd_wrapper.command)?;
+                    let (r, out) = self.execute_parsed(&cmd_wrapper.command)?;
+                    result = r;
+                    outcome = outcome.or_else(out);
                 }
                 _ => {}
             }
         }
-        let _ = result;
-        Ok(())
+        Ok(outcome)
     }
 
     fn parse_block(&self, mut tokens: Vec<String>) -> Result<DebuggerCommand, DebuggerError> {
@@ -89,13 +98,15 @@ impl<P: HarnessPolicy, R: SimulatorTrait<P, false>> Debugger<P, R> {
         }
     }
 
-    fn execute_parsed(&mut self, command: &Command) -> Result<bool, DebuggerError> {
+    fn execute_parsed(&mut self, command: &Command) -> Result<(bool, RunOutcome), DebuggerError> {
         match command {
             Command::Step { times } => {
-                self.run_step_loop(Some(*times))?;
+                let outcome = self.run_step_loop(Some(*times))?;
+                return Ok((true, outcome));
             }
             Command::Continue => {
-                self.run_step_loop(None)?;
+                let outcome = self.run_step_loop(None)?;
+                return Ok((true, outcome));
             }
             Command::Func { subcmd } => {
                 self.harness.func_exec(subcmd);
@@ -103,15 +114,15 @@ impl<P: HarnessPolicy, R: SimulatorTrait<P, false>> Debugger<P, R> {
             Command::State { subcmd } => {
                 if let Err(e) = self.harness.state_exec(subcmd) {
                     eprintln!("{}", e);
-                    return Ok(false);
+                    return Ok((false, RunOutcome::Done));
                 }
             }
             Command::Quit => return Err(DebuggerError::ExitRequested),
         }
-        Ok(true)
+        Ok((true, RunOutcome::Done))
     }
 
-    fn run_step_loop(&mut self, max_steps: Option<usize>) -> Result<(), DebuggerError> {
+    fn run_step_loop(&mut self, max_steps: Option<usize>) -> Result<RunOutcome, DebuggerError> {
         self.harness.run_steps(max_steps).map_err(DebuggerError::CommandExec)
     }
 }

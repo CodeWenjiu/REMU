@@ -12,7 +12,9 @@ use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, Ordering};
 
 use remu_boot::boot;
-use remu_debugger::{DebuggerError, DebuggerOption, DebuggerRunner, HarnessPolicy};
+use remu_debugger::{
+    DebuggerError, DebuggerOption, DebuggerRunner, ExitCode, HarnessPolicy, RunOutcome,
+};
 use remu_types::TracerDyn;
 use std::error::Error;
 use std::{cell::RefCell, rc::Rc};
@@ -131,19 +133,28 @@ impl DebuggerRunner for APPRunner {
                         buffer
                     };
                     if !to_run.trim().is_empty() {
-                        if let Err(e) = debugger.execute_line(to_run) {
-                            if matches!(&e, DebuggerError::ExitRequested) {
-                                println!("{}", "Quiting...".cyan());
-                                break;
+                        match debugger.execute_line(to_run) {
+                            Ok(RunOutcome::ProgramExit(exit_code)) => {
+                                match exit_code {
+                                    ExitCode::Good => println!("{}", "GOOD EXIT".green()),
+                                    ExitCode::Bad => println!("{}", "BAD EXIT".red()),
+                                }
                             }
-                            eprintln!("{}", e);
-                            let mut src: Option<&(dyn Error + 'static)> = e.source();
-                            while let Some(s) = src {
-                                eprintln!("  caused by: {}", s);
-                                src = s.source();
-                            }
-                            if let Some(bt) = e.backtrace() {
-                                eprintln!("\nStack backtrace:\n{}", bt);
+                            Ok(RunOutcome::Done) => {}
+                            Err(e) => {
+                                if matches!(&e, DebuggerError::ExitRequested) {
+                                    println!("{}", "Quiting...".cyan());
+                                    break;
+                                }
+                                eprintln!("{}", e);
+                                let mut src: Option<&(dyn Error + 'static)> = e.source();
+                                while let Some(s) = src {
+                                    eprintln!("  caused by: {}", s);
+                                    src = s.source();
+                                }
+                                if let Some(bt) = e.backtrace() {
+                                    eprintln!("\nStack backtrace:\n{}", bt);
+                                }
                             }
                         }
                     }

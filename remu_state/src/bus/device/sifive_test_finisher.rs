@@ -1,3 +1,5 @@
+use remu_types::ExitCode;
+
 use crate::bus::{BusError, device::DeviceAccess};
 
 pub struct SifiveTestFinisher;
@@ -30,11 +32,10 @@ impl DeviceAccess for SifiveTestFinisher {
 
     fn write_32(&mut self, offset: usize, value: u32) -> Result<(), BusError> {
         let _ = offset;
-        let code = match value {
-            0x5555 => 0u32,
-            0x3333 => 1u32,
-            _ => value & 0xFFFF,
+        let exit_code = match value {
+            0x5555 => ExitCode::Good,
+            _ => ExitCode::Bad, // 0x3333 (fail) or other
         };
-        Err(BusError::ProgramExit(code))
+        Err(BusError::ProgramExit(exit_code))
     }
 }

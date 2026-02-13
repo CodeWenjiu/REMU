@@ -1,7 +1,7 @@
 use std::fmt;
 
 use remu_state::StateError;
-use remu_types::DifftestMismatchItem;
+use remu_types::{DifftestMismatchItem, ExitCode};
 use thiserror::Error;
 
 #[derive(Debug, Clone)]
@@ -24,8 +24,8 @@ pub enum SimulatorInnerError {
     #[error("Reference simulator error: {0}")]
     RefError(String),
 
-    #[error("program exit with code {0}")]
-    ProgramExit(u32),
+    #[error("program exit: {0}")]
+    ProgramExit(ExitCode),
 
     #[error("interrupted")]
     Interrupted,
@@ -44,8 +44,8 @@ impl SimulatorInnerError {
 }
 
 pub fn from_state_error(e: StateError) -> SimulatorInnerError {
-    if let Some(code) = e.program_exit_code() {
-        SimulatorInnerError::ProgramExit(code)
+    if let Some(exit_code) = e.exit_code() {
+        SimulatorInnerError::ProgramExit(exit_code)
     } else {
         SimulatorInnerError::StateAccessError(e)
     }

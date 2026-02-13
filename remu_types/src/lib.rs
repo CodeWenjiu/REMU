@@ -1,5 +1,7 @@
 remu_macro::mod_pub!(isa);
-remu_macro::mod_flat!(difftest, platform, wordlen);
+remu_macro::mod_flat!(difftest, exit_code, platform, wordlen);
+
+pub use exit_code::ExitCode;
 
 use std::{cell::RefCell, error::Error, fmt::Display, ops::Range, rc::Rc};
 

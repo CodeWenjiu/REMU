@@ -1,5 +1,5 @@
 use miette::Diagnostic;
-use remu_harness::HarnessError;
+use remu_harness::{ExitCode, HarnessError};
 use thiserror::Error;
 
 use crate::compound_command::ParseError;
@@ -19,8 +19,8 @@ pub enum DebuggerError {
     #[error("exit requested (run state EXIT)")]
     ExitRequested,
 
-    #[error("program exit with code {0}")]
-    ProgramExit(u32),
+    #[error("program exit: {0}")]
+    ProgramExit(ExitCode),
 }
 
 impl DebuggerError {

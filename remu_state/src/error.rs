@@ -25,10 +25,10 @@ impl StateError {
     }
 
     #[inline(always)]
-    pub fn program_exit_code(&self) -> Option<u32> {
+    pub fn exit_code(&self) -> Option<remu_types::ExitCode> {
         match self {
             StateError::BusError(b) => match b.as_ref() {
-                BusError::ProgramExit(code) => Some(*code),
+                BusError::ProgramExit(ec) => Some(*ec),
                 _ => None,
             },
         }
