@@ -3,127 +3,13 @@ use remu_types::isa::{RvIsa, reg::RegAccess};
 
 use crate::reg::{CsrRegCmd, FprRegCmd, GprRegCmd, PcRegCmd, RegCmd, RegOption};
 
-#[derive(Debug, Clone)]
-pub struct Csr {
-    // Machine Trap Setup
-    pub mstatus: u32,
-    pub mie: u32,
-    pub mtvec: u32,
-    // Machine Trap Handling
-    pub mscratch: u32,
-    pub mepc: u32,
-    pub mcause: u32,
-    pub mtval: u32,
-    pub mip: u32,
-}
-
-impl Default for Csr {
-    fn default() -> Self {
-        Self {
-            mstatus: 0x0000_1800, // MPP = 3 (machine mode)
-            mie: 0,
-            mtvec: 0,
-            mscratch: 0,
-            mepc: 0,
-            mcause: 0,
-            mtval: 0,
-            mip: 0,
-        }
-    }
-}
-
-impl Csr {
-    // --- mstatus 位 (RISC-V Privileged) ---
-    const MSTATUS_MIE: u32 = 1 << 3;
-    const MSTATUS_MPIE: u32 = 1 << 7;
-    const MSTATUS_MPP_MASK: u32 = 3 << 11;
-    const MSTATUS_MPP_MACHINE: u32 = 3 << 11;
-
-    #[inline(always)]
-    pub fn mstatus_mie(&self) -> bool {
-        (self.mstatus & Self::MSTATUS_MIE) != 0
-    }
-
-    #[inline(always)]
-    pub fn set_mstatus_mie(&mut self, v: bool) {
-        if v {
-            self.mstatus |= Self::MSTATUS_MIE;
-        } else {
-            self.mstatus &= !Self::MSTATUS_MIE;
-        }
-    }
-
-    #[inline(always)]
-    pub fn mstatus_mpie(&self) -> bool {
-        (self.mstatus & Self::MSTATUS_MPIE) != 0
-    }
-
-    #[inline(always)]
-    pub fn set_mstatus_mpie(&mut self, v: bool) {
-        if v {
-            self.mstatus |= Self::MSTATUS_MPIE;
-        } else {
-            self.mstatus &= !Self::MSTATUS_MPIE;
-        }
-    }
-
-    #[inline(always)]
-    pub fn mstatus_mpp(&self) -> u32 {
-        (self.mstatus & Self::MSTATUS_MPP_MASK) >> 11
-    }
-
-    #[inline(always)]
-    pub fn set_mstatus_mpp(&mut self, v: u32) {
-        self.mstatus = (self.mstatus & !Self::MSTATUS_MPP_MASK) | ((v & 3) << 11);
-    }
-
-    #[inline(always)]
-    pub fn mstatus_apply_trap_entry(&mut self) {
-        let mie = self.mstatus_mie();
-        self.set_mstatus_mie(false);
-        self.set_mstatus_mpie(mie);
-        self.set_mstatus_mpp(Self::MSTATUS_MPP_MACHINE >> 11);
-    }
-
-    #[inline(always)]
-    pub fn mtvec_base(&self) -> u32 {
-        self.mtvec & !3u32
-    }
-
-    pub fn read(&self, reg: CsrKind) -> u32 {
-        match reg {
-            CsrKind::Mstatus => self.mstatus,
-            CsrKind::Mie => self.mie,
-            CsrKind::Mtvec => self.mtvec,
-            CsrKind::Mscratch => self.mscratch,
-            CsrKind::Mepc => self.mepc,
-            CsrKind::Mcause => self.mcause,
-            CsrKind::Mtval => self.mtval,
-            CsrKind::Mip => self.mip,
-            _ => 0,
-        }
-    }
-
-    pub fn write(&mut self, reg: CsrKind, value: u32) {
-        match reg {
-            CsrKind::Mstatus => self.mstatus = value,
-            CsrKind::Mie => self.mie = value,
-            CsrKind::Mtvec => self.mtvec = value,
-            CsrKind::Mscratch => self.mscratch = value,
-            CsrKind::Mepc => self.mepc = value,
-            CsrKind::Mcause => self.mcause = value,
-            CsrKind::Mtval => self.mtval = value,
-            CsrKind::Mip => self.mip = value,
-            _ => (), // Misa and other read-only: no-op
-        }
-    }
-}
+use super::Csr;
 
 pub struct RiscvReg<I: RvIsa> {
     pub pc: I::PcState,
     pub gpr: I::GprState,
     pub fpr: I::FprState,
-    pub csr: Csr,
+    pub csr: Csr<I::VectorCsrState>,
     tracer: remu_types::TracerDyn,
 }
 

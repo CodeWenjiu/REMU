@@ -15,6 +15,7 @@ impl RvIsa for RV32I {
     type PcState = PcState;
     type GprState = GprState;
     type FprState = ();
+    type VectorCsrState = ();
 
     const ISA_STR: &'static str = "rv32i";
     const MISA: u32 = 0x4000_0100; // RV32, I
@@ -34,6 +35,7 @@ impl RvIsa for RV32IM {
     type PcState = PcState;
     type GprState = GprState;
     type FprState = ();
+    type VectorCsrState = ();
 
     const ISA_STR: &'static str = "rv32im";
     const MISA: u32 = 0x4000_1100; // RV32, I, M
@@ -53,6 +55,7 @@ impl RvIsa for RV32IF {
     type PcState = PcState;
     type GprState = GprState;
     type FprState = FprRegs;
+    type VectorCsrState = ();
 
     const ISA_STR: &'static str = "rv32if";
     const MISA: u32 = 0x4000_0120; // RV32, I, F

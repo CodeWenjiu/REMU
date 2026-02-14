@@ -5,7 +5,7 @@ use std::os::raw::c_uint;
 use remu_state::bus::{BusOption, MemoryEntry, try_load_elf_into_memory};
 use remu_state::{State, StateCmd};
 use remu_types::isa::RvIsa;
-use remu_types::isa::reg::{Csr as CsrKind, Fpr, Gpr, RegAccess};
+use remu_types::isa::reg::{Fpr, Gpr, RegAccess};
 use remu_types::{AllUsize, DifftestMismatchItem, RegGroup, TracerDyn, Xlen};
 
 use remu_simulator::{
@@ -211,20 +211,22 @@ impl<P: SimulatorPolicy> SimulatorTrait<P, false> for SimulatorSpike<P> {
             }
         }
 
-        for csr in CsrKind::csrs_for_difftest() {
-            let mask = csr.diff_mask();
-            if mask == 0 {
-                continue;
-            }
-            let ref_val = unsafe { spike_difftest_get_csr(ctx, csr.addr()) };
-            let dut_val = dut.reg.read_csr(*csr);
-            if (ref_val & mask) != (dut_val & mask) {
-                out.push(DifftestMismatchItem {
-                    group: RegGroup::Csr,
-                    name: csr.to_string(),
-                    ref_val: AllUsize::U32(ref_val),
-                    dut_val: AllUsize::U32(dut_val),
-                });
+        for slice in P::ISA::csrs_for_difftest() {
+            for csr in *slice {
+                let mask = csr.diff_mask();
+                if mask == 0 {
+                    continue;
+                }
+                let ref_val = unsafe { spike_difftest_get_csr(ctx, csr.addr()) };
+                let dut_val = dut.reg.read_csr(*csr);
+                if (ref_val & mask) != (dut_val & mask) {
+                    out.push(DifftestMismatchItem {
+                        group: RegGroup::Csr,
+                        name: csr.to_string(),
+                        ref_val: AllUsize::U32(ref_val),
+                        dut_val: AllUsize::U32(dut_val),
+                    });
+                }
             }
         }
 

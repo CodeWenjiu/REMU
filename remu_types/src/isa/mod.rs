@@ -5,7 +5,10 @@ use std::str::FromStr;
 use core::ops::{Deref, DerefMut, Index};
 use target_lexicon::{Architecture, Triple};
 
-use crate::{Xlen, isa::extension::Extension};
+use crate::{
+    Xlen,
+    isa::{extension::Extension, reg::CSRS_FOR_DIFFTEST_BASE},
+};
 
 pub trait ArchConfig: 'static + Copy {
     type M: Extension<State = ()>;
@@ -39,6 +42,9 @@ pub trait RvIsa: 'static + Copy {
         + crate::isa::reg::FprAccess
         + crate::isa::reg::RegDiff;
 
+    /// Vector CSR state: `()` when no V extension, [`VectorCsrFields<VLENB>`](crate::isa::reg::VectorCsrFields) when V is present.
+    type VectorCsrState: crate::isa::reg::VectorCsrState;
+
     const ISA_STR: &'static str = "rv32i";
 
     /// Read-only MISA value (XLEN + extensions). Used for CSR read and difftest.
@@ -46,6 +52,20 @@ pub trait RvIsa: 'static + Copy {
 
     const HAS_M: bool = <Self::Conf as ArchConfig>::M::ENABLED;
     const HAS_F: bool = <Self::Conf as ArchConfig>::F::ENABLED;
+
+    /// Whether the V (vector) extension is present. When false, vector CSRs are absent (read 0, write no-op).
+    const HAS_V: bool = false;
+    /// VLEN/8 in bytes; only meaningful when HAS_V. Used as the return value of the vlenb CSR.
+    const VLENB: u32 = 0;
+
+    /// CSRs to compare in difftest, as segments: base segment(s) + optional extension segment(s).
+    /// Default: base only. Override to add e.g. [`CSRS_FOR_DIFFTEST_V`](crate::isa::reg::CSRS_FOR_DIFFTEST_V) when HAS_V.
+    fn csrs_for_difftest() -> &'static [&'static [crate::isa::reg::Csr]]
+    where
+        Self: Sized,
+    {
+        &[CSRS_FOR_DIFFTEST_BASE]
+    }
 }
 
 #[derive(Debug, Clone)]

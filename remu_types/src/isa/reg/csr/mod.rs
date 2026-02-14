@@ -1,3 +1,8 @@
+//! CSR kinds (enum + Mcause) and vector CSR state interface.
+
+mod vector;
+pub use vector::*;
+
 use strum::{Display, EnumString, FromRepr};
 
 #[derive(Debug, PartialEq, Clone, Copy, Eq, FromRepr)]
@@ -87,6 +92,22 @@ pub enum Csr {
     Mcycleh = 0xB80,
     #[strum(to_string = "minstreth", serialize = "minstreth")]
     Minstreth = 0xB82,
+
+    // Vector (Zve32x) CSRs
+    #[strum(to_string = "vstart", serialize = "vstart")]
+    Vstart = 0x008,
+    #[strum(to_string = "vxsat", serialize = "vxsat")]
+    Vxsat = 0x009,
+    #[strum(to_string = "vxrm", serialize = "vxrm")]
+    Vxrm = 0x00A,
+    #[strum(to_string = "vcsr", serialize = "vcsr")]
+    Vcsr = 0x00F,
+    #[strum(to_string = "vl", serialize = "vl")]
+    Vl = 0xC20,
+    #[strum(to_string = "vtype", serialize = "vtype")]
+    Vtype = 0xC21,
+    #[strum(to_string = "vlenb", serialize = "vlenb")]
+    Vlenb = 0xC22,
 }
 
 impl Csr {
@@ -106,17 +127,8 @@ impl Csr {
     pub fn csrs_with_state() -> &'static [Csr] {
         use Csr::*;
         const CSRS: &[Csr] = &[
-            Mstatus, Mie, Mtvec, Mscratch, Mepc, Mcause, Mtval, Mip,
-        ];
-        CSRS
-    }
-
-    /// CSRs included in difftest (state CSRs + read-only like Misa). Order: Misa first, then state.
-    #[inline(always)]
-    pub fn csrs_for_difftest() -> &'static [Csr] {
-        use Csr::*;
-        const CSRS: &[Csr] = &[
-            Misa, Mstatus, Mie, Mtvec, Mscratch, Mepc, Mcause, Mtval, Mip,
+            Mstatus, Mie, Mtvec, Mscratch, Mepc, Mcause, Mtval, Mip, Vstart, Vxsat, Vxrm, Vcsr, Vl,
+            Vtype,
         ];
         CSRS
     }
@@ -135,6 +147,23 @@ impl Csr {
             Misa | Mie | Mtvec | Mscratch | Mepc | Mcause | Mtval | Mip => 0xFFFF_FFFF,
             Medeleg | Mideleg | Mcounteren => 0,
             Mcycle | Minstret | Mcycleh | Minstreth => 0,
+            Vstart | Vl | Vtype => 0xFFFF_FFFF,
+            Vxsat => 0x1,
+            Vxrm => 0x3,
+            Vcsr => 0x7,
+            Vlenb => 0xFFFF_FFFF,
         }
     }
 }
+
+// Difftest CSR lists: incremental. All ISAs get the base; extensions (e.g. V) add their slices.
+
+use Csr::*;
+
+/// Base CSRs for difftest (all ISAs): Misa + machine trap/state. Always included.
+pub const CSRS_FOR_DIFFTEST_BASE: &[Csr] = &[
+    Misa, Mstatus, Mie, Mtvec, Mscratch, Mepc, Mcause, Mtval, Mip,
+];
+
+/// Vector CSRs for difftest. Only included when HAS_V; add this slice on top of base.
+pub const CSRS_FOR_DIFFTEST_V: &[Csr] = &[Vstart, Vxsat, Vxrm, Vcsr, Vl, Vtype, Vlenb];

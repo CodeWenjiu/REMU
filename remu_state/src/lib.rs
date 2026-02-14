@@ -2,7 +2,7 @@
 
 use std::marker::PhantomData;
 
-use crate::{bus::Bus, reg::RiscvReg};
+use crate::{bus::Bus, reg::riscv::RiscvReg};
 
 remu_macro::mod_pub!(reg, bus);
 remu_macro::mod_flat!(option, policy, command, error);
