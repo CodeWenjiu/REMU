@@ -50,6 +50,13 @@ pub trait Tracer {
         let _ = (regs, range);
     }
 
+    fn reg_show_vr(&self, index: usize, data: &[u8]) {
+        let _ = (index, data);
+    }
+    fn reg_print_vr(&self, regs: &[(usize, Vec<u8>)], range: Range<usize>) {
+        let _ = (regs, range);
+    }
+
     fn disasm(&self, pc: u64, inst: u32);
 }
 

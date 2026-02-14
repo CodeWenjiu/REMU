@@ -3,7 +3,13 @@ use std::sync::Arc;
 use remu_debugger::{DebuggerOption, DebuggerRunner};
 use remu_harness::RefSim;
 use remu_state::{StateFastProfile, StateMmioProfile};
-use remu_types::{DifftestRef, isa::RvIsa, isa::extension_enum::{RV32I, RV32IM}};
+use remu_types::{
+    DifftestRef,
+    isa::{
+        extension_enum::{RV32I, RV32I_zve32x_zvl128b, RV32IM},
+        ExtensionSpec, RvIsa,
+    },
+};
 use target_lexicon::{Architecture, Riscv32Architecture};
 
 fn boot_with_isa<ISA, Run>(option: DebuggerOption, runner: Run, interrupt: Arc<std::sync::atomic::AtomicBool>)
@@ -25,11 +31,22 @@ where
 }
 
 pub fn boot<R: DebuggerRunner>(option: DebuggerOption, runner: R, interrupt: Arc<std::sync::atomic::AtomicBool>) {
-    match option.isa.0 {
-        Architecture::Riscv32(Riscv32Architecture::Riscv32i) => boot_with_isa::<RV32I, R>(option, runner, interrupt),
-        Architecture::Riscv32(Riscv32Architecture::Riscv32im) => {
+    use ExtensionSpec::*;
+    use Riscv32Architecture::*;
+
+    let isa = &option.isa;
+    match (isa.base, isa.extensions) {
+        (Architecture::Riscv32(Riscv32i), None) => {
+            boot_with_isa::<RV32I, R>(option, runner, interrupt)
+        }
+        (Architecture::Riscv32(Riscv32im), None) => {
             boot_with_isa::<RV32IM, R>(option, runner, interrupt)
         }
-        _ => unreachable!(),
+        (Architecture::Riscv32(Riscv32i), Zve32xZvl128b) => {
+            boot_with_isa::<RV32I_zve32x_zvl128b, R>(option, runner, interrupt)
+        }
+        (arch, ext) => {
+            panic!("unsupported ISA combination: base={:?}, extensions={:?}", arch, ext);
+        }
     }
 }

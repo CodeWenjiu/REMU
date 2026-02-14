@@ -107,6 +107,7 @@ impl<P: SimulatorPolicy, const IS_DUT: bool> SimulatorTrait<P, IS_DUT>
         self.state.reg.pc = dut.reg.pc;
         self.state.reg.gpr = dut.reg.gpr;
         self.state.reg.fpr = dut.reg.fpr;
+        self.state.reg.vr = dut.reg.vr.clone();
         self.state.reg.csr = dut.reg.csr.clone();
     }
 
@@ -144,6 +145,18 @@ impl<P: SimulatorPolicy, const IS_DUT: bool> SimulatorTrait<P, IS_DUT>
         {
             out.push(DifftestMismatchItem {
                 group: RegGroup::Fpr,
+                name,
+                ref_val,
+                dut_val,
+            });
+        }
+        for (name, ref_val, dut_val) in
+            <<P::ISA as remu_types::isa::RvIsa>::VConfig as remu_types::isa::extension_v::VExtensionConfig>::VrState::diff(
+                &r.vr, &d.vr,
+            )
+        {
+            out.push(DifftestMismatchItem {
+                group: RegGroup::Vr,
                 name,
                 ref_val,
                 dut_val,

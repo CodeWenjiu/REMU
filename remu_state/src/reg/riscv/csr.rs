@@ -1,7 +1,8 @@
+use remu_types::isa::extension_v::CsrConfig;
 use remu_types::isa::reg::{Csr as CsrKind, VectorCsrState};
 
 #[derive(Clone)]
-pub struct Csr<V: VectorCsrState> {
+pub struct Csr<C: CsrConfig> {
     // Machine Trap Setup
     pub mstatus: u32,
     pub mie: u32,
@@ -13,11 +14,11 @@ pub struct Csr<V: VectorCsrState> {
     pub mtval: u32,
     pub mip: u32,
 
-    // Vector CSRs: dispatched by type (same as FprState: () vs FprRegs).
-    pub vector: V,
+    // Vector CSRs: from config (same as FprState: () vs FprRegs).
+    pub vector: C::VectorCsrState,
 }
 
-impl<V: VectorCsrState> Default for Csr<V> {
+impl<C: CsrConfig> Default for Csr<C> {
     fn default() -> Self {
         Self {
             mstatus: 0x0000_1800,
@@ -28,12 +29,12 @@ impl<V: VectorCsrState> Default for Csr<V> {
             mcause: 0,
             mtval: 0,
             mip: 0,
-            vector: V::default(),
+            vector: C::VectorCsrState::default(),
         }
     }
 }
 
-impl<V: VectorCsrState> std::fmt::Debug for Csr<V> {
+impl<C: CsrConfig> std::fmt::Debug for Csr<C> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("Csr")
             .field("mstatus", &self.mstatus)
@@ -49,7 +50,7 @@ impl<V: VectorCsrState> std::fmt::Debug for Csr<V> {
     }
 }
 
-impl<V: VectorCsrState> Csr<V> {
+impl<C: CsrConfig> Csr<C> {
     // --- mstatus 位 (RISC-V Privileged) ---
     const MSTATUS_MIE: u32 = 1 << 3;
     const MSTATUS_MPIE: u32 = 1 << 7;
@@ -123,7 +124,7 @@ impl<V: VectorCsrState> Csr<V> {
             CsrKind::Vcsr => self.vector.vcsr() & 7,
             CsrKind::Vl => self.vector.vl(),
             CsrKind::Vtype => self.vector.vtype(),
-            CsrKind::Vlenb => V::VLENB,
+            CsrKind::Vlenb => <C::VectorCsrState as VectorCsrState>::VLENB,
             _ => 0,
         }
     }

@@ -1,5 +1,7 @@
+use crate::isa::extension_v::{NoV, Zve32xZvl128b};
+use crate::isa::reg::csr::DIFFTEST_SLICES_BASE_AND_V;
 use crate::isa::reg::{FprRegs, GprState, PcState};
-use crate::isa::{extension::{Disabled, Enabled}, ArchConfig, RvIsa};
+use crate::isa::{ArchConfig, RvIsa, extension::{Disabled, Enabled}};
 
 #[derive(Clone, Copy)]
 pub struct ConfigRV32I;
@@ -15,7 +17,7 @@ impl RvIsa for RV32I {
     type PcState = PcState;
     type GprState = GprState;
     type FprState = ();
-    type VectorCsrState = ();
+    type VConfig = NoV;
 
     const ISA_STR: &'static str = "rv32i";
     const MISA: u32 = 0x4000_0100; // RV32, I
@@ -35,7 +37,7 @@ impl RvIsa for RV32IM {
     type PcState = PcState;
     type GprState = GprState;
     type FprState = ();
-    type VectorCsrState = ();
+    type VConfig = NoV;
 
     const ISA_STR: &'static str = "rv32im";
     const MISA: u32 = 0x4000_1100; // RV32, I, M
@@ -55,8 +57,28 @@ impl RvIsa for RV32IF {
     type PcState = PcState;
     type GprState = GprState;
     type FprState = FprRegs;
-    type VectorCsrState = ();
+    type VConfig = NoV;
 
     const ISA_STR: &'static str = "rv32if";
     const MISA: u32 = 0x4000_0120; // RV32, I, F
+}
+
+/// RV32I + Zve32x + Zvl128b: I and V enabled (VConfig = Zve32xZvl128b).
+#[allow(non_camel_case_types)]
+#[derive(Clone, Copy)]
+pub struct RV32I_zve32x_zvl128b;
+impl RvIsa for RV32I_zve32x_zvl128b {
+    type XLEN = u32;
+    type Conf = ConfigRV32I;
+    type PcState = PcState;
+    type GprState = GprState;
+    type FprState = ();
+    type VConfig = Zve32xZvl128b;
+
+    const ISA_STR: &'static str = "rv32i_zve32x_zvl128b";
+    const MISA: u32 = 0x4020_0100; // RV32, I, V
+
+    fn csrs_for_difftest() -> &'static [&'static [crate::isa::reg::Csr]] {
+        DIFFTEST_SLICES_BASE_AND_V
+    }
 }

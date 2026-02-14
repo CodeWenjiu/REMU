@@ -165,5 +165,11 @@ pub const CSRS_FOR_DIFFTEST_BASE: &[Csr] = &[
     Misa, Mstatus, Mie, Mtvec, Mscratch, Mepc, Mcause, Mtval, Mip,
 ];
 
-/// Vector CSRs for difftest. Only included when HAS_V; add this slice on top of base.
+/// Vector CSRs for difftest. Only included when V present; add this slice on top of base.
 pub const CSRS_FOR_DIFFTEST_V: &[Csr] = &[Vstart, Vxsat, Vxrm, Vcsr, Vl, Vtype, Vlenb];
+
+/// One segment: base only. Default for ISAs without V.
+pub static DIFFTEST_SLICES_BASE: &[&[Csr]] = &[CSRS_FOR_DIFFTEST_BASE];
+
+/// Two segments: base + V. Use when VConfig::VLENB != 0.
+pub static DIFFTEST_SLICES_BASE_AND_V: &[&[Csr]] = &[CSRS_FOR_DIFFTEST_BASE, CSRS_FOR_DIFFTEST_V];

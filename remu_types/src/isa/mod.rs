@@ -1,4 +1,4 @@
-remu_macro::mod_pub!(reg, extension, extension_enum);
+remu_macro::mod_pub!(reg, extension, extension_enum, extension_v);
 
 use std::str::FromStr;
 
@@ -42,8 +42,8 @@ pub trait RvIsa: 'static + Copy {
         + crate::isa::reg::FprAccess
         + crate::isa::reg::RegDiff;
 
-    /// Vector CSR state: `()` when no V extension, [`VectorCsrFields<VLENB>`](crate::isa::reg::VectorCsrFields) when V is present.
-    type VectorCsrState: crate::isa::reg::VectorCsrState;
+    /// V extension options: FP level, ELEN, VLENB, and VectorCsrState. Use [`NoV`](crate::isa::extension_v::NoV) when disabled.
+    type VConfig: crate::isa::extension_v::VExtensionConfig;
 
     const ISA_STR: &'static str = "rv32i";
 
@@ -53,13 +53,8 @@ pub trait RvIsa: 'static + Copy {
     const HAS_M: bool = <Self::Conf as ArchConfig>::M::ENABLED;
     const HAS_F: bool = <Self::Conf as ArchConfig>::F::ENABLED;
 
-    /// Whether the V (vector) extension is present. When false, vector CSRs are absent (read 0, write no-op).
-    const HAS_V: bool = false;
-    /// VLEN/8 in bytes; only meaningful when HAS_V. Used as the return value of the vlenb CSR.
-    const VLENB: u32 = 0;
-
     /// CSRs to compare in difftest, as segments: base segment(s) + optional extension segment(s).
-    /// Default: base only. Override to add e.g. [`CSRS_FOR_DIFFTEST_V`](crate::isa::reg::CSRS_FOR_DIFFTEST_V) when HAS_V.
+    /// Default: base only. Override when V is present (e.g. [`CSRS_FOR_DIFFTEST_V`](crate::isa::reg::CSRS_FOR_DIFFTEST_V)).
     fn csrs_for_difftest() -> &'static [&'static [crate::isa::reg::Csr]]
     where
         Self: Sized,
@@ -68,27 +63,81 @@ pub trait RvIsa: 'static + Copy {
     }
 }
 
-#[derive(Debug, Clone)]
-pub struct IsaSpec(pub Architecture);
+/// Extension suffix (parsed from the part after the first `_` in the ISA string).
+/// Add new variants when supporting more extension combinations.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub enum ExtensionSpec {
+    #[default]
+    None,
+    /// Zve32x + Zvl128b (V extension, VLENB=16).
+    Zve32xZvl128b,
+}
+
+impl FromStr for ExtensionSpec {
+    type Err = String;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        let s = s.trim();
+        if s.is_empty() {
+            return Ok(ExtensionSpec::None);
+        }
+        match to_ascii_lowercase(s).as_str() {
+            "zve32x_zvl128b" => Ok(ExtensionSpec::Zve32xZvl128b),
+            _ => Err(format!("Unrecognized extension spec: '{}'", s)),
+        }
+    }
+}
+
+/// ISA selector: base architecture (via target_lexicon Triple) + optional extension spec.
+/// Parse with first `_` as separator: prefix → Triple, suffix → ExtensionSpec.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct IsaSpec {
+    /// Base architecture from Triple (e.g. riscv32i, riscv32im).
+    pub base: Architecture,
+    /// Optional extensions (parsed from substring after first `_`).
+    pub extensions: ExtensionSpec,
+}
+
+impl IsaSpec {
+    /// Architecture for disassembly (ByteGuesser, etc.). Uses the Triple base.
+    #[inline]
+    pub fn architecture(self) -> Architecture {
+        self.base
+    }
+}
 
 impl FromStr for IsaSpec {
     type Err = String;
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
-        let normalized_s = if s.contains('-') {
-            s.to_string()
-        } else {
-            format!("{}-unknown-none-elf", s)
+        let s = s.trim();
+        let (prefix, suffix) = match s.split_once('_') {
+            Some((p, suf)) => (p.trim(), suf.trim()),
+            None => (s, ""),
         };
 
-        let architecture = normalized_s
+        let normalized = if prefix.contains('-') {
+            prefix.to_string()
+        } else {
+            format!("{}-unknown-none-elf", prefix)
+        };
+
+        let base = normalized
             .parse::<Triple>()
             .map_err(|e| format!("Invalid ISA string: '{}',: {}", s, e))?
             .architecture;
 
-        match architecture {
-            Architecture::Riscv32(_) | Architecture::Riscv64(_) => Ok(IsaSpec(architecture)),
-            _ => Err(format!("Unsupported ISA architecture: {}", architecture)),
-        }
+        let architecture = match base {
+            Architecture::Riscv32(_) | Architecture::Riscv64(_) => base,
+            _ => return Err(format!("Unsupported ISA architecture: {}", base)),
+        };
+
+        let extensions = ExtensionSpec::from_str(suffix)?;
+
+        Ok(IsaSpec { base: architecture, extensions })
     }
+}
+
+fn to_ascii_lowercase(s: &str) -> String {
+    s.chars().map(|c| c.to_ascii_lowercase()).collect()
 }

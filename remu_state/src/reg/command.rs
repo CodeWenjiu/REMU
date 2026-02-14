@@ -1,7 +1,16 @@
 use std::ops::Range;
 
-use remu_fmt::parse_prefixed_uint;
+use remu_fmt::{parse_byte_vec, parse_prefixed_uint};
 use remu_types::isa::reg::{Csr as CsrReg, Fpr, Gpr};
+
+fn parse_vr_index(s: &str) -> Result<usize, String> {
+    let i = parse_prefixed_uint::<usize>(s.trim()).map_err(|e| e.to_string())?;
+    if i < 32 {
+        Ok(i)
+    } else {
+        Err(format!("VR index must be 0..32, got {}", i))
+    }
+}
 
 fn parse_half_open_range_usize(s: &str) -> Result<Range<usize>, String> {
     let s = s.trim();
@@ -38,6 +47,12 @@ pub enum RegCmd {
     Pc {
         #[command(subcommand)]
         subcmd: PcRegCmd,
+    },
+
+    /// Vector Registers (v0–v31). No-op when V extension is disabled.
+    Vr {
+        #[command(subcommand)]
+        subcmd: VrRegCmd,
     },
 
     /// Control and Status Registers (mstatus, mepc, …)
@@ -87,6 +102,28 @@ pub enum FprRegCmd {
 
         #[arg(value_parser = parse_prefixed_uint::<u32>)]
         value: u32,
+    },
+}
+
+#[derive(Debug, clap::Subcommand)]
+pub enum VrRegCmd {
+    Read {
+        #[arg(value_parser = parse_vr_index)]
+        index: usize,
+    },
+
+    Print {
+        #[arg(value_parser = parse_half_open_range_usize, default_value = "0..32")]
+        range: Range<usize>,
+    },
+
+    Write {
+        #[arg(value_parser = parse_vr_index)]
+        index: usize,
+
+        /// Bytes in hex (e.g. `0xdeadbeef`) or quoted string; length is padded/truncated to VLENB.
+        #[arg(value_parser = parse_byte_vec)]
+        value: Vec<u8>,
     },
 }
 

@@ -1,4 +1,4 @@
-remu_macro::mod_flat!(gpr, fpr);
+remu_macro::mod_flat!(gpr, fpr, vr);
 remu_macro::mod_pub!(csr);
 pub use csr::*;
 

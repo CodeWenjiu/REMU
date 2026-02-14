@@ -85,6 +85,19 @@ pub struct FprTable {
     data: u32,
 }
 
+#[derive(Tabled)]
+pub struct VrTable {
+    register: String,
+    data: String,
+}
+
+fn fmt_vr_hex(bytes: &[u8]) -> String {
+    if bytes.is_empty() {
+        return "(no V)".to_string();
+    }
+    bytes.iter().map(|b| format!("{b:02x}")).collect::<String>()
+}
+
 impl CLITracer {
     fn mem_rows_32(&self, begin: usize, data: &[u8]) -> Vec<MemTable> {
         let mut rows = Vec::new();
@@ -272,6 +285,29 @@ impl Tracer for CLITracer {
         println!("{table}");
     }
 
+    fn reg_show_vr(&self, index: usize, data: &[u8]) {
+        println!(
+            "{}: {}",
+            format!("v{index}").yellow(),
+            format!("0x{}", fmt_vr_hex(data)).blue()
+        );
+    }
+
+    fn reg_print_vr(&self, regs: &[(usize, Vec<u8>)], _range: Range<usize>) {
+        let rows: Vec<VrTable> = regs
+            .iter()
+            .map(|(i, data)| VrTable {
+                register: format!("v{i}"),
+                data: format!("0x{}", fmt_vr_hex(data)),
+            })
+            .collect();
+        let mut table = Table::new(rows);
+        table.with(Style::rounded());
+        table.modify(Columns::one(0), Color::FG_YELLOW);
+        table.modify(Columns::one(1), Color::FG_CYAN);
+        println!("{table}");
+    }
+
     fn disasm(&self, pc: u64, inst: u32) {
         let result = match self.guesser.disassemble(pc, inst) {
             Ok(disasm) => disasm,
@@ -295,7 +331,7 @@ impl CLITracer {
 impl CLITracer {
     pub fn new(isa: IsaSpec) -> Self {
         CLITracer {
-            guesser: ByteGuesser::new(isa.0),
+            guesser: ByteGuesser::new(isa.architecture()),
         }
     }
 }

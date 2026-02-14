@@ -276,7 +276,7 @@ fn state_exec_reg(
     tracer: &TracerDyn,
     cmd: &remu_state::reg::RegCmd,
 ) -> Result<(), SimulatorInnerError> {
-    use remu_state::reg::{CsrRegCmd, FprRegCmd, PcRegCmd};
+    use remu_state::reg::{CsrRegCmd, FprRegCmd, PcRegCmd, VrRegCmd};
 
     let pc_ptr = unsafe { spike_difftest_get_pc_ptr(ctx) };
     let gpr_ptr = unsafe { spike_difftest_get_gpr_ptr(ctx) };
@@ -338,6 +338,17 @@ fn state_exec_reg(
                 tracer.borrow().reg_print_fpr(&regs_vec, range.clone());
             }
             FprRegCmd::Write { .. } => { /* Spike difftest has no FPR write; ignore */ }
+        },
+        remu_state::reg::RegCmd::Vr { subcmd } => match subcmd {
+            VrRegCmd::Read { index } => {
+                tracer.borrow().reg_show_vr(*index, &[]); /* Spike difftest has no VR */
+            }
+            VrRegCmd::Print { range } => {
+                let regs: Vec<(usize, Vec<u8>)> =
+                    (range.start..range.end).map(|i| (i, vec![])).collect();
+                tracer.borrow().reg_print_vr(&regs, range.clone());
+            }
+            VrRegCmd::Write { .. } => { /* Spike difftest has no VR write; ignore */ }
         },
         remu_state::reg::RegCmd::Csr { subcmd } => match subcmd {
             CsrRegCmd::Read { index } => {

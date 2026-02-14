@@ -14,6 +14,7 @@ pub enum RegGroup {
     Pc,
     Gpr,
     Fpr,
+    Vr,
     Csr,
 }
 
@@ -34,6 +35,7 @@ impl fmt::Display for DifftestMismatchItem {
                 RegGroup::Pc => "pc",
                 RegGroup::Gpr => "gpr",
                 RegGroup::Fpr => "fpr",
+                RegGroup::Vr => "vr",
                 RegGroup::Csr => "csr",
             },
             self.name,

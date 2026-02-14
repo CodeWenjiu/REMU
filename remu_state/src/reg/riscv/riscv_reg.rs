@@ -1,7 +1,8 @@
-use remu_types::isa::reg::{Csr as CsrKind, Gpr};
+use remu_types::isa::extension_v::VExtensionConfig;
+use remu_types::isa::reg::{Csr as CsrKind, Gpr, VrState as VrStateTrait};
 use remu_types::isa::{RvIsa, reg::RegAccess};
 
-use crate::reg::{CsrRegCmd, FprRegCmd, GprRegCmd, PcRegCmd, RegCmd, RegOption};
+use crate::reg::{CsrRegCmd, FprRegCmd, GprRegCmd, PcRegCmd, RegCmd, RegOption, VrRegCmd};
 
 use super::Csr;
 
@@ -9,7 +10,8 @@ pub struct RiscvReg<I: RvIsa> {
     pub pc: I::PcState,
     pub gpr: I::GprState,
     pub fpr: I::FprState,
-    pub csr: Csr<I::VectorCsrState>,
+    pub vr: <I::VConfig as VExtensionConfig>::VrState,
+    pub csr: Csr<I::VConfig>,
     tracer: remu_types::TracerDyn,
 }
 
@@ -19,6 +21,7 @@ impl<I: RvIsa> RiscvReg<I> {
             pc: opt.init_pc.into(),
             gpr: Default::default(),
             fpr: Default::default(),
+            vr: Default::default(),
             csr: Csr::default(),
             tracer,
         }
@@ -37,6 +40,7 @@ impl<I: RvIsa> RiscvReg<I> {
     pub(crate) fn execute(&mut self, cmd: &RegCmd) {
         match cmd {
             RegCmd::Pc { subcmd } => self.execute_pc(subcmd),
+            RegCmd::Vr { subcmd } => self.execute_vr(subcmd),
             RegCmd::Csr { subcmd } => self.execute_csr(subcmd),
             RegCmd::Gpr { subcmd } => self.execute_gpr(subcmd),
             RegCmd::Fpr { subcmd } => self.execute_fpr(subcmd),
@@ -101,6 +105,33 @@ impl<I: RvIsa> RiscvReg<I> {
             }
             FprRegCmd::Write { index, value } => {
                 self.fpr.raw_write(index.idx(), *value);
+            }
+        }
+    }
+
+    fn execute_vr(&mut self, cmd: &VrRegCmd) {
+        let vlenb =
+            <<I::VConfig as VExtensionConfig>::VrState as VrStateTrait>::VLENB as usize;
+
+        match cmd {
+            VrRegCmd::Read { index } => {
+                let data = self.vr.raw_read(*index);
+                self.tracer.borrow().reg_show_vr(*index, data);
+            }
+            VrRegCmd::Print { range } => {
+                let regs: Vec<(usize, Vec<u8>)> = (range.start..range.end)
+                    .map(|i| (i, self.vr.raw_read(i).to_vec()))
+                    .collect();
+                self.tracer.borrow().reg_print_vr(&regs, range.clone());
+            }
+            VrRegCmd::Write { index, value } => {
+                if vlenb == 0 {
+                    return;
+                }
+                let mut buf = vec![0u8; vlenb];
+                let n = value.len().min(vlenb);
+                buf[..n].copy_from_slice(&value[..n]);
+                self.vr.raw_write(*index, &buf);
             }
         }
     }
