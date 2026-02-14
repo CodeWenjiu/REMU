@@ -28,7 +28,6 @@ fn parse_half_open_range_usize(s: &str) -> Result<Range<usize>, String> {
     Ok(start..end)
 }
 
-
 #[derive(Debug, clap::Subcommand)]
 pub enum RegCmd {
     /// General Purpose Registers (x0–x31 / ra, sp, …)
@@ -123,7 +122,7 @@ pub enum VrRegCmd {
 
         /// Bytes in hex (e.g. `0xdeadbeef`) or quoted string; length is padded/truncated to VLENB.
         #[arg(value_parser = parse_byte_vec)]
-        value: Vec<u8>,
+        value: Vec<Vec<u8>>,
     },
 }
 

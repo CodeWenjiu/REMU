@@ -128,9 +128,10 @@ impl<I: RvIsa> RiscvReg<I> {
                 if vlenb == 0 {
                     return;
                 }
+                let merged: Vec<u8> = value.iter().flat_map(|v| v.iter().copied()).collect();
                 let mut buf = vec![0u8; vlenb];
-                let n = value.len().min(vlenb);
-                buf[..n].copy_from_slice(&value[..n]);
+                let n = merged.len().min(vlenb);
+                buf[..n].copy_from_slice(&merged[..n]);
                 self.vr.raw_write(*index, &buf);
             }
         }

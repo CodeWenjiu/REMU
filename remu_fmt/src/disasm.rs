@@ -1,7 +1,8 @@
 use capstone::{
     Capstone,
-    arch::{self, BuildsCapstone},
+    arch::{self, BuildsCapstone, BuildsCapstoneExtraMode},
 };
+use remu_types::isa::IsaSpec;
 use target_lexicon::Architecture;
 use thiserror::Error;
 
@@ -77,8 +78,10 @@ pub struct ByteGuesser {
 }
 
 impl ByteGuesser {
-    pub fn new(isa: Architecture) -> Self {
-        let arch_mode = match isa {
+    /// Builds a disassembler for the given ISA. Capstone 0.14 has no RISC-V V mode;
+    /// when extensions contain Zve32x we fall back to a minimal RVV disassembler.
+    pub fn new(isa: IsaSpec) -> Self {
+        let arch_mode = match isa.base {
             Architecture::Riscv32(_) => arch::riscv::ArchMode::RiscV32,
             Architecture::Riscv64(_) => arch::riscv::ArchMode::RiscV64,
             _ => unreachable!(),
@@ -87,6 +90,7 @@ impl ByteGuesser {
         let cs = Capstone::new()
             .riscv()
             .mode(arch_mode)
+            .extra_mode([arch::riscv::ArchExtraMode::RiscVC].iter().copied())
             .detail(true)
             .build()
             .expect("Failed to build Disassembler");

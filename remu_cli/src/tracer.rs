@@ -331,7 +331,7 @@ impl CLITracer {
 impl CLITracer {
     pub fn new(isa: IsaSpec) -> Self {
         CLITracer {
-            guesser: ByteGuesser::new(isa.architecture()),
+            guesser: ByteGuesser::new(isa),
         }
     }
 }

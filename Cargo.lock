@@ -1398,6 +1398,7 @@ version = "0.1.0"
 dependencies = [
  "capstone",
  "remu_macro",
+ "remu_types",
  "target-lexicon",
  "thiserror",
  "tracing",

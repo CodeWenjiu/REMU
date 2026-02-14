@@ -2,7 +2,7 @@
 
 use remu_types::isa::reg::{Csr as CsrKind, RegAccess};
 
-use crate::riscv::inst::{csr, funct3, rd, rs1, DecodedInst, Inst};
+use crate::riscv::inst::{DecodedInst, Inst, csr, funct3, rd, rs1};
 
 pub(crate) const OPCODE: u32 = 0b111_0011;
 pub(crate) const INSTRUCTION_MIX: u32 = 20;
@@ -68,7 +68,9 @@ pub(crate) fn execute<P: remu_state::StatePolicy, C: crate::ExecuteContext<P>>(
     decoded: &DecodedInst,
 ) -> Result<(), remu_state::StateError> {
     let state = ctx.state_mut();
-    let Inst::System(sys) = decoded.inst else { unreachable!() };
+    let Inst::System(sys) = decoded.inst else {
+        unreachable!()
+    };
     let k = CsrKind::from_repr((decoded.imm & 0xFFF) as u16).unwrap();
     let old = state.reg.read_csr(k);
     let new_val = match sys {

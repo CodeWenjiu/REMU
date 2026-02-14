@@ -1,4 +1,4 @@
-use crate::riscv::inst::{funct3, DecodedInst, Inst};
+use crate::riscv::inst::{DecodedInst, Inst, funct3};
 
 pub(crate) const OPCODE: u32 = 0b000_1111;
 pub(crate) const INSTRUCTION_MIX: u32 = 10;

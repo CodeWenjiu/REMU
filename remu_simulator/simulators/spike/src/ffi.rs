@@ -23,6 +23,7 @@ pub type SpikeDifftestCtx = *mut c_void;
 
 #[allow(unsafe_code)]
 unsafe extern "C" {
+    /// VLEN is determined by Spike from ISA string (e.g. zvl128b in rv32i_zve32x_zvl128b).
     pub fn spike_difftest_init(
         layout: *const DifftestMemLayout,
         n_regions: usize,
@@ -76,6 +77,23 @@ unsafe extern "C" {
     pub fn spike_difftest_get_fpr(ctx: SpikeDifftestCtx, index: usize) -> u32;
 
     pub fn spike_difftest_sync_regs_to_spike(ctx: SpikeDifftestCtx, regs: *const DifftestRegs);
+
+    /// Bytes per vector reg (VLEN/8). 0 when no V.
+    pub fn spike_difftest_get_vlenb(ctx: SpikeDifftestCtx) -> usize;
+
+    /// Pointer to 32 * vlenb bytes. Null when no V.
+    pub fn spike_difftest_get_vr_ptr(ctx: SpikeDifftestCtx) -> *const u8;
+
+    /// Sync DUT VR to Spike; data len must be 32 * vlenb.
+    pub fn spike_difftest_sync_vr_to_spike(ctx: SpikeDifftestCtx, data: *const u8, len: usize);
+
+    /// Write one VR in Spike; index 0..31, len must be vlenb.
+    pub fn spike_difftest_write_vr_reg(
+        ctx: SpikeDifftestCtx,
+        index: usize,
+        data: *const u8,
+        len: usize,
+    );
 
     pub fn spike_difftest_fini(ctx: SpikeDifftestCtx);
 }

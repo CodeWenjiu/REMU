@@ -4,8 +4,9 @@ use std::os::raw::c_uint;
 
 use remu_state::bus::{BusOption, MemoryEntry, try_load_elf_into_memory};
 use remu_state::{State, StateCmd};
+use remu_types::isa::extension_v::VExtensionConfig;
+use remu_types::isa::reg::{Fpr, Gpr, RegAccess, VrState as VrStateTrait};
 use remu_types::isa::RvIsa;
-use remu_types::isa::reg::{Fpr, Gpr, RegAccess};
 use remu_types::{AllUsize, DifftestMismatchItem, RegGroup, TracerDyn, Xlen};
 
 use remu_simulator::{
@@ -14,9 +15,10 @@ use remu_simulator::{
 
 use crate::ffi::{
     spike_difftest_copy_mem, spike_difftest_fini, spike_difftest_get_csr, spike_difftest_get_fpr,
-    spike_difftest_get_gpr_ptr, spike_difftest_get_pc_ptr, spike_difftest_init,
-    spike_difftest_read_mem, spike_difftest_step, spike_difftest_sync_regs_to_spike,
-    spike_difftest_sync_mem, spike_difftest_write_mem, DifftestMemLayout, DifftestRegs,
+    spike_difftest_get_gpr_ptr, spike_difftest_get_pc_ptr, spike_difftest_get_vlenb,
+    spike_difftest_get_vr_ptr, spike_difftest_init, spike_difftest_read_mem, spike_difftest_step,
+    spike_difftest_sync_regs_to_spike, spike_difftest_sync_mem, spike_difftest_sync_vr_to_spike,
+    spike_difftest_write_mem, spike_difftest_write_vr_reg, DifftestMemLayout, DifftestRegs,
     SpikeDifftestCtx,
 };
 
@@ -68,6 +70,8 @@ impl<P: SimulatorPolicy> SimulatorTrait<P, false> for SimulatorSpike<P> {
         let init_pc = opt.state.reg.init_pc;
         let init_gpr = [0u32; 32];
 
+        // ISA_STR must match our VConfig (e.g. rv32i_zve32x_zvl128b). Spike parses zvl128b from
+        // ISA string to set VLEN; no Spike source modification.
         let isa_str = CString::new(P::ISA::ISA_STR).expect("ISA_STR contains null");
         let xlen: c_uint = <<P::ISA as RvIsa>::XLEN as Xlen>::BITS;
 
@@ -92,6 +96,18 @@ impl<P: SimulatorPolicy> SimulatorTrait<P, false> for SimulatorSpike<P> {
                     spike_difftest_copy_mem(ctx.unwrap(), base, ptr, size);
                 }
             }
+            // Safeguard: Spike VLEN must match our ISA (from ISA string). Fail fast if not.
+            let expected_vlenb =
+                <<<P::ISA as RvIsa>::VConfig as VExtensionConfig>::VrState as VrStateTrait>::VLENB
+                    as usize;
+            let spike_vlenb = unsafe { spike_difftest_get_vlenb(ctx.unwrap()) };
+            assert!(
+                spike_vlenb == expected_vlenb,
+                "Spike VLENB mismatch: Spike has {}, we expect {} (ISA: {})",
+                spike_vlenb,
+                expected_vlenb,
+                P::ISA::ISA_STR
+            );
             ctx
         };
 
@@ -135,6 +151,16 @@ impl<P: SimulatorPolicy> SimulatorTrait<P, false> for SimulatorSpike<P> {
         let regs = gpr_to_difftest_regs(dut);
         if let Some(ctx) = self.ctx {
             unsafe { spike_difftest_sync_regs_to_spike(ctx, &regs) };
+        }
+
+        let vlenb =
+            <<<P::ISA as RvIsa>::VConfig as VExtensionConfig>::VrState as VrStateTrait>::VLENB
+                as usize;
+        if vlenb > 0 {
+            if let Some(ctx) = self.ctx {
+                let bytes = dut.reg.vr.raw_bytes();
+                unsafe { spike_difftest_sync_vr_to_spike(ctx, bytes.as_ptr(), bytes.len()) };
+            }
         }
 
         if let Some(ctx) = self.ctx {
@@ -226,6 +252,40 @@ impl<P: SimulatorPolicy> SimulatorTrait<P, false> for SimulatorSpike<P> {
                         ref_val: AllUsize::U32(ref_val),
                         dut_val: AllUsize::U32(dut_val),
                     });
+                }
+            }
+        }
+
+        let vlenb =
+            <<<P::ISA as RvIsa>::VConfig as VExtensionConfig>::VrState as VrStateTrait>::VLENB
+                as usize;
+        if vlenb > 0 {
+            let vr_ptr = unsafe { spike_difftest_get_vr_ptr(ctx) };
+            if !vr_ptr.is_null() {
+                for i in 0..32 {
+                    let ref_slice =
+                        unsafe { std::slice::from_raw_parts(vr_ptr.add(i * vlenb), vlenb) };
+                    let dut_slice = dut.reg.vr.raw_read(i);
+                    if ref_slice != dut_slice {
+                        let (ref_val, dut_val) = if vlenb <= 16 {
+                            let mut rb = [0u8; 16];
+                            let mut db = [0u8; 16];
+                            rb[..vlenb].copy_from_slice(ref_slice);
+                            db[..vlenb].copy_from_slice(dut_slice);
+                            (
+                                AllUsize::U128(u128::from_le_bytes(rb)),
+                                AllUsize::U128(u128::from_le_bytes(db)),
+                            )
+                        } else {
+                            (AllUsize::U64(0), AllUsize::U64(0))
+                        };
+                        out.push(DifftestMismatchItem {
+                            group: RegGroup::Vr,
+                            name: format!("v{i}"),
+                            ref_val,
+                            dut_val,
+                        });
+                    }
                 }
             }
         }
@@ -339,17 +399,51 @@ fn state_exec_reg(
             }
             FprRegCmd::Write { .. } => { /* Spike difftest has no FPR write; ignore */ }
         },
-        remu_state::reg::RegCmd::Vr { subcmd } => match subcmd {
-            VrRegCmd::Read { index } => {
-                tracer.borrow().reg_show_vr(*index, &[]); /* Spike difftest has no VR */
+        remu_state::reg::RegCmd::Vr { subcmd } => {
+            let vlenb = unsafe { spike_difftest_get_vlenb(ctx) };
+            let vr_ptr = unsafe { spike_difftest_get_vr_ptr(ctx) };
+            let has_vr = !vr_ptr.is_null() && vlenb > 0;
+
+            match subcmd {
+                VrRegCmd::Read { index } => {
+                    if has_vr && (*index) < 32 {
+                        let slice =
+                            unsafe { std::slice::from_raw_parts(vr_ptr.add((*index) * vlenb), vlenb) };
+                        tracer.borrow().reg_show_vr(*index, slice);
+                    } else {
+                        tracer.borrow().reg_show_vr(*index, &[]);
+                    }
+                }
+                VrRegCmd::Print { range } => {
+                    if has_vr {
+                        let regs: Vec<(usize, Vec<u8>)> = (range.start..range.end)
+                            .map(|i| {
+                                let slice =
+                                    unsafe { std::slice::from_raw_parts(vr_ptr.add(i * vlenb), vlenb) };
+                                (i, slice.to_vec())
+                            })
+                            .collect();
+                        tracer.borrow().reg_print_vr(&regs, range.clone());
+                    } else {
+                        let regs: Vec<(usize, Vec<u8>)> =
+                            (range.start..range.end).map(|i| (i, vec![])).collect();
+                        tracer.borrow().reg_print_vr(&regs, range.clone());
+                    }
+                }
+                VrRegCmd::Write { index, value } => {
+                    if has_vr && (*index) < 32 {
+                        let merged: Vec<u8> =
+                            value.iter().flat_map(|v| v.iter().copied()).collect();
+                        let mut buf = vec![0u8; vlenb];
+                        let n = merged.len().min(vlenb);
+                        buf[..n].copy_from_slice(&merged[..n]);
+                        unsafe {
+                            spike_difftest_write_vr_reg(ctx, *index, buf.as_ptr(), buf.len());
+                        }
+                    }
+                }
             }
-            VrRegCmd::Print { range } => {
-                let regs: Vec<(usize, Vec<u8>)> =
-                    (range.start..range.end).map(|i| (i, vec![])).collect();
-                tracer.borrow().reg_print_vr(&regs, range.clone());
-            }
-            VrRegCmd::Write { .. } => { /* Spike difftest has no VR write; ignore */ }
-        },
+        }
         remu_state::reg::RegCmd::Csr { subcmd } => match subcmd {
             CsrRegCmd::Read { index } => {
                 tracer.borrow().print(&format!("{} = {:#010x}", index, 0)); /* Spike difftest has no CSR */

@@ -35,7 +35,7 @@ typedef struct spike_difftest_ctx spike_difftest_ctx_t;
  * @param init_pc   Initial PC
  * @param init_gpr  Initial GPR[32], may be NULL (then all zeros)
  * @param xlen      32 or 64
- * @param isa       e.g. "rv32im"
+ * @param isa       e.g. "rv32im" or "rv32i_zve32x_zvl128b". VLEN comes from ISA (zvl* in string).
  * @return Context, or NULL on failure
  */
 spike_difftest_ctx_t* spike_difftest_init(const difftest_mem_layout_t* layout,
@@ -113,6 +113,32 @@ uint32_t spike_difftest_get_fpr(spike_difftest_ctx_t* ctx, size_t index);
  */
 void spike_difftest_sync_regs_to_spike(spike_difftest_ctx_t* ctx,
                                        const difftest_regs_t* regs);
+
+/**
+ * Bytes per vector register (VLEN/8). 0 when no V extension.
+ */
+size_t spike_difftest_get_vlenb(spike_difftest_ctx_t* ctx);
+
+/**
+ * Pointer to Spike's vector register file (32 * vlenb bytes). NULL when no V.
+ * Valid until next step/sync.
+ */
+const uint8_t* spike_difftest_get_vr_ptr(spike_difftest_ctx_t* ctx);
+
+/**
+ * Sync DUT vector regs to Spike. data must be 32 * vlenb bytes. No-op when no V.
+ */
+void spike_difftest_sync_vr_to_spike(spike_difftest_ctx_t* ctx,
+                                    const uint8_t* data,
+                                    size_t len);
+
+/**
+ * Write one vector register in Spike. index in 0..31, data len must be vlenb. No-op when no V.
+ */
+void spike_difftest_write_vr_reg(spike_difftest_ctx_t* ctx,
+                                size_t index,
+                                const uint8_t* data,
+                                size_t len);
 
 /** Free context */
 void spike_difftest_fini(spike_difftest_ctx_t* ctx);

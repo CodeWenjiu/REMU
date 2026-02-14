@@ -5,8 +5,8 @@ use clap::Parser;
 remu_macro::mod_flat!(command, option, policy, error, compound_command);
 pub use command::get_command_graph;
 pub use compound_command::{CommandExpr, Op, ParseError};
-pub use remu_harness::{ExitCode, RunOutcome};
 use remu_harness::{DutSim, Harness};
+pub use remu_harness::{ExitCode, RunOutcome};
 use remu_types::TracerDyn;
 
 pub struct Debugger<P: HarnessPolicy, R: SimulatorTrait<P, false>> {
@@ -101,11 +101,17 @@ impl<P: HarnessPolicy, R: SimulatorTrait<P, false>> Debugger<P, R> {
     fn execute_parsed(&mut self, command: &Command) -> Result<(bool, RunOutcome), DebuggerError> {
         match command {
             Command::Step { times } => {
-                let outcome = self.run_step_loop(Some(*times))?;
+                let outcome = self
+                    .harness
+                    .run_steps(Some(*times))
+                    .map_err(DebuggerError::CommandExec)?;
                 return Ok((true, outcome));
             }
             Command::Continue => {
-                let outcome = self.run_step_loop(None)?;
+                let outcome = self
+                    .harness
+                    .run_steps(None)
+                    .map_err(DebuggerError::CommandExec)?;
                 return Ok((true, outcome));
             }
             Command::Func { subcmd } => {
@@ -120,9 +126,5 @@ impl<P: HarnessPolicy, R: SimulatorTrait<P, false>> Debugger<P, R> {
             Command::Quit => return Err(DebuggerError::ExitRequested),
         }
         Ok((true, RunOutcome::Done))
-    }
-
-    fn run_step_loop(&mut self, max_steps: Option<usize>) -> Result<RunOutcome, DebuggerError> {
-        self.harness.run_steps(max_steps).map_err(DebuggerError::CommandExec)
     }
 }

@@ -63,7 +63,9 @@ impl RvIsa for RV32IF {
     const MISA: u32 = 0x4000_0120; // RV32, I, F
 }
 
-/// RV32I + Zve32x + Zvl128b: I and V enabled (VConfig = Zve32xZvl128b).
+/// RV32I + Zve32x + Zvl128b: embedded vector subset (VConfig = Zve32xZvl128b).
+/// MISA.V is not set: Zve* is a subset profile; Spike (and spec) reserve MISA bit V for the
+/// full V extension (single letter 'v' in base ISA). So MISA = RV32, I only.
 #[allow(non_camel_case_types)]
 #[derive(Clone, Copy)]
 pub struct RV32I_zve32x_zvl128b;
@@ -76,7 +78,7 @@ impl RvIsa for RV32I_zve32x_zvl128b {
     type VConfig = Zve32xZvl128b;
 
     const ISA_STR: &'static str = "rv32i_zve32x_zvl128b";
-    const MISA: u32 = 0x4020_0100; // RV32, I, V
+    const MISA: u32 = 0x4000_0100; // RV32, I (Zve subset does not set MISA.V)
 
     fn csrs_for_difftest() -> &'static [&'static [crate::isa::reg::Csr]] {
         DIFFTEST_SLICES_BASE_AND_V

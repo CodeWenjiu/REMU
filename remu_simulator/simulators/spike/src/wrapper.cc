@@ -22,6 +22,7 @@
 #include "decode.h"
 #include "decode_macros.h"
 #include "mmu.h"
+#include "vector_unit.h"
 
 #include <cstdlib>
 #include <cstring>
@@ -263,6 +264,50 @@ void spike_difftest_sync_regs_to_spike(spike_difftest_ctx_t* ctx,
     if (ctx && ctx->proc && regs) {
         sync_regs_to_spike(regs, ctx->proc);
     }
+}
+
+size_t spike_difftest_get_vlenb(spike_difftest_ctx_t* ctx)
+{
+    if (!ctx || !ctx->proc || !ctx->proc->any_vector_extensions())
+        return 0;
+    return static_cast<size_t>(ctx->proc->VU.vlenb);
+}
+
+const uint8_t* spike_difftest_get_vr_ptr(spike_difftest_ctx_t* ctx)
+{
+    if (!ctx || !ctx->proc || !ctx->proc->any_vector_extensions() || ctx->proc->VU.vlenb == 0)
+        return nullptr;
+    return static_cast<const uint8_t*>(ctx->proc->VU.reg_file);
+}
+
+void spike_difftest_sync_vr_to_spike(spike_difftest_ctx_t* ctx,
+                                     const uint8_t* data,
+                                     size_t len)
+{
+    if (!ctx || !ctx->proc || !data)
+        return;
+    if (!ctx->proc->any_vector_extensions() || ctx->proc->VU.vlenb == 0)
+        return;
+    size_t vlenb = static_cast<size_t>(ctx->proc->VU.vlenb);
+    if (len != 32 * vlenb)
+        return;
+    memcpy(ctx->proc->VU.reg_file, data, len);
+}
+
+void spike_difftest_write_vr_reg(spike_difftest_ctx_t* ctx,
+                                size_t index,
+                                const uint8_t* data,
+                                size_t len)
+{
+    if (!ctx || !ctx->proc || !data || index >= 32)
+        return;
+    if (!ctx->proc->any_vector_extensions() || ctx->proc->VU.vlenb == 0)
+        return;
+    size_t vlenb = static_cast<size_t>(ctx->proc->VU.vlenb);
+    if (len != vlenb)
+        return;
+    char* base = static_cast<char*>(ctx->proc->VU.reg_file);
+    memcpy(base + index * vlenb, data, vlenb);
 }
 
 void spike_difftest_fini(spike_difftest_ctx_t* ctx)

@@ -14,6 +14,9 @@ pub trait VrState: Default + Clone + std::fmt::Debug + RegDiff {
 
     /// Write register `idx` from `data` (len must be VLENB).
     fn raw_write(&mut self, idx: usize, data: &[u8]);
+
+    /// Contiguous bytes of the whole register file (32 * VLENB). Empty when no V.
+    fn raw_bytes(&self) -> &[u8];
 }
 
 impl VrState for () {
@@ -26,6 +29,11 @@ impl VrState for () {
 
     #[inline(always)]
     fn raw_write(&mut self, _: usize, _: &[u8]) {}
+
+    #[inline(always)]
+    fn raw_bytes(&self) -> &[u8] {
+        &[]
+    }
 }
 
 impl<const VLENB: usize> VrState for [[u8; VLENB]; 32]
@@ -42,6 +50,12 @@ where
     #[inline(always)]
     fn raw_write(&mut self, idx: usize, data: &[u8]) {
         self[idx].copy_from_slice(data);
+    }
+
+    #[inline(always)]
+    fn raw_bytes(&self) -> &[u8] {
+        let ptr = self[0].as_ptr();
+        unsafe { core::slice::from_raw_parts(ptr, 32 * VLENB) }
     }
 }
 
