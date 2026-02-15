@@ -1,8 +1,8 @@
 #![allow(non_snake_case)]
 
 use remu_state::{StateError, StatePolicy};
-use remu_types::isa::extension_v::VExtensionConfig;
 use remu_types::isa::RvIsa;
+use remu_types::isa::extension_v::VExtensionConfig;
 
 remu_macro::mod_pub!(opcode);
 remu_macro::mod_flat!(bytes);
@@ -25,7 +25,7 @@ pub(crate) enum Inst {
     Store(STORE::StoreInst),
     MiscMem(MISC_MEM::MiscMemInst),
     System(SYSTEM::SystemInst),
-    V(()),
+    V(OP_V::VInst),
     #[default]
     Unknown,
 }
@@ -82,7 +82,13 @@ pub(crate) fn execute<P: StatePolicy, C: crate::ExecuteContext<P>>(
         Inst::Store(..) => STORE::execute(ctx, decoded),
         Inst::MiscMem(..) => MISC_MEM::execute(ctx, decoded),
         Inst::System(..) => SYSTEM::execute(ctx, decoded),
-        Inst::V(..) => OP_V::execute(ctx, decoded),
+        Inst::V(..) => {
+            if <<P::ISA as RvIsa>::VConfig as VExtensionConfig>::VLENB > 0 {
+                OP_V::execute(ctx, decoded)
+            } else {
+                unsafe { core::hint::unreachable_unchecked() }
+            }
+        }
         Inst::Unknown => UNKNOWN::execute(ctx, decoded),
     }
 }
