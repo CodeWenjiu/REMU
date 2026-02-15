@@ -132,7 +132,10 @@ where
                 }
             }
             Command::Breakpoint { addr } => {
-                self.harness.set_breakpoint(*addr);
+                if let Err(e) = self.harness.set_breakpoint(*addr) {
+                    eprintln!("{}", e);
+                    return Ok((false, RunOutcome::Done));
+                }
             }
             Command::Quit => return Err(DebuggerError::ExitRequested),
         }

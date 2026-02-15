@@ -29,6 +29,13 @@ pub enum SimulatorInnerError {
 
     #[error("interrupted")]
     Interrupted,
+
+    #[error("breakpoint: {0}")]
+    BreakpointError(String),
+
+    /// DUT hit a breakpoint (ebreak at this PC). Execution stopped.
+    #[error("breakpoint hit at 0x{0:08x}")]
+    BreakpointHit(u32),
 }
 
 impl SimulatorInnerError {
@@ -38,7 +45,9 @@ impl SimulatorInnerError {
             SimulatorInnerError::StateAccessError(e) => e.backtrace(),
             SimulatorInnerError::RefError(_)
             | SimulatorInnerError::ProgramExit(_)
-            | SimulatorInnerError::Interrupted => None,
+            | SimulatorInnerError::Interrupted
+            | SimulatorInnerError::BreakpointError(_)
+            | SimulatorInnerError::BreakpointHit(_) => None,
         }
     }
 }
@@ -46,6 +55,8 @@ impl SimulatorInnerError {
 pub fn from_state_error(e: StateError) -> SimulatorInnerError {
     if let Some(exit_code) = e.exit_code() {
         SimulatorInnerError::ProgramExit(exit_code)
+    } else if let Some(pc) = e.breakpoint_pc() {
+        SimulatorInnerError::BreakpointHit(pc)
     } else {
         SimulatorInnerError::StateAccessError(e)
     }

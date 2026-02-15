@@ -43,6 +43,12 @@ impl<const SIZE: usize> Icache<SIZE> {
         unsafe { self.data.get_unchecked_mut(i) }
     }
 
+    /// Invalidates the cache line for `pc`. Next fetch at this PC will refill from bus.
+    #[inline(always)]
+    pub fn invalidate(&mut self, pc: u32) {
+        self.get_entry_mut(pc).addr = INVALID_ADDR;
+    }
+
     /// Clears all entries (e.g. after fence.i). Next fetch will refill.
     #[inline(never)]
     pub fn flush(&mut self) {

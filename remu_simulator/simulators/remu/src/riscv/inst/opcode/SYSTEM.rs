@@ -1,4 +1,4 @@
-//! RISC-V SYSTEM opcode: CSR read/write (CSRRW, CSRRS, CSRRC, CSRRWI, CSRRSI, CSRRCI).
+//! RISC-V SYSTEM opcode: ECALL, EBREAK, CSR read/write (CSRRW, CSRRS, ...).
 
 use remu_types::isa::reg::{Csr as CsrKind, RegAccess};
 
@@ -8,6 +8,7 @@ pub(crate) const OPCODE: u32 = 0b111_0011;
 pub(crate) const INSTRUCTION_MIX: u32 = 20;
 
 mod func3 {
+    pub(super) const PRIV: u32 = 0b000; // ECALL, EBREAK
     pub(super) const CSRRW: u32 = 0b001;
     pub(super) const CSRRS: u32 = 0b010;
     pub(super) const CSRRC: u32 = 0b011;
@@ -16,8 +17,16 @@ mod func3 {
     pub(super) const CSRRCI: u32 = 0b111;
 }
 
+/// imm[11:0] for PRIV (funct3=0): inst[31:20]. 0 = ecall, 1 = ebreak.
+#[inline(always)]
+fn imm_priv(inst: u32) -> u32 {
+    (inst >> 20) & 0xFFF
+}
+
 #[derive(Clone, Copy, Debug)]
 pub(crate) enum SystemInst {
+    Ecall,
+    Ebreak,
     Csrrw,
     Csrrs,
     Csrrc,
@@ -30,6 +39,11 @@ pub(crate) enum SystemInst {
 pub(crate) fn decode<P: remu_state::StatePolicy>(inst: u32) -> DecodedInst {
     let f3 = funct3(inst);
     let sys = match f3 {
+        func3::PRIV => match imm_priv(inst) {
+            0 => SystemInst::Ecall,
+            1 => SystemInst::Ebreak,
+            _ => return DecodedInst::default(),
+        },
         func3::CSRRW => SystemInst::Csrrw,
         func3::CSRRS => SystemInst::Csrrs,
         func3::CSRRC => SystemInst::Csrrc,
@@ -71,15 +85,29 @@ pub(crate) fn execute<P: remu_state::StatePolicy, C: crate::ExecuteContext<P>>(
     let Inst::System(sys) = decoded.inst else {
         unreachable!()
     };
-    let k = CsrKind::from_repr((decoded.imm & 0xFFF) as u16).unwrap();
-    let old = state.reg.read_csr(k);
-    let new_val = match sys {
-        SystemInst::Csrrw => state.reg.gpr.raw_read(decoded.rs1.into()),
-        SystemInst::Csrrs => old | state.reg.gpr.raw_read(decoded.rs1.into()),
-        SystemInst::Csrrc => old & !state.reg.gpr.raw_read(decoded.rs1.into()),
-        SystemInst::Csrrwi => decoded.rs1 as u32,
-        SystemInst::Csrrsi => old | (decoded.rs1 as u32),
-        SystemInst::Csrrci => old & !(decoded.rs1 as u32),
-    };
-    do_csr(state, decoded, old, new_val)
+    match sys {
+        SystemInst::Ecall => {
+            *state.reg.pc = state.reg.pc.wrapping_add(4);
+            Ok(())
+        }
+        SystemInst::Ebreak => {
+            let pc = *state.reg.pc;
+            ctx.on_ebreak(pc)
+        }
+        SystemInst::Csrrw | SystemInst::Csrrs | SystemInst::Csrrc
+        | SystemInst::Csrrwi | SystemInst::Csrrsi | SystemInst::Csrrci => {
+            let k = CsrKind::from_repr((decoded.imm & 0xFFF) as u16).unwrap();
+            let old = state.reg.read_csr(k);
+            let new_val = match sys {
+                SystemInst::Csrrw => state.reg.gpr.raw_read(decoded.rs1.into()),
+                SystemInst::Csrrs => old | state.reg.gpr.raw_read(decoded.rs1.into()),
+                SystemInst::Csrrc => old & !state.reg.gpr.raw_read(decoded.rs1.into()),
+                SystemInst::Csrrwi => decoded.rs1 as u32,
+                SystemInst::Csrrsi => old | (decoded.rs1 as u32),
+                SystemInst::Csrrci => old & !(decoded.rs1 as u32),
+                _ => unreachable!(),
+            };
+            do_csr(state, decoded, old, new_val)
+        }
+    }
 }

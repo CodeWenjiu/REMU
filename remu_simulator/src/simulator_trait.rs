@@ -48,8 +48,9 @@ pub trait SimulatorCore<P: StatePolicy> {
 
 pub trait SimulatorDut: crate::policy::SimulatorPolicyOf + SimulatorCore<Self::Policy> {
     #[inline(always)]
-    fn set_breakpoint(&mut self, addr: u32) {
+    fn set_breakpoint(&mut self, addr: u32) -> Result<(), SimulatorInnerError> {
         let _ = addr;
+        Ok(())
     }
 }
 

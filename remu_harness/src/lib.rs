@@ -110,10 +110,14 @@ where
             .map_err(HarnessError::from)
     }
 
-    /// Set a breakpoint at the given address on the DUT. No-op if the simulator does not support breakpoints.
+    /// Set a breakpoint at the given address on the DUT.
+    /// Fails if the address is not 4-byte aligned or not mapped to memory.
     #[inline(always)]
-    pub fn set_breakpoint(&mut self, addr: u32) {
-        self.dut_model.set_breakpoint(addr);
+    pub fn set_breakpoint(&mut self, addr: u32) -> Result<(), HarnessError> {
+        self.dut_model
+            .set_breakpoint(addr)
+            .map_err(SimulatorError::Dut)
+            .map_err(HarnessError::from)
     }
 
     /// Run steps in batch until limit reached, interrupt set, program exit, or error.

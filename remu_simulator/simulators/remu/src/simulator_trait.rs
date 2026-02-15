@@ -1,3 +1,5 @@
+use std::collections::HashMap;
+
 use remu_state::{State, StateCmd, StateError};
 use remu_types::{DifftestMismatchItem, RegGroup, TracerDyn};
 
@@ -12,17 +14,39 @@ use remu_state::StatePolicy;
 
 const ICACHE_SIZE: usize = 1 << 16;
 
-/// Execution context for decode+execute: provides state and optional icache flush (fence.i).
+/// RISC-V 32-bit ebreak encoding (imm[11]=1, opcode=system).
+const EBREAK_INST: u32 = 0x0010_0073;
+
+/// Breakpoint state machine: IDLE = stop on ebreak, Active = execute original instruction.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub enum BreakpointState {
+    /// Default. When ebreak is hit, execution stops (breakpoint hit).
+    #[default]
+    Idle,
+    /// Single-stepping over a breakpoint: when ebreak is hit, execute the original instruction.
+    Active,
+}
+
+/// Execution context for decode+execute: provides state, icache flush, and ebreak handling.
 pub(crate) trait ExecuteContext<P: StatePolicy> {
     fn state_mut(&mut self) -> &mut State<P>;
     #[inline]
     fn flush_icache(&mut self) {}
+
+    /// Called when ebreak is executed. Default: stop (breakpoint hit).
+    fn on_ebreak(&mut self, pc: u32) -> Result<(), StateError> {
+        Err(StateError::BreakpointHit(pc))
+    }
 }
 
 pub struct SimulatorRemu<P: SimulatorPolicy, const IS_DUT: bool> {
     state: State<P>,
     tracer: TracerDyn,
     icache: Icache<ICACHE_SIZE>,
+    /// Breakpoint PC -> original instruction (only used when IS_DUT).
+    breakpoints: HashMap<u32, u32>,
+    /// When IDLE, ebreak stops; when Active, ebreak runs the original instruction (only used when IS_DUT).
+    breakpoint_state: BreakpointState,
 }
 
 impl<P: SimulatorPolicy, const IS_DUT: bool> SimulatorPolicyOf for SimulatorRemu<P, IS_DUT> {
@@ -35,6 +59,24 @@ impl<P: SimulatorPolicy, const IS_DUT: bool> ExecuteContext<P> for SimulatorRemu
     }
     fn flush_icache(&mut self) {
         self.icache.flush();
+    }
+    fn on_ebreak(&mut self, pc: u32) -> Result<(), StateError> {
+        if !IS_DUT {
+            return Err(StateError::BreakpointHit(pc));
+        }
+        match self.breakpoint_state {
+            BreakpointState::Idle => {
+                self.breakpoint_state = BreakpointState::Active;
+                Err(StateError::BreakpointHit(pc))
+            }
+            BreakpointState::Active => {
+                let orig = self.breakpoints.get(&pc).copied().unwrap();
+                let decoded = decode::<P>(orig);
+                self.execute_inst(&decoded)?;
+                self.breakpoint_state = BreakpointState::Idle;
+                Ok(())
+            }
+        }
     }
 }
 
@@ -54,6 +96,8 @@ impl<P: SimulatorPolicy, const IS_DUT: bool> SimulatorCore<P> for SimulatorRemu<
             state: State::new(opt.state.clone(), tracer.clone(), IS_DUT),
             tracer,
             icache: Icache::new(),
+            breakpoints: HashMap::new(),
+            breakpoint_state: BreakpointState::default(),
         }
     }
 
@@ -167,7 +211,32 @@ impl<P: SimulatorPolicy, const IS_DUT: bool> SimulatorCore<P> for SimulatorRemu<
     }
 }
 
-impl<P: SimulatorPolicy> SimulatorDut for SimulatorRemu<P, true> {}
+impl<P: SimulatorPolicy> SimulatorDut for SimulatorRemu<P, true> {
+    fn set_breakpoint(&mut self, addr: u32) -> Result<(), SimulatorInnerError> {
+        if addr % 4 != 0 {
+            return Err(SimulatorInnerError::BreakpointError(
+                "breakpoint address must be 4-byte aligned".into(),
+            ));
+        }
+        if self.breakpoints.contains_key(&addr) {
+            return Ok(());
+        }
+        let orig = self
+            .state
+            .bus
+            .read_32(addr as usize)
+            .map_err(StateError::from)
+            .map_err(SimulatorInnerError::from)?;
+        self.state
+            .bus
+            .write_32(addr as usize, EBREAK_INST)
+            .map_err(StateError::from)
+            .map_err(SimulatorInnerError::from)?;
+        self.breakpoints.insert(addr, orig);
+        self.icache.invalidate(addr);
+        Ok(())
+    }
+}
 
 impl<P: SimulatorPolicy> SimulatorRef<P> for SimulatorRemu<P, false> {
     const ENABLE: bool = true;

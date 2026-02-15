@@ -7,6 +7,10 @@ use crate::bus::BusError;
 pub enum StateError {
     #[error("bus error: {0}")]
     BusError(Box<BusError>),
+
+    /// Execution stopped at a breakpoint (DUT debugger). PC where ebreak was hit.
+    #[error("breakpoint hit at 0x{0:08x}")]
+    BreakpointHit(u32),
 }
 
 impl From<BusError> for StateError {
@@ -21,6 +25,7 @@ impl StateError {
     pub fn backtrace(&self) -> Option<&Backtrace> {
         match self {
             StateError::BusError(b) => b.backtrace(),
+            StateError::BreakpointHit(_) => None,
         }
     }
 
@@ -31,6 +36,15 @@ impl StateError {
                 BusError::ProgramExit(ec) => Some(*ec),
                 _ => None,
             },
+            StateError::BreakpointHit(_) => None,
+        }
+    }
+
+    #[inline(always)]
+    pub fn breakpoint_pc(&self) -> Option<u32> {
+        match self {
+            StateError::BreakpointHit(pc) => Some(*pc),
+            _ => None,
         }
     }
 }
