@@ -12,9 +12,8 @@ use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, Ordering};
 
 use remu_boot::boot;
-use remu_debugger::{
-    DebuggerError, DebuggerOption, DebuggerRunner, ExitCode, HarnessPolicy, RunOutcome,
-};
+use remu_debugger::{DebuggerError, DebuggerOption, DebuggerRunner, ExitCode, RunOutcome};
+use remu_simulator::{SimulatorDut, SimulatorRef};
 use remu_types::TracerDyn;
 use std::error::Error;
 use std::{cell::RefCell, rc::Rc};
@@ -89,14 +88,14 @@ fn hello() {
 struct APPRunner;
 
 impl DebuggerRunner for APPRunner {
-    fn run<P: HarnessPolicy, R: remu_simulator::SimulatorTrait<P, false>>(
-        self,
-        option: DebuggerOption,
-        interrupt: Arc<AtomicBool>,
-    ) {
+    fn run<D, R>(self, option: DebuggerOption, interrupt: Arc<AtomicBool>)
+    where
+        D: SimulatorDut,
+        R: SimulatorRef<D::Policy>,
+    {
         let tracer: TracerDyn = Rc::new(RefCell::new(CLITracer::new(option.isa.clone())));
 
-        let mut debugger = remu_debugger::Debugger::<P, R>::new(option.clone(), tracer, interrupt);
+        let mut debugger = remu_debugger::Debugger::<D, R>::new(option.clone(), tracer, interrupt);
 
         if let Err(e) = debugger.run_startup(&option) {
             match e {

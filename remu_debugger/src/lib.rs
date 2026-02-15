@@ -5,15 +5,23 @@ use clap::Parser;
 remu_macro::mod_flat!(command, option, policy, error, compound_command);
 pub use command::get_command_graph;
 pub use compound_command::{CommandExpr, Op, ParseError};
-use remu_harness::{DutSim, Harness};
+use remu_harness::Harness;
 pub use remu_harness::{ExitCode, RunOutcome};
 use remu_types::TracerDyn;
 
-pub struct Debugger<P: HarnessPolicy, R: SimulatorTrait<P, false>> {
-    harness: Harness<DutSim<P>, R>,
+pub struct Debugger<D, R>
+where
+    D: SimulatorDut,
+    R: SimulatorRef<D::Policy>,
+{
+    harness: Harness<D, R>,
 }
 
-impl<P: HarnessPolicy, R: SimulatorTrait<P, false>> Debugger<P, R> {
+impl<D, R> Debugger<D, R>
+where
+    D: SimulatorDut,
+    R: SimulatorRef<D::Policy>,
+{
     pub fn new(
         opt: DebuggerOption,
         tracer: TracerDyn,

@@ -10,7 +10,8 @@ use remu_types::isa::RvIsa;
 use remu_types::{AllUsize, DifftestMismatchItem, RegGroup, TracerDyn, Xlen};
 
 use remu_simulator::{
-    SimulatorInnerError, SimulatorOption, SimulatorPolicy, SimulatorPolicyOf, SimulatorTrait,
+    SimulatorCore, SimulatorInnerError, SimulatorOption, SimulatorPolicy, SimulatorPolicyOf,
+    SimulatorRef,
 };
 
 use crate::ffi::{
@@ -33,9 +34,7 @@ impl<P: SimulatorPolicy> SimulatorPolicyOf for SimulatorSpike<P> {
     type Policy = P;
 }
 
-impl<P: SimulatorPolicy> SimulatorTrait<P, false> for SimulatorSpike<P> {
-    const ENABLE: bool = true;
-
+impl<P: SimulatorPolicy> SimulatorCore<P> for SimulatorSpike<P> {
     fn new(opt: SimulatorOption, tracer: TracerDyn) -> Self {
         let bus_option = opt.state.bus.clone();
 
@@ -310,6 +309,10 @@ impl<P: SimulatorPolicy> SimulatorTrait<P, false> for SimulatorSpike<P> {
         }
         Ok(())
     }
+}
+
+impl<P: SimulatorPolicy> SimulatorRef<P> for SimulatorSpike<P> {
+    const ENABLE: bool = true;
 }
 
 impl<P: SimulatorPolicy> Drop for SimulatorSpike<P> {

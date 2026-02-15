@@ -6,16 +6,13 @@ pub use policy::HarnessPolicy;
 pub use run_state::RunState;
 
 pub use remu_simulator::{
-    DifftestMismatchList, FuncCmd, SimulatorError, SimulatorInnerError, SimulatorPolicy,
-    SimulatorPolicyOf, SimulatorTrait,
+    DifftestMismatchList, FuncCmd, SimulatorCore, SimulatorDut, SimulatorError,
+    SimulatorInnerError, SimulatorPolicy, SimulatorPolicyOf, SimulatorRef,
 };
 pub use remu_simulator_remu::SimulatorRemu;
 pub use remu_state::StateCmd;
 pub use remu_state::bus::ObserverEvent;
 pub use remu_types::ExitCode;
-
-pub type DutSim<P> = SimulatorRemu<P, true>;
-pub type RefSim<P> = SimulatorRemu<P, false>;
 
 /// Outcome of a run (e.g. run_steps). Propagated to debugger and CLI.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -51,8 +48,8 @@ pub struct Harness<D, R> {
 
 impl<D, R> Harness<D, R>
 where
-    D: SimulatorPolicyOf + SimulatorTrait<D::Policy, true>,
-    R: SimulatorTrait<D::Policy, false>,
+    D: SimulatorDut,
+    R: SimulatorRef<D::Policy>,
 {
     pub fn new(opt: HarnessOption, tracer: TracerDyn, interrupt: Arc<AtomicBool>) -> Self {
         Self {

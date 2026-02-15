@@ -2,8 +2,8 @@ use remu_state::{State, StateCmd, StateError};
 use remu_types::{DifftestMismatchItem, RegGroup, TracerDyn};
 
 use remu_simulator::{
-    from_state_error, SimulatorInnerError, SimulatorOption, SimulatorPolicy, SimulatorPolicyOf,
-    SimulatorTrait,
+    from_state_error, SimulatorCore, SimulatorDut, SimulatorInnerError, SimulatorOption,
+    SimulatorPolicy, SimulatorPolicyOf, SimulatorRef,
 };
 
 use crate::icache::Icache;
@@ -31,7 +31,7 @@ impl<P: SimulatorPolicy, const IS_DUT: bool> SimulatorPolicyOf for SimulatorRemu
 
 impl<P: SimulatorPolicy, const IS_DUT: bool> ExecuteContext<P> for SimulatorRemu<P, IS_DUT> {
     fn state_mut(&mut self) -> &mut State<P> {
-        SimulatorTrait::state_mut(self)
+        SimulatorCore::state_mut(self)
     }
     fn flush_icache(&mut self) {
         self.icache.flush();
@@ -48,11 +48,7 @@ impl<P: SimulatorPolicy, const IS_DUT: bool> SimulatorRemu<P, IS_DUT> {
     }
 }
 
-impl<P: SimulatorPolicy, const IS_DUT: bool> SimulatorTrait<P, IS_DUT>
-    for SimulatorRemu<P, IS_DUT>
-{
-    const ENABLE: bool = true;
-
+impl<P: SimulatorPolicy, const IS_DUT: bool> SimulatorCore<P> for SimulatorRemu<P, IS_DUT> {
     fn new(opt: SimulatorOption, tracer: TracerDyn) -> Self {
         Self {
             state: State::new(opt.state.clone(), tracer.clone(), IS_DUT),
@@ -169,4 +165,10 @@ impl<P: SimulatorPolicy, const IS_DUT: bool> SimulatorTrait<P, IS_DUT>
         self.state.execute(subcmd).map_err(from_state_error)?;
         Ok(())
     }
+}
+
+impl<P: SimulatorPolicy> SimulatorDut for SimulatorRemu<P, true> {}
+
+impl<P: SimulatorPolicy> SimulatorRef<P> for SimulatorRemu<P, false> {
+    const ENABLE: bool = true;
 }

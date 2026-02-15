@@ -1,12 +1,11 @@
-use remu_state::{State, StateCmd};
+use remu_state::{State, StateCmd, StatePolicy};
 use remu_types::{DifftestMismatchItem, TracerDyn};
 
 use crate::SimulatorOption;
 use crate::error::SimulatorInnerError;
+use crate::policy::SimulatorPolicy;
 
-pub trait SimulatorTrait<P: remu_state::StatePolicy, const IS_DUT: bool = true> {
-    const ENABLE: bool = true;
-
+pub trait SimulatorCore<P: StatePolicy> {
     fn new(opt: SimulatorOption, tracer: TracerDyn) -> Self;
 
     fn state(&self) -> &State<P>;
@@ -24,8 +23,6 @@ pub trait SimulatorTrait<P: remu_state::StatePolicy, const IS_DUT: bool = true> 
         let _ = (self, dut);
     }
 
-    /// Sync only registers from DUT. Use when DUT performed MMIO (no RAM change).
-    /// Default: same as sync_from. Override for ref simulators that do expensive mem sync.
     #[inline(always)]
     fn sync_regs_from(&mut self, dut: &State<P>) {
         self.sync_from(dut);
@@ -47,29 +44,33 @@ pub trait SimulatorTrait<P: remu_state::StatePolicy, const IS_DUT: bool = true> 
         let _ = (self, subcmd);
         Ok(())
     }
+}
 
-    /// Set a breakpoint at the given address. Default: no-op.
-    /// Override in DUT simulator to stop when PC hits this address.
+pub trait SimulatorDut: crate::policy::SimulatorPolicyOf + SimulatorCore<Self::Policy> {
     #[inline(always)]
     fn set_breakpoint(&mut self, addr: u32) {
         let _ = addr;
-        todo!()
-        // default: no-op
     }
 }
 
-impl<P: remu_state::StatePolicy> SimulatorTrait<P, false> for () {
-    const ENABLE: bool = false;
+pub trait SimulatorRef<P: SimulatorPolicy>: SimulatorCore<P> {
+    const ENABLE: bool;
+}
 
+impl<P: StatePolicy> SimulatorCore<P> for () {
     fn new(_opt: SimulatorOption, _tracer: TracerDyn) -> Self {
         ()
     }
 
     fn state(&self) -> &State<P> {
-        unreachable!("state() must not be called when ENABLE is false (ref is ())")
+        unreachable!("state() must not be called when ref is () (ENABLE is false)")
     }
 
     fn state_mut(&mut self) -> &mut State<P> {
-        unreachable!("state_mut() must not be called when ENABLE is false (ref is ())")
+        unreachable!("state_mut() must not be called when ref is () (ENABLE is false)")
     }
+}
+
+impl<P: SimulatorPolicy> SimulatorRef<P> for () {
+    const ENABLE: bool = false;
 }
