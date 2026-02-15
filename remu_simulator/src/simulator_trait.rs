@@ -1,8 +1,8 @@
 use remu_state::{State, StateCmd};
 use remu_types::{DifftestMismatchItem, TracerDyn};
 
-use crate::error::SimulatorInnerError;
 use crate::SimulatorOption;
+use crate::error::SimulatorInnerError;
 
 pub trait SimulatorTrait<P: remu_state::StatePolicy, const IS_DUT: bool = true> {
     const ENABLE: bool = true;
@@ -46,6 +46,15 @@ pub trait SimulatorTrait<P: remu_state::StatePolicy, const IS_DUT: bool = true> 
     fn state_exec(&mut self, subcmd: &StateCmd) -> Result<(), SimulatorInnerError> {
         let _ = (self, subcmd);
         Ok(())
+    }
+
+    /// Set a breakpoint at the given address. Default: no-op.
+    /// Override in DUT simulator to stop when PC hits this address.
+    #[inline(always)]
+    fn set_breakpoint(&mut self, addr: u32) {
+        let _ = addr;
+        todo!()
+        // default: no-op
     }
 }
 

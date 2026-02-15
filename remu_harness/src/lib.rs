@@ -113,6 +113,12 @@ where
             .map_err(HarnessError::from)
     }
 
+    /// Set a breakpoint at the given address on the DUT. No-op if the simulator does not support breakpoints.
+    #[inline(always)]
+    pub fn set_breakpoint(&mut self, addr: u32) {
+        self.dut_model.set_breakpoint(addr);
+    }
+
     /// Run steps in batch until limit reached, interrupt set, program exit, or error.
     /// Uses the harness's `interrupt` and `run_state`; sets `run_state` to `Exit` on program exit.
     /// Returns `Ok(RunOutcome::ProgramExit(code))` when program exited; `Ok(RunOutcome::Done)` when stopped without exit.

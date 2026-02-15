@@ -1,5 +1,6 @@
 use clap::{CommandFactory, builder::styling};
 use petgraph::graph::{Graph, NodeIndex};
+use remu_fmt::parse_prefixed_uint;
 use remu_harness::{FuncCmd, StateCmd};
 
 fn populate_graph(cmd: &clap::Command, graph: &mut Graph<String, ()>, parent: NodeIndex) {
@@ -69,6 +70,13 @@ pub enum Command {
     State {
         #[command(subcommand)]
         subcmd: StateCmd,
+    },
+
+    /// Set breakpoint at address (stop when PC hits this address)
+    Breakpoint {
+        /// Breakpoint address (0x/0o/0b/0d prefix or decimal, e.g. 0x80000000)
+        #[arg(value_parser = parse_prefixed_uint::<u32>)]
+        addr: u32,
     },
 
     /// Quit the debugger

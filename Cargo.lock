@@ -1383,6 +1383,7 @@ dependencies = [
  "clap",
  "miette",
  "petgraph",
+ "remu_fmt",
  "remu_harness",
  "remu_macro",
  "remu_state",

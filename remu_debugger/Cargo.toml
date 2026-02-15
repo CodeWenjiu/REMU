@@ -4,10 +4,11 @@ version = "0.1.0"
 edition = "2024"
 
 [dependencies]
+remu_fmt = { path = "../remu_fmt" }
+remu_harness = { path = "../remu_harness" }
 remu_macro = { path = "../remu_macro" }
 remu_state = { path = "../remu_state" }
 remu_types = { path = "../remu_types" }
-remu_harness = { path = "../remu_harness" }
 
 clap = { workspace = true, features = [ "derive", "color" ] }
 

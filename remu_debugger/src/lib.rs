@@ -123,6 +123,9 @@ impl<P: HarnessPolicy, R: SimulatorTrait<P, false>> Debugger<P, R> {
                     return Ok((false, RunOutcome::Done));
                 }
             }
+            Command::Breakpoint { addr } => {
+                self.harness.set_breakpoint(*addr);
+            }
             Command::Quit => return Err(DebuggerError::ExitRequested),
         }
         Ok((true, RunOutcome::Done))
