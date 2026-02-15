@@ -1,12 +1,14 @@
 #![allow(non_snake_case)]
 
 use remu_state::{StateError, StatePolicy};
+use remu_types::isa::extension_v::VExtensionConfig;
+use remu_types::isa::RvIsa;
 
 remu_macro::mod_pub!(opcode);
 remu_macro::mod_flat!(bytes);
 
 use crate::riscv::inst::opcode::{
-    AUIPC, BRANCH, JAL, JALR, LOAD, LUI, MISC_MEM, OP, OP_IMM, STORE, SYSTEM, UNKNOWN,
+    AUIPC, BRANCH, JAL, JALR, LOAD, LUI, MISC_MEM, OP, OP_IMM, OP_V, STORE, SYSTEM, UNKNOWN,
 };
 
 /// Instruction kind: one variant per opcode, with opcode-specific sub-enum where needed.
@@ -21,9 +23,9 @@ pub(crate) enum Inst {
     Op(OP::OpInst),
     Load(LOAD::LoadInst),
     Store(STORE::StoreInst),
-    Fence,
-    FenceI,
+    MiscMem(MISC_MEM::MiscMemInst),
     System(SYSTEM::SystemInst),
+    V(()),
     #[default]
     Unknown,
 }
@@ -52,6 +54,13 @@ pub fn decode<P: StatePolicy>(inst: u32) -> DecodedInst {
         OP::OPCODE => OP::decode::<P>(inst),
         MISC_MEM::OPCODE => MISC_MEM::decode::<P>(inst),
         SYSTEM::OPCODE => SYSTEM::decode::<P>(inst),
+        OP_V::OPCODE => {
+            if <<P::ISA as RvIsa>::VConfig as VExtensionConfig>::VLENB > 0 {
+                OP_V::decode::<P>(inst)
+            } else {
+                UNKNOWN::decode::<P>(inst)
+            }
+        }
         _ => UNKNOWN::decode::<P>(inst),
     }
 }
@@ -71,8 +80,9 @@ pub(crate) fn execute<P: StatePolicy, C: crate::ExecuteContext<P>>(
         Inst::Op(..) => OP::execute(ctx, decoded),
         Inst::Load(..) => LOAD::execute(ctx, decoded),
         Inst::Store(..) => STORE::execute(ctx, decoded),
-        Inst::Fence | Inst::FenceI => MISC_MEM::execute(ctx, decoded),
+        Inst::MiscMem(..) => MISC_MEM::execute(ctx, decoded),
         Inst::System(..) => SYSTEM::execute(ctx, decoded),
+        Inst::V(..) => OP_V::execute(ctx, decoded),
         Inst::Unknown => UNKNOWN::execute(ctx, decoded),
     }
 }
@@ -89,5 +99,6 @@ pub const RV32_INSTRUCTION_MIX: &[(u32, u32)] = &[
     (OP_IMM::OPCODE, OP_IMM::INSTRUCTION_MIX),
     (STORE::OPCODE, STORE::INSTRUCTION_MIX),
     (SYSTEM::OPCODE, SYSTEM::INSTRUCTION_MIX),
+    (OP_V::OPCODE, OP_V::INSTRUCTION_MIX),
     (UNKNOWN::OPCODE, UNKNOWN::INSTRUCTION_MIX),
 ];

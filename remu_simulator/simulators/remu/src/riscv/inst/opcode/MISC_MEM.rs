@@ -5,20 +5,26 @@ pub(crate) const INSTRUCTION_MIX: u32 = 10;
 
 const FENCE_I_FUNCT3: u32 = 0b001;
 
+#[derive(Clone, Copy, Debug)]
+pub(crate) enum MiscMemInst {
+    Fence,
+    FenceI,
+}
+
 #[inline(always)]
 pub(crate) fn decode<P: remu_state::StatePolicy>(inst: u32) -> DecodedInst {
     let f3 = funct3(inst);
-    let inst_kind = if f3 == FENCE_I_FUNCT3 {
-        Inst::FenceI
+    let misc = if f3 == FENCE_I_FUNCT3 {
+        MiscMemInst::FenceI
     } else {
-        Inst::Fence
+        MiscMemInst::Fence
     };
     DecodedInst {
         rs1: 0,
         rs2: 0,
         rd: 0,
         imm: 0,
-        inst: inst_kind,
+        inst: Inst::MiscMem(misc),
     }
 }
 
@@ -27,7 +33,10 @@ pub(crate) fn execute<P: remu_state::StatePolicy, C: crate::ExecuteContext<P>>(
     ctx: &mut C,
     decoded: &DecodedInst,
 ) -> Result<(), remu_state::StateError> {
-    if matches!(decoded.inst, Inst::FenceI) {
+    let Inst::MiscMem(misc) = decoded.inst else {
+        unreachable!()
+    };
+    if matches!(misc, MiscMemInst::FenceI) {
         ctx.flush_icache();
     }
     let state = ctx.state_mut();
