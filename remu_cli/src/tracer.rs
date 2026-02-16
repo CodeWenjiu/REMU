@@ -320,6 +320,36 @@ impl Tracer for CLITracer {
             result.bright_white()
         );
     }
+
+    fn breakpoint_print(&self, addrs: &[u32]) {
+        if addrs.is_empty() {
+            println!("{}", "no breakpoints".yellow());
+            return;
+        }
+        #[derive(Tabled)]
+        struct BreakpointRow {
+            #[tabled(display = "display_index")]
+            index: usize,
+            #[tabled(display = "display_addr")]
+            address: u32,
+        }
+        fn display_index(i: &usize) -> String {
+            format!("{}", i + 1)
+        }
+        fn display_addr(addr: &u32) -> String {
+            format!("0x{:08x}", addr).to_string()
+        }
+        let rows: Vec<BreakpointRow> = addrs
+            .iter()
+            .enumerate()
+            .map(|(i, &address)| BreakpointRow { index: i, address })
+            .collect();
+        let mut table = Table::new(rows);
+        table.with(Style::rounded());
+        table.modify(Columns::one(0), Color::FG_YELLOW);
+        table.modify(Columns::one(1), Color::FG_CYAN);
+        println!("{table}");
+    }
 }
 
 impl CLITracer {

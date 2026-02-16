@@ -120,6 +120,22 @@ where
             .map_err(HarnessError::from)
     }
 
+    /// Delete a breakpoint at the given address on the DUT.
+    /// Fails if the breakpoint does not exist.
+    #[inline(always)]
+    pub fn del_breakpoint(&mut self, addr: u32) -> Result<(), HarnessError> {
+        self.dut_model
+            .del_breakpoint(addr)
+            .map_err(SimulatorError::Dut)
+            .map_err(HarnessError::from)
+    }
+
+    /// Print all breakpoints (via DUT tracer).
+    #[inline(always)]
+    pub fn print_breakpoints(&self) {
+        self.dut_model.print_breakpoints();
+    }
+
     /// Run steps in batch until limit reached, interrupt set, program exit, or error.
     /// Uses the harness's `interrupt` and `run_state`; sets `run_state` to `Exit` on program exit.
     /// Returns `Ok(RunOutcome::ProgramExit(code))` when program exited; `Ok(RunOutcome::Done)` when stopped without exit.

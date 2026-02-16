@@ -58,6 +58,11 @@ pub trait Tracer {
     }
 
     fn disasm(&self, pc: u64, inst: u32);
+
+    /// Print all breakpoint addresses (e.g. for the breakpoint print command).
+    fn breakpoint_print(&self, addrs: &[u32]) {
+        let _ = addrs;
+    }
 }
 
 pub type TracerDyn = Rc<RefCell<dyn Tracer>>;

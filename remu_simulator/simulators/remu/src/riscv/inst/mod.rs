@@ -8,7 +8,7 @@ remu_macro::mod_pub!(opcode);
 remu_macro::mod_flat!(bytes);
 
 use crate::riscv::inst::opcode::{
-    AUIPC, BRANCH, JAL, JALR, LOAD, LUI, MISC_MEM, OP, OP_IMM, OP_V, STORE, SYSTEM, UNKNOWN,
+    AUIPC, BRANCH, JAL, JALR, LOAD, LUI, MISC_MEM, OP, OP_IMM, OP_V, STORE, STORE_FP, SYSTEM, UNKNOWN,
 };
 
 /// Instruction kind: one variant per opcode, with opcode-specific sub-enum where needed.
@@ -23,6 +23,7 @@ pub(crate) enum Inst {
     Op(OP::OpInst),
     Load(LOAD::LoadInst),
     Store(STORE::StoreInst),
+    StoreFp(STORE_FP::StoreFpInst),
     MiscMem(MISC_MEM::MiscMemInst),
     System(SYSTEM::SystemInst),
     V(OP_V::VInst),
@@ -50,6 +51,7 @@ pub fn decode<P: StatePolicy>(inst: u32) -> DecodedInst {
         BRANCH::OPCODE => BRANCH::decode::<P>(inst),
         LOAD::OPCODE => LOAD::decode::<P>(inst),
         STORE::OPCODE => STORE::decode::<P>(inst),
+        STORE_FP::OPCODE => STORE_FP::decode::<P>(inst),
         OP_IMM::OPCODE => OP_IMM::decode::<P>(inst),
         OP::OPCODE => OP::decode::<P>(inst),
         MISC_MEM::OPCODE => MISC_MEM::decode::<P>(inst),
@@ -80,6 +82,7 @@ pub(crate) fn execute<P: StatePolicy, C: crate::ExecuteContext<P>>(
         Inst::Op(..) => OP::execute(ctx, decoded),
         Inst::Load(..) => LOAD::execute(ctx, decoded),
         Inst::Store(..) => STORE::execute(ctx, decoded),
+        Inst::StoreFp(..) => STORE_FP::execute(ctx, decoded),
         Inst::MiscMem(..) => MISC_MEM::execute(ctx, decoded),
         Inst::System(..) => SYSTEM::execute(ctx, decoded),
         Inst::V(..) => {
@@ -104,6 +107,7 @@ pub const RV32_INSTRUCTION_MIX: &[(u32, u32)] = &[
     (OP::OPCODE, OP::INSTRUCTION_MIX),
     (OP_IMM::OPCODE, OP_IMM::INSTRUCTION_MIX),
     (STORE::OPCODE, STORE::INSTRUCTION_MIX),
+    (STORE_FP::OPCODE, STORE_FP::INSTRUCTION_MIX),
     (SYSTEM::OPCODE, SYSTEM::INSTRUCTION_MIX),
     (OP_V::OPCODE, OP_V::INSTRUCTION_MIX),
     (UNKNOWN::OPCODE, UNKNOWN::INSTRUCTION_MIX),

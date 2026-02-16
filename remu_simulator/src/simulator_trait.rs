@@ -52,6 +52,18 @@ pub trait SimulatorDut: crate::policy::SimulatorPolicyOf + SimulatorCore<Self::P
         let _ = addr;
         Ok(())
     }
+
+    #[inline(always)]
+    fn del_breakpoint(&mut self, addr: u32) -> Result<(), SimulatorInnerError> {
+        let _ = addr;
+        Ok(())
+    }
+
+    /// Print all breakpoints via the tracer (e.g. list addresses). Default: no-op.
+    #[inline(always)]
+    fn print_breakpoints(&self) {
+        // Default: no breakpoints to print.
+    }
 }
 
 pub trait SimulatorRef<P: SimulatorPolicy>: SimulatorCore<P> {

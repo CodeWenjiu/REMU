@@ -73,21 +73,9 @@ where
             None => return Ok(RunOutcome::Done),
         };
 
-        let (mut result, mut outcome) = self.execute_parsed(&first_cmd.command)?;
-        for ((op, _), cmd_wrapper) in tail.iter().zip(parsed_iter) {
-            match (*op, result) {
-                (compound_command::Op::And, true) => {
-                    let (r, out) = self.execute_parsed(&cmd_wrapper.command)?;
-                    result = r;
-                    outcome = outcome.or_else(out);
-                }
-                (compound_command::Op::Or, false) => {
-                    let (r, out) = self.execute_parsed(&cmd_wrapper.command)?;
-                    result = r;
-                    outcome = outcome.or_else(out);
-                }
-                _ => {}
-            }
+        let mut outcome = self.execute_parsed(&first_cmd.command)?;
+        for (_, cmd_wrapper) in tail.iter().zip(parsed_iter) {
+            outcome = outcome.or_else(self.execute_parsed(&cmd_wrapper.command)?);
         }
         Ok(outcome)
     }
@@ -106,39 +94,42 @@ where
         }
     }
 
-    fn execute_parsed(&mut self, command: &Command) -> Result<(bool, RunOutcome), DebuggerError> {
+    fn execute_parsed(&mut self, command: &Command) -> Result<RunOutcome, DebuggerError> {
         match command {
-            Command::Step { times } => {
-                let outcome = self
-                    .harness
-                    .run_steps(Some(*times))
-                    .map_err(DebuggerError::CommandExec)?;
-                return Ok((true, outcome));
-            }
-            Command::Continue => {
-                let outcome = self
-                    .harness
-                    .run_steps(None)
-                    .map_err(DebuggerError::CommandExec)?;
-                return Ok((true, outcome));
-            }
+            Command::Step { times } => self
+                .harness
+                .run_steps(Some(*times))
+                .map_err(DebuggerError::CommandExec),
+            Command::Continue => self
+                .harness
+                .run_steps(None)
+                .map_err(DebuggerError::CommandExec),
             Command::Func { subcmd } => {
                 self.harness.func_exec(subcmd);
+                Ok(RunOutcome::Done)
             }
-            Command::State { subcmd } => {
-                if let Err(e) = self.harness.state_exec(subcmd) {
-                    eprintln!("{}", e);
-                    return Ok((false, RunOutcome::Done));
+            Command::State { subcmd } => self
+                .harness
+                .state_exec(subcmd)
+                .map_err(DebuggerError::CommandExec)
+                .map(|()| RunOutcome::Done),
+            Command::Breakpoint { subcmd } => match subcmd {
+                BreakpointCmd::Set { addr } => self
+                    .harness
+                    .set_breakpoint(*addr)
+                    .map_err(DebuggerError::CommandExec)
+                    .map(|()| RunOutcome::Done),
+                BreakpointCmd::Del { addr } => self
+                    .harness
+                    .del_breakpoint(*addr)
+                    .map_err(DebuggerError::CommandExec)
+                    .map(|()| RunOutcome::Done),
+                BreakpointCmd::Print => {
+                    self.harness.print_breakpoints();
+                    Ok(RunOutcome::Done)
                 }
-            }
-            Command::Breakpoint { addr } => {
-                if let Err(e) = self.harness.set_breakpoint(*addr) {
-                    eprintln!("{}", e);
-                    return Ok((false, RunOutcome::Done));
-                }
-            }
-            Command::Quit => return Err(DebuggerError::ExitRequested),
+            },
+            Command::Quit => Err(DebuggerError::ExitRequested),
         }
-        Ok((true, RunOutcome::Done))
     }
 }

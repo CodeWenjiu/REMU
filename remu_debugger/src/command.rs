@@ -72,13 +72,30 @@ pub enum Command {
         subcmd: StateCmd,
     },
 
-    /// Set breakpoint at address (stop when PC hits this address)
+    /// Breakpoint Command
     Breakpoint {
-        /// Breakpoint address (0x/0o/0b/0d prefix or decimal, e.g. 0x80000000)
-        #[arg(value_parser = parse_prefixed_uint::<u32>)]
-        addr: u32,
+        #[command(subcommand)]
+        subcmd: BreakpointCmd,
     },
 
     /// Quit the debugger
     Quit,
+}
+
+#[derive(Debug, clap::Subcommand)]
+pub enum BreakpointCmd {
+    /// Set breakpoint at address (stop when PC hits this address)
+    Set {
+        /// Breakpoint address (0x/0o/0b/0d prefix or decimal, e.g. 0x80000000)
+        #[arg(value_parser = parse_prefixed_uint::<u32>)]
+        addr: u32,
+    },
+    /// Delete breakpoint at address
+    Del {
+        /// Breakpoint address (0x/0o/0b/0d prefix or decimal, e.g. 0x80000000)
+        #[arg(value_parser = parse_prefixed_uint::<u32>)]
+        addr: u32,
+    },
+    /// Print all breakpoints
+    Print,
 }

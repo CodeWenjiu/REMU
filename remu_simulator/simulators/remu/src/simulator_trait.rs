@@ -245,6 +245,28 @@ impl<P: SimulatorPolicy> SimulatorDut for SimulatorRemu<P, true> {
         self.icache.invalidate(addr);
         Ok(())
     }
+
+    fn del_breakpoint(&mut self, addr: u32) -> Result<(), SimulatorInnerError> {
+        if let Some(orig) = self.breakpoints.remove(&addr) {
+            self.state
+                .bus
+                .write_32(addr as usize, orig)
+                .map_err(StateError::from)
+                .map_err(SimulatorInnerError::from)?;
+            self.icache.invalidate(addr);
+            Ok(())
+        } else {
+            Err(SimulatorInnerError::BreakpointError(format!(
+                "breakpoint at 0x{addr:x} not found"
+            )))
+        }
+    }
+
+    fn print_breakpoints(&self) {
+        let mut addrs: Vec<u32> = self.breakpoints.keys().copied().collect();
+        addrs.sort();
+        self.tracer.borrow().breakpoint_print(&addrs);
+    }
 }
 
 impl<P: SimulatorPolicy> SimulatorRef<P> for SimulatorRemu<P, false> {
