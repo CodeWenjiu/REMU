@@ -117,12 +117,16 @@ impl<P: SimulatorPolicy, const IS_DUT: bool> SimulatorCore<P> for SimulatorRemu<
             let decoded = entry.decoded;
             self.execute_inst(&decoded).map_err(from_state_error)?;
             if ITRACE && IS_DUT {
-                let inst = self
-                    .state
-                    .bus
-                    .read_32(pc as usize)
-                    .map_err(|e| from_state_error(StateError::from(e)))
-                    .unwrap();
+                let inst = if let Some(&orig) = self.breakpoints.get(&pc) {
+                    orig
+                } else {
+                    self
+                        .state
+                        .bus
+                        .read_32(pc as usize)
+                        .map_err(|e| from_state_error(StateError::from(e)))
+                        .unwrap()
+                };
                 self.tracer.borrow().disasm(pc as u64, inst);
             }
             return Ok(());
@@ -133,7 +137,12 @@ impl<P: SimulatorPolicy, const IS_DUT: bool> SimulatorCore<P> for SimulatorRemu<
             .read_32(pc as usize)
             .map_err(|e| from_state_error(StateError::from(e)))?;
         if ITRACE && IS_DUT {
-            self.tracer.borrow().disasm(pc as u64, inst);
+            let trace_inst = if let Some(&orig) = self.breakpoints.get(&pc) {
+                orig
+            } else {
+                inst
+            };
+            self.tracer.borrow().disasm(pc as u64, trace_inst);
         }
         let d = decode::<P>(inst);
         entry.addr = pc;
