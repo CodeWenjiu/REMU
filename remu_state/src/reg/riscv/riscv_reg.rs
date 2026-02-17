@@ -110,8 +110,7 @@ impl<I: RvIsa> RiscvReg<I> {
     }
 
     fn execute_vr(&mut self, cmd: &VrRegCmd) {
-        let vlenb =
-            <<I::VConfig as VExtensionConfig>::VrState as VrStateTrait>::VLENB as usize;
+        let vlenb = <<I::VConfig as VExtensionConfig>::VrState as VrStateTrait>::VLENB as usize;
 
         match cmd {
             VrRegCmd::Read { index } => {

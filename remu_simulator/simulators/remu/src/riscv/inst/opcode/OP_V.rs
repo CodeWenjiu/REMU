@@ -1,5 +1,4 @@
-//! RISC-V V extension (OP-V opcode 0x57). Decode only when VLENB > 0 (see inst/mod.rs).
-//! Match on (funct3, top2) for decode; illegal encodings return DecodedInst::default().
+//! RISC-V V extension (OP-V opcode 0x57). Decode only when VLENB > 0.
 
 use remu_types::isa::extension_v::VExtensionConfig;
 use remu_types::isa::reg::{RegAccess, VectorCsrState, VrState};
@@ -11,43 +10,35 @@ pub(crate) const OPCODE: u32 = 0b101_0111; // OP-V
 pub(crate) const INSTRUCTION_MIX: u32 = 5;
 
 mod func3 {
-    /// vsetivli: funct3=111.
     pub(super) const VSETIVLI: u32 = 0b111;
-    /// vid.v: funct3=010 (OPIVI/OPMV form, used by Spike/ref).
     pub(super) const VID_V: u32 = 0b010;
-    /// vrsub.vi: funct3=011 (OPIVI, Spike MATCH_VRSUB_VI).
     pub(super) const RSUB_VI: u32 = 0b011;
 }
 
-/// inst[31:30], used with funct3 to identify V instruction form.
 mod top2 {
-    /// vsetivli: 11.
     pub(super) const VSETIVLI: u32 = 0b11;
-    /// vid.v: 01.
     pub(super) const VID_V: u32 = 0b01;
-    /// vrsub.vi: 00 (funct6=0x03).
     pub(super) const RSUB_VI: u32 = 0b00;
 }
 
 mod funct6 {
-    /// vid.v: 0x14 (matches Spike/ref encoding for 0x5208a457).
     pub(super) const VID_V: u32 = 0x14;
-    /// vrsub.vi: 0x03 (OPIVI add/sub group).
     pub(super) const RSUB_VI: u32 = 0x03;
+    pub(super) const ADD_VI: u32 = 0x00;
+    /// vmerge.vim: merge immediate with vs2 under v0 (vm=0) or unmasked (vm=1; vmv.v.i is pseudo)
+    pub(super) const VMERGE_VIM: u32 = 0x17;
 }
 
-/// V extension instruction kind; Inst::V carries this.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 #[allow(non_camel_case_types)]
 pub(crate) enum VInst {
     Vsetivli,
-    /// vid.v: write element indices 0..vl to vd (RVV 1.0).
     Vid_v,
-    /// vrsub.vi: vd[i] = simm5 - vs2[i] (RVV 1.0, OPIVI).
     Vrsub_vi,
+    Vadd_vi,
+    Vmerge_vim,
 }
 
-/// zimm[9:0] for vsetivli = v_funct6[3:0] || v_vm || v_rs2 (standard V fields combined).
 #[inline(always)]
 fn v_zimm_vsetivli(inst: u32) -> u32 {
     ((v_funct6(inst) & 0xF) << 6) | (v_vm(inst) << 5) | rs2(inst) as u32
@@ -63,17 +54,24 @@ pub(crate) fn decode<P: remu_state::StatePolicy>(inst: u32) -> DecodedInst {
         (func3::VID_V, top2::VID_V) => {
             if v_funct6(inst) == funct6::VID_V && v_vm(inst) == 1 && rs2(inst) == 0 {
                 VInst::Vid_v
+            } else if v_funct6(inst) == funct6::VMERGE_VIM {
+                VInst::Vmerge_vim
             } else {
                 return DecodedInst::default();
             }
         }
-        (func3::RSUB_VI, top2::RSUB_VI) => {
-            if v_funct6(inst) == funct6::RSUB_VI {
-                VInst::Vrsub_vi
+        (func3::RSUB_VI, top2::VID_V) => {
+            if v_funct6(inst) == funct6::VMERGE_VIM {
+                VInst::Vmerge_vim
             } else {
                 return DecodedInst::default();
             }
         }
+        (func3::RSUB_VI, top2::RSUB_VI) => match v_funct6(inst) {
+            funct6::RSUB_VI => VInst::Vrsub_vi,
+            funct6::ADD_VI => VInst::Vadd_vi,
+            _ => return DecodedInst::default(),
+        },
         _ => return DecodedInst::default(),
     };
 
@@ -81,7 +79,6 @@ pub(crate) fn decode<P: remu_state::StatePolicy>(inst: u32) -> DecodedInst {
         VInst::Vsetivli => {
             let uimm = rs1(inst) as u32;
             let zimm = v_zimm_vsetivli(inst);
-            // imm: [17:8] = zimm[9:0]; [4:0] = uimm[4:0]
             DecodedInst {
                 rd: rd(inst),
                 rs1: 0,
@@ -107,14 +104,43 @@ pub(crate) fn decode<P: remu_state::StatePolicy>(inst: u32) -> DecodedInst {
                 inst: Inst::V(VInst::Vrsub_vi),
             }
         }
+        VInst::Vadd_vi => {
+            let simm5 = ((rs1(inst) as i32) << 27 >> 27) as u32;
+            DecodedInst {
+                rd: rd(inst),
+                rs1: 0,
+                rs2: rs2(inst),
+                imm: simm5,
+                inst: Inst::V(VInst::Vadd_vi),
+            }
+        }
+        VInst::Vmerge_vim => {
+            let simm5 = ((rs1(inst) as i32) << 27 >> 27) as u32;
+            DecodedInst {
+                rd: rd(inst),
+                rs1: v_vm(inst) as u8, // vm: 0 = use v0 mask, 1 = unmasked (all 1s)
+                rs2: rs2(inst),
+                imm: simm5,
+                inst: Inst::V(VInst::Vmerge_vim),
+            }
+        }
     }
 }
 
-/// zimm[9:0] from vsetivli has same layout as vtype CSR lower 8 bits per RVV 1.0:
-/// vtype[2:0]=vlmul, vtype[5:3]=vsew, vtype[6]=vta, vtype[7]=vma. vill=0.
 #[inline(always)]
 fn zimm_to_vtype(zimm: u32) -> u32 {
     (zimm & 0xFF) & !(1 << 31)
+}
+
+#[inline(always)]
+fn nf_from_vlmul(vlmul: u32) -> usize {
+    match vlmul & 0x7 {
+        0 => 1,
+        1 => 2,
+        2 => 4,
+        3 => 8,
+        _ => 1,
+    }
 }
 
 #[inline(always)]
@@ -140,6 +166,162 @@ fn vlmax_vlenb_vtype(vlenb: u32, vtype: u32) -> u32 {
         _ => (1, 1),
     };
     ((vlen / sew) * num) / denom
+}
+
+/// Generic vector element loop helper.
+/// Handles: V configuration (vl, vtype, sew), multi-register grouping (nf), loop bounds,
+/// reading from rs2 (optional), and writing to rd.
+/// `op` closure receives: (element_index, sew_bytes, optional_rs2_value).
+/// `op` must return the result as u64 (bits), which will be truncated to SEW.
+#[inline(always)]
+fn vector_element_loop<P, C, F>(
+    ctx: &mut C,
+    rd: usize,
+    rs2: Option<usize>,
+    mut op: F,
+) -> Result<(), remu_state::StateError>
+where
+    P: remu_state::StatePolicy,
+    C: crate::ExecuteContext<P>,
+    F: FnMut(u32, usize, Option<u64>) -> u64,
+{
+    let state = ctx.state_mut();
+    let vl = state.reg.csr.vector.vl();
+    let vtype = state.reg.csr.vector.vtype();
+    let vlmul = vtype & 0x7;
+    let vsew = (vtype >> 3) & 0x7;
+    let sew_bytes = 1 << (vsew & 0x3); // 0->1, 1->2, 2->4, 3->8. Ignore reserved 4-7.
+
+    let vlenb = <<P::ISA as RvIsa>::VConfig as VExtensionConfig>::VLENB as usize;
+    let nf_max = nf_from_vlmul(vlmul);
+
+    // Clamp nf to avoid register file overflow (spec: illegal if > 31)
+    let mut nf = nf_max.min(32_usize.saturating_sub(rd));
+    if let Some(r2) = rs2 {
+        nf = nf.min(32_usize.saturating_sub(r2));
+    }
+
+    let total_elems = (nf * vlenb) / sew_bytes;
+    let n = vl.min(total_elems as u32);
+
+    for r in 0..nf {
+        // Read source register chunk if needed (copy to avoid borrow conflict)
+        let src_chunk = rs2.map(|reg| state.reg.vr.raw_read(reg + r).to_vec());
+        let mut dst_chunk = vec![0u8; vlenb];
+
+        // Process elements belonging to this register
+        // Element i is in register r if (i * sew) / vlenb == r
+        let start_elem = (r * vlenb) / sew_bytes;
+        let end_elem = ((r + 1) * vlenb) / sew_bytes;
+        // Intersect with [0, n)
+        let loop_start = (start_elem as u32).min(n);
+        let loop_end = (end_elem as u32).min(n);
+
+        for i in loop_start..loop_end {
+            let off = ((i as usize) * sew_bytes) % vlenb;
+            
+            // Extract source operand
+            let src_val = src_chunk.as_ref().map(|chunk| {
+                match sew_bytes {
+                    1 => chunk[off] as u64,
+                    2 => u16::from_le_bytes(chunk[off..off+2].try_into().unwrap()) as u64,
+                    4 => u32::from_le_bytes(chunk[off..off+4].try_into().unwrap()) as u64,
+                    8 => u64::from_le_bytes(chunk[off..off+8].try_into().unwrap()),
+                    _ => 0,
+                }
+            });
+
+            let res = op(i, sew_bytes, src_val);
+
+            // Write result
+            match sew_bytes {
+                1 => dst_chunk[off] = res as u8,
+                2 => dst_chunk[off..off+2].copy_from_slice(&(res as u16).to_le_bytes()),
+                4 => dst_chunk[off..off+4].copy_from_slice(&(res as u32).to_le_bytes()),
+                8 => dst_chunk[off..off+8].copy_from_slice(&res.to_le_bytes()),
+                _ => {}
+            }
+        }
+        
+        state.reg.vr.raw_write(rd + r, &dst_chunk);
+    }
+
+    *state.reg.pc = state.reg.pc.wrapping_add(4);
+    Ok(())
+}
+
+/// Like `vector_element_loop` but reads mask from v0 (1 bit per element, LSB-packed)
+/// and passes (element_index, sew_bytes, optional_rs2_value, mask_bit) to the closure.
+#[inline(always)]
+fn vector_element_loop_masked<P, C, F>(
+    ctx: &mut C,
+    rd: usize,
+    rs2: Option<usize>,
+    mut op: F,
+) -> Result<(), remu_state::StateError>
+where
+    P: remu_state::StatePolicy,
+    C: crate::ExecuteContext<P>,
+    F: FnMut(u32, usize, Option<u64>, bool) -> u64,
+{
+    let state = ctx.state_mut();
+    let vl = state.reg.csr.vector.vl();
+    let vtype = state.reg.csr.vector.vtype();
+    let vlmul = vtype & 0x7;
+    let vsew = (vtype >> 3) & 0x7;
+    let sew_bytes = 1 << (vsew & 0x3);
+
+    let vlenb = <<P::ISA as RvIsa>::VConfig as VExtensionConfig>::VLENB as usize;
+    let nf_max = nf_from_vlmul(vlmul);
+    let mut nf = nf_max.min(32_usize.saturating_sub(rd));
+    if let Some(r2) = rs2 {
+        nf = nf.min(32_usize.saturating_sub(r2));
+    }
+
+    let total_elems = (nf * vlenb) / sew_bytes;
+    let n = vl.min(total_elems as u32);
+
+    let v0 = state.reg.vr.raw_read(0).to_vec();
+
+    for r in 0..nf {
+        let src_chunk = rs2.map(|reg| state.reg.vr.raw_read(reg + r).to_vec());
+        let mut dst_chunk = vec![0u8; vlenb];
+
+        let start_elem = (r * vlenb) / sew_bytes;
+        let end_elem = ((r + 1) * vlenb) / sew_bytes;
+        let loop_start = (start_elem as u32).min(n);
+        let loop_end = (end_elem as u32).min(n);
+
+        for i in loop_start..loop_end {
+            let off = ((i as usize) * sew_bytes) % vlenb;
+            let mask_bit = (v0[(i as usize) / 8] >> (i % 8)) & 1 != 0;
+
+            let src_val = src_chunk.as_ref().map(|chunk| {
+                match sew_bytes {
+                    1 => chunk[off] as u64,
+                    2 => u16::from_le_bytes(chunk[off..off + 2].try_into().unwrap()) as u64,
+                    4 => u32::from_le_bytes(chunk[off..off + 4].try_into().unwrap()) as u64,
+                    8 => u64::from_le_bytes(chunk[off..off + 8].try_into().unwrap()),
+                    _ => 0,
+                }
+            });
+
+            let res = op(i, sew_bytes, src_val, mask_bit);
+
+            match sew_bytes {
+                1 => dst_chunk[off] = res as u8,
+                2 => dst_chunk[off..off + 2].copy_from_slice(&(res as u16).to_le_bytes()),
+                4 => dst_chunk[off..off + 4].copy_from_slice(&(res as u32).to_le_bytes()),
+                8 => dst_chunk[off..off + 8].copy_from_slice(&res.to_le_bytes()),
+                _ => {}
+            }
+        }
+
+        state.reg.vr.raw_write(rd + r, &dst_chunk);
+    }
+
+    *state.reg.pc = state.reg.pc.wrapping_add(4);
+    Ok(())
 }
 
 #[inline(always)]
@@ -170,83 +352,69 @@ pub(crate) fn execute<P: remu_state::StatePolicy, C: crate::ExecuteContext<P>>(
             Ok(())
         }
         VInst::Vid_v => {
-            let state = ctx.state_mut();
-            let vl = state.reg.csr.vector.vl();
-            let vtype = state.reg.csr.vector.vtype();
-            let vsew = (vtype >> 3) & 0x7;
-            let sew_bytes = match vsew {
-                0 => 1,
-                1 => 2,
-                2 => 4,
-                3 => 8,
-                _ => 1,
-            };
-            let vlenb =
-                <<P::ISA as RvIsa>::VConfig as VExtensionConfig>::VLENB as usize;
-            let mut buf = vec![0u8; vlenb];
-            for i in 0..vl {
-                let idx = i as u32;
-                let off = (i as usize) * sew_bytes;
-                match sew_bytes {
-                    1 => buf[off] = idx as u8,
-                    2 => buf[off..off + 2].copy_from_slice(&(idx as u16).to_le_bytes()),
-                    4 => buf[off..off + 4].copy_from_slice(&idx.to_le_bytes()),
-                    8 => buf[off..off + 8].copy_from_slice(&(idx as u64).to_le_bytes()),
-                    _ => {}
-                }
-            }
-            state.reg.vr.raw_write(decoded.rd.into(), &buf);
-            *state.reg.pc = state.reg.pc.wrapping_add(4);
-            Ok(())
+            vector_element_loop(ctx, decoded.rd as usize, None, |idx, _, _| idx as u64)
         }
         VInst::Vrsub_vi => {
-            let state = ctx.state_mut();
-            let vl = state.reg.csr.vector.vl();
-            let vtype = state.reg.csr.vector.vtype();
-            let vsew = (vtype >> 3) & 0x7;
-            let sew_bytes = match vsew {
-                0 => 1,
-                1 => 2,
-                2 => 4,
-                3 => 8,
-                _ => 1,
-            };
-            let vlenb =
-                <<P::ISA as RvIsa>::VConfig as VExtensionConfig>::VLENB as usize;
             let simm5 = decoded.imm as i32;
-            let vs2_slice = state.reg.vr.raw_read(decoded.rs2.into());
-            let mut buf = vec![0u8; vlenb];
-            for i in 0..vl {
-                let off = (i as usize) * sew_bytes;
-                match sew_bytes {
-                    1 => {
-                        let a = simm5 as i8;
-                        let b = vs2_slice[off] as i8;
-                        buf[off] = (a.wrapping_sub(b)) as u8;
-                    }
-                    2 => {
-                        let a = simm5 as i16;
-                        let b = u16::from_le_bytes([vs2_slice[off], vs2_slice[off + 1]]) as i16;
-                        buf[off..off + 2].copy_from_slice(&(a.wrapping_sub(b) as u16).to_le_bytes());
-                    }
-                    4 => {
-                        let a = simm5;
-                        let b =
-                            i32::from_le_bytes(vs2_slice[off..off + 4].try_into().unwrap());
-                        buf[off..off + 4].copy_from_slice(&(a.wrapping_sub(b) as u32).to_le_bytes());
-                    }
-                    8 => {
-                        let a = simm5 as i64;
-                        let b =
-                            i64::from_le_bytes(vs2_slice[off..off + 8].try_into().unwrap());
-                        buf[off..off + 8].copy_from_slice(&(a.wrapping_sub(b) as u64).to_le_bytes());
-                    }
-                    _ => {}
+            vector_element_loop(ctx, decoded.rd as usize, Some(decoded.rs2 as usize), |_, sew, src| {
+                let v = src.unwrap_or(0);
+                match sew {
+                    1 => (simm5 as i8).wrapping_sub(v as i8) as u8 as u64,
+                    2 => (simm5 as i16).wrapping_sub(v as i16) as u16 as u64,
+                    4 => simm5.wrapping_sub(v as i32) as u32 as u64,
+                    8 => (simm5 as i64).wrapping_sub(v as i64) as u64,
+                    _ => 0,
                 }
+            })
+        }
+        VInst::Vadd_vi => {
+            let simm5 = decoded.imm as i32;
+            vector_element_loop(ctx, decoded.rd as usize, Some(decoded.rs2 as usize), |_, sew, src| {
+                let v = src.unwrap_or(0);
+                match sew {
+                    1 => (simm5 as i8).wrapping_add(v as i8) as u8 as u64,
+                    2 => (simm5 as i16).wrapping_add(v as i16) as u16 as u64,
+                    4 => simm5.wrapping_add(v as i32) as u32 as u64,
+                    8 => (simm5 as i64).wrapping_add(v as i64) as u64,
+                    _ => 0,
+                }
+            })
+        }
+        VInst::Vmerge_vim => {
+            let simm5 = decoded.imm as i32;
+            let vm = decoded.rs1 != 0; // 1 = unmasked (vmv.v.i pseudo), 0 = use v0
+            if vm {
+                // Unmasked: vd[i] = imm for all i (real instruction; vmv.v.i is pseudo for this)
+                vector_element_loop(ctx, decoded.rd as usize, None, |_, sew, _| {
+                    match sew {
+                        1 => (simm5 as i8) as u8 as u64,
+                        2 => (simm5 as i16) as u16 as u64,
+                        4 => (simm5 as u32) as u64,
+                        8 => simm5 as i64 as u64,
+                        _ => 0,
+                    }
+                })
+            } else {
+                // Masked: vd[i] = v0[i] ? imm : vs2[i]
+                vector_element_loop_masked(
+                    ctx,
+                    decoded.rd as usize,
+                    Some(decoded.rs2 as usize),
+                    |_, sew, src, mask| {
+                        if mask {
+                            match sew {
+                                1 => (simm5 as i8) as u8 as u64,
+                                2 => (simm5 as i16) as u16 as u64,
+                                4 => (simm5 as u32) as u64,
+                                8 => simm5 as i64 as u64,
+                                _ => 0,
+                            }
+                        } else {
+                            src.unwrap_or(0)
+                        }
+                    },
+                )
             }
-            state.reg.vr.raw_write(decoded.rd.into(), &buf);
-            *state.reg.pc = state.reg.pc.wrapping_add(4);
-            Ok(())
         }
     }
 }
