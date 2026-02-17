@@ -44,6 +44,14 @@ pub trait SimulatorCore<P: StatePolicy> {
         let _ = (self, subcmd);
         Ok(())
     }
+
+    /// Compare ref memory at `addr` with `dut_data`. Returns `None` if equal, else `Some(ref_bytes)` for diff report.
+    /// Ref models (e.g. Spike) that do not expose state implement this via their own memory interface.
+    #[inline(always)]
+    fn mem_compare(&mut self, addr: usize, dut_data: &[u8]) -> Option<Box<[u8]>> {
+        let _ = (addr, dut_data);
+        None
+    }
 }
 
 pub trait SimulatorDut: crate::policy::SimulatorPolicyOf + SimulatorCore<Self::Policy> {

@@ -218,6 +218,19 @@ impl<P: SimulatorPolicy, const IS_DUT: bool> SimulatorCore<P> for SimulatorRemu<
         self.state.execute(subcmd).map_err(from_state_error)?;
         Ok(())
     }
+
+    fn mem_compare(&mut self, addr: usize, dut_data: &[u8]) -> Option<Box<[u8]>> {
+        if IS_DUT {
+            return None;
+        }
+        let mut buf = vec![0u8; dut_data.len()];
+        SimulatorCore::state_mut(self).bus.read_bytes(addr, &mut buf).ok()?;
+        if buf == dut_data {
+            None
+        } else {
+            Some(buf.into_boxed_slice())
+        }
+    }
 }
 
 impl<P: SimulatorPolicy> SimulatorDut for SimulatorRemu<P, true> {

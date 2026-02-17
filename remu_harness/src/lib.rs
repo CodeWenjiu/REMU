@@ -9,6 +9,7 @@ pub use remu_simulator::{
     DifftestMismatchList, FuncCmd, SimulatorCore, SimulatorDut, SimulatorError,
     SimulatorInnerError, SimulatorPolicy, SimulatorPolicyOf, SimulatorRef,
 };
+use remu_types::{AllUsize, DifftestMismatchItem, RegGroup};
 pub use remu_simulator_remu::SimulatorRemu;
 pub use remu_state::StateCmd;
 pub use remu_state::bus::ObserverEvent;
@@ -72,21 +73,39 @@ where
             .step_once::<ITRACE>()
             .map_err(SimulatorError::Dut)?;
         if R::ENABLE {
-            let event = self.dut_model.state_mut().bus.take_observer_event();
-            match event {
-                ObserverEvent::None => {
-                    self.ref_model
-                        .step_once::<false>()
-                        .map_err(SimulatorError::Ref)?;
-                    let dut_state = self.dut_model.state();
-                    let diff = self.ref_model.regs_diff(dut_state);
-                    if !diff.is_empty() {
-                        return Err(SimulatorError::Difftest(DifftestMismatchList(diff)));
+            let events = self.dut_model.state_mut().bus.take_observer_events();
+            let mut need_sync = false;
+            let mut mem_writes: Vec<(usize, Box<[u8]>)> = Vec::new();
+            for e in &events {
+                match e {
+                    ObserverEvent::MmioAccess => need_sync = true,
+                    ObserverEvent::MemoryWrite(addr, data) => {
+                        mem_writes.push((*addr, data.clone()));
                     }
                 }
-                ObserverEvent::MmioiAccess => {
-                    self.ref_model.sync_regs_from(self.dut_model.state());
+            }
+            if need_sync {
+                self.ref_model.sync_regs_from(self.dut_model.state());
+                return Ok(());
+            }
+            self.ref_model
+                .step_once::<false>()
+                .map_err(SimulatorError::Ref)?;
+            let mut diff = self.ref_model.regs_diff(self.dut_model.state());
+            for (addr, dut_data) in &mem_writes {
+                if let Some(ref_bytes) =
+                    self.ref_model.mem_compare(*addr, dut_data.as_ref())
+                {
+                    diff.push(DifftestMismatchItem {
+                        group: RegGroup::Mem,
+                        name: format!("0x{:08x}:{}", addr, dut_data.len()),
+                        ref_val: AllUsize::Bytes(ref_bytes),
+                        dut_val: AllUsize::Bytes(dut_data.clone()),
+                    });
                 }
+            }
+            if !diff.is_empty() {
+                return Err(SimulatorError::Difftest(DifftestMismatchList(diff)));
             }
         }
         Ok(())

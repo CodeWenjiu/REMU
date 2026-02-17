@@ -292,6 +292,19 @@ impl<P: SimulatorPolicy> SimulatorCore<P> for SimulatorSpike<P> {
         out
     }
 
+    fn mem_compare(&mut self, addr: usize, dut_data: &[u8]) -> Option<Box<[u8]>> {
+        let ctx = self.ctx?;
+        let mut buf = vec![0u8; dut_data.len()];
+        if unsafe { spike_difftest_read_mem(ctx, addr, buf.as_mut_ptr(), buf.len()) } != 0 {
+            return None;
+        }
+        if buf == dut_data {
+            None
+        } else {
+            Some(buf.into_boxed_slice())
+        }
+    }
+
     fn state_exec(&mut self, subcmd: &StateCmd) -> Result<(), SimulatorInnerError> {
         let Some(ctx) = self.ctx else {
             return Err(SimulatorInnerError::RefError(

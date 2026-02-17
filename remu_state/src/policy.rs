@@ -2,7 +2,7 @@ use std::marker::PhantomData;
 
 use remu_types::isa::RvIsa;
 
-use crate::bus::{BusObserver, FastObserver, MmioObserver};
+use crate::bus::{BusObserver, DifftestObserver, FastObserver};
 
 pub trait StatePolicy {
     type ISA: RvIsa;
@@ -53,5 +53,5 @@ where
     ISA: RvIsa,
 {
     type ISA = ISA;
-    type Observer = MmioObserver;
+    type Observer = DifftestObserver;
 }

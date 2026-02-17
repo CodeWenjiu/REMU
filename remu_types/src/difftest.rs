@@ -16,6 +16,8 @@ pub enum RegGroup {
     Fpr,
     Vr,
     Csr,
+    /// Memory region written by DUT; difftest compares with ref memory.
+    Mem,
 }
 
 #[derive(Debug, Clone)]
@@ -37,6 +39,7 @@ impl fmt::Display for DifftestMismatchItem {
                 RegGroup::Fpr => "fpr",
                 RegGroup::Vr => "vr",
                 RegGroup::Csr => "csr",
+                RegGroup::Mem => "mem",
             },
             self.name,
             self.ref_val,

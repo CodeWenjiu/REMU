@@ -73,9 +73,10 @@ impl<I: RvIsa, O: BusObserver> Bus<I, O> {
         }
     }
 
+    /// Take and clear all observer events this step (MMIO and/or memory writes).
     #[inline(always)]
-    pub fn take_observer_event(&mut self) -> observer::ObserverEvent {
-        self.observer.get_enent_and_clear()
+    pub fn take_observer_events(&mut self) -> Vec<observer::ObserverEvent> {
+        self.observer.get_events_and_clear()
     }
 
     pub fn mem_regions_for_difftest(&mut self) -> Vec<(usize, *mut u8, usize)> {
@@ -121,19 +122,19 @@ impl<I: RvIsa, O: BusObserver> Bus<I, O> {
             BusCmd::Read { subcmd } => {
                 let (addr, result) = match subcmd {
                     ReadCommand::U8(arg) => {
-                        (arg.addr, self.read_8(arg.addr).map(|v| AllUsize::U8(v)))
+                        (arg.addr, self.read_8_impl::<false>(arg.addr).map(|v| AllUsize::U8(v)))
                     }
                     ReadCommand::U16(arg) => {
-                        (arg.addr, self.read_16(arg.addr).map(|v| AllUsize::U16(v)))
+                        (arg.addr, self.read_16_impl::<false>(arg.addr).map(|v| AllUsize::U16(v)))
                     }
                     ReadCommand::U32(arg) => {
-                        (arg.addr, self.read_32(arg.addr).map(|v| AllUsize::U32(v)))
+                        (arg.addr, self.read_32_impl::<false>(arg.addr).map(|v| AllUsize::U32(v)))
                     }
                     ReadCommand::U64(arg) => {
-                        (arg.addr, self.read_64(arg.addr).map(|v| AllUsize::U64(v)))
+                        (arg.addr, self.read_64_impl::<false>(arg.addr).map(|v| AllUsize::U64(v)))
                     }
                     ReadCommand::U128(arg) => {
-                        (arg.addr, self.read_128(arg.addr).map(|v| AllUsize::U128(v)))
+                        (arg.addr, self.read_128_impl::<false>(arg.addr).map(|v| AllUsize::U128(v)))
                     }
                 };
                 self.tracer.borrow().mem_show(
@@ -149,11 +150,11 @@ impl<I: RvIsa, O: BusObserver> Bus<I, O> {
                 self.tracer.borrow_mut().mem_print(*addr, &buf, result);
             }
             BusCmd::Write { subcmd } => match subcmd {
-                WriteCommand::U8 { addr, value } => self.write_8(*addr, *value)?,
-                WriteCommand::U16 { addr, value } => self.write_16(*addr, *value)?,
-                WriteCommand::U32 { addr, value } => self.write_32(*addr, *value)?,
-                WriteCommand::U64 { addr, value } => self.write_64(*addr, *value)?,
-                WriteCommand::U128 { addr, value } => self.write_128(*addr, *value)?,
+                WriteCommand::U8 { addr, value } => self.write_8_impl::<false>(*addr, *value)?,
+                WriteCommand::U16 { addr, value } => self.write_16_impl::<false>(*addr, *value)?,
+                WriteCommand::U32 { addr, value } => self.write_32_impl::<false>(*addr, *value)?,
+                WriteCommand::U64 { addr, value } => self.write_64_impl::<false>(*addr, *value)?,
+                WriteCommand::U128 { addr, value } => self.write_128_impl::<false>(*addr, *value)?,
             },
             BusCmd::Set { address, value } => {
                 let mut addr = *address;
