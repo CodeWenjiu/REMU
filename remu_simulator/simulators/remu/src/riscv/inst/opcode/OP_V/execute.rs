@@ -537,76 +537,172 @@ pub(crate) fn execute<P: remu_state::StatePolicy, C: crate::ExecuteContext<P>>(
     };
 
     match v {
-        VInst::OpCfg(OpCfgInst::Vsetivli) => {
-            let zimm = (decoded.imm >> 5) & 0x3FF;
-            let vtype = zimm_to_vtype(zimm);
-            let uimm = decoded.imm & 0x1F;
-            let rd = decoded.rd;
-            let vlenb = <<P::ISA as RvIsa>::VConfig as VExtensionConfig>::VLENB;
-            let vlmax = calculate_vlmax(vlenb, vtype);
-            let vl = uimm.min(vlmax);
-
-            let state = ctx.state_mut();
-
-            state.reg.csr.vector.set_vtype(vtype);
-            state.reg.csr.vector.set_vl(vl);
-            state.reg.gpr.raw_write(rd.into(), vl);
-            *state.reg.pc = state.reg.pc.wrapping_add(4);
-            Ok(())
-        }
-        VInst::OpCfg(OpCfgInst::Vsetvli) => {
-            let zimm = (decoded.imm >> 5) & 0x3FF;
-            let vtype = zimm_to_vtype(zimm);
-            let vlenb = <<P::ISA as RvIsa>::VConfig as VExtensionConfig>::VLENB;
-            let vlmax = calculate_vlmax(vlenb, vtype);
-            let rd = decoded.rd;
-            let rs1 = decoded.rs1;
-
-            let state = ctx.state_mut();
-            state.reg.csr.vector.set_vtype(vtype);
-            *state.reg.pc = state.reg.pc.wrapping_add(4);
-
-            if rs1 == 0 && rd == 0 {
-                return Ok(());
+        VInst::OpCfg(op) => match op {
+            OpCfgInst::Vsetivli => {
+                let zimm = (decoded.imm >> 5) & 0x3FF;
+                let vtype = zimm_to_vtype(zimm);
+                let uimm = decoded.imm & 0x1F;
+                let rd = decoded.rd;
+                let vlenb = <<P::ISA as RvIsa>::VConfig as VExtensionConfig>::VLENB;
+                let vlmax = calculate_vlmax(vlenb, vtype);
+                let vl = uimm.min(vlmax);
+                let state = ctx.state_mut();
+                state.reg.csr.vector.set_vtype(vtype);
+                state.reg.csr.vector.set_vl(vl);
+                state.reg.gpr.raw_write(rd.into(), vl);
+                *state.reg.pc = state.reg.pc.wrapping_add(4);
+                Ok(())
             }
-
-            let avl = if rs1 == 0 {
-                u32::MAX
-            } else {
-                state.reg.gpr.raw_read(rs1.into())
-            };
-
-            let vl = avl.min(vlmax);
-
-            state.reg.csr.vector.set_vl(vl);
-            state.reg.gpr.raw_write(rd.into(), vl);
-            Ok(())
-        }
-        VInst::OpMvv(OpMvvInst::Vid_v) => {
-            vector_element_loop(ctx, decoded.rd as usize, None, |idx, _, _| idx as u64)
-        }
-        VInst::OpIvi(OpIviInst::Vrsub_vi) => {
-            let simm5 = decoded.imm as i32;
-            vector_element_loop(
+            OpCfgInst::Vsetvli => {
+                let zimm = (decoded.imm >> 5) & 0x3FF;
+                let vtype = zimm_to_vtype(zimm);
+                let vlenb = <<P::ISA as RvIsa>::VConfig as VExtensionConfig>::VLENB;
+                let vlmax = calculate_vlmax(vlenb, vtype);
+                let rd = decoded.rd;
+                let rs1 = decoded.rs1;
+                let state = ctx.state_mut();
+                state.reg.csr.vector.set_vtype(vtype);
+                *state.reg.pc = state.reg.pc.wrapping_add(4);
+                if rs1 == 0 && rd == 0 {
+                    return Ok(());
+                }
+                let avl = if rs1 == 0 { u32::MAX } else { state.reg.gpr.raw_read(rs1.into()) };
+                let vl = avl.min(vlmax);
+                state.reg.csr.vector.set_vl(vl);
+                state.reg.gpr.raw_write(rd.into(), vl);
+                Ok(())
+            }
+        },
+        VInst::OpMvv(op) => match op {
+            OpMvvInst::Vredsum_vs => vector_redsum_vs::<P, C>(
                 ctx,
                 decoded.rd as usize,
-                Some(decoded.rs2 as usize),
-                |_, sew, src| {
-                    let v = src.unwrap_or(0);
-                    match sew {
-                        1 => (simm5 as i8).wrapping_sub(v as i8) as u8 as u64,
-                        2 => (simm5 as i16).wrapping_sub(v as i16) as u16 as u64,
-                        4 => simm5.wrapping_sub(v as i32) as u32 as u64,
-                        8 => (simm5 as i64).wrapping_sub(v as i64) as u64,
-                        _ => 0,
+                decoded.rs1 as usize,
+                decoded.rs2 as usize,
+            ),
+            OpMvvInst::Vid_v => {
+                vector_element_loop(ctx, decoded.rd as usize, None, |idx, _, _| idx as u64)
+            }
+            OpMvvInst::Vmv_x_s => {
+                let state = ctx.state_mut();
+                let vtype = state.reg.csr.vector.vtype();
+                let vsew = (vtype >> 3) & 0x7;
+                let sew_bytes = 1 << (vsew & 0x3);
+                let vs2_chunk = state.reg.vr.raw_read(decoded.rs2 as usize);
+                let res = match sew_bytes {
+                    1 => (vs2_chunk[0] as i8 as i64) as u64,
+                    2 => (i16::from_le_bytes(vs2_chunk[0..2].try_into().unwrap()) as i64) as u64,
+                    4 => (i32::from_le_bytes(vs2_chunk[0..4].try_into().unwrap()) as i64) as u64,
+                    8 => i64::from_le_bytes(vs2_chunk[0..8].try_into().unwrap()) as u64,
+                    _ => 0,
+                };
+                state.reg.gpr.raw_write(decoded.rd.into(), res as u32);
+                *state.reg.pc = state.reg.pc.wrapping_add(4);
+                Ok(())
+            }
+            OpMvvInst::Vfirst_m => {
+                let state = ctx.state_mut();
+                let vl = state.reg.csr.vector.vl();
+                let vs2_chunk = state.reg.vr.raw_read(decoded.rs2 as usize);
+                let mut pos = !0u32;
+                for i in 0..vl {
+                    let byte_idx = (i as usize) / 8;
+                    let bit_idx = i % 8;
+                    if byte_idx < vs2_chunk.len() && (vs2_chunk[byte_idx] >> bit_idx) & 1 != 0 {
+                        pos = i;
+                        break;
                     }
-                },
-            )
-        }
-        VInst::OpIvi(OpIviInst::Vadd_vi) => {
-            let simm5 = decoded.imm as i32;
-            let vm = decoded.rs1 != 0;
-            if vm {
+                }
+                state.reg.gpr.raw_write(decoded.rd.into(), pos);
+                *state.reg.pc = state.reg.pc.wrapping_add(4);
+                Ok(())
+            }
+            OpMvvInst::Vmerge_vim => {
+                let simm5 = decoded.imm as i32;
+                let vm = decoded.rs1 != 0;
+                if vm {
+                    vector_element_loop(ctx, decoded.rd as usize, None, |_, sew, _| match sew {
+                        1 => (simm5 as i8) as u8 as u64,
+                        2 => (simm5 as i16) as u16 as u64,
+                        4 => (simm5 as u32) as u64,
+                        8 => simm5 as i64 as u64,
+                        _ => 0,
+                    })
+                } else {
+                    vector_element_loop_masked(
+                        ctx,
+                        decoded.rd as usize,
+                        Some(decoded.rs2 as usize),
+                        |_, sew, src, mask, _dst| {
+                            if mask {
+                                match sew {
+                                    1 => (simm5 as i8) as u8 as u64,
+                                    2 => (simm5 as i16) as u16 as u64,
+                                    4 => (simm5 as u32) as u64,
+                                    8 => simm5 as i64 as u64,
+                                    _ => 0,
+                                }
+                            } else {
+                                src.unwrap_or(0)
+                            }
+                        },
+                    )
+                }
+            }
+            OpMvvInst::Vmseq_vi => {
+                vector_mask_cmp_vi::<P, C>(ctx, decoded.rd as usize, decoded.rs2 as usize, decoded.imm)
+            }
+            OpMvvInst::Vsext_vf4 => {
+                vector_sext_vf4::<P, C>(ctx, decoded.rd as usize, decoded.rs2 as usize)
+            }
+        },
+        VInst::OpIvi(op) => match op {
+            OpIviInst::Vmerge_vim => {
+                let simm5 = decoded.imm as i32;
+                let vm = decoded.rs1 != 0;
+                if vm {
+                    vector_element_loop(ctx, decoded.rd as usize, None, |_, sew, _| match sew {
+                        1 => (simm5 as i8) as u8 as u64,
+                        2 => (simm5 as i16) as u16 as u64,
+                        4 => (simm5 as u32) as u64,
+                        8 => simm5 as i64 as u64,
+                        _ => 0,
+                    })
+                } else {
+                    vector_element_loop_masked(
+                        ctx,
+                        decoded.rd as usize,
+                        Some(decoded.rs2 as usize),
+                        |_, sew, src, mask, _dst| {
+                            if mask {
+                                match sew {
+                                    1 => (simm5 as i8) as u8 as u64,
+                                    2 => (simm5 as i16) as u16 as u64,
+                                    4 => (simm5 as u32) as u64,
+                                    8 => simm5 as i64 as u64,
+                                    _ => 0,
+                                }
+                            } else {
+                                src.unwrap_or(0)
+                            }
+                        },
+                    )
+                }
+            }
+            OpIviInst::Vmseq_vi => {
+                vector_mask_cmp_vi::<P, C>(ctx, decoded.rd as usize, decoded.rs2 as usize, decoded.imm)
+            }
+            OpIviInst::Vmv1r_v => {
+                let state = ctx.state_mut();
+                let vs2 = decoded.rs2 as usize;
+                let vd = decoded.rd as usize;
+                let data = state.reg.vr.raw_read(vs2).to_vec();
+                state.reg.vr.raw_write(vd, &data);
+                *state.reg.pc = state.reg.pc.wrapping_add(4);
+                Ok(())
+            }
+            OpIviInst::Vrsub_vi => {
+                let simm5 = decoded.imm as i32;
                 vector_element_loop(
                     ctx,
                     decoded.rd as usize,
@@ -614,21 +710,24 @@ pub(crate) fn execute<P: remu_state::StatePolicy, C: crate::ExecuteContext<P>>(
                     |_, sew, src| {
                         let v = src.unwrap_or(0);
                         match sew {
-                            1 => (simm5 as i8).wrapping_add(v as i8) as u8 as u64,
-                            2 => (simm5 as i16).wrapping_add(v as i16) as u16 as u64,
-                            4 => simm5.wrapping_add(v as i32) as u32 as u64,
-                            8 => (simm5 as i64).wrapping_add(v as i64) as u64,
+                            1 => (simm5 as i8).wrapping_sub(v as i8) as u8 as u64,
+                            2 => (simm5 as i16).wrapping_sub(v as i16) as u16 as u64,
+                            4 => simm5.wrapping_sub(v as i32) as u32 as u64,
+                            8 => (simm5 as i64).wrapping_sub(v as i64) as u64,
                             _ => 0,
                         }
                     },
                 )
-            } else {
-                vector_element_loop_masked(
-                    ctx,
-                    decoded.rd as usize,
-                    Some(decoded.rs2 as usize),
-                    |_, sew, src, mask, dst| {
-                        if mask {
+            }
+            OpIviInst::Vadd_vi => {
+                let simm5 = decoded.imm as i32;
+                let vm = decoded.rs1 != 0;
+                if vm {
+                    vector_element_loop(
+                        ctx,
+                        decoded.rd as usize,
+                        Some(decoded.rs2 as usize),
+                        |_, sew, src| {
                             let v = src.unwrap_or(0);
                             match sew {
                                 1 => (simm5 as i8).wrapping_add(v as i8) as u8 as u64,
@@ -637,27 +736,37 @@ pub(crate) fn execute<P: remu_state::StatePolicy, C: crate::ExecuteContext<P>>(
                                 8 => (simm5 as i64).wrapping_add(v as i64) as u64,
                                 _ => 0,
                             }
-                        } else {
-                            dst
-                        }
-                    },
-                )
+                        },
+                    )
+                } else {
+                    vector_element_loop_masked(
+                        ctx,
+                        decoded.rd as usize,
+                        Some(decoded.rs2 as usize),
+                        |_, sew, src, mask, dst| {
+                            if mask {
+                                let v = src.unwrap_or(0);
+                                match sew {
+                                    1 => (simm5 as i8).wrapping_add(v as i8) as u8 as u64,
+                                    2 => (simm5 as i16).wrapping_add(v as i16) as u16 as u64,
+                                    4 => simm5.wrapping_add(v as i32) as u32 as u64,
+                                    8 => (simm5 as i64).wrapping_add(v as i64) as u64,
+                                    _ => 0,
+                                }
+                            } else {
+                                dst
+                            }
+                        },
+                    )
+                }
             }
-        }
-        VInst::OpMvv(OpMvvInst::Vmerge_vim) | VInst::OpIvi(OpIviInst::Vmerge_vim) => {
-            let simm5 = decoded.imm as i32;
-            let vm = decoded.rs1 != 0; // 1 = unmasked (vmv.v.i pseudo), 0 = use v0
-            if vm {
-                // Unmasked: vd[i] = imm for all i (real instruction; vmv.v.i is pseudo for this)
-                vector_element_loop(ctx, decoded.rd as usize, None, |_, sew, _| match sew {
-                    1 => (simm5 as i8) as u8 as u64,
-                    2 => (simm5 as i16) as u16 as u64,
-                    4 => (simm5 as u32) as u64,
-                    8 => simm5 as i64 as u64,
-                    _ => 0,
-                })
-            } else {
-                // Masked: vd[i] = v0[i] ? imm : vs2[i]
+            OpIviInst::Vslidedown_vi => {
+                vector_slidedown_vi::<P, C>(ctx, decoded.rd as usize, decoded.rs2 as usize, decoded.imm)
+            }
+        },
+        VInst::OpIvx(op) => match op {
+            OpIvxInst::Vmerge_vxm => {
+                let scalar = ctx.state_mut().reg.gpr.raw_read(decoded.rs1.into());
                 vector_element_loop_masked(
                     ctx,
                     decoded.rd as usize,
@@ -665,10 +774,10 @@ pub(crate) fn execute<P: remu_state::StatePolicy, C: crate::ExecuteContext<P>>(
                     |_, sew, src, mask, _dst| {
                         if mask {
                             match sew {
-                                1 => (simm5 as i8) as u8 as u64,
-                                2 => (simm5 as i16) as u16 as u64,
-                                4 => (simm5 as u32) as u64,
-                                8 => simm5 as i64 as u64,
+                                1 => (scalar as i32 as i8) as u8 as u64,
+                                2 => (scalar as i32 as i16) as u16 as u64,
+                                4 => (scalar as i32 as u32) as u64,
+                                8 => (scalar as i32 as i64) as u64,
                                 _ => 0,
                             }
                         } else {
@@ -677,111 +786,32 @@ pub(crate) fn execute<P: remu_state::StatePolicy, C: crate::ExecuteContext<P>>(
                     },
                 )
             }
-        }
-        VInst::OpMvv(OpMvvInst::Vmseq_vi) | VInst::OpIvi(OpIviInst::Vmseq_vi) => {
-            vector_mask_cmp_vi::<P, C>(ctx, decoded.rd as usize, decoded.rs2 as usize, decoded.imm)
-        }
-        VInst::OpIvx(OpIvxInst::Vmslt_vx) => {
-            vector_mask_cmp_vx::<P, C>(ctx, decoded.rd as usize, decoded.rs2 as usize, decoded.rs1)
-        }
-        VInst::OpMvv(OpMvvInst::Vredsum_vs) => vector_redsum_vs::<P, C>(
-            ctx,
-            decoded.rd as usize,
-            decoded.rs1 as usize,
-            decoded.rs2 as usize,
-        ),
-        VInst::OpIvi(OpIviInst::Vslidedown_vi) => {
-            vector_slidedown_vi::<P, C>(ctx, decoded.rd as usize, decoded.rs2 as usize, decoded.imm)
-        }
-        VInst::OpMvv(OpMvvInst::Vmv_x_s) => {
-            let state = ctx.state_mut();
-            let vtype = state.reg.csr.vector.vtype();
-            let vsew = (vtype >> 3) & 0x7;
-            let sew_bytes = 1 << (vsew & 0x3);
-            let vs2_chunk = state.reg.vr.raw_read(decoded.rs2 as usize);
-            let res = match sew_bytes {
-                1 => (vs2_chunk[0] as i8 as i64) as u64,
-                2 => (i16::from_le_bytes(vs2_chunk[0..2].try_into().unwrap()) as i64) as u64,
-                4 => (i32::from_le_bytes(vs2_chunk[0..4].try_into().unwrap()) as i64) as u64,
-                8 => i64::from_le_bytes(vs2_chunk[0..8].try_into().unwrap()) as u64,
-                _ => 0,
-            };
-            state.reg.gpr.raw_write(decoded.rd.into(), res as u32);
-            *state.reg.pc = state.reg.pc.wrapping_add(4);
-            Ok(())
-        }
-        VInst::OpMvv(OpMvvInst::Vfirst_m) => {
-            let state = ctx.state_mut();
-            let vl = state.reg.csr.vector.vl();
-            let vs2_chunk = state.reg.vr.raw_read(decoded.rs2 as usize);
-            let mut pos = !0u32; // -1
-            for i in 0..vl {
-                let byte_idx = (i as usize) / 8;
-                let bit_idx = i % 8;
-                if byte_idx < vs2_chunk.len() && (vs2_chunk[byte_idx] >> bit_idx) & 1 != 0 {
-                    pos = i;
-                    break;
+            OpIvxInst::Vmslt_vx => {
+                vector_mask_cmp_vx::<P, C>(ctx, decoded.rd as usize, decoded.rs2 as usize, decoded.rs1)
+            }
+            OpIvxInst::Vmv_s_x => {
+                let state = ctx.state_mut();
+                let vl = state.reg.csr.vector.vl();
+                if vl == 0 {
+                    *state.reg.pc = state.reg.pc.wrapping_add(4);
+                    return Ok(());
                 }
-            }
-            state.reg.gpr.raw_write(decoded.rd.into(), pos);
-            *state.reg.pc = state.reg.pc.wrapping_add(4);
-            Ok(())
-        }
-        VInst::OpMvv(OpMvvInst::Vsext_vf4) => {
-            vector_sext_vf4::<P, C>(ctx, decoded.rd as usize, decoded.rs2 as usize)
-        }
-        VInst::OpIvx(OpIvxInst::Vmv_s_x) => {
-            let state = ctx.state_mut();
-            let vl = state.reg.csr.vector.vl();
-            if vl == 0 {
+                let vtype = state.reg.csr.vector.vtype();
+                let vsew = (vtype >> 3) & 0x7;
+                let sew_bytes = 1 << (vsew & 0x3);
+                let scalar = state.reg.gpr.raw_read(decoded.rs1.into());
+                let mut chunk = state.reg.vr.raw_read(decoded.rd as usize).to_vec();
+                match sew_bytes {
+                    1 => chunk[0] = (scalar & 0xFF) as u8,
+                    2 => chunk[0..2].copy_from_slice(&(scalar & 0xFFFF).to_le_bytes()),
+                    4 => chunk[0..4].copy_from_slice(&(scalar & 0xFFFF_FFFF).to_le_bytes()),
+                    8 => chunk[0..8].copy_from_slice(&(scalar as u64).to_le_bytes()),
+                    _ => {}
+                }
+                state.reg.vr.raw_write(decoded.rd as usize, &chunk);
                 *state.reg.pc = state.reg.pc.wrapping_add(4);
-                return Ok(());
+                Ok(())
             }
-            let vtype = state.reg.csr.vector.vtype();
-            let vsew = (vtype >> 3) & 0x7;
-            let sew_bytes = 1 << (vsew & 0x3);
-            let scalar = state.reg.gpr.raw_read(decoded.rs1.into());
-            let mut chunk = state.reg.vr.raw_read(decoded.rd as usize).to_vec();
-            match sew_bytes {
-                1 => chunk[0] = (scalar & 0xFF) as u8,
-                2 => chunk[0..2].copy_from_slice(&(scalar & 0xFFFF).to_le_bytes()),
-                4 => chunk[0..4].copy_from_slice(&(scalar & 0xFFFF_FFFF).to_le_bytes()),
-                8 => chunk[0..8].copy_from_slice(&(scalar as u64).to_le_bytes()),
-                _ => {}
-            }
-            state.reg.vr.raw_write(decoded.rd as usize, &chunk);
-            *state.reg.pc = state.reg.pc.wrapping_add(4);
-            Ok(())
-        }
-        VInst::OpIvx(OpIvxInst::Vmerge_vxm) => {
-            let scalar = ctx.state_mut().reg.gpr.raw_read(decoded.rs1.into());
-            vector_element_loop_masked(
-                ctx,
-                decoded.rd as usize,
-                Some(decoded.rs2 as usize),
-                |_, sew, src, mask, _dst| {
-                    if mask {
-                        match sew {
-                            1 => (scalar as i32 as i8) as u8 as u64,
-                            2 => (scalar as i32 as i16) as u16 as u64,
-                            4 => (scalar as i32 as u32) as u64,
-                            8 => (scalar as i32 as i64) as u64,
-                            _ => 0,
-                        }
-                    } else {
-                        src.unwrap_or(0)
-                    }
-                },
-            )
-        }
-        VInst::OpIvi(OpIviInst::Vmv1r_v) => {
-            let state = ctx.state_mut();
-            let vs2 = decoded.rs2 as usize;
-            let vd = decoded.rd as usize;
-            let data = state.reg.vr.raw_read(vs2).to_vec();
-            state.reg.vr.raw_write(vd, &data);
-            *state.reg.pc = state.reg.pc.wrapping_add(4);
-            Ok(())
-        }
+        },
     }
 }
