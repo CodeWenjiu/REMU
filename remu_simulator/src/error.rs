@@ -70,7 +70,7 @@ pub enum SimulatorError {
     #[error("Dut error: {0}")]
     Dut(SimulatorInnerError),
 
-    #[error("Difftest mismatch: ref and DUT register state differ:\n{0}")]
+    #[error("Difftest mismatch: ref and DUT state differ:\n{0}")]
     Difftest(DifftestMismatchList),
 }
 

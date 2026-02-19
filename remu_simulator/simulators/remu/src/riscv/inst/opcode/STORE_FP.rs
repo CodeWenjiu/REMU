@@ -8,6 +8,10 @@ use crate::riscv::inst::{funct3, rd, rs1, DecodedInst, Inst};
 pub(crate) const OPCODE: u32 = 0b010_0111; // STORE-FP (0x27)
 pub(crate) const INSTRUCTION_MIX: u32 = 10;
 
+/// Whole-register store: (inst & MASK) == MATCH (Spike encoding)
+const MATCH_VS2R_V: u32 = 0x22800027;
+const MASK_VS2R_V: u32 = 0xfff0707f;
+
 mod func3 {
     pub(super) const WIDTH_8: u32 = 0b000;
     /// vse32.v: EEW=32, unit-stride store
@@ -21,6 +25,8 @@ mod lumop {
 #[derive(Clone, Copy, Debug)]
 pub(crate) enum StoreFpInst {
     Vs1r,
+    /// vs2r.v: whole-reg store 2 regs from vs3 to mem[rs1] (Spike VI_ST_WHOLE)
+    Vs2r,
     /// vse8.v: store vl×8-bit elements from vs3 to mem[rs1 + i] (real instruction)
     Vse8,
     /// vse32.v: store vl×32-bit elements from vs3 to mem[rs1 + i*4]
@@ -47,15 +53,24 @@ fn nf(inst: u32) -> u32 {
     (inst >> 29) & 0x7
 }
 
-/// vs3 for unit-stride store: [24:20]. For vs1r, vs3 is in rd [11:7].
+/// vs3 for unit-stride store is in same position as rd [11:7] per RVV spec. vs1r also uses rd.
 #[inline(always)]
-fn vs3_store(inst: u32) -> u8 {
-    ((inst >> 20) & 0x1F) as u8
+fn vs3_unit_stride(inst: u32) -> u8 {
+    rd(inst)
 }
 
 #[inline(always)]
 pub(crate) fn decode<P: remu_state::StatePolicy>(inst: u32) -> DecodedInst {
     if <<P::ISA as RvIsa>::VConfig as VExtensionConfig>::VLENB > 0 {
+        if (inst & MASK_VS2R_V) == MATCH_VS2R_V {
+            return DecodedInst {
+                rd: rd(inst),   // vs3
+                rs1: rs1(inst),
+                rs2: 0,
+                imm: 0,
+                inst: Inst::StoreFp(StoreFpInst::Vs2r),
+            };
+        }
         let f3 = funct3(inst);
         let store_fp = match f3 {
             func3::WIDTH_8 => {
@@ -74,7 +89,8 @@ pub(crate) fn decode<P: remu_state::StatePolicy>(inst: u32) -> DecodedInst {
         };
         let (vs3, rs1_val) = match store_fp {
             StoreFpInst::Vs1r => (rd(inst), rs1(inst)),
-            StoreFpInst::Vse8 | StoreFpInst::Vse32 => (vs3_store(inst), rs1(inst)),
+            StoreFpInst::Vs2r => (rd(inst), rs1(inst)),
+            StoreFpInst::Vse8 | StoreFpInst::Vse32 => (vs3_unit_stride(inst), rs1(inst)),
         };
         return DecodedInst {
             rd: vs3,
@@ -95,6 +111,28 @@ pub(crate) fn execute<P: remu_state::StatePolicy, C: crate::ExecuteContext<P>>(
     let Inst::StoreFp(store) = decoded.inst else { unreachable!() };
 
     match store {
+        StoreFpInst::Vs2r => {
+            if <<P::ISA as RvIsa>::VConfig as VExtensionConfig>::VLENB > 0 {
+                let state = ctx.state_mut();
+                let vlenb =
+                    <<P::ISA as RvIsa>::VConfig as VExtensionConfig>::VLENB as usize;
+                let vs3 = decoded.rd as usize;
+                let base = state.reg.gpr.raw_read(decoded.rs1.into()) as usize;
+                const NREGS: usize = 2;
+                for r in 0..NREGS {
+                    let chunk = state.reg.vr.raw_read(vs3 + r);
+                    for (j, &byte) in chunk.iter().enumerate() {
+                        state
+                            .bus
+                            .write_8(base.wrapping_add(r * vlenb).wrapping_add(j), byte)
+                            .map_err(StateError::from)?;
+                    }
+                }
+                *state.reg.pc = state.reg.pc.wrapping_add(4);
+            } else {
+                unsafe { core::hint::unreachable_unchecked() }
+            }
+        }
         StoreFpInst::Vs1r => {
             if <<P::ISA as RvIsa>::VConfig as VExtensionConfig>::VLENB > 0 {
                 // Whole register store ignores vtype and vl, but requires vstart == 0
