@@ -1,6 +1,6 @@
 use crate::riscv::inst::{
     DecodedInst, Inst, funct3,
-    opcode::OP_V::{OpCfgInst, OpIviInst, OpIvxInst, OpMvvInst, VInst},
+    opcode::OP_V::{OpCfgInst, OpIviInst, OpIvxInst, OpMvvInst, OpMvxInst, VInst},
     rd, rs1, rs2,
 };
 
@@ -183,7 +183,7 @@ pub(crate) fn decode<P: remu_state::StatePolicy>(inst: u32) -> DecodedInst {
                 rs1: rs1(inst),
                 rs2: 0,
                 imm: 0,
-                inst: Inst::V(VInst::OpIvx(OpIvxInst::Vmv_s_x)),
+                inst: Inst::V(VInst::OpMvx(OpMvxInst::Vmv_s_x)),
             },
             _ => return DecodedInst::default(),
         },
