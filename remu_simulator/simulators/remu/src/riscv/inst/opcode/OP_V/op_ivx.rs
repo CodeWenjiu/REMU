@@ -11,17 +11,22 @@ use crate::riscv::inst::{DecodedInst, opcode::OP_V::OpIvxInst};
 use super::utils::{nf_from_vlmul, vector_element_loop, VectorElementLoopMode};
 
 #[inline(always)]
-fn vector_mask_cmp_vx<P, C>(
+fn vector_mask_cmp_vx<P, C, F>(
     ctx: &mut C,
-    vd: usize,
-    vs2: usize,
-    rs1: u8,
+    decoded: &DecodedInst,
+    cmp_op: F,
 ) -> Result<(), remu_state::StateError>
 where
     P: remu_state::StatePolicy,
     C: crate::ExecuteContext<P>,
+    F: Fn(i64, i64) -> bool,
 {
     let state = ctx.state_mut();
+    let vd = decoded.rd as usize;
+    let vs2 = decoded.rs2 as usize;
+    let rs1 = decoded.rs1;
+    let vm = decoded.imm != 0;
+
     let vl = state.reg.csr.vector.vl();
     let vtype = state.reg.csr.vector.vtype();
     let vlmul = vtype & 0x7;
@@ -33,31 +38,38 @@ where
     let n = vl.min(total_elems as u32) as usize;
     let scalar = state.reg.gpr.raw_read(rs1.into());
 
+    let v0 = state.reg.vr.raw_read(0).to_vec();
     let mut vd_buf = state.reg.vr.raw_read(vd).to_vec();
 
+    let rs1_sext = match sew_bytes {
+        1 => (scalar as i8) as i64,
+        2 => (scalar as i16) as i64,
+        4 => (scalar as i32) as i64,
+        8 => scalar as i64,
+        _ => 0,
+    };
+
     for i in 0..n {
-        let byte_offset = (i as usize) * sew_bytes;
-        let reg_i = byte_offset / vlenb;
-        let off = byte_offset % vlenb;
-        let chunk = state.reg.vr.raw_read(vs2 + reg_i);
-        let vs2_val = match sew_bytes {
-            1 => chunk[off] as i8 as i64,
-            2 => i16::from_le_bytes(chunk[off..off + 2].try_into().unwrap()) as i64,
-            4 => i32::from_le_bytes(chunk[off..off + 4].try_into().unwrap()) as i64,
-            8 => i64::from_le_bytes(chunk[off..off + 8].try_into().unwrap()),
-            _ => 0,
+        let active = vm || ((v0[i / 8] >> (i % 8)) & 1 != 0);
+        let result_bit = if active {
+            let byte_offset = (i as usize) * sew_bytes;
+            let reg_i = byte_offset / vlenb;
+            let off = byte_offset % vlenb;
+            let chunk = state.reg.vr.raw_read(vs2 + reg_i);
+            let vs2_val = match sew_bytes {
+                1 => chunk[off] as i8 as i64,
+                2 => i16::from_le_bytes(chunk[off..off + 2].try_into().unwrap()) as i64,
+                4 => i32::from_le_bytes(chunk[off..off + 4].try_into().unwrap()) as i64,
+                8 => i64::from_le_bytes(chunk[off..off + 8].try_into().unwrap()),
+                _ => 0,
+            };
+            cmp_op(vs2_val, rs1_sext)
+        } else {
+            false
         };
-        let rs1_sext = match sew_bytes {
-            1 => (scalar as i8) as i64,
-            2 => (scalar as i16) as i64,
-            4 => (scalar as i32) as i64,
-            8 => scalar as i64,
-            _ => 0,
-        };
-        let bit = (vs2_val < rs1_sext) as u8;
         let byte_idx = i / 8;
         let bit_idx = i % 8;
-        if bit != 0 {
+        if result_bit {
             vd_buf[byte_idx] |= 1u8 << bit_idx;
         } else {
             vd_buf[byte_idx] &= !(1u8 << bit_idx);
@@ -78,11 +90,17 @@ pub(crate) fn execute<P: remu_state::StatePolicy, C: crate::ExecuteContext<P>>(
     match op {
         OpIvxInst::Vmerge_vxm => {
             let scalar = ctx.state_mut().reg.gpr.raw_read(decoded.rs1.into());
+            let vm = decoded.imm != 0;
+            let mode = if vm {
+                VectorElementLoopMode::Unmasked
+            } else {
+                VectorElementLoopMode::Masked
+            };
             vector_element_loop(
                 ctx,
                 decoded.rd as usize,
                 Some(decoded.rs2 as usize),
-                VectorElementLoopMode::Masked,
+                mode,
                 |_, sew, src, mask, _dst| {
                     if mask {
                         match sew {
@@ -99,12 +117,7 @@ pub(crate) fn execute<P: remu_state::StatePolicy, C: crate::ExecuteContext<P>>(
             )
         }
         OpIvxInst::Vmslt_vx => {
-            vector_mask_cmp_vx::<P, C>(
-                ctx,
-                decoded.rd as usize,
-                decoded.rs2 as usize,
-                decoded.rs1,
-            )
+            vector_mask_cmp_vx::<P, C, _>(ctx, decoded, |a, b| a < b)
         }
     }
 }

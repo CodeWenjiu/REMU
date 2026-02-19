@@ -44,7 +44,7 @@ pub(crate) fn decode<P: remu_state::StatePolicy>(inst: u32) -> DecodedInst {
                 rd: rd(inst),
                 rs1: rs1(inst),
                 rs2: rs2(inst),
-                imm: 0,
+                imm: vm(inst) as u32,
                 inst: Inst::V(VInst::OpMvv(OpMvvInst::Vredsum_vs)),
             },
             0b010100 => match rs2(inst) {
@@ -69,36 +69,16 @@ pub(crate) fn decode<P: remu_state::StatePolicy>(inst: u32) -> DecodedInst {
                     rd: rd(inst),
                     rs1: 0,
                     rs2: rs2(inst),
-                    imm: 0,
+                    imm: vm(inst) as u32,
                     inst: Inst::V(VInst::OpMvv(OpMvvInst::Vfirst_m)),
                 },
                 _ => return DecodedInst::default(),
             },
-            0b010111 => {
-                let simm5 = ((rs1(inst) as i32) << 27 >> 27) as u32;
-                DecodedInst {
-                    rd: rd(inst),
-                    rs1: vm(inst) as u8,
-                    rs2: rs2(inst),
-                    imm: simm5,
-                    inst: Inst::V(VInst::OpMvv(OpMvvInst::Vmerge_vim)),
-                }
-            }
-            0b011000 => {
-                let simm5 = ((rs1(inst) as i32) << 27 >> 27) as u32;
-                DecodedInst {
-                    rd: rd(inst),
-                    rs1: 0,
-                    rs2: rs2(inst),
-                    imm: simm5,
-                    inst: Inst::V(VInst::OpMvv(OpMvvInst::Vmseq_vi)),
-                }
-            }
             0b010010 => DecodedInst {
                 rd: rd(inst),
                 rs1: 0,
                 rs2: rs2(inst),
-                imm: 0,
+                imm: vm(inst) as u32,
                 inst: Inst::V(VInst::OpMvv(OpMvvInst::Vsext_vf4)),
             },
             _ => return DecodedInst::default(),
@@ -165,14 +145,14 @@ pub(crate) fn decode<P: remu_state::StatePolicy>(inst: u32) -> DecodedInst {
                 rd: rd(inst),
                 rs1: rs1(inst),
                 rs2: rs2(inst),
-                imm: 0,
+                imm: vm(inst) as u32,
                 inst: Inst::V(VInst::OpIvx(OpIvxInst::Vmerge_vxm)),
             },
             0b011011 => DecodedInst {
                 rd: rd(inst),
                 rs1: rs1(inst),
                 rs2: rs2(inst),
-                imm: 0,
+                imm: vm(inst) as u32,
                 inst: Inst::V(VInst::OpIvx(OpIvxInst::Vmslt_vx)),
             },
             _ => return DecodedInst::default(),

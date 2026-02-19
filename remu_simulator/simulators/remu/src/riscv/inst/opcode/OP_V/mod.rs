@@ -21,8 +21,6 @@ pub(crate) enum OpMvvInst {
     Vid_v,
     Vmv_x_s,
     Vfirst_m,
-    Vmerge_vim,
-    Vmseq_vi,
     Vsext_vf4,
 }
 

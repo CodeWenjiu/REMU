@@ -8,16 +8,12 @@ use remu_types::isa::{
 
 use crate::riscv::inst::{DecodedInst, opcode::OP_V::OpMvvInst};
 
-use super::utils::{
-    nf_from_vlmul, vector_element_loop, vector_mask_cmp_vi, VectorElementLoopMode,
-};
+use super::utils::{nf_from_vlmul, vector_element_loop, VectorElementLoopMode};
 
 #[inline(always)]
 fn vector_redsum_vs<P, C>(
     ctx: &mut C,
-    vd: usize,
-    vs1: usize,
-    vs2: usize,
+    decoded: &DecodedInst,
 ) -> Result<(), remu_state::StateError>
 where
     P: remu_state::StatePolicy,
@@ -25,6 +21,16 @@ where
 {
     let state = ctx.state_mut();
     let vl = state.reg.csr.vector.vl();
+    if vl == 0 {
+        *state.reg.pc = state.reg.pc.wrapping_add(4);
+        return Ok(());
+    }
+
+    let vd = decoded.rd as usize;
+    let vs1 = decoded.rs1 as usize;
+    let vs2 = decoded.rs2 as usize;
+    let vm = decoded.imm != 0;
+
     let vtype = state.reg.csr.vector.vtype();
     let vlmul = vtype & 0x7;
     let vsew = (vtype >> 3) & 0x7;
@@ -33,6 +39,8 @@ where
     let nf = nf_from_vlmul(vlmul).min(32_usize.saturating_sub(vs2));
     let total_elems = (nf * vlenb) / sew_bytes;
     let n = vl.min(total_elems as u32) as usize;
+
+    let v0 = state.reg.vr.raw_read(0).to_vec();
 
     let vs1_chunk = state.reg.vr.raw_read(vs1);
     let acc_sew = match sew_bytes {
@@ -45,6 +53,10 @@ where
     let mut acc = acc_sew;
 
     for i in 0..n {
+        let active = vm || ((v0[i / 8] >> (i % 8)) & 1 != 0);
+        if !active {
+            continue;
+        }
         let byte_offset = i * sew_bytes;
         let reg_i = byte_offset / vlenb;
         let off = byte_offset % vlenb;
@@ -75,14 +87,17 @@ where
 #[inline(always)]
 fn vector_sext_vf4<P, C>(
     ctx: &mut C,
-    vd: usize,
-    vs2: usize,
+    decoded: &DecodedInst,
 ) -> Result<(), remu_state::StateError>
 where
     P: remu_state::StatePolicy,
     C: crate::ExecuteContext<P>,
 {
     let state = ctx.state_mut();
+    let vd = decoded.rd as usize;
+    let vs2 = decoded.rs2 as usize;
+    let vm = decoded.imm != 0;
+
     let vl = state.reg.csr.vector.vl();
     let vtype = state.reg.csr.vector.vtype();
     let vlmul = vtype & 0x7;
@@ -101,6 +116,8 @@ where
     let total_elems = (nf * vlenb) / sew_bytes;
     let n = vl.min(total_elems as u32) as usize;
 
+    let v0 = state.reg.vr.raw_read(0).to_vec();
+
     for r in 0..nf {
         let mut dst_chunk = state.reg.vr.raw_read(vd + r).to_vec();
         let start_elem = (r * vlenb) / sew_bytes;
@@ -108,6 +125,10 @@ where
         let loop_end = end_elem.min(n);
 
         for i in start_elem..loop_end {
+            let active = vm || ((v0[i / 8] >> (i % 8)) & 1 != 0);
+            if !active {
+                continue;
+            }
             let src_byte_off = i * src_sew_bytes;
             let src_reg = src_byte_off / vlenb;
             let src_off = src_byte_off % vlenb;
@@ -148,12 +169,7 @@ pub(crate) fn execute<P: remu_state::StatePolicy, C: crate::ExecuteContext<P>>(
     op: OpMvvInst,
 ) -> Result<(), remu_state::StateError> {
     match op {
-        OpMvvInst::Vredsum_vs => vector_redsum_vs::<P, C>(
-            ctx,
-            decoded.rd as usize,
-            decoded.rs1 as usize,
-            decoded.rs2 as usize,
-        ),
+        OpMvvInst::Vredsum_vs => vector_redsum_vs::<P, C>(ctx, decoded),
         OpMvvInst::Vid_v => {
             vector_element_loop(
                 ctx,
@@ -182,14 +198,19 @@ pub(crate) fn execute<P: remu_state::StatePolicy, C: crate::ExecuteContext<P>>(
         }
         OpMvvInst::Vfirst_m => {
             let state = ctx.state_mut();
-            let vl = state.reg.csr.vector.vl();
-            let vs2_chunk = state.reg.vr.raw_read(decoded.rs2 as usize);
+            let vl = state.reg.csr.vector.vl() as usize;
+            let vm = decoded.imm != 0;
+            let v0 = state.reg.vr.raw_read(0).to_vec();
+            let vs2_chunk = state.reg.vr.raw_read(decoded.rs2 as usize).to_vec();
             let mut pos = !0u32;
             for i in 0..vl {
-                let byte_idx = (i as usize) / 8;
+                let exec_active = vm || ((v0[i / 8] >> (i % 8)) & 1 != 0);
+                let byte_idx = i / 8;
                 let bit_idx = i % 8;
-                if byte_idx < vs2_chunk.len() && (vs2_chunk[byte_idx] >> bit_idx) & 1 != 0 {
-                    pos = i;
+                let vs2_one =
+                    byte_idx < vs2_chunk.len() && (vs2_chunk[byte_idx] >> bit_idx) & 1 != 0;
+                if exec_active && vs2_one {
+                    pos = i as u32;
                     break;
                 }
             }
@@ -197,39 +218,6 @@ pub(crate) fn execute<P: remu_state::StatePolicy, C: crate::ExecuteContext<P>>(
             *state.reg.pc = state.reg.pc.wrapping_add(4);
             Ok(())
         }
-        OpMvvInst::Vmerge_vim => {
-            let simm5 = ((decoded.imm << 27) as i32) >> 27;
-            let vm = decoded.rs1 != 0;
-            let mode = if vm {
-                VectorElementLoopMode::Unmasked
-            } else {
-                VectorElementLoopMode::Masked
-            };
-            vector_element_loop(
-                ctx,
-                decoded.rd as usize,
-                if vm { None } else { Some(decoded.rs2 as usize) },
-                mode,
-                |_, sew, src, mask, _dst| {
-                    if mask {
-                        match sew {
-                            1 => (simm5 as i8) as u8 as u64,
-                            2 => (simm5 as i16) as u16 as u64,
-                            4 => (simm5 as u32) as u64,
-                            8 => simm5 as i64 as u64,
-                            _ => 0,
-                        }
-                    } else {
-                        src.unwrap_or(0)
-                    }
-                },
-            )
-        }
-        OpMvvInst::Vmseq_vi => {
-            vector_mask_cmp_vi::<P, C>(ctx, decoded.rd as usize, decoded.rs2 as usize, decoded.imm)
-        }
-        OpMvvInst::Vsext_vf4 => {
-            vector_sext_vf4::<P, C>(ctx, decoded.rd as usize, decoded.rs2 as usize)
-        }
+        OpMvvInst::Vsext_vf4 => vector_sext_vf4::<P, C>(ctx, decoded),
     }
 }
