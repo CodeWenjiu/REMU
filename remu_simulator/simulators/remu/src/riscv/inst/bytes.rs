@@ -90,14 +90,3 @@ pub(crate) fn imm_j(inst: u32) -> u32 {
 pub(crate) fn csr(inst: u32) -> u32 {
     (inst >> 20) & 0xFFF
 }
-
-// === V extension generic fields (RVV layout: 31:26 funct6, 25 vm, 24:20 vs2, 19:15 vs1, 14:12 funct3, 11:7 rd) ===
-#[inline(always)]
-pub(crate) fn v_funct6(inst: u32) -> u32 {
-    (inst >> 26) & 0x3F
-}
-
-#[inline(always)]
-pub(crate) fn v_vm(inst: u32) -> u32 {
-    (inst >> 25) & 1
-}
