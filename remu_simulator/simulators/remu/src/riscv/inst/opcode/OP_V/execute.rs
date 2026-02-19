@@ -4,7 +4,10 @@ use remu_types::isa::{
     reg::{RegAccess, VectorCsrState, VrState},
 };
 
-use crate::riscv::inst::{DecodedInst, Inst, opcode::OP_V::VInst};
+use crate::riscv::inst::{
+    DecodedInst, Inst,
+    opcode::OP_V::{OpCfgInst, OpIviInst, OpIvxInst, OpMvvInst, VInst},
+};
 
 #[inline(always)]
 fn zimm_to_vtype(zimm: u32) -> u32 {
@@ -534,7 +537,7 @@ pub(crate) fn execute<P: remu_state::StatePolicy, C: crate::ExecuteContext<P>>(
     };
 
     match v {
-        VInst::Vsetivli => {
+        VInst::OpCfg(OpCfgInst::Vsetivli) => {
             let zimm = (decoded.imm >> 5) & 0x3FF;
             let vtype = zimm_to_vtype(zimm);
             let uimm = decoded.imm & 0x1F;
@@ -551,7 +554,7 @@ pub(crate) fn execute<P: remu_state::StatePolicy, C: crate::ExecuteContext<P>>(
             *state.reg.pc = state.reg.pc.wrapping_add(4);
             Ok(())
         }
-        VInst::Vsetvli => {
+        VInst::OpCfg(OpCfgInst::Vsetvli) => {
             let zimm = (decoded.imm >> 5) & 0x3FF;
             let vtype = zimm_to_vtype(zimm);
             let vlenb = <<P::ISA as RvIsa>::VConfig as VExtensionConfig>::VLENB;
@@ -579,8 +582,10 @@ pub(crate) fn execute<P: remu_state::StatePolicy, C: crate::ExecuteContext<P>>(
             state.reg.gpr.raw_write(rd.into(), vl);
             Ok(())
         }
-        VInst::Vid_v => vector_element_loop(ctx, decoded.rd as usize, None, |idx, _, _| idx as u64),
-        VInst::Vrsub_vi => {
+        VInst::OpMvv(OpMvvInst::Vid_v) => {
+            vector_element_loop(ctx, decoded.rd as usize, None, |idx, _, _| idx as u64)
+        }
+        VInst::OpIvi(OpIviInst::Vrsub_vi) => {
             let simm5 = decoded.imm as i32;
             vector_element_loop(
                 ctx,
@@ -598,7 +603,7 @@ pub(crate) fn execute<P: remu_state::StatePolicy, C: crate::ExecuteContext<P>>(
                 },
             )
         }
-        VInst::Vadd_vi => {
+        VInst::OpIvi(OpIviInst::Vadd_vi) => {
             let simm5 = decoded.imm as i32;
             let vm = decoded.rs1 != 0;
             if vm {
@@ -639,7 +644,7 @@ pub(crate) fn execute<P: remu_state::StatePolicy, C: crate::ExecuteContext<P>>(
                 )
             }
         }
-        VInst::Vmerge_vim => {
+        VInst::OpMvv(OpMvvInst::Vmerge_vim) | VInst::OpIvi(OpIviInst::Vmerge_vim) => {
             let simm5 = decoded.imm as i32;
             let vm = decoded.rs1 != 0; // 1 = unmasked (vmv.v.i pseudo), 0 = use v0
             if vm {
@@ -673,22 +678,22 @@ pub(crate) fn execute<P: remu_state::StatePolicy, C: crate::ExecuteContext<P>>(
                 )
             }
         }
-        VInst::Vmseq_vi => {
+        VInst::OpMvv(OpMvvInst::Vmseq_vi) | VInst::OpIvi(OpIviInst::Vmseq_vi) => {
             vector_mask_cmp_vi::<P, C>(ctx, decoded.rd as usize, decoded.rs2 as usize, decoded.imm)
         }
-        VInst::Vmslt_vx => {
+        VInst::OpIvx(OpIvxInst::Vmslt_vx) => {
             vector_mask_cmp_vx::<P, C>(ctx, decoded.rd as usize, decoded.rs2 as usize, decoded.rs1)
         }
-        VInst::Vredsum_vs => vector_redsum_vs::<P, C>(
+        VInst::OpMvv(OpMvvInst::Vredsum_vs) => vector_redsum_vs::<P, C>(
             ctx,
             decoded.rd as usize,
             decoded.rs1 as usize,
             decoded.rs2 as usize,
         ),
-        VInst::Vslidedown_vi => {
+        VInst::OpIvi(OpIviInst::Vslidedown_vi) => {
             vector_slidedown_vi::<P, C>(ctx, decoded.rd as usize, decoded.rs2 as usize, decoded.imm)
         }
-        VInst::Vmv_x_s => {
+        VInst::OpMvv(OpMvvInst::Vmv_x_s) => {
             let state = ctx.state_mut();
             let vtype = state.reg.csr.vector.vtype();
             let vsew = (vtype >> 3) & 0x7;
@@ -705,7 +710,7 @@ pub(crate) fn execute<P: remu_state::StatePolicy, C: crate::ExecuteContext<P>>(
             *state.reg.pc = state.reg.pc.wrapping_add(4);
             Ok(())
         }
-        VInst::Vfirst_m => {
+        VInst::OpMvv(OpMvvInst::Vfirst_m) => {
             let state = ctx.state_mut();
             let vl = state.reg.csr.vector.vl();
             let vs2_chunk = state.reg.vr.raw_read(decoded.rs2 as usize);
@@ -722,8 +727,10 @@ pub(crate) fn execute<P: remu_state::StatePolicy, C: crate::ExecuteContext<P>>(
             *state.reg.pc = state.reg.pc.wrapping_add(4);
             Ok(())
         }
-        VInst::Vsext_vf4 => vector_sext_vf4::<P, C>(ctx, decoded.rd as usize, decoded.rs2 as usize),
-        VInst::Vmv_s_x => {
+        VInst::OpMvv(OpMvvInst::Vsext_vf4) => {
+            vector_sext_vf4::<P, C>(ctx, decoded.rd as usize, decoded.rs2 as usize)
+        }
+        VInst::OpIvx(OpIvxInst::Vmv_s_x) => {
             let state = ctx.state_mut();
             let vl = state.reg.csr.vector.vl();
             if vl == 0 {
@@ -746,7 +753,7 @@ pub(crate) fn execute<P: remu_state::StatePolicy, C: crate::ExecuteContext<P>>(
             *state.reg.pc = state.reg.pc.wrapping_add(4);
             Ok(())
         }
-        VInst::Vmerge_vxm => {
+        VInst::OpIvx(OpIvxInst::Vmerge_vxm) => {
             let scalar = ctx.state_mut().reg.gpr.raw_read(decoded.rs1.into());
             vector_element_loop_masked(
                 ctx,
@@ -767,7 +774,7 @@ pub(crate) fn execute<P: remu_state::StatePolicy, C: crate::ExecuteContext<P>>(
                 },
             )
         }
-        VInst::Vmv1r_v => {
+        VInst::OpIvi(OpIviInst::Vmv1r_v) => {
             let state = ctx.state_mut();
             let vs2 = decoded.rs2 as usize;
             let vd = decoded.rd as usize;
