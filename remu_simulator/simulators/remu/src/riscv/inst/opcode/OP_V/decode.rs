@@ -135,7 +135,7 @@ pub(crate) fn decode<P: remu_state::StatePolicy>(inst: u32) -> DecodedInst {
                 let simm5 = ((rs1(inst) as i32) << 27 >> 27) as u32;
                 DecodedInst {
                     rd: rd(inst),
-                    rs1: 0,
+                    rs1: vm(inst) as u8,
                     rs2: rs2(inst),
                     imm: simm5,
                     inst: Inst::V(VInst::OpIvi(OpIviInst::Vrsub_vi)),

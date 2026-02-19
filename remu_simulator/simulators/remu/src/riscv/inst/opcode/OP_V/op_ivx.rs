@@ -8,7 +8,7 @@ use remu_types::isa::{
 
 use crate::riscv::inst::{DecodedInst, opcode::OP_V::OpIvxInst};
 
-use super::op_mvv::{nf_from_vlmul, vector_element_loop_masked};
+use super::utils::{nf_from_vlmul, vector_element_loop, VectorElementLoopMode};
 
 #[inline(always)]
 fn vector_mask_cmp_vx<P, C>(
@@ -78,10 +78,11 @@ pub(crate) fn execute<P: remu_state::StatePolicy, C: crate::ExecuteContext<P>>(
     match op {
         OpIvxInst::Vmerge_vxm => {
             let scalar = ctx.state_mut().reg.gpr.raw_read(decoded.rs1.into());
-            vector_element_loop_masked(
+            vector_element_loop(
                 ctx,
                 decoded.rd as usize,
                 Some(decoded.rs2 as usize),
+                VectorElementLoopMode::Masked,
                 |_, sew, src, mask, _dst| {
                     if mask {
                         match sew {

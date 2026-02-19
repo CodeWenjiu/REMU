@@ -2,7 +2,7 @@
 //! VInst is split by funct3: OpCfg (0b111), OpMvv (0b010), OpIvi (0b011), OpIvx (0b100), OpMvx (0b110).
 
 remu_macro::mod_flat!(decode, execute);
-remu_macro::mod_pub!(op_cfg, op_ivi, op_ivx, op_mvv, op_mvx);
+remu_macro::mod_pub!(op_cfg, op_ivi, op_ivx, op_mvv, op_mvx, utils);
 
 /// funct3 = 0b111: vsetivli, vsetvli
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]

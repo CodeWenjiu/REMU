@@ -8,8 +8,8 @@ use remu_types::isa::{
 
 use crate::riscv::inst::{DecodedInst, opcode::OP_V::OpIviInst};
 
-use super::op_mvv::{
-    nf_from_vlmul, vector_element_loop, vector_element_loop_masked, vector_mask_cmp_vi,
+use super::utils::{
+    nf_from_vlmul, vector_element_loop, vector_mask_cmp_vi, VectorElementLoopMode,
 };
 
 #[inline(always)]
@@ -83,36 +83,32 @@ pub(crate) fn execute<P: remu_state::StatePolicy, C: crate::ExecuteContext<P>>(
 ) -> Result<(), remu_state::StateError> {
     match op {
         OpIviInst::Vmerge_vim => {
-            let simm5 = decoded.imm as i32;
+            let simm5 = ((decoded.imm << 27) as i32) >> 27;
             let vm = decoded.rs1 != 0;
-            if vm {
-                vector_element_loop(ctx, decoded.rd as usize, None, |_, sew, _| match sew {
-                    1 => (simm5 as i8) as u8 as u64,
-                    2 => (simm5 as i16) as u16 as u64,
-                    4 => (simm5 as u32) as u64,
-                    8 => simm5 as i64 as u64,
-                    _ => 0,
-                })
+            let mode = if vm {
+                VectorElementLoopMode::Unmasked
             } else {
-                vector_element_loop_masked(
-                    ctx,
-                    decoded.rd as usize,
-                    Some(decoded.rs2 as usize),
-                    |_, sew, src, mask, _dst| {
-                        if mask {
-                            match sew {
-                                1 => (simm5 as i8) as u8 as u64,
-                                2 => (simm5 as i16) as u16 as u64,
-                                4 => (simm5 as u32) as u64,
-                                8 => simm5 as i64 as u64,
-                                _ => 0,
-                            }
-                        } else {
-                            src.unwrap_or(0)
+                VectorElementLoopMode::Masked
+            };
+            vector_element_loop(
+                ctx,
+                decoded.rd as usize,
+                if vm { None } else { Some(decoded.rs2 as usize) },
+                mode,
+                |_, sew, src, mask, _dst| {
+                    if mask {
+                        match sew {
+                            1 => (simm5 as i8) as u8 as u64,
+                            2 => (simm5 as i16) as u16 as u64,
+                            4 => (simm5 as u32) as u64,
+                            8 => simm5 as i64 as u64,
+                            _ => 0,
                         }
-                    },
-                )
-            }
+                    } else {
+                        src.unwrap_or(0)
+                    }
+                },
+            )
         }
         OpIviInst::Vmseq_vi => {
             vector_mask_cmp_vi::<P, C>(ctx, decoded.rd as usize, decoded.rs2 as usize, decoded.imm)
@@ -127,32 +123,49 @@ pub(crate) fn execute<P: remu_state::StatePolicy, C: crate::ExecuteContext<P>>(
             Ok(())
         }
         OpIviInst::Vrsub_vi => {
-            let simm5 = decoded.imm as i32;
+            let simm5 = ((decoded.imm << 27) as i32) >> 27;
+            let vm = decoded.rs1 != 0;
+            let mode = if vm {
+                VectorElementLoopMode::Unmasked
+            } else {
+                VectorElementLoopMode::Masked
+            };
             vector_element_loop(
                 ctx,
                 decoded.rd as usize,
                 Some(decoded.rs2 as usize),
-                |_, sew, src| {
-                    let v = src.unwrap_or(0);
-                    match sew {
-                        1 => (simm5 as i8).wrapping_sub(v as i8) as u8 as u64,
-                        2 => (simm5 as i16).wrapping_sub(v as i16) as u16 as u64,
-                        4 => simm5.wrapping_sub(v as i32) as u32 as u64,
-                        8 => (simm5 as i64).wrapping_sub(v as i64) as u64,
-                        _ => 0,
+                mode,
+                |_, sew, src, mask, dst| {
+                    if mask {
+                        let v = src.unwrap_or(0);
+                        match sew {
+                            1 => (simm5 as i8).wrapping_sub(v as i8) as u8 as u64,
+                            2 => (simm5 as i16).wrapping_sub(v as i16) as u16 as u64,
+                            4 => simm5.wrapping_sub(v as i32) as u32 as u64,
+                            8 => (simm5 as i64).wrapping_sub(v as i64) as u64,
+                            _ => 0,
+                        }
+                    } else {
+                        dst
                     }
                 },
             )
         }
         OpIviInst::Vadd_vi => {
-            let simm5 = decoded.imm as i32;
+            let simm5 = ((decoded.imm << 27) as i32) >> 27;
             let vm = decoded.rs1 != 0;
-            if vm {
-                vector_element_loop(
-                    ctx,
-                    decoded.rd as usize,
-                    Some(decoded.rs2 as usize),
-                    |_, sew, src| {
+            let mode = if vm {
+                VectorElementLoopMode::Unmasked
+            } else {
+                VectorElementLoopMode::Masked
+            };
+            vector_element_loop(
+                ctx,
+                decoded.rd as usize,
+                Some(decoded.rs2 as usize),
+                mode,
+                |_, sew, src, mask, dst| {
+                    if mask {
                         let v = src.unwrap_or(0);
                         match sew {
                             1 => (simm5 as i8).wrapping_add(v as i8) as u8 as u64,
@@ -161,29 +174,11 @@ pub(crate) fn execute<P: remu_state::StatePolicy, C: crate::ExecuteContext<P>>(
                             8 => (simm5 as i64).wrapping_add(v as i64) as u64,
                             _ => 0,
                         }
-                    },
-                )
-            } else {
-                vector_element_loop_masked(
-                    ctx,
-                    decoded.rd as usize,
-                    Some(decoded.rs2 as usize),
-                    |_, sew, src, mask, dst| {
-                        if mask {
-                            let v = src.unwrap_or(0);
-                            match sew {
-                                1 => (simm5 as i8).wrapping_add(v as i8) as u8 as u64,
-                                2 => (simm5 as i16).wrapping_add(v as i16) as u16 as u64,
-                                4 => simm5.wrapping_add(v as i32) as u32 as u64,
-                                8 => (simm5 as i64).wrapping_add(v as i64) as u64,
-                                _ => 0,
-                            }
-                        } else {
-                            dst
-                        }
-                    },
-                )
-            }
+                    } else {
+                        dst
+                    }
+                },
+            )
         }
         OpIviInst::Vslidedown_vi => {
             vector_slidedown_vi::<P, C>(
