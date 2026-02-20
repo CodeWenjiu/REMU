@@ -103,7 +103,6 @@ pub(crate) fn decode<P: remu_state::StatePolicy>(inst: u32) -> DecodedInst {
     DecodedInst::default()
 }
 
-#[inline(always)]
 pub(crate) fn execute<P: remu_state::StatePolicy, C: crate::ExecuteContext<P>>(
     ctx: &mut C,
     decoded: &DecodedInst,

@@ -10,7 +10,6 @@ use crate::riscv::inst::{DecodedInst, opcode::OP_V::OpMvvInst};
 
 use super::utils::{VectorElementLoopMode, nf_from_vlmul, vector_element_loop, vector_element_loop_vv};
 
-#[inline(always)]
 fn vector_redsum_vs<P, C>(ctx: &mut C, decoded: &DecodedInst) -> Result<(), remu_state::StateError>
 where
     P: remu_state::StatePolicy,
@@ -81,7 +80,6 @@ where
     Ok(())
 }
 
-#[inline(always)]
 fn vector_sext_vf4<P, C>(ctx: &mut C, decoded: &DecodedInst) -> Result<(), remu_state::StateError>
 where
     P: remu_state::StatePolicy,
@@ -156,7 +154,6 @@ where
     Ok(())
 }
 
-#[inline(always)]
 fn vector_zext_vf4<P, C>(ctx: &mut C, decoded: &DecodedInst) -> Result<(), remu_state::StateError>
 where
     P: remu_state::StatePolicy,
@@ -231,7 +228,6 @@ where
     Ok(())
 }
 
-#[inline(always)]
 pub(crate) fn execute<P: remu_state::StatePolicy, C: crate::ExecuteContext<P>>(
     ctx: &mut C,
     decoded: &DecodedInst,

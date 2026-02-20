@@ -7,7 +7,6 @@ use remu_types::isa::{
 };
 
 /// VLMAX in elements (standard formula, valid for fractional LMUL).
-#[inline(always)]
 pub(crate) fn calculate_vlmax(vlenb: u32, vtype: u32) -> u32 {
     let vsew = (vtype >> 3) & 0x7;
     let vlmul = vtype & 0x7;
@@ -34,7 +33,6 @@ pub(crate) fn calculate_vlmax(vlenb: u32, vtype: u32) -> u32 {
 }
 
 /// Number of register groups nf (1/2/4/8) from vlmul.
-#[inline(always)]
 pub(crate) fn nf_from_vlmul(vlmul: u32) -> usize {
     match vlmul & 0x7 {
         0 => 1,
@@ -56,7 +54,6 @@ pub(crate) enum VectorElementLoopMode {
 /// `op(elem_idx, sew_bytes, src_val, mask_bit, dst_val)` per element, writing result to rd.
 /// Unmasked: no v0 read, mask_bit true; Masked: v0 mask. Tail elements and vl=0 are preserved
 /// by always reading rd before the loop (no zero-init).
-#[inline(always)]
 pub(crate) fn vector_element_loop<P, C, F>(
     ctx: &mut C,
     rd: usize,
@@ -146,7 +143,6 @@ where
 
 /// Two-source vector element loop. Iterates over vl/vtype, reads vs1 and vs2 per element,
 /// calls `op(elem_idx, sew_bytes, src1_val, src2_val, mask_bit, dst_val)` and writes result to rd.
-#[inline(always)]
 pub(crate) fn vector_element_loop_vv<P, C, F>(
     ctx: &mut C,
     rd: usize,
@@ -238,7 +234,6 @@ where
 
 /// Mask compare vi with closure. decoded.imm: low 5 bits = simm5, bit 8 = vm.
 /// Result written as 1 bit per element (bit-packed) in vd.
-#[inline(always)]
 pub(crate) fn vector_mask_cmp_vi<P, C, F>(
     ctx: &mut C,
     decoded: &crate::riscv::inst::DecodedInst,

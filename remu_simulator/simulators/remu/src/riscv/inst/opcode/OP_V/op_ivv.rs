@@ -4,7 +4,6 @@ use crate::riscv::inst::{DecodedInst, opcode::OP_V::OpIvvInst};
 
 use super::utils::{vector_element_loop_vv, VectorElementLoopMode};
 
-#[inline(always)]
 pub(crate) fn execute<P: remu_state::StatePolicy, C: crate::ExecuteContext<P>>(
     ctx: &mut C,
     decoded: &DecodedInst,

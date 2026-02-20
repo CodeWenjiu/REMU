@@ -108,7 +108,6 @@ pub(crate) fn decode<P: remu_state::StatePolicy>(inst: u32) -> DecodedInst {
 /// Max VLENB we support; used for stack buffer in vle8.
 const MAX_VLENB: usize = 16;
 
-#[inline(always)]
 pub(crate) fn execute<P: remu_state::StatePolicy, C: crate::ExecuteContext<P>>(
     ctx: &mut C,
     decoded: &DecodedInst,

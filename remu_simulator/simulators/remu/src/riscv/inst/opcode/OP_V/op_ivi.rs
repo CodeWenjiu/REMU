@@ -13,7 +13,6 @@ use super::utils::{
     VectorElementLoopMode,
 };
 
-#[inline(always)]
 fn vector_slidedown_vi<P, C>(
     ctx: &mut C,
     decoded: &DecodedInst,
@@ -88,7 +87,6 @@ where
     Ok(())
 }
 
-#[inline(always)]
 pub(crate) fn execute<P: remu_state::StatePolicy, C: crate::ExecuteContext<P>>(
     ctx: &mut C,
     decoded: &DecodedInst,

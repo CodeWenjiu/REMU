@@ -10,7 +10,6 @@ use crate::riscv::inst::{DecodedInst, opcode::OP_V::OpIvxInst};
 
 use super::utils::{nf_from_vlmul, vector_element_loop, VectorElementLoopMode};
 
-#[inline(always)]
 fn vector_mask_cmp_vx<P, C, F>(
     ctx: &mut C,
     decoded: &DecodedInst,
@@ -81,7 +80,6 @@ where
     Ok(())
 }
 
-#[inline(always)]
 pub(crate) fn execute<P: remu_state::StatePolicy, C: crate::ExecuteContext<P>>(
     ctx: &mut C,
     decoded: &DecodedInst,

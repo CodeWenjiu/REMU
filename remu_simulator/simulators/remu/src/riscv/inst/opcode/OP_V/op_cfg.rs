@@ -8,12 +8,10 @@ use remu_types::isa::{
 
 use crate::riscv::inst::{DecodedInst, opcode::OP_V::OpCfgInst};
 
-#[inline(always)]
 fn zimm_to_vtype(zimm: u32) -> u32 {
     zimm & 0xFF
 }
 
-#[inline(always)]
 fn calculate_vlmax(vlenb: u32, vtype: u32) -> u32 {
     let vsew = (vtype >> 3) & 0x7;
     let vlmul = vtype & 0x7;
@@ -39,7 +37,6 @@ fn calculate_vlmax(vlenb: u32, vtype: u32) -> u32 {
     }
 }
 
-#[inline(always)]
 pub(crate) fn execute<P: remu_state::StatePolicy, C: crate::ExecuteContext<P>>(
     ctx: &mut C,
     decoded: &DecodedInst,

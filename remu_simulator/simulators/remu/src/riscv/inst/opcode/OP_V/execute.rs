@@ -1,6 +1,5 @@
 use crate::riscv::inst::{DecodedInst, Inst, opcode::OP_V::VInst};
 
-#[inline(always)]
 pub(crate) fn execute<P: remu_state::StatePolicy, C: crate::ExecuteContext<P>>(
     ctx: &mut C,
     decoded: &DecodedInst,
