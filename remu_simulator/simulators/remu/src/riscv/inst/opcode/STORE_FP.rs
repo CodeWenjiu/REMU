@@ -14,6 +14,8 @@ const MASK_VS2R_V: u32 = 0xfff0707f;
 
 mod func3 {
     pub(super) const WIDTH_8: u32 = 0b000;
+    /// vse16.v: EEW=16, unit-stride store
+    pub(super) const WIDTH_16: u32 = 0b101;
     /// vse32.v: EEW=32, unit-stride store
     pub(super) const WIDTH_32: u32 = 0b110;
 }
@@ -29,6 +31,8 @@ pub(crate) enum StoreFpInst {
     Vs2r,
     /// vse8.v: store vl×8-bit elements from vs3 to mem[rs1 + i] (real instruction)
     Vse8,
+    /// vse16.v: store vl×16-bit elements from vs3 to mem[rs1 + i*2]
+    Vse16,
     /// vse32.v: store vl×32-bit elements from vs3 to mem[rs1 + i*4]
     Vse32,
 }
@@ -84,13 +88,14 @@ pub(crate) fn decode<P: remu_state::StatePolicy>(inst: u32) -> DecodedInst {
                     StoreFpInst::Vse8
                 }
             }
+            func3::WIDTH_16 if mop(inst) == 0 && nf(inst) == 0 => StoreFpInst::Vse16,
             func3::WIDTH_32 if mop(inst) == 0 && nf(inst) == 0 => StoreFpInst::Vse32,
             _ => return DecodedInst::default(),
         };
         let (vs3, rs1_val) = match store_fp {
             StoreFpInst::Vs1r => (rd(inst), rs1(inst)),
             StoreFpInst::Vs2r => (rd(inst), rs1(inst)),
-            StoreFpInst::Vse8 | StoreFpInst::Vse32 => (vs3_unit_stride(inst), rs1(inst)),
+            StoreFpInst::Vse8 | StoreFpInst::Vse16 | StoreFpInst::Vse32 => (vs3_unit_stride(inst), rs1(inst)),
         };
         return DecodedInst {
             rd: vs3,
@@ -182,6 +187,39 @@ pub(crate) fn execute<P: remu_state::StatePolicy, C: crate::ExecuteContext<P>>(
                     state
                         .bus
                         .write_8(base.wrapping_add(i) as usize, chunk[off])
+                        .map_err(StateError::from)?;
+                }
+                *state.reg.pc = state.reg.pc.wrapping_add(4);
+            } else {
+                unsafe { core::hint::unreachable_unchecked() }
+            }
+        }
+        StoreFpInst::Vse16 => {
+            if <<P::ISA as RvIsa>::VConfig as VExtensionConfig>::VLENB > 0 {
+                let state = ctx.state_mut();
+                let vl = state.reg.csr.vector.vl();
+                let vtype = state.reg.csr.vector.vtype();
+                let vlenb = <<P::ISA as RvIsa>::VConfig as VExtensionConfig>::VLENB as usize;
+                let vlmul = vtype & 0x7;
+                let nf = match vlmul {
+                    0 => 1,
+                    1 => 2,
+                    2 => 4,
+                    3 => 8,
+                    _ => 1,
+                };
+                let vs3 = decoded.rd as usize;
+                let base = state.reg.gpr.raw_read(decoded.rs1.into());
+                let n = vl.min((nf * vlenb / 2) as u32);
+
+                for i in 0..n {
+                    let reg_i = ((i as usize) * 2) / vlenb;
+                    let off = ((i as usize) * 2) % vlenb;
+                    let chunk = state.reg.vr.raw_read(vs3 + reg_i);
+                    let val = u16::from_le_bytes(chunk[off..off + 2].try_into().unwrap());
+                    state
+                        .bus
+                        .write_16(base.wrapping_add(i.wrapping_mul(2)) as usize, val)
                         .map_err(StateError::from)?;
                 }
                 *state.reg.pc = state.reg.pc.wrapping_add(4);

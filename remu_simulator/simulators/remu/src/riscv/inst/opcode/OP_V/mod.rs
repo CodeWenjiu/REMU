@@ -58,11 +58,12 @@ pub(crate) enum OpIvxInst {
     Vmseq_vx,
 }
 
-/// funct3 = 0b110: OP-MVX (e.g. vmv.s.x)
+/// funct3 = 0b110: OP-MVX (e.g. vmv.s.x, vwmul.vx)
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 #[allow(non_camel_case_types)]
 pub(crate) enum OpMvxInst {
     Vmv_s_x,
+    Vwmul_vx,
 }
 
 /// Top-level V instruction: one variant per funct3.
