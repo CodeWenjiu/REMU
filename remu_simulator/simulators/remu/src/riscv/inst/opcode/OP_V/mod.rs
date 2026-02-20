@@ -31,6 +31,7 @@ pub(crate) enum OpMvvInst {
     Vsext_vf4,
     Vzext_vf4,
     Vmor_mm,
+    Vmacc_vv,
 }
 
 /// funct3 = 0b011: OP-IVI

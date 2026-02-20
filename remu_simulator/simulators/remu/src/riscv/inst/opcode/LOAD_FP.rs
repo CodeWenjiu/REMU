@@ -5,7 +5,7 @@ use remu_types::isa::extension_v::VExtensionConfig;
 use remu_types::isa::reg::{RegAccess, VectorCsrState, VrState};
 use remu_types::isa::RvIsa;
 
-use crate::riscv::inst::{funct3, rd, rs1, DecodedInst, Inst};
+use crate::riscv::inst::{funct3, rd, rs1, rs2, DecodedInst, Inst};
 
 pub(crate) const OPCODE: u32 = 0b000_0111; // LOAD-FP (0x07)
 pub(crate) const INSTRUCTION_MIX: u32 = 10;
@@ -13,6 +13,8 @@ pub(crate) const INSTRUCTION_MIX: u32 = 10;
 mod func3 {
     /// vle8.v: EEW=8, unit-stride load
     pub(super) const WIDTH_8: u32 = 0b000;
+    /// vlse32.v: EEW=32, strided load (funct3=110 per RVV encoding)
+    pub(super) const WIDTH_32: u32 = 0b110;
 }
 
 #[inline(always)]
@@ -52,6 +54,8 @@ pub(crate) enum LoadFpInst {
     Vl2re16,
     /// vl2re32.v: whole-reg load 2 regs, EEW=32 (Spike VI_LD_WHOLE)
     Vl2re32,
+    /// vlse32.v: strided load, vd[i] = mem[rs1 + i * rs2], EEW=32, rs2 = stride in bytes (GPR)
+    Vlse32,
 }
 
 #[inline(always)]
@@ -82,13 +86,18 @@ pub(crate) fn decode<P: remu_state::StatePolicy>(inst: u32) -> DecodedInst {
         let load_fp = match (f3, m, nf_val) {
             (func3::WIDTH_8, 0, 0) => LoadFpInst::Vle8,
             (func3::WIDTH_8, 0, 3) => LoadFpInst::Vlseg4e8, // nf=3 -> 4 fields
+            (func3::WIDTH_32, 2, 0) => LoadFpInst::Vlse32,  // mop=2 strided, nf=0
             _ => return DecodedInst::default(),
         };
         let vd = vd_unit_stride(inst);
         return DecodedInst {
             rd: vd,
             rs1: rs1(inst),
-            rs2: 0,
+            rs2: if matches!(load_fp, LoadFpInst::Vlse32) {
+                rs2(inst)
+            } else {
+                0
+            },
             imm: vm(inst),
             inst: Inst::LoadFp(load_fp),
         };
@@ -158,6 +167,58 @@ pub(crate) fn execute<P: remu_state::StatePolicy, C: crate::ExecuteContext<P>>(
                             .map_err(StateError::from)?;
                     }
                     state.reg.vr.raw_write(vd + r, &chunk);
+                }
+                *state.reg.pc = state.reg.pc.wrapping_add(4);
+            } else {
+                unsafe { core::hint::unreachable_unchecked() }
+            }
+        }
+        LoadFpInst::Vlse32 => {
+            if <<P::ISA as RvIsa>::VConfig as VExtensionConfig>::VLENB > 0 {
+                let state = ctx.state_mut();
+                let vl = state.reg.csr.vector.vl();
+                let vtype = state.reg.csr.vector.vtype();
+                let vlenb =
+                    <<P::ISA as RvIsa>::VConfig as VExtensionConfig>::VLENB as usize;
+                let vlmul = vtype & 0x7;
+                let nf = match vlmul {
+                    0 => 1,
+                    1 => 2,
+                    2 => 4,
+                    3 => 8,
+                    _ => 1,
+                };
+                const SEW_BYTES: usize = 4;
+                let vd = decoded.rd as usize;
+                let base = state.reg.gpr.raw_read(decoded.rs1.into());
+                let stride = state.reg.gpr.raw_read(decoded.rs2.into());
+                let vm = (decoded.imm & 1) != 0;
+                let v0 = state.reg.vr.raw_read(0).to_vec();
+                let n = vl.min((nf * vlenb / SEW_BYTES) as u32) as usize;
+                if vd + nf > 32 {
+                    return Err(StateError::BusError(Box::new(
+                        remu_state::bus::BusError::unmapped(0),
+                    )));
+                }
+                for r in 0..nf {
+                    let mut dst_chunk = state.reg.vr.raw_read(vd + r).to_vec();
+                    let start_elem = (r * vlenb) / SEW_BYTES;
+                    let end_elem = ((r + 1) * vlenb) / SEW_BYTES;
+                    let loop_end = end_elem.min(n);
+                    for i in start_elem..loop_end {
+                        let active = vm || ((v0[i / 8] >> (i % 8)) & 1 != 0);
+                        if !active {
+                            continue;
+                        }
+                        let addr = base
+                            .wrapping_add((i as u32).wrapping_mul(stride))
+                            as usize;
+                        let val = state.bus.read_32(addr).map_err(StateError::from)?;
+                        let off = (i * SEW_BYTES) % vlenb;
+                        dst_chunk[off..off + SEW_BYTES]
+                            .copy_from_slice(&val.to_le_bytes());
+                    }
+                    state.reg.vr.raw_write(vd + r, &dst_chunk);
                 }
                 *state.reg.pc = state.reg.pc.wrapping_add(4);
             } else {

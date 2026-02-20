@@ -8,7 +8,7 @@ use remu_types::isa::{
 
 use crate::riscv::inst::{DecodedInst, opcode::OP_V::OpMvvInst};
 
-use super::utils::{VectorElementLoopMode, nf_from_vlmul, vector_element_loop};
+use super::utils::{VectorElementLoopMode, nf_from_vlmul, vector_element_loop, vector_element_loop_vv};
 
 #[inline(always)]
 fn vector_redsum_vs<P, C>(ctx: &mut C, decoded: &DecodedInst) -> Result<(), remu_state::StateError>
@@ -302,6 +302,46 @@ pub(crate) fn execute<P: remu_state::StatePolicy, C: crate::ExecuteContext<P>>(
             state.reg.vr.raw_write(decoded.rd as usize, &vd_buf);
             *state.reg.pc = state.reg.pc.wrapping_add(4);
             Ok(())
+        }
+        OpMvvInst::Vmacc_vv => {
+            let vm = decoded.imm != 0;
+            let mode = if vm {
+                VectorElementLoopMode::Unmasked
+            } else {
+                VectorElementLoopMode::Masked
+            };
+            vector_element_loop_vv(
+                ctx,
+                decoded.rd as usize,
+                decoded.rs1 as usize,
+                decoded.rs2 as usize,
+                mode,
+                |_, sew_bytes, src1, src2, mask, dst| {
+                    if mask {
+                        match sew_bytes {
+                            1 => {
+                                let prod = (src1 as i8 as i16).wrapping_mul(src2 as i8 as i16);
+                                (prod.wrapping_add(dst as i8 as i16) as i8 as u8) as u64
+                            }
+                            2 => {
+                                let prod = (src1 as i16 as i32).wrapping_mul(src2 as i16 as i32);
+                                (prod.wrapping_add(dst as i16 as i32) as i16 as u16) as u64
+                            }
+                            4 => {
+                                let prod = (src1 as i32 as i64).wrapping_mul(src2 as i32 as i64);
+                                (prod.wrapping_add(dst as i32 as i64) as i32 as u32) as u64
+                            }
+                            8 => {
+                                let prod = (src1 as i64).wrapping_mul(src2 as i64);
+                                prod.wrapping_add(dst as i64) as u64
+                            }
+                            _ => dst,
+                        }
+                    } else {
+                        dst
+                    }
+                },
+            )
         }
     }
 }
