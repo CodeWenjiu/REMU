@@ -84,3 +84,23 @@ impl RvIsa for RV32I_zve32x_zvl128b {
         DIFFTEST_SLICES_BASE_AND_V
     }
 }
+
+/// RV32IM + Zve32x + Zvl128b: M extension + embedded vector subset (VConfig = Zve32xZvl128b).
+#[allow(non_camel_case_types)]
+#[derive(Clone, Copy)]
+pub struct RV32IM_zve32x_zvl128b;
+impl RvIsa for RV32IM_zve32x_zvl128b {
+    type XLEN = u32;
+    type Conf = ConfigRV32IM;
+    type PcState = PcState;
+    type GprState = GprState;
+    type FprState = ();
+    type VConfig = Zve32xZvl128b;
+
+    const ISA_STR: &'static str = "rv32im_zve32x_zvl128b";
+    const MISA: u32 = 0x4000_1100; // RV32, I, M (Zve subset does not set MISA.V)
+
+    fn csrs_for_difftest() -> &'static [&'static [crate::isa::reg::Csr]] {
+        DIFFTEST_SLICES_BASE_AND_V
+    }
+}
