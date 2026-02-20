@@ -30,6 +30,7 @@ pub(crate) enum OpMvvInst {
     Vfirst_m,
     Vsext_vf4,
     Vzext_vf4,
+    Vmor_mm,
 }
 
 /// funct3 = 0b011: OP-IVI
@@ -51,6 +52,7 @@ pub(crate) enum OpIviInst {
 #[allow(non_camel_case_types)]
 pub(crate) enum OpIvxInst {
     Vmerge_vxm,
+    Vadd_vx,
     Vmslt_vx,
     Vmseq_vx,
 }

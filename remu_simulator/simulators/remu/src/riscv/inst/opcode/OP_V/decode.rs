@@ -104,6 +104,13 @@ pub(crate) fn decode<P: remu_state::StatePolicy>(inst: u32) -> DecodedInst {
                 // 0b00010 vzext.vf8, 0b00011 vsext.vf8, 0b00110 vzext.vf2, 0b00111 vsext.vf2 预留
                 _ => return DecodedInst::default(),
             },
+            0b011010 if vm(inst) == 1 => DecodedInst {
+                rd: rd(inst),
+                rs1: rs1(inst),
+                rs2: rs2(inst),
+                imm: 1,
+                inst: Inst::V(VInst::OpMvv(OpMvvInst::Vmor_mm)),
+            },
             _ => return DecodedInst::default(),
         },
         func3::OPIVI => match f6 {
@@ -175,6 +182,13 @@ pub(crate) fn decode<P: remu_state::StatePolicy>(inst: u32) -> DecodedInst {
             _ => return DecodedInst::default(),
         },
         func3::OPIVX => match f6 {
+            0b000000 => DecodedInst {
+                rd: rd(inst),
+                rs1: rs1(inst),
+                rs2: rs2(inst),
+                imm: vm(inst) as u32,
+                inst: Inst::V(VInst::OpIvx(OpIvxInst::Vadd_vx)),
+            },
             0b010111 => DecodedInst {
                 rd: rd(inst),
                 rs1: rs1(inst),

@@ -54,7 +54,8 @@ pub(crate) enum VectorElementLoopMode {
 
 /// Single entry for vector element loop. Iterates over vl/vtype and calls
 /// `op(elem_idx, sew_bytes, src_val, mask_bit, dst_val)` per element, writing result to rd.
-/// Unmasked: no v0 read, dst zeroed, mask_bit true, dst_val 0; Masked: v0 mask and read dst.
+/// Unmasked: no v0 read, mask_bit true; Masked: v0 mask. Tail elements and vl=0 are preserved
+/// by always reading rd before the loop (no zero-init).
 #[inline(always)]
 pub(crate) fn vector_element_loop<P, C, F>(
     ctx: &mut C,
@@ -76,10 +77,19 @@ where
     let sew_bytes = 1 << (vsew & 0x3);
     let vlenb = <<P::ISA as RvIsa>::VConfig as VExtensionConfig>::VLENB as usize;
     let nf_max = nf_from_vlmul(vlmul);
-    let mut nf = nf_max.min(32_usize.saturating_sub(rd));
-    if let Some(r2) = rs2 {
-        nf = nf.min(32_usize.saturating_sub(r2));
+    if rd + nf_max > 32 {
+        return Err(remu_state::StateError::BusError(Box::new(
+            remu_state::bus::BusError::unmapped(0),
+        )));
     }
+    if let Some(r2) = rs2 {
+        if r2 + nf_max > 32 {
+            return Err(remu_state::StateError::BusError(Box::new(
+                remu_state::bus::BusError::unmapped(0),
+            )));
+        }
+    }
+    let nf = nf_max;
     let total_elems = (nf * vlenb) / sew_bytes;
     let n = vl.min(total_elems as u32);
 
@@ -90,10 +100,7 @@ where
 
     for r in 0..nf {
         let src_chunk = rs2.map(|reg| state.reg.vr.raw_read(reg + r).to_vec());
-        let mut dst_chunk: Vec<u8> = match mode {
-            VectorElementLoopMode::Unmasked => vec![0u8; vlenb],
-            VectorElementLoopMode::Masked => state.reg.vr.raw_read(rd + r).to_vec(),
-        };
+        let mut dst_chunk: Vec<u8> = state.reg.vr.raw_read(rd + r).to_vec();
         let start_elem = (r * vlenb) / sew_bytes;
         let end_elem = ((r + 1) * vlenb) / sew_bytes;
         let loop_start = (start_elem as u32).min(n);
@@ -115,15 +122,12 @@ where
                 8 => u64::from_le_bytes(chunk[off..off + 8].try_into().unwrap()),
                 _ => 0,
             });
-            let dst_val = match mode {
-                VectorElementLoopMode::Unmasked => 0,
-                VectorElementLoopMode::Masked => match sew_bytes {
-                    1 => dst_chunk[off] as u64,
-                    2 => u16::from_le_bytes(dst_chunk[off..off + 2].try_into().unwrap()) as u64,
-                    4 => u32::from_le_bytes(dst_chunk[off..off + 4].try_into().unwrap()) as u64,
-                    8 => u64::from_le_bytes(dst_chunk[off..off + 8].try_into().unwrap()),
-                    _ => 0,
-                },
+            let dst_val = match sew_bytes {
+                1 => dst_chunk[off] as u64,
+                2 => u16::from_le_bytes(dst_chunk[off..off + 2].try_into().unwrap()) as u64,
+                4 => u32::from_le_bytes(dst_chunk[off..off + 4].try_into().unwrap()) as u64,
+                8 => u64::from_le_bytes(dst_chunk[off..off + 8].try_into().unwrap()),
+                _ => 0,
             };
             let res = op(i, sew_bytes, src_val, mask_bit, dst_val);
             match sew_bytes {
@@ -164,10 +168,12 @@ where
     let sew_bytes = 1 << (vsew & 0x3);
     let vlenb = <<P::ISA as RvIsa>::VConfig as VExtensionConfig>::VLENB as usize;
     let nf_max = nf_from_vlmul(vlmul);
-    let nf = nf_max
-        .min(32_usize.saturating_sub(rd))
-        .min(32_usize.saturating_sub(rs1))
-        .min(32_usize.saturating_sub(rs2));
+    if rd + nf_max > 32 || rs1 + nf_max > 32 || rs2 + nf_max > 32 {
+        return Err(remu_state::StateError::BusError(Box::new(
+            remu_state::bus::BusError::unmapped(0),
+        )));
+    }
+    let nf = nf_max;
     let total_elems = (nf * vlenb) / sew_bytes;
     let n = vl.min(total_elems as u32);
 
@@ -179,10 +185,7 @@ where
     for r in 0..nf {
         let src1_chunk = state.reg.vr.raw_read(rs1 + r).to_vec();
         let src2_chunk = state.reg.vr.raw_read(rs2 + r).to_vec();
-        let mut dst_chunk: Vec<u8> = match mode {
-            VectorElementLoopMode::Unmasked => vec![0u8; vlenb],
-            VectorElementLoopMode::Masked => state.reg.vr.raw_read(rd + r).to_vec(),
-        };
+        let mut dst_chunk: Vec<u8> = state.reg.vr.raw_read(rd + r).to_vec();
         let start_elem = (r * vlenb) / sew_bytes;
         let end_elem = ((r + 1) * vlenb) / sew_bytes;
         let loop_start = (start_elem as u32).min(n);
@@ -211,15 +214,12 @@ where
                 8 => u64::from_le_bytes(src2_chunk[off..off + 8].try_into().unwrap()),
                 _ => 0,
             };
-            let dst_val = match mode {
-                VectorElementLoopMode::Unmasked => 0,
-                VectorElementLoopMode::Masked => match sew_bytes {
-                    1 => dst_chunk[off] as u64,
-                    2 => u16::from_le_bytes(dst_chunk[off..off + 2].try_into().unwrap()) as u64,
-                    4 => u32::from_le_bytes(dst_chunk[off..off + 4].try_into().unwrap()) as u64,
-                    8 => u64::from_le_bytes(dst_chunk[off..off + 8].try_into().unwrap()),
-                    _ => 0,
-                },
+            let dst_val = match sew_bytes {
+                1 => dst_chunk[off] as u64,
+                2 => u16::from_le_bytes(dst_chunk[off..off + 2].try_into().unwrap()) as u64,
+                4 => u32::from_le_bytes(dst_chunk[off..off + 4].try_into().unwrap()) as u64,
+                8 => u64::from_le_bytes(dst_chunk[off..off + 8].try_into().unwrap()),
+                _ => 0,
             };
             let res = op(i, sew_bytes, src1_val, src2_val, mask_bit, dst_val);
             match sew_bytes {

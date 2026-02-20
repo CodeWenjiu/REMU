@@ -282,5 +282,26 @@ pub(crate) fn execute<P: remu_state::StatePolicy, C: crate::ExecuteContext<P>>(
         }
         OpMvvInst::Vsext_vf4 => vector_sext_vf4::<P, C>(ctx, decoded),
         OpMvvInst::Vzext_vf4 => vector_zext_vf4::<P, C>(ctx, decoded),
+        OpMvvInst::Vmor_mm => {
+            let state = ctx.state_mut();
+            let vl = state.reg.csr.vector.vl() as usize;
+            let vs1_buf = state.reg.vr.raw_read(decoded.rs1 as usize);
+            let vs2_buf = state.reg.vr.raw_read(decoded.rs2 as usize);
+            let mut vd_buf = state.reg.vr.raw_read(decoded.rd as usize).to_vec();
+            for i in 0..vl {
+                let byte_idx = i / 8;
+                let bit_idx = i % 8;
+                let bit1 = (vs1_buf[byte_idx] >> bit_idx) & 1;
+                let bit2 = (vs2_buf[byte_idx] >> bit_idx) & 1;
+                if (bit1 | bit2) != 0 {
+                    vd_buf[byte_idx] |= 1 << bit_idx;
+                } else {
+                    vd_buf[byte_idx] &= !(1 << bit_idx);
+                }
+            }
+            state.reg.vr.raw_write(decoded.rd as usize, &vd_buf);
+            *state.reg.pc = state.reg.pc.wrapping_add(4);
+            Ok(())
+        }
     }
 }

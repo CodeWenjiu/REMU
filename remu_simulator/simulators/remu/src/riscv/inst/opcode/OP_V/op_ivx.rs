@@ -116,6 +116,35 @@ pub(crate) fn execute<P: remu_state::StatePolicy, C: crate::ExecuteContext<P>>(
                 },
             )
         }
+        OpIvxInst::Vadd_vx => {
+            let scalar_val = ctx.state_mut().reg.gpr.raw_read(decoded.rs1.into()) as u64;
+            let vm = decoded.imm != 0;
+            let mode = if vm {
+                VectorElementLoopMode::Unmasked
+            } else {
+                VectorElementLoopMode::Masked
+            };
+            vector_element_loop(
+                ctx,
+                decoded.rd as usize,
+                Some(decoded.rs2 as usize),
+                mode,
+                |_, sew_bytes, src, mask, dst| {
+                    if mask {
+                        let v = src.unwrap_or(0);
+                        match sew_bytes {
+                            1 => (v as u8).wrapping_add(scalar_val as u8) as u64,
+                            2 => (v as u16).wrapping_add(scalar_val as u16) as u64,
+                            4 => (v as u32).wrapping_add(scalar_val as u32) as u64,
+                            8 => (v as u64).wrapping_add(scalar_val),
+                            _ => 0,
+                        }
+                    } else {
+                        dst
+                    }
+                },
+            )
+        }
         OpIvxInst::Vmslt_vx => {
             vector_mask_cmp_vx::<P, C, _>(ctx, decoded, |a, b| a < b)
         }
