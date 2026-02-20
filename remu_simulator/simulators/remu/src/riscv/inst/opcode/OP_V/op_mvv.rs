@@ -157,6 +157,81 @@ where
 }
 
 #[inline(always)]
+fn vector_zext_vf4<P, C>(ctx: &mut C, decoded: &DecodedInst) -> Result<(), remu_state::StateError>
+where
+    P: remu_state::StatePolicy,
+    C: crate::ExecuteContext<P>,
+{
+    let state = ctx.state_mut();
+    let vd = decoded.rd as usize;
+    let vs2 = decoded.rs2 as usize;
+    let vm = decoded.imm != 0;
+
+    let vl = state.reg.csr.vector.vl();
+    let vtype = state.reg.csr.vector.vtype();
+    let vlmul = vtype & 0x7;
+    let vsew = (vtype >> 3) & 0x7;
+    let sew_bytes = 1 << (vsew & 0x3);
+    let src_sew_bytes = sew_bytes / 4;
+    if src_sew_bytes == 0 {
+        return Err(remu_state::StateError::BusError(Box::new(
+            remu_state::bus::BusError::unmapped(0),
+        )));
+    }
+    let vlenb = <<P::ISA as RvIsa>::VConfig as VExtensionConfig>::VLENB as usize;
+    let nf = nf_from_vlmul(vlmul)
+        .min(32_usize.saturating_sub(vd))
+        .min(32_usize.saturating_sub(vs2));
+    let total_elems = (nf * vlenb) / sew_bytes;
+    let n = vl.min(total_elems as u32) as usize;
+
+    let v0 = state.reg.vr.raw_read(0).to_vec();
+
+    for r in 0..nf {
+        let mut dst_chunk = state.reg.vr.raw_read(vd + r).to_vec();
+        let start_elem = (r * vlenb) / sew_bytes;
+        let end_elem = ((r + 1) * vlenb) / sew_bytes;
+        let loop_end = end_elem.min(n);
+
+        for i in start_elem..loop_end {
+            let active = vm || ((v0[i / 8] >> (i % 8)) & 1 != 0);
+            if !active {
+                continue;
+            }
+            let src_byte_off = i * src_sew_bytes;
+            let src_reg = src_byte_off / vlenb;
+            let src_off = src_byte_off % vlenb;
+            let src_chunk = state.reg.vr.raw_read(vs2 + src_reg);
+            let mut val = [0u8; 8];
+            match (src_sew_bytes, sew_bytes) {
+                (1, 4) => {
+                    let b = src_chunk[src_off];
+                    val[..4].copy_from_slice(&(b as u32).to_le_bytes());
+                }
+                (1, 8) => {
+                    let b = src_chunk[src_off];
+                    val[..8].copy_from_slice(&(b as u64).to_le_bytes());
+                }
+                (2, 4) => {
+                    let w = u16::from_le_bytes(src_chunk[src_off..src_off + 2].try_into().unwrap());
+                    val[..4].copy_from_slice(&(w as u32).to_le_bytes());
+                }
+                (2, 8) => {
+                    let w = u16::from_le_bytes(src_chunk[src_off..src_off + 2].try_into().unwrap());
+                    val[..8].copy_from_slice(&(w as u64).to_le_bytes());
+                }
+                _ => continue,
+            }
+            let dst_off = (i * sew_bytes) % vlenb;
+            dst_chunk[dst_off..dst_off + sew_bytes].copy_from_slice(&val[..sew_bytes]);
+        }
+        state.reg.vr.raw_write(vd + r, &dst_chunk);
+    }
+    *state.reg.pc = state.reg.pc.wrapping_add(4);
+    Ok(())
+}
+
+#[inline(always)]
 pub(crate) fn execute<P: remu_state::StatePolicy, C: crate::ExecuteContext<P>>(
     ctx: &mut C,
     decoded: &DecodedInst,
@@ -206,5 +281,6 @@ pub(crate) fn execute<P: remu_state::StatePolicy, C: crate::ExecuteContext<P>>(
             Ok(())
         }
         OpMvvInst::Vsext_vf4 => vector_sext_vf4::<P, C>(ctx, decoded),
+        OpMvvInst::Vzext_vf4 => vector_zext_vf4::<P, C>(ctx, decoded),
     }
 }
