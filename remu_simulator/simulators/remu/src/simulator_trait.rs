@@ -246,12 +246,12 @@ impl<P: SimulatorPolicy> SimulatorDut for SimulatorRemu<P, true> {
         let orig = self
             .state
             .bus
-            .read_32(addr as usize)
+            .read_32_no_observer(addr as usize)
             .map_err(StateError::from)
             .map_err(SimulatorInnerError::from)?;
         self.state
             .bus
-            .write_32(addr as usize, EBREAK_INST)
+            .write_32_no_observer(addr as usize, EBREAK_INST)
             .map_err(StateError::from)
             .map_err(SimulatorInnerError::from)?;
         self.breakpoints.insert(addr, orig);
@@ -263,7 +263,7 @@ impl<P: SimulatorPolicy> SimulatorDut for SimulatorRemu<P, true> {
         if let Some(orig) = self.breakpoints.remove(&addr) {
             self.state
                 .bus
-                .write_32(addr as usize, orig)
+                .write_32_no_observer(addr as usize, orig)
                 .map_err(StateError::from)
                 .map_err(SimulatorInnerError::from)?;
             self.icache.invalidate(addr);

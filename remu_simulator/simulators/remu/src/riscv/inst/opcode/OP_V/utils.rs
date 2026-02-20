@@ -6,6 +6,33 @@ use remu_types::isa::{
     RvIsa,
 };
 
+/// VLMAX in elements (standard formula, valid for fractional LMUL).
+#[inline(always)]
+pub(crate) fn calculate_vlmax(vlenb: u32, vtype: u32) -> u32 {
+    let vsew = (vtype >> 3) & 0x7;
+    let vlmul = vtype & 0x7;
+    let lmul_shift: i8 = match vlmul {
+        0 => 0,
+        1 => 1,
+        2 => 2,
+        3 => 3,
+        5 => -3,
+        6 => -2,
+        7 => -1,
+        _ => return 0,
+    };
+    let sew_shift: i8 = match vsew {
+        0..=3 => -(vsew as i8),
+        _ => return 0,
+    };
+    let total_shift = lmul_shift + sew_shift;
+    if total_shift >= 0 {
+        vlenb << total_shift
+    } else {
+        vlenb >> (-total_shift)
+    }
+}
+
 /// Number of register groups nf (1/2/4/8) from vlmul.
 #[inline(always)]
 pub(crate) fn nf_from_vlmul(vlmul: u32) -> usize {

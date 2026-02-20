@@ -1,20 +1,17 @@
 //! funct3 = 0b010: OP-MVV
 
 use remu_types::isa::{
+    RvIsa,
     extension_v::VExtensionConfig,
     reg::{RegAccess, VectorCsrState, VrState},
-    RvIsa,
 };
 
 use crate::riscv::inst::{DecodedInst, opcode::OP_V::OpMvvInst};
 
-use super::utils::{nf_from_vlmul, vector_element_loop, VectorElementLoopMode};
+use super::utils::{VectorElementLoopMode, nf_from_vlmul, vector_element_loop};
 
 #[inline(always)]
-fn vector_redsum_vs<P, C>(
-    ctx: &mut C,
-    decoded: &DecodedInst,
-) -> Result<(), remu_state::StateError>
+fn vector_redsum_vs<P, C>(ctx: &mut C, decoded: &DecodedInst) -> Result<(), remu_state::StateError>
 where
     P: remu_state::StatePolicy,
     C: crate::ExecuteContext<P>,
@@ -85,10 +82,7 @@ where
 }
 
 #[inline(always)]
-fn vector_sext_vf4<P, C>(
-    ctx: &mut C,
-    decoded: &DecodedInst,
-) -> Result<(), remu_state::StateError>
+fn vector_sext_vf4<P, C>(ctx: &mut C, decoded: &DecodedInst) -> Result<(), remu_state::StateError>
 where
     P: remu_state::StatePolicy,
     C: crate::ExecuteContext<P>,
@@ -170,15 +164,13 @@ pub(crate) fn execute<P: remu_state::StatePolicy, C: crate::ExecuteContext<P>>(
 ) -> Result<(), remu_state::StateError> {
     match op {
         OpMvvInst::Vredsum_vs => vector_redsum_vs::<P, C>(ctx, decoded),
-        OpMvvInst::Vid_v => {
-            vector_element_loop(
-                ctx,
-                decoded.rd as usize,
-                None,
-                VectorElementLoopMode::Unmasked,
-                |idx, _, _, _mask, _dst| idx as u64,
-            )
-        }
+        OpMvvInst::Vid_v => vector_element_loop(
+            ctx,
+            decoded.rd as usize,
+            None,
+            VectorElementLoopMode::Unmasked,
+            |idx, _, _, _mask, _dst| idx as u64,
+        ),
         OpMvvInst::Vmv_x_s => {
             let state = ctx.state_mut();
             let vtype = state.reg.csr.vector.vtype();
@@ -198,19 +190,14 @@ pub(crate) fn execute<P: remu_state::StatePolicy, C: crate::ExecuteContext<P>>(
         }
         OpMvvInst::Vfirst_m => {
             let state = ctx.state_mut();
-            let vl = state.reg.csr.vector.vl() as usize;
-            let vm = decoded.imm != 0;
-            let v0 = state.reg.vr.raw_read(0).to_vec();
-            let vs2_chunk = state.reg.vr.raw_read(decoded.rs2 as usize).to_vec();
+            let vl = state.reg.csr.vector.vl();
+            let vs2_chunk = state.reg.vr.raw_read(decoded.rs2 as usize);
             let mut pos = !0u32;
             for i in 0..vl {
-                let exec_active = vm || ((v0[i / 8] >> (i % 8)) & 1 != 0);
-                let byte_idx = i / 8;
+                let byte_idx = (i as usize) / 8;
                 let bit_idx = i % 8;
-                let vs2_one =
-                    byte_idx < vs2_chunk.len() && (vs2_chunk[byte_idx] >> bit_idx) & 1 != 0;
-                if exec_active && vs2_one {
-                    pos = i as u32;
+                if byte_idx < vs2_chunk.len() && (vs2_chunk[byte_idx] >> bit_idx) & 1 != 0 {
+                    pos = i;
                     break;
                 }
             }

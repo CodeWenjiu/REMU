@@ -135,7 +135,7 @@ pub(crate) fn decode<P: remu_state::StatePolicy>(inst: u32) -> DecodedInst {
                 rd: rd(inst),
                 rs1: 0,
                 rs2: rs2(inst),
-                imm: rs1(inst) as u32,
+                imm: (rs1(inst) as u32 & 0x1F) | ((vm(inst) as u32) << 8),
                 inst: Inst::V(VInst::OpIvi(OpIviInst::Vslidedown_vi)),
             },
             _ => return DecodedInst::default(),

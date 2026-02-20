@@ -25,6 +25,12 @@ fn nf(inst: u32) -> u32 {
     (inst >> 29) & 0x7
 }
 
+/// vm (mask): 1 = unmasked, 0 = masked (use v0)
+#[inline(always)]
+fn vm(inst: u32) -> u32 {
+    (inst >> 25) & 1
+}
+
 /// vd for unit-stride load is in rd [11:7] per RVV spec.
 #[inline(always)]
 fn vd_unit_stride(inst: u32) -> u8 {
@@ -40,6 +46,8 @@ const MASK_VL2RE_V: u32 = 0xfff0707f;
 pub(crate) enum LoadFpInst {
     /// vle8.v: load vl×8-bit elements from mem[rs1 + i] into vd
     Vle8,
+    /// vlseg4e8.v: unit-stride segment load 4×8-bit, de-interleave into vd..vd+3
+    Vlseg4e8,
     /// vl2re16.v / vl2r.v (EEW=16): whole-reg load 2 regs, vd = rd, base = rs1
     Vl2re16,
     /// vl2re32.v: whole-reg load 2 regs, EEW=32 (Spike VI_LD_WHOLE)
@@ -69,8 +77,11 @@ pub(crate) fn decode<P: remu_state::StatePolicy>(inst: u32) -> DecodedInst {
             };
         }
         let f3 = funct3(inst);
-        let load_fp = match f3 {
-            func3::WIDTH_8 if mop(inst) == 0 && nf(inst) == 0 => LoadFpInst::Vle8,
+        let m = mop(inst);
+        let nf_val = nf(inst);
+        let load_fp = match (f3, m, nf_val) {
+            (func3::WIDTH_8, 0, 0) => LoadFpInst::Vle8,
+            (func3::WIDTH_8, 0, 3) => LoadFpInst::Vlseg4e8, // nf=3 -> 4 fields
             _ => return DecodedInst::default(),
         };
         let vd = vd_unit_stride(inst);
@@ -78,7 +89,7 @@ pub(crate) fn decode<P: remu_state::StatePolicy>(inst: u32) -> DecodedInst {
             rd: vd,
             rs1: rs1(inst),
             rs2: 0,
-            imm: 0,
+            imm: vm(inst),
             inst: Inst::LoadFp(load_fp),
         };
     }
@@ -96,6 +107,40 @@ pub(crate) fn execute<P: remu_state::StatePolicy, C: crate::ExecuteContext<P>>(
     let Inst::LoadFp(load_fp) = decoded.inst else { unreachable!() };
 
     match load_fp {
+        LoadFpInst::Vlseg4e8 => {
+            if <<P::ISA as RvIsa>::VConfig as VExtensionConfig>::VLENB > 0 {
+                let state = ctx.state_mut();
+                let vl = state.reg.csr.vector.vl();
+                let vlenb =
+                    <<P::ISA as RvIsa>::VConfig as VExtensionConfig>::VLENB as usize;
+                let n = vl.min(vlenb as u32) as usize;
+                let vd = decoded.rd as usize;
+                let base = state.reg.gpr.raw_read(decoded.rs1.into());
+                let vm = (decoded.imm & 1) != 0;
+                let v0 = state.reg.vr.raw_read(0).to_vec();
+
+                let mut vd_buf: Vec<Vec<u8>> =
+                    (0..4).map(|r| state.reg.vr.raw_read(vd + r).to_vec()).collect();
+                for i in 0..n {
+                    let active = vm || ((v0[i / 8] >> (i % 8)) & 1 != 0);
+                    if !active {
+                        continue;
+                    }
+                    for f in 0..4 {
+                        let addr =
+                            base.wrapping_add((i * 4 + f) as u32) as usize;
+                        let val = state.bus.read_8(addr).map_err(StateError::from)?;
+                        vd_buf[f][i] = val;
+                    }
+                }
+                for f in 0..4 {
+                    state.reg.vr.raw_write(vd + f, &vd_buf[f]);
+                }
+                *state.reg.pc = state.reg.pc.wrapping_add(4);
+            } else {
+                unsafe { core::hint::unreachable_unchecked() }
+            }
+        }
         LoadFpInst::Vl2re16 | LoadFpInst::Vl2re32 => {
             if <<P::ISA as RvIsa>::VConfig as VExtensionConfig>::VLENB > 0 {
                 let state = ctx.state_mut();
