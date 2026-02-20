@@ -12,6 +12,7 @@ pub(crate) fn execute<P: remu_state::StatePolicy, C: crate::ExecuteContext<P>>(
 
     match v {
         VInst::OpCfg(op) => super::op_cfg::execute(ctx, decoded, op),
+        VInst::OpIvv(op) => super::op_ivv::execute(ctx, decoded, op),
         VInst::OpMvv(op) => super::op_mvv::execute(ctx, decoded, op),
         VInst::OpIvi(op) => super::op_ivi::execute(ctx, decoded, op),
         VInst::OpIvx(op) => super::op_ivx::execute(ctx, decoded, op),

@@ -119,5 +119,8 @@ pub(crate) fn execute<P: remu_state::StatePolicy, C: crate::ExecuteContext<P>>(
         OpIvxInst::Vmslt_vx => {
             vector_mask_cmp_vx::<P, C, _>(ctx, decoded, |a, b| a < b)
         }
+        OpIvxInst::Vmseq_vx => {
+            vector_mask_cmp_vx::<P, C, _>(ctx, decoded, |a, b| a == b)
+        }
     }
 }

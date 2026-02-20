@@ -123,9 +123,8 @@ pub(crate) fn execute<P: remu_state::StatePolicy, C: crate::ExecuteContext<P>>(
                 },
             )
         }
-        OpIviInst::Vmseq_vi => {
-            vector_mask_cmp_vi::<P, C>(ctx, decoded.rd as usize, decoded.rs2 as usize, decoded.imm)
-        }
+        OpIviInst::Vmseq_vi => vector_mask_cmp_vi::<P, C, _>(ctx, decoded, |a, b| a == b),
+        OpIviInst::Vmsne_vi => vector_mask_cmp_vi::<P, C, _>(ctx, decoded, |a, b| a != b),
         OpIviInst::Vmv1r_v => {
             let state = ctx.state_mut();
             let vs2 = decoded.rs2 as usize;
@@ -194,5 +193,37 @@ pub(crate) fn execute<P: remu_state::StatePolicy, C: crate::ExecuteContext<P>>(
             )
         }
         OpIviInst::Vslidedown_vi => vector_slidedown_vi::<P, C>(ctx, decoded),
+        OpIviInst::Vsll_vi => {
+            let uimm5 = decoded.imm & 0x1F;
+            let vm = (decoded.imm >> 8) != 0;
+            let mode = if vm {
+                VectorElementLoopMode::Unmasked
+            } else {
+                VectorElementLoopMode::Masked
+            };
+            vector_element_loop(
+                ctx,
+                decoded.rd as usize,
+                Some(decoded.rs2 as usize),
+                mode,
+                |_, sew_bytes, src, mask, dst| {
+                    if mask {
+                        let v = src.unwrap_or(0);
+                        let bit_width = (sew_bytes * 8) as u32;
+                        let shift_mask = bit_width - 1;
+                        let shamt = uimm5 & shift_mask;
+                        match sew_bytes {
+                            1 => ((v as u8).wrapping_shl(shamt)) as u64,
+                            2 => ((v as u16).wrapping_shl(shamt)) as u64,
+                            4 => ((v as u32).wrapping_shl(shamt)) as u64,
+                            8 => (v as u64).wrapping_shl(shamt),
+                            _ => 0,
+                        }
+                    } else {
+                        dst
+                    }
+                },
+            )
+        }
     }
 }
