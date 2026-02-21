@@ -32,6 +32,8 @@ pub(crate) enum OpMvvInst {
     Vzext_vf4,
     Vmor_mm,
     Vmacc_vv,
+    Vwmacc_vv,
+    Vwmulu_vv,
 }
 
 /// funct3 = 0b011: OP-IVI
@@ -41,11 +43,13 @@ pub(crate) enum OpIviInst {
     Vmerge_vim,
     Vmseq_vi,
     Vmsne_vi,
-    Vmv1r_v,
+    VmvNr_v,
     Vrsub_vi,
     Vadd_vi,
     Vslidedown_vi,
     Vsll_vi,
+    Vsrl_vi,
+    Vand_vi,
 }
 
 /// funct3 = 0b100: OP-IVX
@@ -54,6 +58,7 @@ pub(crate) enum OpIviInst {
 pub(crate) enum OpIvxInst {
     Vmerge_vxm,
     Vadd_vx,
+    Vand_vx,
     Vmslt_vx,
     Vmseq_vx,
 }

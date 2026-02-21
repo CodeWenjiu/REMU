@@ -71,6 +71,10 @@ pub(crate) enum LoadFpInst {
     Vl2re32,
     /// vlse32.v: strided load, vd[i] = mem[rs1 + i * rs2], EEW=32, rs2 = stride in bytes (GPR)
     Vlse32,
+    /// vlse16.v: strided load, vd[i] = mem[rs1 + i * rs2], EEW=16, rs2 = stride in bytes (GPR)
+    Vlse16,
+    /// vle32.v: unit-stride load, vd[i] = mem[rs1 + i*4], EEW=32
+    Vle32,
 }
 
 #[inline(always)]
@@ -114,6 +118,8 @@ pub(crate) fn decode<P: remu_state::StatePolicy>(inst: u32) -> DecodedInst {
         let load_fp = match (f3, m, nf_val) {
             (func3::WIDTH_8, 0, 0) => LoadFpInst::Vle8,
             (func3::WIDTH_8, 0, 3) => LoadFpInst::Vlseg4e8, // nf=3 -> 4 fields
+            (func3::WIDTH_32, 0, 0) if lumop(inst) == 0 => LoadFpInst::Vle32, // unit-stride, lumop=0
+            (func3::WIDTH_16, 2, 0) => LoadFpInst::Vlse16,  // mop=2 strided, nf=0; rs2 = stride
             (func3::WIDTH_32, 2, 0) => LoadFpInst::Vlse32,  // mop=2 strided, nf=0
             _ => return DecodedInst::default(),
         };
@@ -121,7 +127,7 @@ pub(crate) fn decode<P: remu_state::StatePolicy>(inst: u32) -> DecodedInst {
         return DecodedInst {
             rd: vd,
             rs1: rs1(inst),
-            rs2: if matches!(load_fp, LoadFpInst::Vlse32) {
+            rs2: if matches!(load_fp, LoadFpInst::Vlse16 | LoadFpInst::Vlse32) {
                 rs2(inst)
             } else {
                 0
@@ -220,6 +226,76 @@ pub(crate) fn execute<P: remu_state::StatePolicy, C: crate::ExecuteContext<P>>(
                 unsafe { core::hint::unreachable_unchecked() }
             }
         }
+        LoadFpInst::Vlse16 => {
+            if <<P::ISA as RvIsa>::VConfig as VExtensionConfig>::VLENB > 0 {
+                let state = ctx.state_mut();
+                let vl = state.reg.csr.vector.vl();
+                let vtype = state.reg.csr.vector.vtype();
+                let vlenb =
+                    <<P::ISA as RvIsa>::VConfig as VExtensionConfig>::VLENB as usize;
+                let vlmul = vtype & 0x7;
+                let vsew = (vtype >> 3) & 0x7;
+                let sew_bits: u32 = 8 << (vsew & 0x3);
+                let (lmul_num, lmul_denom): (u32, u32) = match vlmul {
+                    0 => (1, 1),
+                    1 => (2, 1),
+                    2 => (4, 1),
+                    3 => (8, 1),
+                    5 => (1, 8),
+                    6 => (1, 4),
+                    7 => (1, 2),
+                    _ => (1, 1),
+                };
+                let emul_num = 16u32.saturating_mul(lmul_num);
+                let emul_denom = sew_bits.saturating_mul(lmul_denom);
+                if emul_denom == 0
+                    || emul_num > 8u32.saturating_mul(emul_denom)
+                    || 8u32.saturating_mul(emul_num) < emul_denom
+                {
+                    return Err(StateError::BusError(Box::new(
+                        remu_state::bus::BusError::unmapped(0),
+                    )));
+                }
+                let nf = (emul_num + emul_denom - 1) / emul_denom;
+                let nf = nf.clamp(1, 8) as usize;
+                const EEW_BYTES: usize = 2;
+                let vd = decoded.rd as usize;
+                let base = state.reg.gpr.raw_read(decoded.rs1.into());
+                let stride = state.reg.gpr.raw_read(decoded.rs2.into());
+                let vm = (decoded.imm & 1) != 0;
+                let v0 = state.reg.vr.raw_read(0).to_vec();
+                let total_elems = (nf * vlenb) / EEW_BYTES;
+                let n = vl.min(total_elems as u32) as usize;
+                if vd + nf > 32 {
+                    return Err(StateError::BusError(Box::new(
+                        remu_state::bus::BusError::unmapped(0),
+                    )));
+                }
+                for r in 0..nf {
+                    let mut dst_chunk = state.reg.vr.raw_read(vd + r).to_vec();
+                    let start_elem = (r * vlenb) / EEW_BYTES;
+                    let end_elem = ((r + 1) * vlenb) / EEW_BYTES;
+                    let loop_end = end_elem.min(n);
+                    for i in start_elem..loop_end {
+                        let active = vm || ((v0[i / 8] >> (i % 8)) & 1 != 0);
+                        if !active {
+                            continue;
+                        }
+                        let addr = base
+                            .wrapping_add((i as u32).wrapping_mul(stride))
+                            as usize;
+                        let val = state.bus.read_16(addr).map_err(StateError::from)?;
+                        let off = (i * EEW_BYTES) % vlenb;
+                        dst_chunk[off..off + EEW_BYTES]
+                            .copy_from_slice(&val.to_le_bytes());
+                    }
+                    state.reg.vr.raw_write(vd + r, &dst_chunk);
+                }
+                *state.reg.pc = state.reg.pc.wrapping_add(4);
+            } else {
+                unsafe { core::hint::unreachable_unchecked() }
+            }
+        }
         LoadFpInst::Vlse32 => {
             if <<P::ISA as RvIsa>::VConfig as VExtensionConfig>::VLENB > 0 {
                 let state = ctx.state_mut();
@@ -264,6 +340,72 @@ pub(crate) fn execute<P: remu_state::StatePolicy, C: crate::ExecuteContext<P>>(
                         let off = (i * SEW_BYTES) % vlenb;
                         dst_chunk[off..off + SEW_BYTES]
                             .copy_from_slice(&val.to_le_bytes());
+                    }
+                    state.reg.vr.raw_write(vd + r, &dst_chunk);
+                }
+                *state.reg.pc = state.reg.pc.wrapping_add(4);
+            } else {
+                unsafe { core::hint::unreachable_unchecked() }
+            }
+        }
+        LoadFpInst::Vle32 => {
+            if <<P::ISA as RvIsa>::VConfig as VExtensionConfig>::VLENB > 0 {
+                let state = ctx.state_mut();
+                let vl = state.reg.csr.vector.vl();
+                let vtype = state.reg.csr.vector.vtype();
+                let vlenb =
+                    <<P::ISA as RvIsa>::VConfig as VExtensionConfig>::VLENB as usize;
+                let vlmul = vtype & 0x7;
+                let vsew = (vtype >> 3) & 0x7;
+                let sew_bits: u32 = 8 << (vsew & 0x3);
+                let (lmul_num, lmul_denom): (u32, u32) = match vlmul {
+                    0 => (1, 1),
+                    1 => (2, 1),
+                    2 => (4, 1),
+                    3 => (8, 1),
+                    5 => (1, 8),
+                    6 => (1, 4),
+                    7 => (1, 2),
+                    _ => (1, 1),
+                };
+                let emul_num = 32u32.saturating_mul(lmul_num);
+                let emul_denom = sew_bits.saturating_mul(lmul_denom);
+                if emul_denom == 0
+                    || emul_num > 8u32.saturating_mul(emul_denom)
+                    || 8u32.saturating_mul(emul_num) < emul_denom
+                {
+                    return Err(StateError::BusError(Box::new(
+                        remu_state::bus::BusError::unmapped(0),
+                    )));
+                }
+                let nf = (emul_num + emul_denom - 1) / emul_denom;
+                let nf = nf.clamp(1, 8) as usize;
+                const EEW_BYTES: usize = 4;
+                let vd = decoded.rd as usize;
+                let base = state.reg.gpr.raw_read(decoded.rs1.into());
+                let vm = (decoded.imm & 1) != 0;
+                let v0 = state.reg.vr.raw_read(0).to_vec();
+                let total_elems = (nf * vlenb) / EEW_BYTES;
+                let n = vl.min(total_elems as u32) as usize;
+                if vd + nf > 32 {
+                    return Err(StateError::BusError(Box::new(
+                        remu_state::bus::BusError::unmapped(0),
+                    )));
+                }
+                for r in 0..nf {
+                    let mut dst_chunk = state.reg.vr.raw_read(vd + r).to_vec();
+                    let start_elem = (r * vlenb) / EEW_BYTES;
+                    let end_elem = ((r + 1) * vlenb) / EEW_BYTES;
+                    let loop_end = end_elem.min(n);
+                    for i in start_elem..loop_end {
+                        let active = vm || ((v0[i / 8] >> (i % 8)) & 1 != 0);
+                        if !active {
+                            continue;
+                        }
+                        let addr = base.wrapping_add((i as u32).wrapping_mul(EEW_BYTES as u32)) as usize;
+                        let val = state.bus.read_32(addr).map_err(StateError::from)?;
+                        let off = (i * EEW_BYTES) % vlenb;
+                        dst_chunk[off..off + EEW_BYTES].copy_from_slice(&val.to_le_bytes());
                     }
                     state.reg.vr.raw_write(vd + r, &dst_chunk);
                 }

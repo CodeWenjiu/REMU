@@ -123,12 +123,35 @@ pub(crate) fn execute<P: remu_state::StatePolicy, C: crate::ExecuteContext<P>>(
         }
         OpIviInst::Vmseq_vi => vector_mask_cmp_vi::<P, C, _>(ctx, decoded, |a, b| a == b),
         OpIviInst::Vmsne_vi => vector_mask_cmp_vi::<P, C, _>(ctx, decoded, |a, b| a != b),
-        OpIviInst::Vmv1r_v => {
+        OpIviInst::VmvNr_v => {
+            let nr = (decoded.imm + 1) as usize; // vmv1r/2r/4r/8r: simm5=0,1,3,7 -> nr=1,2,4,8
+            if nr != 1 && nr != 2 && nr != 4 && nr != 8 {
+                return Err(remu_state::StateError::BusError(Box::new(
+                    remu_state::bus::BusError::unmapped(0),
+                )));
+            }
+            let vd_base = decoded.rd as usize;
+            let vs2_base = decoded.rs2 as usize;
+            if vd_base % nr != 0 || vs2_base % nr != 0 {
+                return Err(remu_state::StateError::BusError(Box::new(
+                    remu_state::bus::BusError::unmapped(0),
+                )));
+            }
+            if vd_base + nr > 32 || vs2_base + nr > 32 {
+                return Err(remu_state::StateError::BusError(Box::new(
+                    remu_state::bus::BusError::unmapped(0),
+                )));
+            }
+            if vd_base != vs2_base && vd_base < vs2_base + nr && vs2_base < vd_base + nr {
+                return Err(remu_state::StateError::BusError(Box::new(
+                    remu_state::bus::BusError::unmapped(0),
+                )));
+            }
             let state = ctx.state_mut();
-            let vs2 = decoded.rs2 as usize;
-            let vd = decoded.rd as usize;
-            let data = state.reg.vr.raw_read(vs2).to_vec();
-            state.reg.vr.raw_write(vd, &data);
+            for i in 0..nr {
+                let data = state.reg.vr.raw_read(vs2_base + i).to_vec();
+                state.reg.vr.raw_write(vd_base + i, &data);
+            }
             *state.reg.pc = state.reg.pc.wrapping_add(4);
             Ok(())
         }
@@ -215,6 +238,67 @@ pub(crate) fn execute<P: remu_state::StatePolicy, C: crate::ExecuteContext<P>>(
                             2 => ((v as u16).wrapping_shl(shamt)) as u64,
                             4 => ((v as u32).wrapping_shl(shamt)) as u64,
                             8 => (v as u64).wrapping_shl(shamt),
+                            _ => 0,
+                        }
+                    } else {
+                        dst
+                    }
+                },
+            )
+        }
+        OpIviInst::Vsrl_vi => {
+            let uimm5 = decoded.imm & 0x1F;
+            let vm = (decoded.imm >> 8) != 0;
+            let mode = if vm {
+                VectorElementLoopMode::Unmasked
+            } else {
+                VectorElementLoopMode::Masked
+            };
+            vector_element_loop(
+                ctx,
+                decoded.rd as usize,
+                Some(decoded.rs2 as usize),
+                mode,
+                |_, sew_bytes, src, mask, dst| {
+                    if mask {
+                        let v = src.unwrap_or(0);
+                        let bit_width = (sew_bytes * 8) as u32;
+                        let shift_mask = bit_width - 1;
+                        let shamt = uimm5 & shift_mask;
+                        match sew_bytes {
+                            1 => ((v as u8).wrapping_shr(shamt)) as u64,
+                            2 => ((v as u16).wrapping_shr(shamt)) as u64,
+                            4 => ((v as u32).wrapping_shr(shamt)) as u64,
+                            8 => (v as u64).wrapping_shr(shamt),
+                            _ => 0,
+                        }
+                    } else {
+                        dst
+                    }
+                },
+            )
+        }
+        OpIviInst::Vand_vi => {
+            let simm5 = decoded.imm as i32;
+            let vm = decoded.rs1 != 0;
+            let mode = if vm {
+                VectorElementLoopMode::Unmasked
+            } else {
+                VectorElementLoopMode::Masked
+            };
+            vector_element_loop(
+                ctx,
+                decoded.rd as usize,
+                Some(decoded.rs2 as usize),
+                mode,
+                |_, sew_bytes, src, mask, dst| {
+                    if mask {
+                        let val = src.unwrap_or(0);
+                        match sew_bytes {
+                            1 => (val as u8 & (simm5 as i8 as u8)) as u64,
+                            2 => (val as u16 & (simm5 as i16 as u16)) as u64,
+                            4 => (val as u32 & simm5 as u32) as u64,
+                            8 => val & (simm5 as i64 as u64),
                             _ => 0,
                         }
                     } else {
