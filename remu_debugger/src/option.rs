@@ -1,6 +1,6 @@
 use clap::builder::styling;
 use remu_harness::HarnessOption;
-use remu_types::{DifftestRef, isa::IsaSpec};
+use remu_types::{DifftestRef, isa::IsaSpec, Platform};
 
 #[derive(clap::Parser, Debug, Clone)]
 #[command(
@@ -21,6 +21,10 @@ pub struct DebuggerOption {
     /// ISA Option
     #[arg(long, default_value = "riscv32i")]
     pub isa: IsaSpec,
+
+    /// Platform (DUT simulator): remu, spike, nzea
+    #[arg(long, default_value = "remu")]
+    pub platform: Platform,
 
     /// Difftest Option
     #[arg(long, value_name = "REF")]

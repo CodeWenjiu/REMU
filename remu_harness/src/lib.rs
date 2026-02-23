@@ -11,6 +11,8 @@ pub use remu_simulator::{
 };
 use remu_types::{AllUsize, DifftestMismatchItem, RegGroup};
 pub use remu_simulator_remu::SimulatorRemu;
+pub use remu_simulator_nzea::SimulatorNzea;
+pub use remu_simulator_spike::SimulatorSpike;
 pub use remu_state::StateCmd;
 pub use remu_state::bus::ObserverEvent;
 pub use remu_types::ExitCode;

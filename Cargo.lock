@@ -1345,7 +1345,6 @@ version = "0.1.0"
 dependencies = [
  "remu_debugger",
  "remu_harness",
- "remu_simulator_spike",
  "remu_state",
  "remu_types",
  "target-lexicon",
@@ -1413,7 +1412,9 @@ dependencies = [
  "clap",
  "remu_macro",
  "remu_simulator",
+ "remu_simulator_nzea",
  "remu_simulator_remu",
+ "remu_simulator_spike",
  "remu_state",
  "remu_types",
  "thiserror",
@@ -1453,6 +1454,7 @@ dependencies = [
 name = "remu_simulator_nzea"
 version = "0.1.0"
 dependencies = [
+ "cc",
  "remu_simulator",
  "remu_state",
  "remu_types",

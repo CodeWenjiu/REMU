@@ -14,10 +14,8 @@ remu_debugger = { path = "../remu_debugger" }
 remu_simulator = { path = "../remu_simulator" }
 
 tracing.workspace = true
-
 anyhow.workspace = true
 miette = { workspace = true, features = ["fancy"] }
-
 petgraph.workspace = true
 
 nu-ansi-term = "0.50.3"

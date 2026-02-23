@@ -10,6 +10,8 @@ remu_macro = { path = "../remu_macro" }
 
 remu_simulator = { path = "../remu_simulator" }
 remu_simulator_remu = { path = "../remu_simulator/simulators/remu" }
+remu_simulator_nzea = { path = "../remu_simulator/simulators/nzea" }
+remu_simulator_spike = { path = "../remu_simulator/simulators/spike" }
 
 tracing.workspace = true
 thiserror.workspace = true

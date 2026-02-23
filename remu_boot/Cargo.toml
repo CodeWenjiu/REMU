@@ -6,7 +6,6 @@ edition = "2024"
 [dependencies]
 remu_debugger = { path = "../remu_debugger" }
 remu_harness = { path = "../remu_harness" }
-remu_simulator_spike = { path = "../remu_simulator/simulators/spike" }
 remu_state = { path = "../remu_state" }
 remu_types = { path = "../remu_types" }
 target-lexicon = { workspace = true }

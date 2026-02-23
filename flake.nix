@@ -47,6 +47,8 @@
             clang
             libclang
             cmake
+            verilator
+            ccache
 
             mold
 
