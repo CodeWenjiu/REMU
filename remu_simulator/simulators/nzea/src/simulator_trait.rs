@@ -1,4 +1,6 @@
-//! Nzea simulator: minimal framework; DPI bus_read/bus_write dispatch to State via dpi module.
+//! Nzea simulator: DPI bus_read/bus_write dispatch via global pointer; lifecycle only at init/drop.
+
+use std::ffi::c_void;
 
 use remu_state::State;
 use remu_types::TracerDyn;
@@ -7,12 +9,14 @@ use remu_simulator::{
     SimulatorCore, SimulatorDut, SimulatorOption, SimulatorPolicy, SimulatorPolicyOf,
 };
 
-use crate::dpi::{self, DpiBus};
+use crate::dpi::{self, NzeaDpi};
+use crate::nzea_ffi;
 
-/// Nzea simulator instance. Holds CPU/memory state; step logic to be implemented.
-pub struct SimulatorNzea<P: SimulatorPolicy, const IS_DUT: bool> {
+pub struct SimulatorNzea<P: SimulatorPolicy + 'static, const IS_DUT: bool> {
     state: State<P>,
+    sim_ptr: *mut c_void,
     _tracer: TracerDyn,
+    nzea_registered: std::cell::Cell<bool>,
 }
 
 impl<P: SimulatorPolicy, const IS_DUT: bool> SimulatorPolicyOf for SimulatorNzea<P, IS_DUT> {
@@ -21,10 +25,26 @@ impl<P: SimulatorPolicy, const IS_DUT: bool> SimulatorPolicyOf for SimulatorNzea
 
 impl<P: SimulatorPolicy + 'static, const IS_DUT: bool> SimulatorCore<P> for SimulatorNzea<P, IS_DUT> {
     fn new(opt: SimulatorOption, tracer: TracerDyn) -> Self {
-        crate::nzea_ffi::Nzea::init();
+        let sim_ptr = unsafe { nzea_ffi::nzea_create() };
+        assert!(!sim_ptr.is_null(), "nzea_create failed");
+
+        unsafe {
+            nzea_ffi::nzea_set_reset(sim_ptr, 1);
+            for _ in 0..100 {
+                nzea_ffi::nzea_set_clock(sim_ptr, 0);
+                nzea_ffi::nzea_eval(sim_ptr);
+                nzea_ffi::nzea_set_clock(sim_ptr, 1);
+                nzea_ffi::nzea_eval(sim_ptr);
+            }
+            nzea_ffi::nzea_set_reset(sim_ptr, 0);
+        }
+
+        let state = State::new(opt.state.clone(), tracer.clone(), IS_DUT);
         Self {
-            state: State::new(opt.state.clone(), tracer.clone(), IS_DUT),
+            state,
+            sim_ptr,
             _tracer: tracer,
+            nzea_registered: std::cell::Cell::new(false),
         }
     }
 
@@ -38,25 +58,25 @@ impl<P: SimulatorPolicy + 'static, const IS_DUT: bool> SimulatorCore<P> for Simu
 
     fn step_once<const ITRACE: bool>(&mut self) -> Result<(), remu_simulator::SimulatorInnerError> {
         let _ = ITRACE;
-        self.set_dpi_bus_for_step();
-        crate::nzea_ffi::Nzea::step();
-        Self::clear_dpi_bus_for_step();
+        if !self.nzea_registered.get() {
+            unsafe { dpi::set_nzea(self as *mut Self as *mut dyn NzeaDpi); }
+            self.nzea_registered.set(true);
+        }
+        unsafe {
+            nzea_ffi::nzea_set_clock(self.sim_ptr, 0);
+            nzea_ffi::nzea_eval(self.sim_ptr);
+            nzea_ffi::nzea_set_clock(self.sim_ptr, 1);
+            nzea_ffi::nzea_eval(self.sim_ptr);
+        }
         Ok(())
     }
 }
 
-impl<P: SimulatorPolicy + 'static, const IS_DUT: bool> SimulatorNzea<P, IS_DUT> {
-    /// Set the global DPI bus context to this simulator's state. Call before driving Verilator RTL.
-    pub fn set_dpi_bus_for_step(&mut self) {
+impl<P: SimulatorPolicy + 'static, const IS_DUT: bool> Drop for SimulatorNzea<P, IS_DUT> {
+    fn drop(&mut self) {
         unsafe {
-            dpi::set_dpi_bus(self.state_mut() as *mut State<P> as *mut dyn DpiBus);
-        }
-    }
-
-    /// Clear the global DPI bus context. Call after driving Verilator RTL.
-    pub fn clear_dpi_bus_for_step() {
-        unsafe {
-            dpi::clear_dpi_bus();
+            nzea_ffi::nzea_destroy(self.sim_ptr);
+            dpi::clear_nzea();
         }
     }
 }
