@@ -1,0 +1,12 @@
+[package]
+name = "remu_simulator_nzea"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+remu_simulator = { path = "../.." }
+remu_types = { path = "../../../remu_types" }
+remu_state = { path = "../../../remu_state" }
+
+thiserror.workspace = true
+tracing.workspace = true
