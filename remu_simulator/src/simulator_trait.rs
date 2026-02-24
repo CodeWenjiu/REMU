@@ -8,6 +8,9 @@ use crate::policy::SimulatorPolicy;
 pub trait SimulatorCore<P: StatePolicy> {
     fn new(opt: SimulatorOption, tracer: TracerDyn) -> Self;
 
+    #[inline(always)]
+    fn init(&mut self) {}
+
     fn state(&self) -> &State<P>;
 
     fn state_mut(&mut self) -> &mut State<P>;

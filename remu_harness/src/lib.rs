@@ -55,9 +55,13 @@ where
     R: SimulatorRef<D::Policy>,
 {
     pub fn new(opt: HarnessOption, tracer: TracerDyn, interrupt: Arc<AtomicBool>) -> Self {
+        let mut dut_model = D::new(opt.sim.clone(), tracer.clone());
+        let mut ref_model = R::new(opt.sim, tracer);
+        dut_model.init();
+        ref_model.init();
         Self {
-            dut_model: D::new(opt.sim.clone(), tracer.clone()),
-            ref_model: R::new(opt.sim, tracer),
+            dut_model,
+            ref_model,
             func: func::Func::new(),
             interrupt,
             run_state: RunState::Idle,

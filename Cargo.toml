@@ -49,3 +49,5 @@ target-lexicon = "0.13.4"
 
 criterion = "0.5.1"
 pprof = "0.15.0"
+
+cc = "1.2.55"

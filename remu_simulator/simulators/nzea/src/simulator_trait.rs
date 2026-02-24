@@ -16,7 +16,6 @@ pub struct SimulatorNzea<P: SimulatorPolicy + 'static, const IS_DUT: bool> {
     state: State<P>,
     sim_ptr: *mut c_void,
     _tracer: TracerDyn,
-    nzea_registered: std::cell::Cell<bool>,
 }
 
 impl<P: SimulatorPolicy, const IS_DUT: bool> SimulatorPolicyOf for SimulatorNzea<P, IS_DUT> {
@@ -28,23 +27,25 @@ impl<P: SimulatorPolicy + 'static, const IS_DUT: bool> SimulatorCore<P> for Simu
         let sim_ptr = unsafe { nzea_ffi::nzea_create() };
         assert!(!sim_ptr.is_null(), "nzea_create failed");
 
-        unsafe {
-            nzea_ffi::nzea_set_reset(sim_ptr, 1);
-            for _ in 0..100 {
-                nzea_ffi::nzea_set_clock(sim_ptr, 0);
-                nzea_ffi::nzea_eval(sim_ptr);
-                nzea_ffi::nzea_set_clock(sim_ptr, 1);
-                nzea_ffi::nzea_eval(sim_ptr);
-            }
-            nzea_ffi::nzea_set_reset(sim_ptr, 0);
-        }
-
         let state = State::new(opt.state.clone(), tracer.clone(), IS_DUT);
         Self {
             state,
             sim_ptr,
             _tracer: tracer,
-            nzea_registered: std::cell::Cell::new(false),
+        }
+    }
+
+    fn init(&mut self) {
+        unsafe { dpi::set_nzea(self as *mut Self as *mut dyn NzeaDpi); }
+        unsafe {
+            nzea_ffi::nzea_set_reset(self.sim_ptr, 1);
+            for _ in 0..100 {
+                nzea_ffi::nzea_set_clock(self.sim_ptr, 0);
+                nzea_ffi::nzea_eval(self.sim_ptr);
+                nzea_ffi::nzea_set_clock(self.sim_ptr, 1);
+                nzea_ffi::nzea_eval(self.sim_ptr);
+            }
+            nzea_ffi::nzea_set_reset(self.sim_ptr, 0);
         }
     }
 
@@ -58,10 +59,6 @@ impl<P: SimulatorPolicy + 'static, const IS_DUT: bool> SimulatorCore<P> for Simu
 
     fn step_once<const ITRACE: bool>(&mut self) -> Result<(), remu_simulator::SimulatorInnerError> {
         let _ = ITRACE;
-        if !self.nzea_registered.get() {
-            unsafe { dpi::set_nzea(self as *mut Self as *mut dyn NzeaDpi); }
-            self.nzea_registered.set(true);
-        }
         unsafe {
             nzea_ffi::nzea_set_clock(self.sim_ptr, 0);
             nzea_ffi::nzea_eval(self.sim_ptr);
