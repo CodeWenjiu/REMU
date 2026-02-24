@@ -83,7 +83,7 @@ pub(crate) fn decode<P: remu_state::StatePolicy>(inst: u32) -> DecodedInst {
         let f3 = funct3(inst);
         let m = mop(inst);
         let nf_val = nf(inst);
-        // 整寄存器加载：mop=0, nf=0, vm=1, lumop=VL1R；按 funct3 区分 EEW，目前只实现 e16
+        // Integer register load: mop=0, nf=0, vm=1, lumop=VL1R; EEW by funct3, only e16 implemented
         if m == 0 && nf_val == 0 && vm(inst) == 1 && lumop(inst) == lumop::VL1R {
             if f3 == func3::WIDTH_16 {
                 return DecodedInst {
@@ -94,7 +94,7 @@ pub(crate) fn decode<P: remu_state::StatePolicy>(inst: u32) -> DecodedInst {
                     inst: Inst::LoadFp(LoadFpInst::Vl1re16),
                 };
             }
-            // vl1re8 / vl1re32 等可在此按 f3 扩展
+            // vl1re8 / vl1re32 etc. can be extended here by f3
         }
         let w = inst & MASK_VL2RE_V;
         if w == MATCH_VL2RE16_V || w == 0x22800007 {

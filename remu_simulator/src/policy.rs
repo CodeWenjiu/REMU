@@ -7,7 +7,7 @@ impl<ISA> SimulatorPolicy for StateFastProfile<ISA> where ISA: RvIsa {}
 
 impl<ISA> SimulatorPolicy for StateMmioProfile<ISA> where ISA: RvIsa {}
 
-/// 从具体模拟器类型中取出其使用的 `SimulatorPolicy`，供 Harness 等在不显式写泛型 P 时约束 D/R。
+/// Extracts the `SimulatorPolicy` used by a concrete simulator type, for Harness etc. to constrain D/R without explicit P.
 pub trait SimulatorPolicyOf {
     type Policy: SimulatorPolicy;
 }

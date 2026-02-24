@@ -85,7 +85,7 @@ pub(crate) fn decode<P: remu_state::StatePolicy>(inst: u32) -> DecodedInst {
                 },
                 _ => return DecodedInst::default(),
             },
-            // 向量扩展家族 (Funct6 = 010010)，zext 偶数 rs1、sext 奇数 rs1
+            // Vector extension family (Funct6 = 010010): zext even rs1, sext odd rs1
             0b010010 => match rs1(inst) {
                 0b00100 => DecodedInst {
                     rd: rd(inst),
@@ -101,7 +101,7 @@ pub(crate) fn decode<P: remu_state::StatePolicy>(inst: u32) -> DecodedInst {
                     imm: vm(inst) as u32,
                     inst: Inst::V(VInst::OpMvv(OpMvvInst::Vsext_vf4)),
                 },
-                // 0b00010 vzext.vf8, 0b00011 vsext.vf8, 0b00110 vzext.vf2, 0b00111 vsext.vf2 预留
+                // 0b00010 vzext.vf8, 0b00011 vsext.vf8, 0b00110 vzext.vf2, 0b00111 vsext.vf2 reserved
                 _ => return DecodedInst::default(),
             },
             0b011010 if vm(inst) == 1 => DecodedInst {

@@ -16,8 +16,8 @@ pub trait SimulatorCore<P: StatePolicy> {
     fn state_mut(&mut self) -> &mut State<P>;
 
     #[inline(always)]
-    fn step_once<const ITRACE: bool>(&mut self) -> Result<(), SimulatorInnerError> {
-        let _ = self;
+    fn step_once<const TRACE: u64>(&mut self) -> Result<(), SimulatorInnerError> {
+        let _ = TRACE;
         Ok(())
     }
 

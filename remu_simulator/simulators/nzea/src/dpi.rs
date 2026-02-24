@@ -1,4 +1,4 @@
-//! DPI-C bus_read/bus_write: 通过全局 NZEA 指针调用 SimulatorNzea.state。
+//! DPI-C bus_read/bus_write: dispatch via global NZEA pointer to SimulatorNzea.state.
 
 use remu_simulator::{SimulatorCore, SimulatorPolicy};
 

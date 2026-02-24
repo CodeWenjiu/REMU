@@ -51,7 +51,7 @@ impl<C: CsrConfig> std::fmt::Debug for Csr<C> {
 }
 
 impl<C: CsrConfig> Csr<C> {
-    // --- mstatus 位 (RISC-V Privileged) ---
+    // --- mstatus bits (RISC-V Privileged) ---
     const MSTATUS_MIE: u32 = 1 << 3;
     const MSTATUS_MPIE: u32 = 1 << 7;
     const MSTATUS_MPP_MASK: u32 = 3 << 11;

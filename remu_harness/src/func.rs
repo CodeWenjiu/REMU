@@ -1,4 +1,5 @@
 use remu_simulator::{FuncCmd, TraceCmd};
+use remu_types::TraceFlags;
 
 #[derive(Debug)]
 pub(crate) struct Func {
@@ -22,17 +23,20 @@ impl Func {
 
 #[derive(Debug)]
 pub(crate) struct Trace {
-    pub instruction: bool,
+    pub flags: TraceFlags,
 }
 
 impl Trace {
     fn new() -> Self {
-        Self { instruction: false }
+        Self {
+            flags: TraceFlags::new(),
+        }
     }
 
     fn execute(&mut self, command: &TraceCmd) {
         match command {
-            TraceCmd::Instruction { enable } => self.instruction = *enable,
+            TraceCmd::Instruction { enable } => self.flags.set_instruction(*enable),
+            TraceCmd::Wavetrace { enable } => self.flags.set_wavetrace(*enable),
         }
     }
 }

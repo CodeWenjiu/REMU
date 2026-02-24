@@ -110,13 +110,14 @@ impl<P: SimulatorPolicy, const IS_DUT: bool> SimulatorCore<P> for SimulatorRemu<
     }
 
     #[inline(always)]
-    fn step_once<const ITRACE: bool>(&mut self) -> Result<(), SimulatorInnerError> {
+    fn step_once<const TRACE: u64>(&mut self) -> Result<(), SimulatorInnerError> {
+        use remu_types::TraceFlags;
         let pc = *self.state.reg.pc;
         let entry = self.icache.get_entry_mut(pc);
         if entry.addr == pc {
             let decoded = entry.decoded;
             self.execute_inst(&decoded).map_err(from_state_error)?;
-            if ITRACE && IS_DUT {
+            if TraceFlags::instruction(TRACE) && IS_DUT {
                 let inst = if let Some(&orig) = self.breakpoints.get(&pc) {
                     orig
                 } else {
@@ -136,7 +137,7 @@ impl<P: SimulatorPolicy, const IS_DUT: bool> SimulatorCore<P> for SimulatorRemu<
             .bus
             .read_32(pc as usize)
             .map_err(|e| from_state_error(StateError::from(e)))?;
-        if ITRACE && IS_DUT {
+        if TraceFlags::instruction(TRACE) && IS_DUT {
             let trace_inst = if let Some(&orig) = self.breakpoints.get(&pc) {
                 orig
             } else {

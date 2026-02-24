@@ -20,7 +20,7 @@ pprof = { workspace = true, features = [ "criterion", "flamegraph" ] }
 
 [[bench]]
 name = "bus_read"
-harness = false # 必须关掉默认 harness
+harness = false # Disable default harness
 
 [[bench]]
 name = "bus_write"

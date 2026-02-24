@@ -36,7 +36,7 @@ pub enum RegCmd {
         subcmd: GprRegCmd,
     },
 
-    /// Floating-point Registers (f0–f31 / ft0, fa0, fs0 等 ABI 名)
+    /// Floating-point Registers (f0–f31 / ft0, fa0, fs0 etc. ABI names)
     Fpr {
         #[command(subcommand)]
         subcmd: FprRegCmd,
@@ -94,7 +94,7 @@ pub enum FprRegCmd {
         range: Range<usize>,
     },
 
-    /// 写单个 FPR（可用 ABI 名如 fa0 或 f10）
+    /// Write a single FPR (supports ABI names like fa0 or f10)
     Write {
         #[arg()]
         index: Fpr,

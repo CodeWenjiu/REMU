@@ -1,5 +1,5 @@
 remu_macro::mod_pub!(isa);
-remu_macro::mod_flat!(difftest, exit_code, platform, wordlen);
+remu_macro::mod_flat!(difftest, exit_code, platform, trace_flags, wordlen);
 
 pub use exit_code::ExitCode;
 

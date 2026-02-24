@@ -74,9 +74,9 @@ where
     }
 
     #[inline(always)]
-    fn step_once<const ITRACE: bool>(&mut self) -> Result<(), SimulatorError> {
+    fn step_once<const TRACE: u64>(&mut self) -> Result<(), SimulatorError> {
         self.dut_model
-            .step_once::<ITRACE>()
+            .step_once::<TRACE>()
             .map_err(SimulatorError::Dut)?;
         if R::ENABLE {
             let events = self.dut_model.state_mut().bus.take_observer_events();
@@ -95,7 +95,7 @@ where
                 return Ok(());
             }
             self.ref_model
-                .step_once::<false>()
+                .step_once::<0>()
                 .map_err(SimulatorError::Ref)?;
             let mut diff = self.ref_model.regs_diff(self.dut_model.state());
             for (addr, dut_data) in &mem_writes {
@@ -165,21 +165,24 @@ where
     /// Uses the harness's `interrupt` and `run_state`; sets `run_state` to `Exit` on program exit.
     /// Returns `Ok(RunOutcome::ProgramExit(code))` when program exited; `Ok(RunOutcome::Done)` when stopped without exit.
     /// Returns `Err(HarnessError::Interrupted)` when `interrupt` was set.
-    /// Instruction-trace flag is read once and fixed for the whole run.
+    /// Trace flags are read once and fixed for the whole run.
     pub fn run_steps(&mut self, max_steps: Option<usize>) -> Result<RunOutcome, HarnessError> {
         const BATCH: usize = 4096;
         if self.run_state == RunState::Exit {
             return Ok(RunOutcome::Done);
         }
-        if self.func.trace.instruction {
-            self.run_steps_impl::<true>(max_steps, BATCH)
-        } else {
-            self.run_steps_impl::<false>(max_steps, BATCH)
+        let trace = self.func.trace.flags.bits();
+        match trace {
+            0 => self.run_steps_impl::<0>(max_steps, BATCH),
+            1 => self.run_steps_impl::<1>(max_steps, BATCH),
+            2 => self.run_steps_impl::<2>(max_steps, BATCH),
+            3 => self.run_steps_impl::<3>(max_steps, BATCH),
+            _ => self.run_steps_impl::<0>(max_steps, BATCH), // Fallback for unknown trace combo
         }
     }
 
     #[inline(always)]
-    fn run_steps_impl<const ITRACE: bool>(
+    fn run_steps_impl<const TRACE: u64>(
         &mut self,
         max_steps: Option<usize>,
         batch: usize,
@@ -197,7 +200,7 @@ where
                 .map(|limit| (limit - steps).min(batch))
                 .unwrap_or(batch);
             for _ in 0..to_run {
-                match self.step_once::<ITRACE>() {
+                match self.step_once::<TRACE>() {
                     Ok(()) => steps += 1,
                     Err(SimulatorError::Dut(SimulatorInnerError::ProgramExit(exit_code))) => {
                         self.run_state = RunState::Exit;

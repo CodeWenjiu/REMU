@@ -19,6 +19,11 @@ pub enum TraceCmd {
         #[arg(value_parser = parse_switch, action = ArgAction::Set)]
         enable: bool,
     },
+    /// Wave Trace
+    Wavetrace {
+        #[arg(value_parser = parse_switch, action = ArgAction::Set)]
+        enable: bool,
+    },
 }
 
 fn parse_switch(s: &str) -> Result<bool, String> {

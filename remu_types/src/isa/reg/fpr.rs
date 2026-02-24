@@ -1,5 +1,5 @@
-//! RISC-V 浮点寄存器及 ABI 名称（与 GPR 对应：ft0/fa0/fs0 等）  
-//! 映射见 RISC-V ELF psABI：ft0–ft7, fs0–fs1, fa0–fa7, fs2–fs11, ft8–ft11
+//! RISC-V floating-point registers and ABI names (ft0/fa0/fs0 etc., matching GPR layout).
+//! Mapping follows RISC-V ELF psABI: ft0–ft7, fs0–fs1, fa0–fa7, fs2–fs11, ft8–ft11.
 
 use strum::{Display, EnumString, FromRepr};
 

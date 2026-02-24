@@ -1,9 +1,9 @@
 //! Nzea simulator: DPI bus_read/bus_write dispatch via global pointer; lifecycle only at init/drop.
 
-use std::ffi::c_void;
+use std::ffi::{CString, c_void};
 
 use remu_state::State;
-use remu_types::TracerDyn;
+use remu_types::{TraceFlags, TracerDyn};
 
 use remu_simulator::{
     SimulatorCore, SimulatorDut, SimulatorOption, SimulatorPolicy, SimulatorPolicyOf,
@@ -22,7 +22,9 @@ impl<P: SimulatorPolicy, const IS_DUT: bool> SimulatorPolicyOf for SimulatorNzea
     type Policy = P;
 }
 
-impl<P: SimulatorPolicy + 'static, const IS_DUT: bool> SimulatorCore<P> for SimulatorNzea<P, IS_DUT> {
+impl<P: SimulatorPolicy + 'static, const IS_DUT: bool> SimulatorCore<P>
+    for SimulatorNzea<P, IS_DUT>
+{
     fn new(opt: SimulatorOption, tracer: TracerDyn) -> Self {
         let sim_ptr = unsafe { nzea_ffi::nzea_create() };
         assert!(!sim_ptr.is_null(), "nzea_create failed");
@@ -36,7 +38,9 @@ impl<P: SimulatorPolicy + 'static, const IS_DUT: bool> SimulatorCore<P> for Simu
     }
 
     fn init(&mut self) {
-        unsafe { dpi::set_nzea(self as *mut Self as *mut dyn NzeaDpi); }
+        unsafe {
+            dpi::set_nzea(self as *mut Self as *mut dyn NzeaDpi);
+        }
         unsafe {
             nzea_ffi::nzea_set_reset(self.sim_ptr, 1);
             for _ in 0..100 {
@@ -46,6 +50,31 @@ impl<P: SimulatorPolicy + 'static, const IS_DUT: bool> SimulatorCore<P> for Simu
                 nzea_ffi::nzea_eval(self.sim_ptr);
             }
             nzea_ffi::nzea_set_reset(self.sim_ptr, 0);
+        }
+        unsafe {
+            // Write waveform to target/trace.fst, not next to the executable
+            let trace_path = std::env::var_os("CARGO_TARGET_DIR")
+                .map(std::path::PathBuf::from)
+                .or_else(|| {
+                    std::env::current_exe().ok().and_then(|p| {
+                        let exe_dir = p.parent()?;
+                        let target = exe_dir.parent()?;
+                        // When under target/debug or target/release, use target/trace.fst
+                        if exe_dir
+                            .file_name()
+                            .map(|n| n == "debug" || n == "release")
+                            .unwrap_or(false)
+                        {
+                            Some(target.to_path_buf())
+                        } else {
+                            Some(exe_dir.to_path_buf())
+                        }
+                    })
+                })
+                .map(|d| d.join("trace.fst"))
+                .unwrap_or_else(|| std::path::PathBuf::from("trace.fst"));
+            let path_c = CString::new(trace_path.to_string_lossy().as_ref()).unwrap();
+            nzea_ffi::nzea_trace_open(self.sim_ptr, path_c.as_ptr());
         }
     }
 
@@ -57,13 +86,25 @@ impl<P: SimulatorPolicy + 'static, const IS_DUT: bool> SimulatorCore<P> for Simu
         &mut self.state
     }
 
-    fn step_once<const ITRACE: bool>(&mut self) -> Result<(), remu_simulator::SimulatorInnerError> {
-        let _ = ITRACE;
+    fn step_once<const TRACE: u64>(&mut self) -> Result<(), remu_simulator::SimulatorInnerError> {
+        // NZEA must be updated before each step: when set_nzea runs in init(), dut_model is still
+        // a local in Harness::new; it is then moved into the Harness struct and the old address
+        // becomes invalid. In step_once, self is the final location, so we must set it again.
+        unsafe {
+            dpi::set_nzea(self as *mut Self as *mut dyn NzeaDpi);
+        }
+        let do_wavetrace = TraceFlags::wavetrace(TRACE) && IS_DUT;
         unsafe {
             nzea_ffi::nzea_set_clock(self.sim_ptr, 0);
             nzea_ffi::nzea_eval(self.sim_ptr);
+            if do_wavetrace {
+                nzea_ffi::nzea_trace_dump(self.sim_ptr);
+            }
             nzea_ffi::nzea_set_clock(self.sim_ptr, 1);
             nzea_ffi::nzea_eval(self.sim_ptr);
+            if do_wavetrace {
+                nzea_ffi::nzea_trace_dump(self.sim_ptr);
+            }
         }
         Ok(())
     }

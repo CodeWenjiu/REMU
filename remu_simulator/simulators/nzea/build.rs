@@ -1,6 +1,6 @@
-//! Build script for nzea simulator: 1) nzea just run 生成 Verilog；2) verilator --build 完成 RTL 编译；
-//! 3) 仅编译 nzea_wrapper.cpp 并链接 Verilator 生成的 libVTop.a、libverilated.a。
-//! Verilator 头文件用 -isystem 视为系统头，抑制其内部警告。
+//! Build script for nzea simulator: 1) nzea just run generates Verilog; 2) verilator --build compiles RTL;
+//! 3) compile nzea_wrapper.cpp and link with Verilator's libVTop.a, libverilated.a.
+//! Verilator headers use -isystem to suppress internal warnings.
 
 use std::env;
 use std::path::{Path, PathBuf};
@@ -20,7 +20,7 @@ fn find_workspace_root(manifest_dir: &Path) -> PathBuf {
     manifest_dir.to_path_buf()
 }
 
-/// Verilator include 路径（VTop.h 里的 verilated.h 需要）。优先 VERILATOR_ROOT，否则从 which verilator 推导。
+/// Verilator include path (for verilated.h in VTop.h). Prefer VERILATOR_ROOT, else derive from which verilator.
 fn find_verilator_include() -> Option<PathBuf> {
     if let Ok(root) = env::var("VERILATOR_ROOT") {
         let inc = PathBuf::from(&root).join("include");
@@ -61,7 +61,7 @@ fn main() {
 
     if !justfile.exists() {
         panic!(
-            "nzea 未正确构建。justfile 未找到: {}（可设置 NZEA_DIR）",
+            "nzea build failed: justfile not found: {} (set NZEA_DIR if needed)",
             justfile.display()
         );
     }
@@ -111,7 +111,7 @@ fn main() {
         let out_dir_escaped = out_dir.as_os_str().to_string_lossy().replace('\'', "'\"'\"'");
         let files_arg = sv_files.join(" ");
         let verilator_cmd = format!(
-            "cd '{}' && verilator --cc --build --Mdir verilator_build --top-module Top {}",
+            "cd '{}' && verilator --cc --build --trace-fst --Mdir verilator_build --top-module Top {}",
             out_dir_escaped, files_arg
         );
 
@@ -136,7 +136,7 @@ fn main() {
                 let v_include = match find_verilator_include() {
                     Some(p) => p,
                     None => {
-                        eprintln!("cargo:warning=Verilator include 未找到，可设置 VERILATOR_ROOT");
+                        eprintln!("cargo:warning=Verilator include not found, set VERILATOR_ROOT");
                         return;
                     }
                 };
@@ -144,7 +144,7 @@ fn main() {
                 let wrapper_src = manifest_dir.join("c_src").join("nzea_wrapper.cpp");
                 let opt = match env::var("PROFILE").as_deref() {
                     Ok("release") => 3,
-                    _ => 1, // debug 用 -O1 避免 _FORTIFY_SOURCE 等警告
+                    _ => 1, // -O1 for debug to avoid _FORTIFY_SOURCE etc.
                 };
 
                 let mut build = cc::Build::new();
@@ -166,6 +166,7 @@ fn main() {
                 println!("cargo:rustc-link-search=native={}", v_build.display());
                 println!("cargo:rustc-link-lib=static=VTop");
                 println!("cargo:rustc-link-lib=static=verilated");
+                println!("cargo:rustc-link-lib=z"); // FST waveform needs zlib
                 #[cfg(not(target_env = "msvc"))]
                 {
                     if cfg!(target_os = "macos") {
@@ -176,15 +177,22 @@ fn main() {
                 }
                 linked_real = true;
             } else {
-                eprintln!("cargo:warning=verilator --build 未生成 libVTop.a / libverilated.a");
+                eprintln!("cargo:warning=verilator --build did not produce libVTop.a / libverilated.a");
             }
         }
     }
 
     if !linked_real {
         panic!(
-            "nzea 未正确构建。请确保：1) nzea RTL 已生成（just run）；2) verilator 在 PATH 中"
+            "nzea build failed. Ensure: 1) nzea RTL is generated (just run); 2) verilator is in PATH"
         );
+    }
+
+    // Verilator may create files (e.g. verilator_include symlinks) with read-only permissions,
+    // causing "Permission denied" when cargo clean tries to remove them. Fix before exit.
+    #[cfg(unix)]
+    {
+        let _ = Command::new("chmod").args(["-R", "u+w"]).arg(&out_dir).status();
     }
 
     println!("cargo:rerun-if-env-changed=NZEA_DIR");
