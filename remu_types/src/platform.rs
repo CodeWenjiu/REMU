@@ -9,6 +9,18 @@ pub enum Platform {
     Nzea = 3,
 }
 
+impl Platform {
+    /// Returns the platform name as a static string.
+    pub const fn as_str(&self) -> &'static str {
+        match self {
+            Platform::None => "none",
+            Platform::Remu => "remu",
+            Platform::Spike => "spike",
+            Platform::Nzea => "nzea",
+        }
+    }
+}
+
 impl FromStr for Platform {
     type Err = String;
 

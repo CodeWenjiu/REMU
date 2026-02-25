@@ -2,11 +2,12 @@
 
 use std::ffi::{CString, c_void};
 
-use remu_state::State;
+use remu_state::{State, StateCmd};
 use remu_types::{TraceFlags, TracerDyn};
 
 use remu_simulator::{
-    SimulatorCore, SimulatorDut, SimulatorOption, SimulatorPolicy, SimulatorPolicyOf,
+    from_state_error, SimulatorCore, SimulatorDut, SimulatorInnerError, SimulatorOption,
+    SimulatorPolicy, SimulatorPolicyOf,
 };
 
 use crate::dpi::{self, NzeaDpi};
@@ -106,6 +107,11 @@ impl<P: SimulatorPolicy + 'static, const IS_DUT: bool> SimulatorCore<P>
                 nzea_ffi::nzea_trace_dump(self.sim_ptr);
             }
         }
+        Ok(())
+    }
+
+    fn state_exec(&mut self, subcmd: &StateCmd) -> Result<(), SimulatorInnerError> {
+        self.state.execute(subcmd).map_err(from_state_error)?;
         Ok(())
     }
 }

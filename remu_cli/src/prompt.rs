@@ -2,8 +2,7 @@ use std::borrow::Cow;
 
 use reedline::{DefaultPrompt, DefaultPromptSegment, Prompt, PromptEditMode, PromptHistorySearch};
 
-pub const PROMPT_LEFT: &str = "remu ";
-pub const PROMPT_LEN: usize = PROMPT_LEFT.len() + 2;
+use remu_types::Platform;
 
 #[derive(Clone)]
 pub struct RemuPrompt {
@@ -67,10 +66,12 @@ impl Prompt for RemuPrompt {
     }
 }
 
-pub fn get_prompt() -> RemuPrompt {
+pub fn get_prompt(platform: Platform) -> RemuPrompt {
+    let prompt_left = format!("{} ", platform.as_str());
+    let prefix_len = prompt_left.len() + 2;
     let inner = DefaultPrompt::new(
-        DefaultPromptSegment::Basic(PROMPT_LEFT.into()),
+        DefaultPromptSegment::Basic(prompt_left.into()),
         DefaultPromptSegment::CurrentDateTime,
     );
-    RemuPrompt::new(inner, PROMPT_LEN)
+    RemuPrompt::new(inner, prefix_len)
 }

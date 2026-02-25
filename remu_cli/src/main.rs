@@ -14,13 +14,13 @@ use std::sync::atomic::{AtomicBool, Ordering};
 use remu_boot::boot;
 use remu_debugger::{DebuggerError, DebuggerOption, DebuggerRunner, ExitCode, RunOutcome};
 use remu_simulator::{SimulatorDut, SimulatorRef};
-use remu_types::TracerDyn;
+use remu_types::{Platform, TracerDyn};
 use std::error::Error;
 use std::{cell::RefCell, rc::Rc};
 
 remu_macro::mod_flat!(compeleter, highlighter, validator, prompt, tracer);
 
-fn get_editor() -> Reedline {
+fn get_editor(platform: Platform) -> Reedline {
     let history = Box::new(
         FileBackedHistory::with_file(300, "target/cli-history.txt".into())
             .expect("Error configuring history with file"),
@@ -64,7 +64,9 @@ fn get_editor() -> Reedline {
         .with_highlighter(highlighter)
         .with_completer(completer)
         .with_quick_completions(true)
-        .with_validator(Box::new(RemuValidator::new(PROMPT_LEN)))
+        .with_validator(Box::new(RemuValidator::new(
+            format!("{} ", platform.as_str()).len() + 2,
+        )))
         .with_menu(ReedlineMenu::EngineCompleter(completion_menu))
         .with_edit_mode(edit_mode)
         .with_hinter(Box::new(
@@ -109,8 +111,8 @@ impl DebuggerRunner for APPRunner {
             }
         }
 
-        let mut line_editor = get_editor();
-        let prompt = get_prompt();
+        let mut line_editor = get_editor(option.platform);
+        let prompt = get_prompt(option.platform);
 
         hello();
 

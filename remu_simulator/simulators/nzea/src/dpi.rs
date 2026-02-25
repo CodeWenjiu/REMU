@@ -56,10 +56,9 @@ fn nzea() -> *mut dyn NzeaDpi {
 
 #[unsafe(no_mangle)]
 pub extern "C" fn bus_read(addr: i32, rdata: *mut i32) {
-    if rdata.is_null() {
-        return;
-    }
-    let val = unsafe { (*nzea()).dpi_read_32(addr as usize) };
+    // addr is 32-bit; RISC-V 0x8000_0000 is negative as i32. Preserve bits via u32 to avoid sign-extension.
+    let addr_u = addr as u32 as usize;
+    let val = unsafe { (*nzea()).dpi_read_32(addr_u) };
     unsafe {
         *rdata = val as i32;
     }
@@ -67,7 +66,8 @@ pub extern "C" fn bus_read(addr: i32, rdata: *mut i32) {
 
 #[unsafe(no_mangle)]
 pub extern "C" fn bus_write(addr: i32, wdata: i32, wstrb: i32) {
+    let addr_u = addr as u32 as usize;
     unsafe {
-        (*nzea()).dpi_write_32(addr as usize, wdata as u32, wstrb as u32);
+        (*nzea()).dpi_write_32(addr_u, wdata as u32, wstrb as u32);
     }
 }
