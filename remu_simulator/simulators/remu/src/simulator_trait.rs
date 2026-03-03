@@ -91,7 +91,7 @@ impl<P: SimulatorPolicy, const IS_DUT: bool> SimulatorRemu<P, IS_DUT> {
 }
 
 impl<P: SimulatorPolicy, const IS_DUT: bool> SimulatorCore<P> for SimulatorRemu<P, IS_DUT> {
-    fn new(opt: SimulatorOption, tracer: TracerDyn) -> Self {
+    fn new(opt: SimulatorOption, tracer: TracerDyn, _interrupt: std::sync::Arc<std::sync::atomic::AtomicBool>) -> Self {
         Self {
             state: State::new(opt.state.clone(), tracer.clone(), IS_DUT),
             tracer,

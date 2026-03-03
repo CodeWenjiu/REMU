@@ -1,22 +1,27 @@
 //! Nzea simulator: DPI bus_read/bus_write dispatch via global pointer; lifecycle only at init/drop.
 
 use std::ffi::{CString, c_void};
+use std::sync::atomic::Ordering;
+use std::sync::Arc;
 
 use remu_state::{State, StateCmd};
 use remu_types::{TraceFlags, TracerDyn};
 
 use remu_simulator::{
-    from_state_error, SimulatorCore, SimulatorDut, SimulatorInnerError, SimulatorOption,
-    SimulatorPolicy, SimulatorPolicyOf,
+    SimulatorCore, SimulatorDut, SimulatorInnerError, SimulatorOption, SimulatorPolicy,
+    SimulatorPolicyOf, from_state_error,
 };
 
-use crate::dpi::{self, NzeaDpi};
+use crate::dpi::{self, CommitMsg, NzeaDpi};
 use crate::nzea_ffi;
+use remu_types::isa::reg::RegAccess;
 
 pub struct SimulatorNzea<P: SimulatorPolicy + 'static, const IS_DUT: bool> {
     state: State<P>,
     sim_ptr: *mut c_void,
-    _tracer: TracerDyn,
+    tracer: TracerDyn,
+    commit_buffer: Vec<CommitMsg>,
+    interrupt: Arc<std::sync::atomic::AtomicBool>,
 }
 
 impl<P: SimulatorPolicy, const IS_DUT: bool> SimulatorPolicyOf for SimulatorNzea<P, IS_DUT> {
@@ -26,7 +31,7 @@ impl<P: SimulatorPolicy, const IS_DUT: bool> SimulatorPolicyOf for SimulatorNzea
 impl<P: SimulatorPolicy + 'static, const IS_DUT: bool> SimulatorCore<P>
     for SimulatorNzea<P, IS_DUT>
 {
-    fn new(opt: SimulatorOption, tracer: TracerDyn) -> Self {
+    fn new(opt: SimulatorOption, tracer: TracerDyn, interrupt: Arc<std::sync::atomic::AtomicBool>) -> Self {
         let sim_ptr = unsafe { nzea_ffi::nzea_create() };
         assert!(!sim_ptr.is_null(), "nzea_create failed");
 
@@ -34,7 +39,9 @@ impl<P: SimulatorPolicy + 'static, const IS_DUT: bool> SimulatorCore<P>
         Self {
             state,
             sim_ptr,
-            _tracer: tracer,
+            tracer,
+            commit_buffer: Vec::new(),
+            interrupt,
         }
     }
 
@@ -95,6 +102,39 @@ impl<P: SimulatorPolicy + 'static, const IS_DUT: bool> SimulatorCore<P>
             dpi::set_nzea(self as *mut Self as *mut dyn NzeaDpi);
         }
         let do_wavetrace = TraceFlags::wavetrace(TRACE) && IS_DUT;
+        let mut cycle_count: u64 = 0;
+        while self.commit_buffer.is_empty() {
+            self.cycle(do_wavetrace);
+            cycle_count += 1;
+            if cycle_count % 1024 == 0 && self.interrupt.load(Ordering::Relaxed) {
+                self.interrupt.store(false, Ordering::Relaxed);
+                return Err(remu_simulator::SimulatorInnerError::Interrupted);
+            }
+        }
+        let msg = self.commit_buffer.remove(0);
+        if TraceFlags::instruction(TRACE) && IS_DUT {
+            let pc = *self.state.reg.pc;
+            let inst = self.state.bus.read_32(pc as usize).unwrap_or(0);
+            self.tracer.borrow().disasm(pc as u64, inst);
+        }
+        self.apply_commit(msg);
+        Ok(())
+    }
+
+    fn state_exec(&mut self, subcmd: &StateCmd) -> Result<(), SimulatorInnerError> {
+        self.state.execute(subcmd).map_err(from_state_error)?;
+        Ok(())
+    }
+}
+
+impl<P: SimulatorPolicy + 'static, const IS_DUT: bool> SimulatorNzea<P, IS_DUT> {
+    /// Push a commit from DPI; used by dpi_commit_trace.
+    pub(crate) fn push_commit_impl(&mut self, msg: CommitMsg) {
+        self.commit_buffer.push(msg);
+    }
+
+    /// Run one clock cycle (low + high phase).
+    fn cycle(&mut self, do_wavetrace: bool) {
         unsafe {
             nzea_ffi::nzea_set_clock(self.sim_ptr, 0);
             nzea_ffi::nzea_eval(self.sim_ptr);
@@ -107,12 +147,17 @@ impl<P: SimulatorPolicy + 'static, const IS_DUT: bool> SimulatorCore<P>
                 nzea_ffi::nzea_trace_dump(self.sim_ptr);
             }
         }
-        Ok(())
     }
 
-    fn state_exec(&mut self, subcmd: &StateCmd) -> Result<(), SimulatorInnerError> {
-        self.state.execute(subcmd).map_err(from_state_error)?;
-        Ok(())
+    /// Apply a commit to state (for difftest).
+    fn apply_commit(&mut self, msg: CommitMsg) {
+        *self.state.reg.pc = msg.next_pc;
+        if msg.gpr_addr < 32 && msg.gpr_addr != 0 {
+            self.state
+                .reg
+                .gpr
+                .raw_write(msg.gpr_addr as usize, msg.gpr_data);
+        }
     }
 }
 

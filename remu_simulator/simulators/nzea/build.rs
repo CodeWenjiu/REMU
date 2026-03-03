@@ -199,4 +199,10 @@ fn main() {
     println!("cargo:rerun-if-env-changed=VERILATOR_ROOT");
     println!("cargo:rerun-if-changed=build.rs");
     println!("cargo:rerun-if-changed=c_src/nzea_wrapper.cpp");
+    // Watch justfile and src/; avoid watching whole nzea (just run writes to target/ etc. and triggers rebuilds)
+    println!("cargo:rerun-if-changed={}", justfile.display());
+    let nzea_src = nzea_dir_abs.join("src");
+    if nzea_src.is_dir() {
+        println!("cargo:rerun-if-changed={}", nzea_src.display());
+    }
 }

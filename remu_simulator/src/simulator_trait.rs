@@ -1,3 +1,6 @@
+use std::sync::atomic::AtomicBool;
+use std::sync::Arc;
+
 use remu_state::{State, StateCmd, StatePolicy};
 use remu_types::{DifftestMismatchItem, TracerDyn};
 
@@ -6,7 +9,7 @@ use crate::error::SimulatorInnerError;
 use crate::policy::SimulatorPolicy;
 
 pub trait SimulatorCore<P: StatePolicy> {
-    fn new(opt: SimulatorOption, tracer: TracerDyn) -> Self;
+    fn new(opt: SimulatorOption, tracer: TracerDyn, interrupt: Arc<AtomicBool>) -> Self;
 
     #[inline(always)]
     fn init(&mut self) {}
@@ -82,7 +85,7 @@ pub trait SimulatorRef<P: SimulatorPolicy>: SimulatorCore<P> {
 }
 
 impl<P: StatePolicy> SimulatorCore<P> for () {
-    fn new(_opt: SimulatorOption, _tracer: TracerDyn) -> Self {
+    fn new(_opt: SimulatorOption, _tracer: TracerDyn, _interrupt: Arc<AtomicBool>) -> Self {
         ()
     }
 

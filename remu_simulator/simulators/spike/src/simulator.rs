@@ -35,7 +35,7 @@ impl<P: SimulatorPolicy> SimulatorPolicyOf for SimulatorSpike<P> {
 }
 
 impl<P: SimulatorPolicy> SimulatorCore<P> for SimulatorSpike<P> {
-    fn new(opt: SimulatorOption, tracer: TracerDyn) -> Self {
+    fn new(opt: SimulatorOption, tracer: TracerDyn, _interrupt: std::sync::Arc<std::sync::atomic::AtomicBool>) -> Self {
         let bus_option = opt.state.bus.clone();
 
         let mut memory: Vec<MemoryEntry> = bus_option

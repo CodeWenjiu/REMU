@@ -41,7 +41,16 @@ fn boot_with_isa_nzea<ISA, Run>(
     ISA: RvIsa,
     Run: DebuggerRunner,
 {
-    runner.run::<SimulatorNzea<StateFastProfile<ISA>, true>, ()>(option, interrupt);
+    match option.difftest {
+        None => runner.run::<SimulatorNzea<StateFastProfile<ISA>, true>, ()>(option, interrupt),
+        Some(DifftestRef::Remu) => runner.run::<
+            SimulatorNzea<StateMmioProfile<ISA>, true>,
+            SimulatorRemu<StateMmioProfile<ISA>, false>,
+        >(option, interrupt),
+        Some(DifftestRef::Spike) => {
+            panic!("nzea + difftest spike not supported yet")
+        }
+    }
 }
 
 pub fn boot<R: DebuggerRunner>(

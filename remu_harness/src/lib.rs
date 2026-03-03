@@ -55,8 +55,8 @@ where
     R: SimulatorRef<D::Policy>,
 {
     pub fn new(opt: HarnessOption, tracer: TracerDyn, interrupt: Arc<AtomicBool>) -> Self {
-        let mut dut_model = D::new(opt.sim.clone(), tracer.clone());
-        let mut ref_model = R::new(opt.sim, tracer);
+        let mut dut_model = D::new(opt.sim.clone(), tracer.clone(), Arc::clone(&interrupt));
+        let mut ref_model = R::new(opt.sim, tracer, Arc::clone(&interrupt));
         dut_model.init();
         ref_model.init();
         Self {
@@ -205,6 +205,10 @@ where
                     Err(SimulatorError::Dut(SimulatorInnerError::ProgramExit(exit_code))) => {
                         self.run_state = RunState::Exit;
                         return Ok(RunOutcome::ProgramExit(exit_code));
+                    }
+                    Err(SimulatorError::Dut(SimulatorInnerError::Interrupted))
+                    | Err(SimulatorError::Ref(SimulatorInnerError::Interrupted)) => {
+                        return Err(HarnessError::Interrupted);
                     }
                     Err(e) => return Err(HarnessError::from(e)),
                 }
