@@ -1,5 +1,22 @@
 //! Trace flag bits: each bit of u64 controls a trace option, avoiding generic constant explosion.
 
+/// Trace option kinds; each variant corresponds to a bit position in the TRACE u64.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[repr(u32)]
+pub enum TraceKind {
+    /// Bit 0: instruction trace (disassembly)
+    Instruction = 0,
+    /// Bit 1: waveform trace
+    Wavetrace = 1,
+}
+
+impl TraceKind {
+    #[inline(always)]
+    pub const fn bit(self) -> u64 {
+        1 << (self as u32)
+    }
+}
+
 /// Trace flag bits. Each bit corresponds to one trace feature.
 ///
 /// Bit layout:

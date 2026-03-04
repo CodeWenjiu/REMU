@@ -7,9 +7,9 @@ pub use run_state::RunState;
 
 pub use remu_simulator::{
     DifftestMismatchList, FuncCmd, SimulatorCore, SimulatorDut, SimulatorError,
-    SimulatorInnerError, SimulatorPolicy, SimulatorPolicyOf, SimulatorRef,
+    SimulatorInnerError, SimulatorPolicy, SimulatorPolicyOf, SimulatorRef, TraceCmd,
 };
-use remu_types::{AllUsize, DifftestMismatchItem, RegGroup};
+use remu_types::{AllUsize, DifftestMismatchItem, RegGroup, TraceKind};
 pub use remu_simulator_remu::SimulatorRemu;
 pub use remu_simulator_nzea::SimulatorNzea;
 pub use remu_simulator_spike::SimulatorSpike;
@@ -119,6 +119,13 @@ where
 
     pub fn func_exec(&mut self, subcmd: &FuncCmd) {
         self.func.execute(subcmd);
+        if let FuncCmd::Trace { subcmd: trace } = subcmd {
+            let (kind, enabled) = match trace {
+                TraceCmd::Instruction { enable } => (TraceKind::Instruction, *enable),
+                TraceCmd::Wavetrace { enable } => (TraceKind::Wavetrace, *enable),
+            };
+            self.dut_model.on_trace_change(kind, enabled);
+        }
     }
 
     pub fn state_exec(&mut self, subcmd: &StateCmd) -> Result<(), HarnessError> {

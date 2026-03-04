@@ -2,7 +2,7 @@ use std::sync::atomic::AtomicBool;
 use std::sync::Arc;
 
 use remu_state::{State, StateCmd, StatePolicy};
-use remu_types::{DifftestMismatchItem, TracerDyn};
+use remu_types::{DifftestMismatchItem, TraceKind, TracerDyn};
 
 use crate::SimulatorOption;
 use crate::error::SimulatorInnerError;
@@ -13,6 +13,13 @@ pub trait SimulatorCore<P: StatePolicy> {
 
     #[inline(always)]
     fn init(&mut self) {}
+
+    /// Callback when a trace option is toggled via func. Upper layer calls this after applying the change.
+    /// Default: no-op. Simulators (e.g. nzea) may open waveform file on first Wavetrace enable.
+    #[inline(always)]
+    fn on_trace_change(&mut self, _kind: TraceKind, _enabled: bool) {
+        let _ = (_kind, _enabled);
+    }
 
     fn state(&self) -> &State<P>;
 

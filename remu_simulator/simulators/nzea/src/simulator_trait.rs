@@ -1,11 +1,11 @@
 //! Nzea simulator: DPI bus_read/bus_write dispatch via global pointer; lifecycle only at init/drop.
 
 use std::ffi::{CString, c_void};
-use std::sync::atomic::Ordering;
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
 
 use remu_state::{State, StateCmd};
-use remu_types::{TraceFlags, TracerDyn};
+use remu_types::{TraceFlags, TraceKind, TracerDyn};
 
 use remu_simulator::{
     SimulatorCore, SimulatorDut, SimulatorInnerError, SimulatorOption, SimulatorPolicy,
@@ -15,6 +15,10 @@ use remu_simulator::{
 use crate::dpi::{self, CommitMsg, NzeaDpi};
 use crate::nzea_ffi;
 use remu_types::isa::reg::RegAccess;
+
+/// True after the first time wavetrace is enabled in this process; then we do not open trace.fst again,
+/// so a later run with wavetrace off does not overwrite the file.
+static WAVETRACE_FILE_OPENED: AtomicBool = AtomicBool::new(false);
 
 pub struct SimulatorNzea<P: SimulatorPolicy + 'static, const IS_DUT: bool> {
     state: State<P>,
@@ -59,31 +63,8 @@ impl<P: SimulatorPolicy + 'static, const IS_DUT: bool> SimulatorCore<P>
             }
             nzea_ffi::nzea_set_reset(self.sim_ptr, 0);
         }
-        unsafe {
-            // Write waveform to target/trace.fst, not next to the executable
-            let trace_path = std::env::var_os("CARGO_TARGET_DIR")
-                .map(std::path::PathBuf::from)
-                .or_else(|| {
-                    std::env::current_exe().ok().and_then(|p| {
-                        let exe_dir = p.parent()?;
-                        let target = exe_dir.parent()?;
-                        // When under target/debug or target/release, use target/trace.fst
-                        if exe_dir
-                            .file_name()
-                            .map(|n| n == "debug" || n == "release")
-                            .unwrap_or(false)
-                        {
-                            Some(target.to_path_buf())
-                        } else {
-                            Some(exe_dir.to_path_buf())
-                        }
-                    })
-                })
-                .map(|d| d.join("trace.fst"))
-                .unwrap_or_else(|| std::path::PathBuf::from("trace.fst"));
-            let path_c = CString::new(trace_path.to_string_lossy().as_ref()).unwrap();
-            nzea_ffi::nzea_trace_open(self.sim_ptr, path_c.as_ptr());
-        }
+        // Waveform file is opened in on_trace_change() when Wavetrace is first enabled,
+        // so a run with wavetrace disabled does not overwrite an existing trace.fst.
     }
 
     fn state(&self) -> &State<P> {
@@ -101,10 +82,9 @@ impl<P: SimulatorPolicy + 'static, const IS_DUT: bool> SimulatorCore<P>
         unsafe {
             dpi::set_nzea(self as *mut Self as *mut dyn NzeaDpi);
         }
-        let do_wavetrace = TraceFlags::wavetrace(TRACE) && IS_DUT;
         let mut cycle_count: u64 = 0;
         while self.commit_buffer.is_empty() {
-            self.cycle(do_wavetrace);
+            self.cycle::<TRACE>();
             cycle_count += 1;
             if cycle_count % 1024 == 0 && self.interrupt.load(Ordering::Relaxed) {
                 self.interrupt.store(false, Ordering::Relaxed);
@@ -125,6 +105,22 @@ impl<P: SimulatorPolicy + 'static, const IS_DUT: bool> SimulatorCore<P>
         self.state.execute(subcmd).map_err(from_state_error)?;
         Ok(())
     }
+
+    fn on_trace_change(&mut self, kind: TraceKind, enabled: bool) {
+        if IS_DUT
+            && kind == TraceKind::Wavetrace
+            && enabled
+            && WAVETRACE_FILE_OPENED
+                .compare_exchange(false, true, Ordering::AcqRel, Ordering::Relaxed)
+                .is_ok()
+        {
+            let trace_path = Self::trace_path();
+            let path_c = CString::new(trace_path.to_string_lossy().as_ref()).unwrap();
+            unsafe {
+                nzea_ffi::nzea_trace_open(self.sim_ptr, path_c.as_ptr());
+            }
+        }
+    }
 }
 
 impl<P: SimulatorPolicy + 'static, const IS_DUT: bool> SimulatorNzea<P, IS_DUT> {
@@ -133,20 +129,43 @@ impl<P: SimulatorPolicy + 'static, const IS_DUT: bool> SimulatorNzea<P, IS_DUT> 
         self.commit_buffer.push(msg);
     }
 
-    /// Run one clock cycle (low + high phase).
-    fn cycle(&mut self, do_wavetrace: bool) {
+    /// Run one clock cycle (low + high phase). TRACE_CYCLE const selects whether to dump; trace_dump is DCE'd when false.
+    fn cycle<const TRACE_CYCLE: u64>(&mut self) {
         unsafe {
             nzea_ffi::nzea_set_clock(self.sim_ptr, 0);
             nzea_ffi::nzea_eval(self.sim_ptr);
-            if do_wavetrace {
+            if TraceFlags::wavetrace(TRACE_CYCLE) && IS_DUT {
                 nzea_ffi::nzea_trace_dump(self.sim_ptr);
             }
             nzea_ffi::nzea_set_clock(self.sim_ptr, 1);
             nzea_ffi::nzea_eval(self.sim_ptr);
-            if do_wavetrace {
+            if TraceFlags::wavetrace(TRACE_CYCLE) && IS_DUT {
                 nzea_ffi::nzea_trace_dump(self.sim_ptr);
             }
         }
+    }
+
+    /// Path for waveform file (target/trace.fst when under cargo, else trace.fst in cwd or exe dir).
+    fn trace_path() -> std::path::PathBuf {
+        std::env::var_os("CARGO_TARGET_DIR")
+            .map(std::path::PathBuf::from)
+            .or_else(|| {
+                std::env::current_exe().ok().and_then(|p| {
+                    let exe_dir = p.parent()?;
+                    let target = exe_dir.parent()?;
+                    if exe_dir
+                        .file_name()
+                        .map(|n| n == "debug" || n == "release")
+                        .unwrap_or(false)
+                    {
+                        Some(target.to_path_buf())
+                    } else {
+                        Some(exe_dir.to_path_buf())
+                    }
+                })
+            })
+            .map(|d| d.join("trace.fst"))
+            .unwrap_or_else(|| std::path::PathBuf::from("trace.fst"))
     }
 
     /// Apply a commit to state (for difftest).
