@@ -1,5 +1,6 @@
 use std::collections::HashMap;
 
+use remu_state::reg::riscv::RiscvReg;
 use remu_state::{State, StateCmd, StateError};
 use remu_types::{DifftestMismatchItem, RegGroup, TracerDyn};
 
@@ -110,6 +111,11 @@ impl<P: SimulatorPolicy, const IS_DUT: bool> SimulatorCore<P> for SimulatorRemu<
     }
 
     #[inline(always)]
+    fn take_observer_events(&mut self) -> Vec<remu_state::bus::ObserverEvent> {
+        SimulatorCore::state_mut(self).bus.take_observer_events()
+    }
+
+    #[inline(always)]
     fn step_once<const TRACE: u64>(&mut self) -> Result<(), SimulatorInnerError> {
         use remu_types::TraceFlags;
         let pc = *self.state.reg.pc;
@@ -153,23 +159,23 @@ impl<P: SimulatorPolicy, const IS_DUT: bool> SimulatorCore<P> for SimulatorRemu<
     }
 
     #[inline(always)]
-    fn sync_from(&mut self, dut: &State<P>) {
-        self.state.reg.pc = dut.reg.pc;
-        self.state.reg.gpr = dut.reg.gpr;
-        self.state.reg.fpr = dut.reg.fpr;
-        self.state.reg.vr = dut.reg.vr.clone();
-        self.state.reg.csr = dut.reg.csr.clone();
+    fn sync_regs_from(&mut self, reg: &RiscvReg<P::ISA>) {
+        self.state.reg.pc = reg.pc;
+        self.state.reg.gpr = reg.gpr;
+        self.state.reg.fpr = reg.fpr;
+        self.state.reg.vr = reg.vr.clone();
+        self.state.reg.csr = reg.csr.clone();
     }
 
     #[inline(always)]
-    fn regs_match(&self, dut: &State<P>) -> bool {
-        self.regs_diff(dut).is_empty()
+    fn regs_match(&self, dut_reg: &RiscvReg<P::ISA>) -> bool {
+        self.regs_diff(dut_reg).is_empty()
     }
 
-    fn regs_diff(&self, dut: &State<P>) -> Vec<DifftestMismatchItem> {
+    fn regs_diff(&self, dut_reg: &RiscvReg<P::ISA>) -> Vec<DifftestMismatchItem> {
         use remu_types::isa::reg::RegDiff;
         let mut out = Vec::new();
-        let (r, d) = (&self.state.reg, &dut.reg);
+        let (r, d) = (&self.state.reg, dut_reg);
         for (name, ref_val, dut_val) in
             <P::ISA as remu_types::isa::RvIsa>::PcState::diff(&r.pc, &d.pc)
         {

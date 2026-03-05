@@ -40,13 +40,6 @@ unsafe extern "C" {
         len: usize,
     );
 
-    pub fn spike_difftest_sync_mem(
-        ctx: SpikeDifftestCtx,
-        guest_base: usize,
-        data: *const u8,
-        len: usize,
-    );
-
     pub fn spike_difftest_read_mem(
         ctx: SpikeDifftestCtx,
         addr: usize,

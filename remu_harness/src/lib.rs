@@ -79,7 +79,7 @@ where
             .step_once::<TRACE>()
             .map_err(SimulatorError::Dut)?;
         if R::ENABLE {
-            let events = self.dut_model.state_mut().bus.take_observer_events();
+            let events = self.dut_model.take_observer_events();
             let mut need_sync = false;
             let mut mem_writes: Vec<(usize, Box<[u8]>)> = Vec::new();
             for e in &events {
@@ -91,13 +91,13 @@ where
                 }
             }
             if need_sync {
-                self.ref_model.sync_regs_from(self.dut_model.state());
+                self.ref_model.sync_regs_from(&self.dut_model.state().reg);
                 return Ok(());
             }
             self.ref_model
                 .step_once::<0>()
                 .map_err(SimulatorError::Ref)?;
-            let mut diff = self.ref_model.regs_diff(self.dut_model.state());
+            let mut diff = self.ref_model.regs_diff(&self.dut_model.state().reg);
             for (addr, dut_data) in &mem_writes {
                 if let Some(ref_bytes) =
                     self.ref_model.mem_compare(*addr, dut_data.as_ref())

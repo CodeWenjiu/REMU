@@ -75,6 +75,10 @@ impl<P: SimulatorPolicy + 'static, const IS_DUT: bool> SimulatorCore<P>
         &mut self.state
     }
 
+    fn take_observer_events(&mut self) -> Vec<remu_state::bus::ObserverEvent> {
+        self.state_mut().bus.take_observer_events()
+    }
+
     fn step_once<const TRACE: u64>(&mut self) -> Result<(), remu_simulator::SimulatorInnerError> {
         // NZEA must be updated before each step: when set_nzea runs in init(), dut_model is still
         // a local in Harness::new; it is then moved into the Harness struct and the old address

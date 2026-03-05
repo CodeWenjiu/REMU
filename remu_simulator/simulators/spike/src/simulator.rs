@@ -3,6 +3,7 @@ use std::marker::PhantomData;
 use std::os::raw::c_uint;
 
 use remu_state::bus::{BusOption, MemoryEntry, try_load_elf_into_memory};
+use remu_state::reg::riscv::RiscvReg;
 use remu_state::{State, StateCmd};
 use remu_types::isa::extension_v::VExtensionConfig;
 use remu_types::isa::reg::{Fpr, Gpr, RegAccess, VrState as VrStateTrait};
@@ -18,7 +19,7 @@ use crate::ffi::{
     spike_difftest_copy_mem, spike_difftest_fini, spike_difftest_get_csr, spike_difftest_get_fpr,
     spike_difftest_get_gpr_ptr, spike_difftest_get_pc_ptr, spike_difftest_get_vlenb,
     spike_difftest_get_vr_ptr, spike_difftest_init, spike_difftest_read_mem, spike_difftest_step,
-    spike_difftest_sync_regs_to_spike, spike_difftest_sync_mem, spike_difftest_sync_vr_to_spike,
+    spike_difftest_sync_regs_to_spike, spike_difftest_sync_vr_to_spike,
     spike_difftest_write_mem, spike_difftest_write_vr_reg, DifftestMemLayout, DifftestRegs,
     SpikeDifftestCtx,
 };
@@ -147,8 +148,8 @@ impl<P: SimulatorPolicy> SimulatorCore<P> for SimulatorSpike<P> {
         }
     }
 
-    fn sync_from(&mut self, dut: &State<P>) {
-        let regs = gpr_to_difftest_regs(dut);
+    fn sync_regs_from(&mut self, reg: &RiscvReg<P::ISA>) {
+        let regs = reg_to_difftest_regs::<P>(reg);
         if let Some(ctx) = self.ctx {
             unsafe { spike_difftest_sync_regs_to_spike(ctx, &regs) };
         }
@@ -158,29 +159,13 @@ impl<P: SimulatorPolicy> SimulatorCore<P> for SimulatorSpike<P> {
                 as usize;
         if vlenb > 0 {
             if let Some(ctx) = self.ctx {
-                let bytes = dut.reg.vr.raw_bytes();
+                let bytes = reg.vr.raw_bytes();
                 unsafe { spike_difftest_sync_vr_to_spike(ctx, bytes.as_ptr(), bytes.len()) };
             }
         }
-
-        if let Some(ctx) = self.ctx {
-            let raw_regions = dut.bus.mem_regions_for_sync();
-            for (base, host_ptr, size) in raw_regions {
-                unsafe {
-                    spike_difftest_sync_mem(ctx, base, host_ptr, size);
-                }
-            }
-        }
     }
 
-    fn sync_regs_from(&mut self, dut: &State<P>) {
-        let regs = gpr_to_difftest_regs(dut);
-        if let Some(ctx) = self.ctx {
-            unsafe { spike_difftest_sync_regs_to_spike(ctx, &regs) };
-        }
-    }
-
-    fn regs_diff(&self, dut: &State<P>) -> Vec<DifftestMismatchItem> {
+    fn regs_diff(&self, dut_reg: &RiscvReg<P::ISA>) -> Vec<DifftestMismatchItem> {
         let Some(ctx) = self.ctx else {
             return vec![];
         };
@@ -194,18 +179,18 @@ impl<P: SimulatorPolicy> SimulatorCore<P> for SimulatorSpike<P> {
         let mut out = Vec::new();
         let ref_pc = unsafe { *pc_ptr };
 
-        if ref_pc != *dut.reg.pc {
+        if ref_pc != *dut_reg.pc {
             out.push(DifftestMismatchItem {
                 group: RegGroup::Pc,
                 name: "pc".to_string(),
                 ref_val: AllUsize::U32(ref_pc),
-                dut_val: AllUsize::U32(*dut.reg.pc),
+                dut_val: AllUsize::U32(*dut_reg.pc),
             });
         }
 
         for i in 0..32 {
             let r = unsafe { *gpr_ptr.add(2 * i) };
-            let d = dut.reg.gpr.raw_read(i);
+            let d = dut_reg.gpr.raw_read(i);
             if r != d {
                 let name = Gpr::from_repr(i)
                     .map(|g| g.to_string())
@@ -222,7 +207,7 @@ impl<P: SimulatorPolicy> SimulatorCore<P> for SimulatorSpike<P> {
         if P::ISA::HAS_F {
             for i in 0..32 {
                 let r = unsafe { spike_difftest_get_fpr(ctx, i) };
-                let d = dut.reg.fpr.raw_read(i);
+                let d = dut_reg.fpr.raw_read(i);
                 if r != d {
                     let name = Fpr::from_repr(i)
                         .map(|f| f.to_string())
@@ -244,7 +229,7 @@ impl<P: SimulatorPolicy> SimulatorCore<P> for SimulatorSpike<P> {
                     continue;
                 }
                 let ref_val = unsafe { spike_difftest_get_csr(ctx, csr.addr()) };
-                let dut_val = dut.reg.read_csr(*csr);
+                let dut_val = dut_reg.read_csr(*csr);
                 if (ref_val & mask) != (dut_val & mask) {
                     out.push(DifftestMismatchItem {
                         group: RegGroup::Csr,
@@ -265,7 +250,7 @@ impl<P: SimulatorPolicy> SimulatorCore<P> for SimulatorSpike<P> {
                 for i in 0..32 {
                     let ref_slice =
                         unsafe { std::slice::from_raw_parts(vr_ptr.add(i * vlenb), vlenb) };
-                    let dut_slice = dut.reg.vr.raw_read(i);
+                    let dut_slice = dut_reg.vr.raw_read(i);
                     if ref_slice != dut_slice {
                         let (ref_val, dut_val) = if vlenb <= 16 {
                             let mut rb = [0u8; 16];
@@ -337,13 +322,13 @@ impl<P: SimulatorPolicy> Drop for SimulatorSpike<P> {
     }
 }
 
-fn gpr_to_difftest_regs<P: SimulatorPolicy>(state: &State<P>) -> DifftestRegs {
+fn reg_to_difftest_regs<P: SimulatorPolicy>(reg: &RiscvReg<P::ISA>) -> DifftestRegs {
     let mut gpr = [0u32; 32];
     for i in 0..32 {
-        gpr[i] = state.reg.gpr.raw_read(i);
+        gpr[i] = reg.gpr.raw_read(i);
     }
     DifftestRegs {
-        pc: *state.reg.pc,
+        pc: *reg.pc,
         gpr,
     }
 }

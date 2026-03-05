@@ -1,6 +1,8 @@
 use std::sync::atomic::AtomicBool;
 use std::sync::Arc;
 
+use remu_state::bus::ObserverEvent;
+use remu_state::reg::riscv::RiscvReg;
 use remu_state::{State, StateCmd, StatePolicy};
 use remu_types::{DifftestMismatchItem, TraceKind, TracerDyn};
 
@@ -31,24 +33,26 @@ pub trait SimulatorCore<P: StatePolicy> {
         Ok(())
     }
 
+    /// Take and clear observer events (MMIO, memory writes) from this step.
+    /// Allows simulator to apply internal logic (e.g. nzea may merge/transform for difftest).
     #[inline(always)]
-    fn sync_from(&mut self, dut: &State<P>) {
-        let _ = (self, dut);
+    fn take_observer_events(&mut self) -> Vec<ObserverEvent> {
+        vec![]
     }
 
     #[inline(always)]
-    fn sync_regs_from(&mut self, dut: &State<P>) {
-        self.sync_from(dut);
+    fn sync_regs_from(&mut self, _reg: &RiscvReg<P::ISA>) {
+        // Default: no-op. Ref simulators (remu, spike) override to sync regs from DUT.
     }
 
     #[inline(always)]
-    fn regs_match(&self, dut: &State<P>) -> bool {
-        self.regs_diff(dut).is_empty()
+    fn regs_match(&self, dut_reg: &RiscvReg<P::ISA>) -> bool {
+        self.regs_diff(dut_reg).is_empty()
     }
 
     #[inline(always)]
-    fn regs_diff(&self, dut: &State<P>) -> Vec<DifftestMismatchItem> {
-        let _ = (self, dut);
+    fn regs_diff(&self, dut_reg: &RiscvReg<P::ISA>) -> Vec<DifftestMismatchItem> {
+        let _ = (self, dut_reg);
         vec![]
     }
 

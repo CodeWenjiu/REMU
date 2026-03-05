@@ -161,14 +161,6 @@ void spike_difftest_copy_mem(spike_difftest_ctx_t* ctx,
     mem->store(offset, len, const_cast<uint8_t*>(static_cast<const uint8_t*>(data)));
 }
 
-void spike_difftest_sync_mem(spike_difftest_ctx_t* ctx,
-                             uintptr_t guest_base,
-                             const void* data,
-                             size_t len)
-{
-    spike_difftest_copy_mem(ctx, guest_base, data, len);
-}
-
 int spike_difftest_read_mem(spike_difftest_ctx_t* ctx,
                             uintptr_t addr,
                             void* buf,

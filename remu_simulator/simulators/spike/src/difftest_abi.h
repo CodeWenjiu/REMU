@@ -54,14 +54,6 @@ void spike_difftest_copy_mem(spike_difftest_ctx_t* ctx,
                              size_t len);
 
 /**
- * Sync DUT memory to Spike (for sync_from)
- */
-void spike_difftest_sync_mem(spike_difftest_ctx_t* ctx,
-                             uintptr_t guest_base,
-                             const void* data,
-                             size_t len);
-
-/**
  * Read memory from Spike (for RefState / diff etc.)
  */
 int spike_difftest_read_mem(spike_difftest_ctx_t* ctx,
