@@ -5,7 +5,7 @@ use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
 
 use remu_state::{State, StateCmd};
-use remu_types::{TraceFlags, TraceKind, TracerDyn};
+use remu_types::{ExitCode, TraceFlags, TraceKind, TracerDyn};
 
 use remu_simulator::{
     SimulatorCore, SimulatorDut, SimulatorInnerError, SimulatorOption, SimulatorPolicy,
@@ -34,6 +34,12 @@ pub struct SimulatorNzea<P: SimulatorPolicy + 'static, const IS_DUT: bool> {
     last_commit_mem_count: u32,
     /// is_load of the last applied commit; when true, take_observer_events pops 0 (load needs no diff).
     last_commit_is_load: bool,
+    /// Breakpoint PCs; no duplicates.
+    breakpoints: Vec<u32>,
+    /// When true: on breakpoint hit, apply normally. When false: return BreakpointHit. Toggles on each hit.
+    breakpoint_apply_next: bool,
+    /// Set when DPI bus_write hits sifive_test_finisher; consumed by step_once.
+    pending_exit_code: Option<ExitCode>,
 }
 
 impl<P: SimulatorPolicy, const IS_DUT: bool> SimulatorPolicyOf for SimulatorNzea<P, IS_DUT> {
@@ -57,6 +63,9 @@ impl<P: SimulatorPolicy + 'static, const IS_DUT: bool> SimulatorCore<P>
             event_buffer: Vec::new(),
             last_commit_mem_count: 0,
             last_commit_is_load: false,
+            breakpoints: Vec::new(),
+            breakpoint_apply_next: false,
+            pending_exit_code: None,
         }
     }
 
@@ -116,6 +125,9 @@ impl<P: SimulatorPolicy + 'static, const IS_DUT: bool> SimulatorCore<P>
         }
         let mut cycle_count: u64 = 0;
         while self.commit_buffer.is_empty() {
+            if let Some(ec) = self.pending_exit_code.take() {
+                return Err(SimulatorInnerError::ProgramExit(ec));
+            }
             self.cycle::<TRACE>();
             cycle_count += 1;
             if cycle_count % 1024 == 0 && self.interrupt.load(Ordering::Relaxed) {
@@ -123,7 +135,18 @@ impl<P: SimulatorPolicy + 'static, const IS_DUT: bool> SimulatorCore<P>
                 return Err(remu_simulator::SimulatorInnerError::Interrupted);
             }
         }
+        if let Some(ec) = self.pending_exit_code.take() {
+            return Err(SimulatorInnerError::ProgramExit(ec));
+        }
         let msg = self.commit_buffer.remove(0);
+        if IS_DUT && self.breakpoints.contains(&msg.next_pc) {
+            if !self.breakpoint_apply_next {
+                self.breakpoint_apply_next = true;
+                self.commit_buffer.insert(0, msg);
+                return Err(SimulatorInnerError::BreakpointHit(msg.next_pc));
+            }
+            self.breakpoint_apply_next = false;
+        }
         if TraceFlags::instruction(TRACE) && IS_DUT {
             let pc = *self.state.reg.pc;
             let inst = self.state.bus.read_32(pc as usize).unwrap_or(0);
@@ -159,6 +182,11 @@ impl<P: SimulatorPolicy + 'static, const IS_DUT: bool> SimulatorNzea<P, IS_DUT> 
     /// Push a commit from DPI; used by dpi_commit_trace.
     pub(crate) fn push_commit_impl(&mut self, msg: CommitMsg) {
         self.commit_buffer.push(msg);
+    }
+
+    /// Set by dpi_write_32 when sifive_test_finisher is written; consumed by step_once.
+    pub(crate) fn set_pending_exit_code(&mut self, ec: ExitCode) {
+        self.pending_exit_code = Some(ec);
     }
 
     /// Run one clock cycle (low + high phase). TRACE_CYCLE const selects whether to dump; trace_dump is DCE'd when false.
@@ -223,4 +251,31 @@ impl<P: SimulatorPolicy + 'static, const IS_DUT: bool> Drop for SimulatorNzea<P,
     }
 }
 
-impl<P: SimulatorPolicy + 'static> SimulatorDut for SimulatorNzea<P, true> {}
+impl<P: SimulatorPolicy + 'static> SimulatorDut for SimulatorNzea<P, true> {
+    fn set_breakpoint(&mut self, addr: u32) -> Result<(), SimulatorInnerError> {
+        if addr % 4 != 0 {
+            return Err(SimulatorInnerError::BreakpointError(
+                "breakpoint address must be 4-byte aligned".into(),
+            ));
+        }
+        if !self.breakpoints.contains(&addr) {
+            self.breakpoints.push(addr);
+        }
+        Ok(())
+    }
+
+    fn del_breakpoint(&mut self, addr: u32) -> Result<(), SimulatorInnerError> {
+        if let Some(pos) = self.breakpoints.iter().position(|&x| x == addr) {
+            self.breakpoints.remove(pos);
+            Ok(())
+        } else {
+            Err(SimulatorInnerError::BreakpointError(format!(
+                "breakpoint at 0x{addr:08x} not found"
+            )))
+        }
+    }
+
+    fn print_breakpoints(&self) {
+        self.tracer.borrow().breakpoint_print(&self.breakpoints);
+    }
+}
