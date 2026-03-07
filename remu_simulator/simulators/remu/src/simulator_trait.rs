@@ -253,7 +253,7 @@ impl<P: SimulatorPolicy> SimulatorDut for SimulatorRemu<P, true> {
         let orig = self
             .state
             .bus
-            .read_32_no_observer(addr as usize)
+            .read_32(addr as usize)
             .map_err(StateError::from)
             .map_err(SimulatorInnerError::from)?;
         self.state

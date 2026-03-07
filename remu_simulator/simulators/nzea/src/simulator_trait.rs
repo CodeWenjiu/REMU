@@ -12,6 +12,8 @@ use remu_simulator::{
     SimulatorPolicyOf, from_state_error,
 };
 
+use remu_state::bus::ObserverEvent;
+
 use crate::dpi::{self, CommitMsg, NzeaDpi};
 use crate::nzea_ffi;
 use remu_types::isa::reg::RegAccess;
@@ -26,6 +28,12 @@ pub struct SimulatorNzea<P: SimulatorPolicy + 'static, const IS_DUT: bool> {
     tracer: TracerDyn,
     commit_buffer: Vec<CommitMsg>,
     interrupt: Arc<std::sync::atomic::AtomicBool>,
+    /// Pending memory write events; instruction commit and mem access may be out of sync.
+    event_buffer: Vec<ObserverEvent>,
+    /// mem_count of the last applied commit; used by take_observer_events to pop the right number of ops.
+    last_commit_mem_count: u32,
+    /// is_load of the last applied commit; when true, take_observer_events pops 0 (load needs no diff).
+    last_commit_is_load: bool,
 }
 
 impl<P: SimulatorPolicy, const IS_DUT: bool> SimulatorPolicyOf for SimulatorNzea<P, IS_DUT> {
@@ -46,6 +54,9 @@ impl<P: SimulatorPolicy + 'static, const IS_DUT: bool> SimulatorCore<P>
             tracer,
             commit_buffer: Vec::new(),
             interrupt,
+            event_buffer: Vec::new(),
+            last_commit_mem_count: 0,
+            last_commit_is_load: false,
         }
     }
 
@@ -75,8 +86,25 @@ impl<P: SimulatorPolicy + 'static, const IS_DUT: bool> SimulatorCore<P>
         &mut self.state
     }
 
-    fn take_observer_events(&mut self) -> Vec<remu_state::bus::ObserverEvent> {
-        self.state_mut().bus.take_observer_events()
+    fn take_observer_events(&mut self) -> Vec<ObserverEvent> {
+        let state_events = self.state_mut().bus.take_observer_events();
+        self.event_buffer.extend(state_events);
+        let n = if self.last_commit_is_load {
+            let first_is_mmio = self
+                .event_buffer
+                .first()
+                .map_or(false, |e| matches!(e, ObserverEvent::MmioAccess));
+            if first_is_mmio {
+                self.last_commit_mem_count as usize
+            } else {
+                0
+            }
+        } else {
+            self.last_commit_mem_count as usize
+        };
+        self.event_buffer
+            .drain(..n.min(self.event_buffer.len()))
+            .collect()
     }
 
     fn step_once<const TRACE: u64>(&mut self) -> Result<(), remu_simulator::SimulatorInnerError> {
@@ -174,6 +202,8 @@ impl<P: SimulatorPolicy + 'static, const IS_DUT: bool> SimulatorNzea<P, IS_DUT> 
 
     /// Apply a commit to state (for difftest).
     fn apply_commit(&mut self, msg: CommitMsg) {
+        self.last_commit_mem_count = msg.mem_count;
+        self.last_commit_is_load = msg.is_load;
         *self.state.reg.pc = msg.next_pc;
         if msg.gpr_addr < 32 && msg.gpr_addr != 0 {
             self.state

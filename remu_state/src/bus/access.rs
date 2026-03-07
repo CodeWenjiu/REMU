@@ -78,12 +78,6 @@ impl<I: RvIsa, O: BusObserver> Bus<I, O> {
         self.read_32_impl::<true>(addr)
     }
 
-    /// Read 32-bit from memory/MMIO without notifying the observer (e.g. for breakpoint restore).
-    #[inline(always)]
-    pub fn read_32_no_observer(&mut self, addr: usize) -> Result<u32, BusError> {
-        self.read_32_impl::<false>(addr)
-    }
-
     #[inline(always)]
     pub(crate) fn read_64_impl<const NOTIFY_OBSERVER: bool>(
         &mut self,
@@ -243,6 +237,20 @@ impl<I: RvIsa, O: BusObserver> Bus<I, O> {
     #[inline(always)]
     pub fn write_32_no_observer(&mut self, addr: usize, value: u32) -> Result<(), BusError> {
         self.write_32_impl::<false>(addr, value)
+    }
+
+    /// Write 32-bit with byte mask. Reads current value (no observer), merges in masked bytes, writes once.
+    #[inline(always)]
+    pub fn write_32_masked(&mut self, addr: usize, data: u32, wstrb: u32) -> Result<(), BusError> {
+        let old = self.read_32_impl::<false>(addr).unwrap_or(0);
+        let mut merged = old;
+        for i in 0..4 {
+            if (wstrb & (1 << i)) != 0 {
+                let mask = 0xff << (i * 8);
+                merged = (merged & !mask) | (data & mask);
+            }
+        }
+        self.write_32(addr, merged)
     }
 
     #[inline(always)]
