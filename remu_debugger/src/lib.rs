@@ -129,6 +129,10 @@ where
                     Ok(RunOutcome::Done)
                 }
             },
+            Command::Stat { subcmd } => {
+                self.harness.stat_exec(subcmd);
+                Ok(RunOutcome::Done)
+            }
             Command::Quit => Err(DebuggerError::ExitRequested),
         }
     }

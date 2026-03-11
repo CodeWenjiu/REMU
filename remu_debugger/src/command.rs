@@ -1,7 +1,7 @@
 use clap::{CommandFactory, builder::styling};
 use petgraph::graph::{Graph, NodeIndex};
 use remu_fmt::parse_prefixed_uint;
-use remu_harness::{FuncCmd, StateCmd};
+use remu_harness::{FuncCmd, StateCmd, StatCmd};
 
 fn populate_graph(cmd: &clap::Command, graph: &mut Graph<String, ()>, parent: NodeIndex) {
     let mut has_children = false;
@@ -76,6 +76,12 @@ pub enum Command {
     Breakpoint {
         #[command(subcommand)]
         subcmd: BreakpointCmd,
+    },
+
+    /// Stat Command
+    Stat {
+        #[command(subcommand)]
+        subcmd: StatCmd,
     },
 
     /// Quit the debugger

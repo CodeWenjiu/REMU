@@ -6,6 +6,7 @@ use remu_state::reg::riscv::RiscvReg;
 use remu_state::{State, StateCmd, StatePolicy};
 use remu_types::{DifftestMismatchItem, TraceKind, TracerDyn};
 
+use crate::stat::{StatContext, StatEntry};
 use crate::SimulatorOption;
 use crate::error::SimulatorInnerError;
 use crate::policy::SimulatorPolicy;
@@ -88,6 +89,12 @@ pub trait SimulatorDut: crate::policy::SimulatorPolicyOf + SimulatorCore<Self::P
     #[inline(always)]
     fn print_breakpoints(&self) {
         // Default: no breakpoints to print.
+    }
+
+    /// Platform-specific statistics (e.g. cycle count, IPC). Receives ctx for derived stats.
+    #[inline(always)]
+    fn platform_stats(&self, _ctx: &StatContext) -> Vec<StatEntry> {
+        vec![]
     }
 }
 

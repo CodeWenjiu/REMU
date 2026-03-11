@@ -9,7 +9,7 @@ use remu_types::{ExitCode, TraceFlags, TraceKind, TracerDyn};
 
 use remu_simulator::{
     SimulatorCore, SimulatorDut, SimulatorInnerError, SimulatorOption, SimulatorPolicy,
-    SimulatorPolicyOf, from_state_error,
+    SimulatorPolicyOf, StatContext, StatEntry, from_state_error,
 };
 
 use remu_state::bus::ObserverEvent;
@@ -40,6 +40,8 @@ pub struct SimulatorNzea<P: SimulatorPolicy + 'static, const IS_DUT: bool> {
     breakpoint_apply_next: bool,
     /// Set when DPI bus_write hits sifive_test_finisher; consumed by step_once.
     pending_exit_code: Option<ExitCode>,
+    /// Total clock cycles executed (each cycle() = one clock).
+    cycle_count: u64,
 }
 
 impl<P: SimulatorPolicy, const IS_DUT: bool> SimulatorPolicyOf for SimulatorNzea<P, IS_DUT> {
@@ -66,6 +68,7 @@ impl<P: SimulatorPolicy + 'static, const IS_DUT: bool> SimulatorCore<P>
             breakpoints: Vec::new(),
             breakpoint_apply_next: false,
             pending_exit_code: None,
+            cycle_count: 0,
         }
     }
 
@@ -191,6 +194,7 @@ impl<P: SimulatorPolicy + 'static, const IS_DUT: bool> SimulatorNzea<P, IS_DUT> 
 
     /// Run one clock cycle (low + high phase). TRACE_CYCLE const selects whether to dump; trace_dump is DCE'd when false.
     fn cycle<const TRACE_CYCLE: u64>(&mut self) {
+        self.cycle_count += 1;
         unsafe {
             nzea_ffi::nzea_set_clock(self.sim_ptr, 0);
             nzea_ffi::nzea_eval(self.sim_ptr);
@@ -277,5 +281,13 @@ impl<P: SimulatorPolicy + 'static> SimulatorDut for SimulatorNzea<P, true> {
 
     fn print_breakpoints(&self) {
         self.tracer.borrow().breakpoint_print(&self.breakpoints);
+    }
+
+    fn platform_stats(&self, ctx: &StatContext) -> Vec<StatEntry> {
+        let mut v = vec![StatEntry::CycleCount(self.cycle_count)];
+        if self.cycle_count > 0 {
+            v.push(StatEntry::Ipc(ctx.inst_count as f64 / self.cycle_count as f64));
+        }
+        v
     }
 }

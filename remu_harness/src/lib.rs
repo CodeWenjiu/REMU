@@ -7,7 +7,8 @@ pub use run_state::RunState;
 
 pub use remu_simulator::{
     DifftestMismatchList, FuncCmd, SimulatorCore, SimulatorDut, SimulatorError,
-    SimulatorInnerError, SimulatorPolicy, SimulatorPolicyOf, SimulatorRef, TraceCmd,
+    SimulatorInnerError, SimulatorPolicy, SimulatorPolicyOf, SimulatorRef, StatCmd, StatContext,
+    StatEntry, TraceCmd,
 };
 use remu_types::{AllUsize, DifftestMismatchItem, RegGroup, TraceKind};
 pub use remu_simulator_remu::SimulatorRemu;
@@ -47,6 +48,10 @@ pub struct Harness<D, R> {
     func: func::Func,
     interrupt: Arc<AtomicBool>,
     run_state: RunState,
+    /// Total instructions executed (incremented on each successful step_once).
+    total_instructions: u64,
+    /// Tracer for output (breakpoint_print, stat_print); data flows to display layer.
+    tracer: TracerDyn,
 }
 
 impl<D, R> Harness<D, R>
@@ -56,7 +61,7 @@ where
 {
     pub fn new(opt: HarnessOption, tracer: TracerDyn, interrupt: Arc<AtomicBool>) -> Self {
         let mut dut_model = D::new(opt.sim.clone(), tracer.clone(), Arc::clone(&interrupt));
-        let mut ref_model = R::new(opt.sim, tracer, Arc::clone(&interrupt));
+        let mut ref_model = R::new(opt.sim, tracer.clone(), Arc::clone(&interrupt));
         dut_model.init();
         ref_model.init();
         Self {
@@ -65,6 +70,8 @@ where
             func: func::Func::new(),
             interrupt,
             run_state: RunState::Idle,
+            total_instructions: 0,
+            tracer,
         }
     }
 
@@ -168,6 +175,30 @@ where
         self.dut_model.print_breakpoints();
     }
 
+    /// Collect all statistics (common + platform-specific, including derived).
+    pub fn collect_stats(&self) -> Vec<StatEntry> {
+        let mut entries = vec![StatEntry::InstCount(self.total_instructions)];
+        let ctx = StatContext {
+            inst_count: self.total_instructions,
+        };
+        entries.extend(self.dut_model.platform_stats(&ctx));
+        entries
+    }
+
+    /// Execute a stat command. Data is sent via tracer to the display layer.
+    pub fn stat_exec(&mut self, subcmd: &StatCmd) {
+        match subcmd {
+            StatCmd::Print => {
+                let entries: Vec<(String, String)> = self
+                    .collect_stats()
+                    .into_iter()
+                    .map(|e| (e.name().to_string(), e.format()))
+                    .collect();
+                self.tracer.borrow().stat_print(&entries);
+            }
+        }
+    }
+
     /// Run steps in batch until limit reached, interrupt set, program exit, or error.
     /// Uses the harness's `interrupt` and `run_state`; sets `run_state` to `Exit` on program exit.
     /// Returns `Ok(RunOutcome::ProgramExit(code))` when program exited; `Ok(RunOutcome::Done)` when stopped without exit.
@@ -208,7 +239,10 @@ where
                 .unwrap_or(batch);
             for _ in 0..to_run {
                 match self.step_once::<TRACE>() {
-                    Ok(()) => steps += 1,
+                    Ok(()) => {
+                        steps += 1;
+                        self.total_instructions += 1;
+                    }
                     Err(SimulatorError::Dut(SimulatorInnerError::ProgramExit(exit_code))) => {
                         self.run_state = RunState::Exit;
                         return Ok(RunOutcome::ProgramExit(exit_code));

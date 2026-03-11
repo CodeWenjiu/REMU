@@ -350,6 +350,30 @@ impl Tracer for CLITracer {
         table.modify(Columns::one(1), Color::FG_CYAN);
         println!("{table}");
     }
+
+    fn stat_print(&self, entries: &[(String, String)]) {
+        if entries.is_empty() {
+            println!("{}", "no statistics".yellow());
+            return;
+        }
+        #[derive(Tabled)]
+        struct StatRow {
+            name: String,
+            value: String,
+        }
+        let rows: Vec<StatRow> = entries
+            .iter()
+            .map(|(name, value)| StatRow {
+                name: name.clone(),
+                value: value.clone(),
+            })
+            .collect();
+        let mut table = Table::new(rows);
+        table.with(Style::rounded());
+        table.modify(Columns::one(0), Color::FG_YELLOW);
+        table.modify(Columns::one(1), Color::FG_CYAN);
+        println!("{table}");
+    }
 }
 
 impl CLITracer {

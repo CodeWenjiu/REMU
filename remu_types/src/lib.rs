@@ -79,6 +79,11 @@ pub trait Tracer {
     fn breakpoint_print(&self, addrs: &[u32]) {
         let _ = addrs;
     }
+
+    /// Print statistics (e.g. inst_count, cycle_count). Data flows from harness via tracer to display layer.
+    fn stat_print(&self, _entries: &[(String, String)]) {
+        // Default: no-op. CLI tracer implements formatting.
+    }
 }
 
 pub type TracerDyn = Rc<RefCell<dyn Tracer>>;
