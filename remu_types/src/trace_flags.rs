@@ -29,7 +29,7 @@ pub struct TraceFlags(pub u64);
 
 impl TraceFlags {
     pub const INSTRUCTION: u64 = 1 << 0;
-    pub const WAVETRACE: u64 = 1 << 1;
+    pub const WAVEFORM: u64 = 1 << 1;
 
     #[inline(always)]
     pub const fn new() -> Self {
@@ -54,8 +54,8 @@ impl TraceFlags {
 
     /// Bit 1: waveform trace
     #[inline(always)]
-    pub const fn wavetrace(flags: u64) -> bool {
-        (flags & Self::WAVETRACE) != 0
+    pub const fn waveform(flags: u64) -> bool {
+        (flags & Self::WAVEFORM) != 0
     }
 
     #[inline(always)]
@@ -68,11 +68,11 @@ impl TraceFlags {
     }
 
     #[inline(always)]
-    pub fn set_wavetrace(&mut self, enable: bool) {
+    pub fn set_waveform(&mut self, enable: bool) {
         if enable {
-            self.0 |= Self::WAVETRACE;
+            self.0 |= Self::WAVEFORM;
         } else {
-            self.0 &= !Self::WAVETRACE;
+            self.0 &= !Self::WAVEFORM;
         }
     }
 }

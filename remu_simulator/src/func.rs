@@ -20,7 +20,7 @@ pub enum TraceCmd {
         enable: bool,
     },
     /// Wave Trace
-    Wavetrace {
+    WaveForm {
         #[arg(value_parser = parse_switch, action = ArgAction::Set)]
         enable: bool,
     },

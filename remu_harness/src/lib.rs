@@ -122,7 +122,7 @@ where
         if let FuncCmd::Trace { subcmd: trace } = subcmd {
             let (kind, enabled) = match trace {
                 TraceCmd::Instruction { enable } => (TraceKind::Instruction, *enable),
-                TraceCmd::Wavetrace { enable } => (TraceKind::Wavetrace, *enable),
+                TraceCmd::WaveForm { enable } => (TraceKind::Wavetrace, *enable),
             };
             self.dut_model.on_trace_change(kind, enabled);
         }

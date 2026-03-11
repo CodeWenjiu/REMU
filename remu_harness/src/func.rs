@@ -36,7 +36,7 @@ impl Trace {
     fn execute(&mut self, command: &TraceCmd) {
         match command {
             TraceCmd::Instruction { enable } => self.flags.set_instruction(*enable),
-            TraceCmd::Wavetrace { enable } => self.flags.set_wavetrace(*enable),
+            TraceCmd::WaveForm { enable } => self.flags.set_waveform(*enable),
         }
     }
 }

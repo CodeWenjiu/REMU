@@ -194,12 +194,12 @@ impl<P: SimulatorPolicy + 'static, const IS_DUT: bool> SimulatorNzea<P, IS_DUT> 
         unsafe {
             nzea_ffi::nzea_set_clock(self.sim_ptr, 0);
             nzea_ffi::nzea_eval(self.sim_ptr);
-            if TraceFlags::wavetrace(TRACE_CYCLE) && IS_DUT {
+            if TraceFlags::waveform(TRACE_CYCLE) && IS_DUT {
                 nzea_ffi::nzea_trace_dump(self.sim_ptr);
             }
             nzea_ffi::nzea_set_clock(self.sim_ptr, 1);
             nzea_ffi::nzea_eval(self.sim_ptr);
-            if TraceFlags::wavetrace(TRACE_CYCLE) && IS_DUT {
+            if TraceFlags::waveform(TRACE_CYCLE) && IS_DUT {
                 nzea_ffi::nzea_trace_dump(self.sim_ptr);
             }
         }
