@@ -63,7 +63,7 @@ fn run_verilog_generation(nzea_dir: &Path, verilog_out: &Path, workspace_root: &
         .arg("just")
         .arg("--justfile")
         .arg(&justfile)
-        .arg("run")
+        .arg("dump")
         .arg("--outDir")
         .arg(verilog_out)
         .current_dir(workspace_root)
@@ -72,7 +72,7 @@ fn run_verilog_generation(nzea_dir: &Path, verilog_out: &Path, workspace_root: &
     match status {
         Ok(s) if s.success() => true,
         Ok(s) => {
-            eprintln!("cargo:warning=nzea just run failed: {:?}", s.code());
+            eprintln!("cargo:warning=nzea just dump failed: {:?}", s.code());
             false
         }
         Err(e) => {
@@ -221,12 +221,12 @@ fn main() {
 
     // Step 1: Generate Verilog from Chisel
     if !run_verilog_generation(&nzea_dir, &verilog_out_abs, &workspace_root) {
-        panic!("nzea build failed: Verilog generation (just run) failed");
+        panic!("nzea build failed: Verilog generation (just dump) failed");
     }
 
     let top_sv = verilog_out_abs.join("Top.sv");
     if !top_sv.exists() {
-        panic!("nzea build failed: Top.sv not found after just run");
+        panic!("nzea build failed: Top.sv not found after just dump");
     }
 
     // Step 2: Collect .sv files from filelist
