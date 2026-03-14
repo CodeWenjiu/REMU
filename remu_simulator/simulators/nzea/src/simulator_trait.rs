@@ -16,7 +16,7 @@ use remu_state::bus::ObserverEvent;
 
 use crate::dpi::{self, CommitMsg, NzeaDpi};
 use crate::nzea_ffi;
-use remu_types::isa::reg::RegAccess;
+use remu_types::isa::reg::{Csr as CsrKind, RegAccess};
 
 /// True after the first time wavetrace is enabled in this process; then we do not open trace.fst again,
 /// so a later run with wavetrace off does not overwrite the file.
@@ -237,6 +237,11 @@ impl<P: SimulatorPolicy + 'static, const IS_DUT: bool> SimulatorNzea<P, IS_DUT> 
         self.last_commit_mem_count = msg.mem_count;
         self.last_commit_is_load = msg.is_load;
         *self.state.reg.pc = msg.next_pc;
+        if msg.csr_valid {
+            if let Some(csr) = CsrKind::from_repr(msg.csr_addr as u16) {
+                self.state.reg.csr.write(csr, msg.csr_data);
+            }
+        }
         if msg.gpr_addr < 32 && msg.gpr_addr != 0 {
             self.state
                 .reg

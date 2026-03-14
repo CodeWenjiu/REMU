@@ -7,6 +7,10 @@ use remu_simulator::{SimulatorCore, SimulatorPolicy};
 #[derive(Clone, Copy, Debug)]
 pub struct CommitMsg {
     pub next_pc: u32,
+    /// True if CSR is written this commit.
+    pub csr_valid: bool,
+    pub csr_addr: u32,
+    pub csr_data: u32,
     pub gpr_addr: u32,
     pub gpr_data: u32,
     /// Number of memory accesses for this commit (0, 1, or more for vector loads/stores).
@@ -18,7 +22,17 @@ pub struct CommitMsg {
 pub(crate) trait NzeaDpi {
     fn dpi_read_32(&mut self, addr: usize) -> u32;
     fn dpi_write_32(&mut self, addr: usize, data: u32, wstrb: u32);
-    fn dpi_commit_trace(&mut self, next_pc: u32, gpr_addr: u32, gpr_data: u32, mem_count: u32, is_load: bool);
+    fn dpi_commit_trace(
+        &mut self,
+        next_pc: u32,
+        csr_valid: bool,
+        csr_addr: u32,
+        csr_data: u32,
+        gpr_addr: u32,
+        gpr_data: u32,
+        mem_count: u32,
+        is_load: bool,
+    );
     fn push_commit(&mut self, msg: CommitMsg);
 }
 
@@ -31,9 +45,22 @@ impl<P: SimulatorPolicy + 'static, const IS_DUT: bool> NzeaDpi for crate::Simula
             self.set_pending_exit_code(ec);
         }
     }
-    fn dpi_commit_trace(&mut self, next_pc: u32, gpr_addr: u32, gpr_data: u32, mem_count: u32, is_load: bool) {
+    fn dpi_commit_trace(
+        &mut self,
+        next_pc: u32,
+        csr_valid: bool,
+        csr_addr: u32,
+        csr_data: u32,
+        gpr_addr: u32,
+        gpr_data: u32,
+        mem_count: u32,
+        is_load: bool,
+    ) {
         self.push_commit(CommitMsg {
             next_pc,
+            csr_valid,
+            csr_addr,
+            csr_data,
             gpr_addr,
             gpr_data,
             mem_count,
@@ -95,13 +122,33 @@ pub extern "C" fn bus_write(addr: i32, wdata: i32, wstrb: i32) {
 }
 
 #[unsafe(no_mangle)]
-pub extern "C" fn commit_trace(next_pc: i32, gpr_addr: i32, gpr_data: i32, mem_count: i32, is_load: i32) {
+pub extern "C" fn commit_trace(
+    next_pc: i32,
+    csr_valid: bool,
+    csr_addr: i32,
+    csr_data: i32,
+    gpr_addr: i32,
+    gpr_data: i32,
+    mem_count: i32,
+    is_load: i32,
+) {
     let next_pc_u = next_pc as u32;
+    let csr_addr_u = csr_addr as u32;
+    let csr_data_u = csr_data as u32;
     let gpr_addr_u = gpr_addr as u32;
     let gpr_data_u = gpr_data as u32;
     let mem_count_u = mem_count as u32;
     let is_load_b = is_load != 0;
     unsafe {
-        (*nzea()).dpi_commit_trace(next_pc_u, gpr_addr_u, gpr_data_u, mem_count_u, is_load_b);
+        (*nzea()).dpi_commit_trace(
+            next_pc_u,
+            csr_valid,
+            csr_addr_u,
+            csr_data_u,
+            gpr_addr_u,
+            gpr_data_u,
+            mem_count_u,
+            is_load_b,
+        );
     }
 }
