@@ -1,4 +1,5 @@
 //! Nzea simulator: DPI bus_read/bus_write dispatch via global pointer; lifecycle only at init/drop.
+//! Supports multiple ISAs (riscv32i, riscv32im); the model is selected by the Policy's ISA.
 
 use std::ffi::{CString, c_void};
 use std::sync::atomic::{AtomicBool, Ordering};
@@ -15,16 +16,22 @@ use remu_simulator::{
 use remu_state::bus::ObserverEvent;
 
 use crate::dpi::{self, CommitMsg, NzeaDpi};
-use crate::nzea_ffi;
+use crate::nzea_ffi::{self, NzeaIsa};
 use remu_types::isa::reg::{Csr as CsrKind, RegAccess};
 
 /// True after the first time wavetrace is enabled in this process; then we do not open trace.fst again,
 /// so a later run with wavetrace off does not overwrite the file.
 static WAVETRACE_FILE_OPENED: AtomicBool = AtomicBool::new(false);
 
-pub struct SimulatorNzea<P: SimulatorPolicy + 'static, const IS_DUT: bool> {
+pub struct SimulatorNzea<P, const IS_DUT: bool>
+where
+    P: SimulatorPolicy + 'static,
+    P::ISA: NzeaIsa,
+{
     state: State<P>,
     sim_ptr: *mut c_void,
+    /// C string for ISA; kept alive for nzea_* FFI calls.
+    isa_c: CString,
     tracer: TracerDyn,
     commit_buffer: Vec<CommitMsg>,
     interrupt: Arc<std::sync::atomic::AtomicBool>,
@@ -44,21 +51,29 @@ pub struct SimulatorNzea<P: SimulatorPolicy + 'static, const IS_DUT: bool> {
     cycle_count: u64,
 }
 
-impl<P: SimulatorPolicy, const IS_DUT: bool> SimulatorPolicyOf for SimulatorNzea<P, IS_DUT> {
+impl<P, const IS_DUT: bool> SimulatorPolicyOf for SimulatorNzea<P, IS_DUT>
+where
+    P: SimulatorPolicy,
+    P::ISA: NzeaIsa,
+{
     type Policy = P;
 }
 
-impl<P: SimulatorPolicy + 'static, const IS_DUT: bool> SimulatorCore<P>
-    for SimulatorNzea<P, IS_DUT>
+impl<P, const IS_DUT: bool> SimulatorCore<P> for SimulatorNzea<P, IS_DUT>
+where
+    P: SimulatorPolicy + 'static,
+    P::ISA: NzeaIsa,
 {
     fn new(opt: SimulatorOption, tracer: TracerDyn, interrupt: Arc<std::sync::atomic::AtomicBool>) -> Self {
-        let sim_ptr = unsafe { nzea_ffi::nzea_create() };
-        assert!(!sim_ptr.is_null(), "nzea_create failed");
+        let isa_c = CString::new(<P::ISA as NzeaIsa>::NZEA_ISA_STR).expect("nzea ISA str contains null");
+        let sim_ptr = unsafe { nzea_ffi::nzea_create(isa_c.as_ptr()) };
+        assert!(!sim_ptr.is_null(), "nzea_create failed for ISA {}", <P::ISA as NzeaIsa>::NZEA_ISA_STR);
 
         let state = State::new(opt.state.clone(), tracer.clone(), IS_DUT);
         Self {
             state,
             sim_ptr,
+            isa_c,
             tracer,
             commit_buffer: Vec::new(),
             interrupt,
@@ -76,15 +91,16 @@ impl<P: SimulatorPolicy + 'static, const IS_DUT: bool> SimulatorCore<P>
         unsafe {
             dpi::set_nzea(self as *mut Self as *mut dyn NzeaDpi);
         }
+        let isa_ptr = self.isa_c.as_ptr();
         unsafe {
-            nzea_ffi::nzea_set_reset(self.sim_ptr, 1);
+            nzea_ffi::nzea_set_reset(self.sim_ptr, isa_ptr, 1);
             for _ in 0..100 {
-                nzea_ffi::nzea_set_clock(self.sim_ptr, 0);
-                nzea_ffi::nzea_eval(self.sim_ptr);
-                nzea_ffi::nzea_set_clock(self.sim_ptr, 1);
-                nzea_ffi::nzea_eval(self.sim_ptr);
+                nzea_ffi::nzea_set_clock(self.sim_ptr, isa_ptr, 0);
+                nzea_ffi::nzea_eval(self.sim_ptr, isa_ptr);
+                nzea_ffi::nzea_set_clock(self.sim_ptr, isa_ptr, 1);
+                nzea_ffi::nzea_eval(self.sim_ptr, isa_ptr);
             }
-            nzea_ffi::nzea_set_reset(self.sim_ptr, 0);
+            nzea_ffi::nzea_set_reset(self.sim_ptr, isa_ptr, 0);
         }
         // Waveform file is opened in on_trace_change() when Wavetrace is first enabled,
         // so a run with wavetrace disabled does not overwrite an existing trace.fst.
@@ -175,13 +191,17 @@ impl<P: SimulatorPolicy + 'static, const IS_DUT: bool> SimulatorCore<P>
             let trace_path = Self::trace_path();
             let path_c = CString::new(trace_path.to_string_lossy().as_ref()).unwrap();
             unsafe {
-                nzea_ffi::nzea_trace_open(self.sim_ptr, path_c.as_ptr());
+                nzea_ffi::nzea_trace_open(self.sim_ptr, self.isa_c.as_ptr(), path_c.as_ptr());
             }
         }
     }
 }
 
-impl<P: SimulatorPolicy + 'static, const IS_DUT: bool> SimulatorNzea<P, IS_DUT> {
+impl<P, const IS_DUT: bool> SimulatorNzea<P, IS_DUT>
+where
+    P: SimulatorPolicy + 'static,
+    P::ISA: NzeaIsa,
+{
     /// Push a commit from DPI; used by dpi_commit_trace.
     pub(crate) fn push_commit_impl(&mut self, msg: CommitMsg) {
         self.commit_buffer.push(msg);
@@ -195,14 +215,15 @@ impl<P: SimulatorPolicy + 'static, const IS_DUT: bool> SimulatorNzea<P, IS_DUT> 
     /// Run one clock cycle (low + high phase). TRACE_CYCLE const selects whether to dump; trace_dump is DCE'd when false.
     fn cycle<const TRACE_CYCLE: u64>(&mut self) {
         self.cycle_count += 1;
+        let isa_ptr = self.isa_c.as_ptr();
         unsafe {
-            nzea_ffi::nzea_set_clock(self.sim_ptr, 0);
-            nzea_ffi::nzea_eval(self.sim_ptr);
+            nzea_ffi::nzea_set_clock(self.sim_ptr, isa_ptr, 0);
+            nzea_ffi::nzea_eval(self.sim_ptr, isa_ptr);
             if TraceFlags::waveform(TRACE_CYCLE) && IS_DUT {
                 nzea_ffi::nzea_trace_dump(self.sim_ptr);
             }
-            nzea_ffi::nzea_set_clock(self.sim_ptr, 1);
-            nzea_ffi::nzea_eval(self.sim_ptr);
+            nzea_ffi::nzea_set_clock(self.sim_ptr, isa_ptr, 1);
+            nzea_ffi::nzea_eval(self.sim_ptr, isa_ptr);
             if TraceFlags::waveform(TRACE_CYCLE) && IS_DUT {
                 nzea_ffi::nzea_trace_dump(self.sim_ptr);
             }
@@ -251,16 +272,24 @@ impl<P: SimulatorPolicy + 'static, const IS_DUT: bool> SimulatorNzea<P, IS_DUT> 
     }
 }
 
-impl<P: SimulatorPolicy + 'static, const IS_DUT: bool> Drop for SimulatorNzea<P, IS_DUT> {
+impl<P, const IS_DUT: bool> Drop for SimulatorNzea<P, IS_DUT>
+where
+    P: SimulatorPolicy + 'static,
+    P::ISA: NzeaIsa,
+{
     fn drop(&mut self) {
         unsafe {
-            nzea_ffi::nzea_destroy(self.sim_ptr);
+            nzea_ffi::nzea_destroy(self.sim_ptr, self.isa_c.as_ptr());
             dpi::clear_nzea();
         }
     }
 }
 
-impl<P: SimulatorPolicy + 'static> SimulatorDut for SimulatorNzea<P, true> {
+impl<P> SimulatorDut for SimulatorNzea<P, true>
+where
+    P: SimulatorPolicy + 'static,
+    P::ISA: NzeaIsa,
+{
     fn set_breakpoint(&mut self, addr: u32) -> Result<(), SimulatorInnerError> {
         if addr % 4 != 0 {
             return Err(SimulatorInnerError::BreakpointError(

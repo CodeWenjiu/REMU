@@ -1,13 +1,16 @@
 //! Build script for nzea simulator.
 //!
-//! Pipeline: 1) just run (Chisel → Verilog); 2) verilator --build (Verilog → C++ lib);
-//! 3) compile nzea_wrapper.cpp and link with libVTop.a, libverilated.a.
-//!
-//! Watches .scala files in the nzea repo (same path as verilog gen) so Chisel changes trigger rebuild.
+//! Pipeline: 1) just dump --isa <isa> for each ISA (Chisel → Verilog in subdirs);
+//! 2) verilator --build for each ISA in parallel (with --prefix to avoid symbol conflicts);
+//! 3) compile nzea_wrapper.cpp and link with all libVTop_<isa>.a, libverilated.a.
 
 use std::env;
 use std::path::{Path, PathBuf};
 use std::process::Command;
+use std::sync::mpsc;
+use std::thread;
+
+const NZEA_ISAS: &[&str] = &["riscv32i", "riscv32im"];
 
 fn find_workspace_root(manifest_dir: &Path) -> PathBuf {
     for p in manifest_dir.ancestors() {
@@ -47,8 +50,13 @@ fn collect_scala_files(dir: &Path) -> Vec<PathBuf> {
     out
 }
 
-/// Run `direnv exec nzea_dir just run --outDir verilog_out` to generate Verilog from Chisel.
-fn run_verilog_generation(nzea_dir: &Path, verilog_out: &Path, workspace_root: &Path) -> bool {
+/// Run `just dump --isa <isa> --outDir <verilog_out>` for one ISA.
+fn run_verilog_generation_for_isa(
+    nzea_dir: &Path,
+    verilog_out: &Path,
+    workspace_root: &Path,
+    isa: &str,
+) -> bool {
     let justfile = nzea_dir.join("justfile");
     if !justfile.exists() {
         panic!(
@@ -64,6 +72,8 @@ fn run_verilog_generation(nzea_dir: &Path, verilog_out: &Path, workspace_root: &
         .arg("--justfile")
         .arg(&justfile)
         .arg("dump")
+        .arg("--isa")
+        .arg(isa)
         .arg("--outDir")
         .arg(verilog_out)
         .current_dir(workspace_root)
@@ -72,39 +82,43 @@ fn run_verilog_generation(nzea_dir: &Path, verilog_out: &Path, workspace_root: &
     match status {
         Ok(s) if s.success() => true,
         Ok(s) => {
-            eprintln!("cargo:warning=nzea just dump failed: {:?}", s.code());
+            eprintln!("cargo:warning=nzea just dump --isa {} failed: {:?}", isa, s.code());
             false
         }
         Err(e) => {
-            eprintln!("cargo:warning=nzea Verilog generation failed: {}", e);
+            eprintln!("cargo:warning=nzea Verilog generation for {} failed: {}", isa, e);
             false
         }
     }
 }
 
 /// Collect .sv file paths from filelist.f, or fallback to Top.sv.
-fn collect_sv_files(verilog_out: &Path) -> Vec<String> {
-    let filelist_path = verilog_out.join("filelist.f");
+fn collect_sv_files(verilog_dir: &Path, prefix: &str) -> Vec<String> {
+    let filelist_path = verilog_dir.join("filelist.f");
     if filelist_path.exists() {
         let files: Vec<String> = std::fs::read_to_string(&filelist_path)
             .unwrap_or_default()
             .lines()
             .map(|s| s.trim().to_string())
             .filter(|s| s.ends_with(".sv"))
-            .map(|s| format!("nzea-verilog/{}", s))
+            .map(|s| format!("{}/{}", prefix, s))
             .collect();
         if !files.is_empty() {
             return files;
         }
     }
-    vec!["nzea-verilog/Top.sv".to_string()]
+    vec![format!("{}/Top.sv", prefix)]
 }
 
-/// Run verilator --cc --build on the Verilog files.
-/// Uses ccache via -MAKEFLAGS so make (invoked by Verilator) uses ccache for C++ compilation.
-fn run_verilator(out_dir: &Path, sv_files: &[String]) -> bool {
-    let v_build = out_dir.join("verilator_build");
-    std::fs::create_dir_all(&v_build).expect("create verilator_build");
+/// Run verilator --cc --build for one ISA.
+fn run_verilator_for_isa(
+    out_dir: &Path,
+    verilog_dir: &Path,
+    isa: &str,
+    prefix: &str,
+) -> bool {
+    let v_build = out_dir.join(format!("verilator_build_{}", isa));
+    std::fs::create_dir_all(&v_build).expect("create verilator_build dir");
 
     let cc = env::var("CC").unwrap_or_else(|_| "gcc".to_string());
     let cxx = env::var("CXX").unwrap_or_else(|_| "g++".to_string());
@@ -112,12 +126,12 @@ fn run_verilator(out_dir: &Path, sv_files: &[String]) -> bool {
     let ccache_cxx = format!("ccache {}", cxx);
 
     let out_dir_escaped = out_dir.as_os_str().to_string_lossy().replace('\'', "'\"'\"'");
+    let sv_files = collect_sv_files(verilog_dir, &format!("nzea-verilog/{}", isa));
     let files_arg = sv_files.join(" ");
-    // -MAKEFLAGS passes CC/CXX to make so Verilator's --build uses ccache.
     let makeflags = format!("CC=\"{}\" CXX=\"{}\"", ccache_cc, ccache_cxx);
     let cmd = format!(
-        "cd '{}' && verilator --cc --build --trace-fst -MAKEFLAGS '{}' --Mdir verilator_build --top-module Top {}",
-        out_dir_escaped, makeflags, files_arg
+        "cd '{}' && verilator --cc --build --trace-fst -MAKEFLAGS '{}' --Mdir {} --top-module Top --prefix {} {}",
+        out_dir_escaped, makeflags, v_build.display(), prefix, files_arg
     );
 
     let mut cmd_build = Command::new("sh");
@@ -127,12 +141,20 @@ fn run_verilator(out_dir: &Path, sv_files: &[String]) -> bool {
     match cmd_build.output() {
         Ok(out) if out.status.success() => true,
         Ok(out) => {
-            eprintln!("cargo:warning=verilator stderr: {}", String::from_utf8_lossy(&out.stderr));
-            eprintln!("cargo:warning=verilator stdout: {}", String::from_utf8_lossy(&out.stdout));
+            eprintln!(
+                "cargo:warning=verilator for {} stderr: {}",
+                isa,
+                String::from_utf8_lossy(&out.stderr)
+            );
+            eprintln!(
+                "cargo:warning=verilator for {} stdout: {}",
+                isa,
+                String::from_utf8_lossy(&out.stdout)
+            );
             false
         }
         Err(e) => {
-            eprintln!("cargo:warning=verilator spawn failed: {}", e);
+            eprintln!("cargo:warning=verilator for {} spawn failed: {}", isa, e);
             false
         }
     }
@@ -160,10 +182,10 @@ fn find_verilator_include() -> Option<PathBuf> {
     candidates.iter().find(|p| p.exists()).cloned()
 }
 
-/// Compile nzea_wrapper.cpp and emit link flags.
+/// Compile nzea_wrapper.cpp and emit link flags for all ISAs.
 fn compile_wrapper_and_link(
     manifest_dir: &Path,
-    v_build: &Path,
+    out_dir: &Path,
     v_include: &Path,
 ) -> Result<(), String> {
     let v_include_vltstd = v_include.join("vltstd");
@@ -174,7 +196,13 @@ fn compile_wrapper_and_link(
     };
 
     let mut build = cc::Build::new();
-    build.cpp(true).std("c++17").opt_level(opt).include(v_build);
+    build.cpp(true).std("c++17").opt_level(opt);
+
+    for isa in NZEA_ISAS {
+        let v_build = out_dir.join(format!("verilator_build_{}", isa));
+        build.include(&v_build);
+    }
+
     #[cfg(not(target_env = "msvc"))]
     {
         build.flag("-isystem");
@@ -189,8 +217,14 @@ fn compile_wrapper_and_link(
     }
     build.file(&wrapper_src).compile("nzea_wrapper");
 
-    println!("cargo:rustc-link-search=native={}", v_build.display());
-    println!("cargo:rustc-link-lib=static=VTop");
+    for isa in NZEA_ISAS {
+        let v_build = out_dir.join(format!("verilator_build_{}", isa));
+        println!("cargo:rustc-link-search=native={}", v_build.display());
+        let prefix = format!("VTop_{}", isa);
+        println!("cargo:rustc-link-lib=static={}", prefix);
+    }
+    let v_build_first = out_dir.join(format!("verilator_build_{}", NZEA_ISAS[0]));
+    println!("cargo:rustc-link-search=native={}", v_build_first.display());
     println!("cargo:rustc-link-lib=static=verilated");
     println!("cargo:rustc-link-lib=z");
     #[cfg(not(target_env = "msvc"))]
@@ -210,7 +244,6 @@ fn main() {
     let workspace_root = find_workspace_root(&manifest_dir);
     let nzea_dir = resolve_nzea_dir(&workspace_root);
 
-    // Watch .scala files in nzea repo so Chisel changes trigger rebuild.
     for path in collect_scala_files(&nzea_dir) {
         println!("cargo:rerun-if-changed={}", path.display());
     }
@@ -219,41 +252,60 @@ fn main() {
     std::fs::create_dir_all(&verilog_out).expect("create nzea-verilog");
     let verilog_out_abs = verilog_out.canonicalize().expect("canonicalize nzea-verilog");
 
-    // Step 1: Generate Verilog from Chisel
-    if !run_verilog_generation(&nzea_dir, &verilog_out_abs, &workspace_root) {
-        panic!("nzea build failed: Verilog generation (just dump) failed");
+    // Step 1: Generate Verilog for each ISA
+    for isa in NZEA_ISAS {
+        let isa_out = verilog_out_abs.join(isa);
+        std::fs::create_dir_all(&isa_out).expect("create isa verilog dir");
+        if !run_verilog_generation_for_isa(&nzea_dir, &isa_out, &workspace_root, isa) {
+            panic!("nzea build failed: Verilog generation for {} failed", isa);
+        }
+        let top_sv = isa_out.join("Top.sv");
+        if !top_sv.exists() {
+            panic!("nzea build failed: Top.sv not found for {}", isa);
+        }
     }
 
-    let top_sv = verilog_out_abs.join("Top.sv");
-    if !top_sv.exists() {
-        panic!("nzea build failed: Top.sv not found after just dump");
+    // Step 2: Run Verilator for each ISA in parallel
+    let (tx, rx) = mpsc::channel();
+    for isa in NZEA_ISAS {
+        let tx = tx.clone();
+        let out_dir = out_dir.clone();
+        let verilog_dir = verilog_out_abs.join(isa);
+        let isa = isa.to_string();
+        let prefix = format!("VTop_{}", isa);
+        thread::spawn(move || {
+            let ok = run_verilator_for_isa(&out_dir, &verilog_dir, &isa, &prefix);
+            tx.send((isa, ok)).unwrap();
+        });
+    }
+    drop(tx);
+    for (isa, ok) in rx {
+        if !ok {
+            panic!("nzea build failed: verilator for {} failed", isa);
+        }
     }
 
-    // Step 2: Collect .sv files from filelist
-    let sv_files = collect_sv_files(&verilog_out);
-
-    // Step 3: Run Verilator
-    if !run_verilator(&out_dir, &sv_files) {
-        panic!("nzea build failed: verilator --build failed");
+    // Step 3: Verify libs exist
+    for isa in NZEA_ISAS {
+        let v_build = out_dir.join(format!("verilator_build_{}", isa));
+        let lib = v_build.join(format!("libVTop_{}.a", isa));
+        if !lib.exists() {
+            panic!("nzea build failed: {} not found", lib.display());
+        }
     }
-
-    let v_build = out_dir.join("verilator_build");
-    let lib_vtop = v_build.join("libVTop.a");
-    let lib_verilated = v_build.join("libverilated.a");
-    if !lib_vtop.exists() || !lib_verilated.exists() {
-        panic!(
-            "nzea build failed: verilator did not produce libVTop.a / libverilated.a"
-        );
+    let v_build_first = out_dir.join(format!("verilator_build_{}", NZEA_ISAS[0]));
+    let lib_verilated = v_build_first.join("libverilated.a");
+    if !lib_verilated.exists() {
+        panic!("nzea build failed: libverilated.a not found");
     }
 
     // Step 4: Compile wrapper and link
     let v_include = find_verilator_include().unwrap_or_else(|| {
         panic!("nzea build failed: Verilator include not found (set VERILATOR_ROOT)");
     });
-    compile_wrapper_and_link(&manifest_dir, &v_build, &v_include)
+    compile_wrapper_and_link(&manifest_dir, &out_dir, &v_include)
         .expect("nzea build failed: wrapper compile");
 
-    // Verilator may create read-only files; fix permissions so cargo clean can remove them.
     #[cfg(unix)]
     {
         let _ = Command::new("chmod").args(["-R", "u+w"]).arg(&out_dir).status();

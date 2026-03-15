@@ -1,18 +1,13 @@
 // C++ glue for Verilated Nzea/Top: C API so Rust can create/drive the sim.
-// If your Chisel top is "Nzea", use VNzea.h and VNzea; if it's "Top" (Top.sv), use VTop.
+// Supports multiple ISAs: riscv32i, riscv32im. Each has its own VTop_<isa> class.
 #include "verilated.h"
 #include "verilated_fst_c.h"
 #include <cstddef>
 #include <map>
+#include <cstring>
 
-// Verilator top: Top.sv -> VTop; if your Chisel top is Nzea (Nzea.sv), define NZEA_USE_VNZEA in build.
-#if defined(NZEA_USE_VNZEA)
-#include "VNzea.h"
-#define VNZEA_CLASS VNzea
-#else
-#include "VTop.h"
-#define VNZEA_CLASS VTop
-#endif
+#include "VTop_riscv32i.h"
+#include "VTop_riscv32im.h"
 
 struct TraceState {
     VerilatedFstC* tfp = nullptr;
@@ -20,40 +15,72 @@ struct TraceState {
 };
 static std::map<void*, TraceState> s_trace_map;
 
-extern "C" {
-
-void* nzea_create(void) {
-    Verilated::traceEverOn(true);
-    return new VNZEA_CLASS();
+static bool isa_eq(const char* a, const char* b) {
+    return a && b && strcmp(a, b) == 0;
 }
 
-void nzea_destroy(void* sim) {
+extern "C" {
+
+void* nzea_create(const char* isa) {
+    Verilated::traceEverOn(true);
+    if (isa_eq(isa, "riscv32i")) {
+        return new VTop_riscv32i();
+    }
+    if (isa_eq(isa, "riscv32im")) {
+        return new VTop_riscv32im();
+    }
+    return nullptr;
+}
+
+void nzea_destroy(void* sim, const char* isa) {
     auto it = s_trace_map.find(sim);
     if (it != s_trace_map.end()) {
         it->second.tfp->close();
         delete it->second.tfp;
         s_trace_map.erase(it);
     }
-    delete static_cast<VNZEA_CLASS*>(sim);
+    if (isa_eq(isa, "riscv32i")) {
+        delete static_cast<VTop_riscv32i*>(sim);
+    } else if (isa_eq(isa, "riscv32im")) {
+        delete static_cast<VTop_riscv32im*>(sim);
+    }
 }
 
-void nzea_set_clock(void* sim, int val) {
-    static_cast<VNZEA_CLASS*>(sim)->clock = val;
+void nzea_set_clock(void* sim, const char* isa, int val) {
+    if (isa_eq(isa, "riscv32i")) {
+        static_cast<VTop_riscv32i*>(sim)->clock = val;
+    } else if (isa_eq(isa, "riscv32im")) {
+        static_cast<VTop_riscv32im*>(sim)->clock = val;
+    }
 }
 
-void nzea_set_reset(void* sim, int val) {
-    static_cast<VNZEA_CLASS*>(sim)->reset = val;
+void nzea_set_reset(void* sim, const char* isa, int val) {
+    if (isa_eq(isa, "riscv32i")) {
+        static_cast<VTop_riscv32i*>(sim)->reset = val;
+    } else if (isa_eq(isa, "riscv32im")) {
+        static_cast<VTop_riscv32im*>(sim)->reset = val;
+    }
 }
 
-void nzea_eval(void* sim) {
-    static_cast<VNZEA_CLASS*>(sim)->eval();
+void nzea_eval(void* sim, const char* isa) {
+    if (isa_eq(isa, "riscv32i")) {
+        static_cast<VTop_riscv32i*>(sim)->eval();
+    } else if (isa_eq(isa, "riscv32im")) {
+        static_cast<VTop_riscv32im*>(sim)->eval();
+    }
 }
 
-void nzea_trace_open(void* sim, const char* filename) {
+void nzea_trace_open(void* sim, const char* isa, const char* filename) {
     if (s_trace_map.count(sim)) return;
-    auto* top = static_cast<VNZEA_CLASS*>(sim);
-    auto* tfp = new VerilatedFstC();
-    top->contextp()->trace(tfp, 99, 0);  // Must be called before open()
+    VerilatedFstC* tfp = new VerilatedFstC();
+    if (isa_eq(isa, "riscv32i")) {
+        static_cast<VTop_riscv32i*>(sim)->contextp()->trace(tfp, 99, 0);
+    } else if (isa_eq(isa, "riscv32im")) {
+        static_cast<VTop_riscv32im*>(sim)->contextp()->trace(tfp, 99, 0);
+    } else {
+        delete tfp;
+        return;
+    }
     tfp->open(filename ? filename : "trace.fst");
     tfp->dumpvars(0, "");
     s_trace_map[sim] = {tfp, 0};

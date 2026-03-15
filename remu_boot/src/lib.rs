@@ -2,6 +2,7 @@ use std::sync::Arc;
 
 use remu_debugger::{DebuggerOption, DebuggerRunner};
 use remu_harness::{SimulatorNzea, SimulatorRemu};
+use remu_simulator_nzea::NzeaIsa;
 use remu_state::{StateFastProfile, StateMmioProfile};
 use remu_types::{
     DifftestRef, Platform,
@@ -38,7 +39,7 @@ fn boot_with_isa_nzea<ISA, Run>(
     runner: Run,
     interrupt: Arc<std::sync::atomic::AtomicBool>,
 ) where
-    ISA: RvIsa,
+    ISA: RvIsa + NzeaIsa,
     Run: DebuggerRunner,
 {
     match option.difftest {
@@ -80,7 +81,18 @@ pub fn boot<R: DebuggerRunner>(
     }
 
     if platform == Platform::Nzea {
-        dispatch!(boot_with_isa_nzea);
+        match (isa.base, isa.extensions) {
+            (Architecture::Riscv32(Riscv32i), ExtensionSpec::None) => {
+                boot_with_isa_nzea::<RV32I, R>(option, runner, interrupt)
+            }
+            (Architecture::Riscv32(Riscv32im), ExtensionSpec::None) => {
+                boot_with_isa_nzea::<RV32IM, R>(option, runner, interrupt)
+            }
+            (arch, ext) => panic!(
+                "nzea only supports riscv32i and riscv32im; got base={:?}, extensions={:?}",
+                arch, ext
+            ),
+        }
     } else {
         dispatch!(boot_with_isa);
     }

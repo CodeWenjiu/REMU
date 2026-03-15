@@ -36,7 +36,11 @@ pub(crate) trait NzeaDpi {
     fn push_commit(&mut self, msg: CommitMsg);
 }
 
-impl<P: SimulatorPolicy + 'static, const IS_DUT: bool> NzeaDpi for crate::SimulatorNzea<P, IS_DUT> {
+impl<P, const IS_DUT: bool> NzeaDpi for crate::SimulatorNzea<P, IS_DUT>
+where
+    P: SimulatorPolicy + 'static,
+    P::ISA: crate::nzea_ffi::NzeaIsa,
+{
     fn dpi_read_32(&mut self, addr: usize) -> u32 {
         self.state_mut().bus.read_32(addr).unwrap_or(0)
     }
