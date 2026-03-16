@@ -2,7 +2,10 @@
 //! VInst is split by funct3: OpCfg (0b111), OpIvv (0b000), OpMvv (0b010), OpIvi (0b011), OpIvx (0b100), OpMvx (0b110).
 
 remu_macro::mod_flat!(decode, execute);
+mod context;
 remu_macro::mod_pub!(op_cfg, op_ivv, op_ivi, op_ivx, op_mvv, op_mvx, utils);
+
+pub(crate) use context::{calculate_vlmax, mask_bit, vreg_check, VContext};
 
 /// funct3 = 0b000: OP-IVV (vector-vector)
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]

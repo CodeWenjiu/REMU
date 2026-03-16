@@ -1,47 +1,8 @@
 //! Shared vector execution helpers for OP-V sub-opcodes (element loop, mask compare, etc.).
 
-use remu_types::isa::{
-    extension_v::VExtensionConfig,
-    reg::{VectorCsrState, VrState},
-    RvIsa,
-};
+use remu_types::isa::reg::VrState;
 
-/// VLMAX in elements (standard formula, valid for fractional LMUL).
-pub(crate) fn calculate_vlmax(vlenb: u32, vtype: u32) -> u32 {
-    let vsew = (vtype >> 3) & 0x7;
-    let vlmul = vtype & 0x7;
-    let lmul_shift: i8 = match vlmul {
-        0 => 0,
-        1 => 1,
-        2 => 2,
-        3 => 3,
-        5 => -3,
-        6 => -2,
-        7 => -1,
-        _ => return 0,
-    };
-    let sew_shift: i8 = match vsew {
-        0..=3 => -(vsew as i8),
-        _ => return 0,
-    };
-    let total_shift = lmul_shift + sew_shift;
-    if total_shift >= 0 {
-        vlenb << total_shift
-    } else {
-        vlenb >> (-total_shift)
-    }
-}
-
-/// Number of register groups nf (1/2/4/8) from vlmul.
-pub(crate) fn nf_from_vlmul(vlmul: u32) -> usize {
-    match vlmul & 0x7 {
-        0 => 1,
-        1 => 2,
-        2 => 4,
-        3 => 8,
-        _ => 1,
-    }
-}
+use super::context::VContext;
 
 /// Vector element loop mode; dispatched via match inside.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -66,74 +27,48 @@ where
     C: crate::ExecuteContext<P>,
     F: FnMut(u32, usize, Option<u64>, bool, u64) -> u64,
 {
+    let vctx = VContext::from_state::<P, C>(ctx);
     let state = ctx.state_mut();
-    let vl = state.reg.csr.vector.vl();
-    let vtype = state.reg.csr.vector.vtype();
-    let vlmul = vtype & 0x7;
-    let vsew = (vtype >> 3) & 0x7;
-    let sew_bytes = 1 << (vsew & 0x3);
-    let vlenb = <<P::ISA as RvIsa>::VConfig as VExtensionConfig>::VLENB as usize;
-    let nf_max = nf_from_vlmul(vlmul);
-    if rd + nf_max > 32 {
+    if rd + vctx.nf > 32 {
         return Err(remu_state::StateError::BusError(Box::new(
             remu_state::bus::BusError::unmapped(0),
         )));
     }
     if let Some(r2) = rs2 {
-        if r2 + nf_max > 32 {
+        if r2 + vctx.nf > 32 {
             return Err(remu_state::StateError::BusError(Box::new(
                 remu_state::bus::BusError::unmapped(0),
             )));
         }
     }
-    let nf = nf_max;
-    let total_elems = (nf * vlenb) / sew_bytes;
-    let n = vl.min(total_elems as u32);
+    let n = vctx.n_elems();
 
     let v0 = match mode {
         VectorElementLoopMode::Unmasked => None,
         VectorElementLoopMode::Masked => Some(state.reg.vr.raw_read(0).to_vec()),
     };
 
-    for r in 0..nf {
+    for r in 0..vctx.nf {
         let src_chunk = rs2.map(|reg| state.reg.vr.raw_read(reg + r).to_vec());
         let mut dst_chunk: Vec<u8> = state.reg.vr.raw_read(rd + r).to_vec();
-        let start_elem = (r * vlenb) / sew_bytes;
-        let end_elem = ((r + 1) * vlenb) / sew_bytes;
+        let start_elem = (r * vctx.vlenb) / vctx.sew_bytes;
+        let end_elem = ((r + 1) * vctx.vlenb) / vctx.sew_bytes;
         let loop_start = (start_elem as u32).min(n);
         let loop_end = (end_elem as u32).min(n);
 
         for i in loop_start..loop_end {
-            let off = ((i as usize) * sew_bytes) % vlenb;
+            let (_, _, off) = vctx.elem_layout(i as usize);
             let mask_bit = match mode {
                 VectorElementLoopMode::Unmasked => true,
                 VectorElementLoopMode::Masked => {
                     let v0 = v0.as_ref().unwrap();
-                    (v0[(i as usize) / 8] >> (i % 8)) & 1 != 0
+                    super::mask_bit(v0, i as usize)
                 }
             };
-            let src_val = src_chunk.as_ref().map(|chunk| match sew_bytes {
-                1 => chunk[off] as u64,
-                2 => u16::from_le_bytes(chunk[off..off + 2].try_into().unwrap()) as u64,
-                4 => u32::from_le_bytes(chunk[off..off + 4].try_into().unwrap()) as u64,
-                8 => u64::from_le_bytes(chunk[off..off + 8].try_into().unwrap()),
-                _ => 0,
-            });
-            let dst_val = match sew_bytes {
-                1 => dst_chunk[off] as u64,
-                2 => u16::from_le_bytes(dst_chunk[off..off + 2].try_into().unwrap()) as u64,
-                4 => u32::from_le_bytes(dst_chunk[off..off + 4].try_into().unwrap()) as u64,
-                8 => u64::from_le_bytes(dst_chunk[off..off + 8].try_into().unwrap()),
-                _ => 0,
-            };
-            let res = op(i, sew_bytes, src_val, mask_bit, dst_val);
-            match sew_bytes {
-                1 => dst_chunk[off] = res as u8,
-                2 => dst_chunk[off..off + 2].copy_from_slice(&(res as u16).to_le_bytes()),
-                4 => dst_chunk[off..off + 4].copy_from_slice(&(res as u32).to_le_bytes()),
-                8 => dst_chunk[off..off + 8].copy_from_slice(&res.to_le_bytes()),
-                _ => {}
-            }
+            let src_val = src_chunk.as_ref().map(|chunk| vctx.sew.read_u(chunk, off));
+            let dst_val = vctx.sew.read_u(&dst_chunk, off);
+            let res = op(i, vctx.sew_bytes, src_val, mask_bit, dst_val);
+            vctx.sew.write(&mut dst_chunk, off, res);
         }
         state.reg.vr.raw_write(rd + r, &dst_chunk);
     }
@@ -156,75 +91,43 @@ where
     C: crate::ExecuteContext<P>,
     F: FnMut(u32, usize, u64, u64, bool, u64) -> u64,
 {
+    let vctx = VContext::from_state::<P, C>(ctx);
     let state = ctx.state_mut();
-    let vl = state.reg.csr.vector.vl();
-    let vtype = state.reg.csr.vector.vtype();
-    let vlmul = vtype & 0x7;
-    let vsew = (vtype >> 3) & 0x7;
-    let sew_bytes = 1 << (vsew & 0x3);
-    let vlenb = <<P::ISA as RvIsa>::VConfig as VExtensionConfig>::VLENB as usize;
-    let nf_max = nf_from_vlmul(vlmul);
-    if rd + nf_max > 32 || rs1 + nf_max > 32 || rs2 + nf_max > 32 {
+    if rd + vctx.nf > 32 || rs1 + vctx.nf > 32 || rs2 + vctx.nf > 32 {
         return Err(remu_state::StateError::BusError(Box::new(
             remu_state::bus::BusError::unmapped(0),
         )));
     }
-    let nf = nf_max;
-    let total_elems = (nf * vlenb) / sew_bytes;
-    let n = vl.min(total_elems as u32);
+    let n = vctx.n_elems();
 
     let v0 = match mode {
         VectorElementLoopMode::Unmasked => None,
         VectorElementLoopMode::Masked => Some(state.reg.vr.raw_read(0).to_vec()),
     };
 
-    for r in 0..nf {
+    for r in 0..vctx.nf {
         let src1_chunk = state.reg.vr.raw_read(rs1 + r).to_vec();
         let src2_chunk = state.reg.vr.raw_read(rs2 + r).to_vec();
         let mut dst_chunk: Vec<u8> = state.reg.vr.raw_read(rd + r).to_vec();
-        let start_elem = (r * vlenb) / sew_bytes;
-        let end_elem = ((r + 1) * vlenb) / sew_bytes;
+        let start_elem = (r * vctx.vlenb) / vctx.sew_bytes;
+        let end_elem = ((r + 1) * vctx.vlenb) / vctx.sew_bytes;
         let loop_start = (start_elem as u32).min(n);
         let loop_end = (end_elem as u32).min(n);
 
         for i in loop_start..loop_end {
-            let off = ((i as usize) * sew_bytes) % vlenb;
+            let (_, _, off) = vctx.elem_layout(i as usize);
             let mask_bit = match mode {
                 VectorElementLoopMode::Unmasked => true,
                 VectorElementLoopMode::Masked => {
                     let v0 = v0.as_ref().unwrap();
-                    (v0[(i as usize) / 8] >> (i % 8)) & 1 != 0
+                    super::mask_bit(v0, i as usize)
                 }
             };
-            let src1_val = match sew_bytes {
-                1 => src1_chunk[off] as u64,
-                2 => u16::from_le_bytes(src1_chunk[off..off + 2].try_into().unwrap()) as u64,
-                4 => u32::from_le_bytes(src1_chunk[off..off + 4].try_into().unwrap()) as u64,
-                8 => u64::from_le_bytes(src1_chunk[off..off + 8].try_into().unwrap()),
-                _ => 0,
-            };
-            let src2_val = match sew_bytes {
-                1 => src2_chunk[off] as u64,
-                2 => u16::from_le_bytes(src2_chunk[off..off + 2].try_into().unwrap()) as u64,
-                4 => u32::from_le_bytes(src2_chunk[off..off + 4].try_into().unwrap()) as u64,
-                8 => u64::from_le_bytes(src2_chunk[off..off + 8].try_into().unwrap()),
-                _ => 0,
-            };
-            let dst_val = match sew_bytes {
-                1 => dst_chunk[off] as u64,
-                2 => u16::from_le_bytes(dst_chunk[off..off + 2].try_into().unwrap()) as u64,
-                4 => u32::from_le_bytes(dst_chunk[off..off + 4].try_into().unwrap()) as u64,
-                8 => u64::from_le_bytes(dst_chunk[off..off + 8].try_into().unwrap()),
-                _ => 0,
-            };
-            let res = op(i, sew_bytes, src1_val, src2_val, mask_bit, dst_val);
-            match sew_bytes {
-                1 => dst_chunk[off] = res as u8,
-                2 => dst_chunk[off..off + 2].copy_from_slice(&(res as u16).to_le_bytes()),
-                4 => dst_chunk[off..off + 4].copy_from_slice(&(res as u32).to_le_bytes()),
-                8 => dst_chunk[off..off + 8].copy_from_slice(&res.to_le_bytes()),
-                _ => {}
-            }
+            let src1_val = vctx.sew.read_u(&src1_chunk, off);
+            let src2_val = vctx.sew.read_u(&src2_chunk, off);
+            let dst_val = vctx.sew.read_u(&dst_chunk, off);
+            let res = op(i, vctx.sew_bytes, src1_val, src2_val, mask_bit, dst_val);
+            vctx.sew.write(&mut dst_chunk, off, res);
         }
         state.reg.vr.raw_write(rd + r, &dst_chunk);
     }
@@ -244,6 +147,7 @@ where
     C: crate::ExecuteContext<P>,
     F: Fn(i64, i64) -> bool,
 {
+    let vctx = VContext::from_state::<P, C>(ctx);
     let state = ctx.state_mut();
     let vd = decoded.rd as usize;
     let vs2 = decoded.rs2 as usize;
@@ -251,33 +155,19 @@ where
     let simm_sext = ((raw_imm5 << 27) as i32 >> 27) as i64;
     let vm = (decoded.imm >> 8) != 0;
 
-    let vl = state.reg.csr.vector.vl();
-    let vtype = state.reg.csr.vector.vtype();
-    let vlmul = vtype & 0x7;
-    let vsew = (vtype >> 3) & 0x7;
-    let sew_bytes = 1 << (vsew & 0x3);
-    let vlenb = <<P::ISA as RvIsa>::VConfig as VExtensionConfig>::VLENB as usize;
-    let nf = nf_from_vlmul(vlmul).min(32_usize.saturating_sub(vs2));
-    let total_elems = (nf * vlenb) / sew_bytes;
-    let n = vl.min(total_elems as u32) as usize;
+    let nf = vctx.nf.min(32_usize.saturating_sub(vs2));
+    let total_elems = (nf * vctx.vlenb) / vctx.sew_bytes;
+    let n = vctx.vl.min(total_elems as u32) as usize;
 
     let v0 = state.reg.vr.raw_read(0).to_vec();
     let mut vd_buf = state.reg.vr.raw_read(vd).to_vec();
 
     for i in 0..n {
-        let active = vm || ((v0[i / 8] >> (i % 8)) & 1 != 0);
+        let active = vm || super::mask_bit(&v0, i);
         let result_bit = if active {
-            let byte_offset = i * sew_bytes;
-            let reg_i = byte_offset / vlenb;
-            let off = byte_offset % vlenb;
+            let (_, reg_i, off) = vctx.elem_layout(i);
             let chunk = state.reg.vr.raw_read(vs2 + reg_i);
-            let vs2_val = match sew_bytes {
-                1 => chunk[off] as i8 as i64,
-                2 => i16::from_le_bytes(chunk[off..off + 2].try_into().unwrap()) as i64,
-                4 => i32::from_le_bytes(chunk[off..off + 4].try_into().unwrap()) as i64,
-                8 => i64::from_le_bytes(chunk[off..off + 8].try_into().unwrap()),
-                _ => 0,
-            };
+            let vs2_val = vctx.sew.read_i(chunk, off);
             cmp_op(vs2_val, simm_sext)
         } else {
             false

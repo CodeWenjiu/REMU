@@ -1,14 +1,10 @@
 //! funct3 = 0b100: OP-IVX
 
-use remu_types::isa::{
-    extension_v::VExtensionConfig,
-    reg::{RegAccess, VectorCsrState, VrState},
-    RvIsa,
-};
+use remu_types::isa::reg::{RegAccess, VrState};
 
 use crate::riscv::inst::{DecodedInst, opcode::OP_V::OpIvxInst};
 
-use super::utils::{nf_from_vlmul, vector_element_loop, VectorElementLoopMode};
+use super::{VContext, utils::{vector_element_loop, VectorElementLoopMode}};
 
 fn vector_mask_cmp_vx<P, C, F>(
     ctx: &mut C,
@@ -20,27 +16,22 @@ where
     C: crate::ExecuteContext<P>,
     F: Fn(i64, i64) -> bool,
 {
+    let vctx = VContext::from_state::<P, C>(ctx);
     let state = ctx.state_mut();
     let vd = decoded.rd as usize;
     let vs2 = decoded.rs2 as usize;
     let rs1 = decoded.rs1;
     let vm = decoded.imm != 0;
 
-    let vl = state.reg.csr.vector.vl();
-    let vtype = state.reg.csr.vector.vtype();
-    let vlmul = vtype & 0x7;
-    let vsew = (vtype >> 3) & 0x7;
-    let sew_bytes = 1 << (vsew & 0x3);
-    let vlenb = <<P::ISA as RvIsa>::VConfig as VExtensionConfig>::VLENB as usize;
-    let nf = nf_from_vlmul(vlmul).min(32_usize.saturating_sub(vs2));
-    let total_elems = (nf * vlenb) / sew_bytes;
-    let n = vl.min(total_elems as u32) as usize;
+    let nf = vctx.nf.min(32_usize.saturating_sub(vs2));
+    let total_elems = (nf * vctx.vlenb) / vctx.sew_bytes;
+    let n = vctx.vl.min(total_elems as u32) as usize;
     let scalar = state.reg.gpr.raw_read(rs1.into());
 
     let v0 = state.reg.vr.raw_read(0).to_vec();
     let mut vd_buf = state.reg.vr.raw_read(vd).to_vec();
 
-    let rs1_sext = match sew_bytes {
+    let rs1_sext = match vctx.sew_bytes {
         1 => (scalar as i8) as i64,
         2 => (scalar as i16) as i64,
         4 => (scalar as i32) as i64,
@@ -49,19 +40,11 @@ where
     };
 
     for i in 0..n {
-        let active = vm || ((v0[i / 8] >> (i % 8)) & 1 != 0);
+        let active = vm || super::mask_bit(&v0, i);
         let result_bit = if active {
-            let byte_offset = (i as usize) * sew_bytes;
-            let reg_i = byte_offset / vlenb;
-            let off = byte_offset % vlenb;
+            let (_, reg_i, off) = vctx.elem_layout(i);
             let chunk = state.reg.vr.raw_read(vs2 + reg_i);
-            let vs2_val = match sew_bytes {
-                1 => chunk[off] as i8 as i64,
-                2 => i16::from_le_bytes(chunk[off..off + 2].try_into().unwrap()) as i64,
-                4 => i32::from_le_bytes(chunk[off..off + 4].try_into().unwrap()) as i64,
-                8 => i64::from_le_bytes(chunk[off..off + 8].try_into().unwrap()),
-                _ => 0,
-            };
+            let vs2_val = vctx.sew.read_i(chunk, off);
             cmp_op(vs2_val, rs1_sext)
         } else {
             false
