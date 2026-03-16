@@ -130,3 +130,27 @@ pub(crate) fn scalar_sext(scalar: u32, sew_bytes: usize) -> i64 {
         _ => 0,
     }
 }
+
+/// Signed mul-add: (src1 * src2 + dst) truncated to SEW. For vmacc.
+#[inline]
+pub(crate) fn binop_macc(src1: u64, src2: u64, dst: u64, sew: usize) -> u64 {
+    match sew {
+        1 => {
+            let p = (src1 as i8 as i16).wrapping_mul(src2 as i8 as i16);
+            (p.wrapping_add(dst as i8 as i16) as i8 as u8) as u64
+        }
+        2 => {
+            let p = (src1 as i16 as i32).wrapping_mul(src2 as i16 as i32);
+            (p.wrapping_add(dst as i16 as i32) as i16 as u16) as u64
+        }
+        4 => {
+            let p = (src1 as i32 as i64).wrapping_mul(src2 as i32 as i64);
+            (p.wrapping_add(dst as i32 as i64) as i32 as u32) as u64
+        }
+        8 => {
+            let p = (src1 as i64).wrapping_mul(src2 as i64);
+            p.wrapping_add(dst as i64) as u64
+        }
+        _ => dst,
+    }
+}

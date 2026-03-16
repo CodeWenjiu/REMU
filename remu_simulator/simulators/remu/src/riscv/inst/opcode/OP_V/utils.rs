@@ -1,6 +1,6 @@
 //! Shared vector execution helpers for OP-V sub-opcodes (element loop, mask compare, etc.).
 
-use remu_types::isa::reg::VrState;
+use remu_types::isa::reg::{RegAccess, VrState};
 
 use super::context::VContext;
 
@@ -233,6 +233,351 @@ where
 
     for r in 0..nf {
         state.reg.vr.raw_write(rd + r, &vd_buf[r]);
+    }
+    *state.reg.pc = state.reg.pc.wrapping_add(4);
+    Ok(())
+}
+
+/// Extend vf4: read narrow (sew/4), write wide (sew). signed=true => sext, false => zext.
+pub(crate) fn vector_extend_vf4<P, C>(
+    ctx: &mut C,
+    vd: usize,
+    vs2: usize,
+    vm: bool,
+    signed: bool,
+) -> Result<(), remu_state::StateError>
+where
+    P: remu_state::StatePolicy,
+    C: crate::ExecuteContext<P>,
+{
+    let vctx = VContext::from_state::<P, C>(ctx);
+    let state = ctx.state_mut();
+    let src_sew = vctx.sew_bytes / 4;
+    if src_sew == 0 {
+        return Err(remu_state::StateError::BusError(Box::new(
+            remu_state::bus::BusError::unmapped(0),
+        )));
+    }
+    let nf = vctx.nf
+        .min(32_usize.saturating_sub(vd))
+        .min(32_usize.saturating_sub(vs2));
+    let total_elems = (nf * vctx.vlenb) / vctx.sew_bytes;
+    let n = vctx.vl.min(total_elems as u32) as usize;
+    let v0 = state.reg.vr.raw_read(0).to_vec();
+
+    for r in 0..nf {
+        let mut dst = state.reg.vr.raw_read(vd + r).to_vec();
+        let start = (r * vctx.vlenb) / vctx.sew_bytes;
+        let end = ((r + 1) * vctx.vlenb) / vctx.sew_bytes;
+        for i in start..end.min(n) {
+            if !vm && !super::mask_bit(&v0, i) {
+                continue;
+            }
+            let src_byte_off = i * src_sew;
+            let src_reg = src_byte_off / vctx.vlenb;
+            let src_off = src_byte_off % vctx.vlenb;
+            let src_chunk = state.reg.vr.raw_read(vs2 + src_reg);
+            let mut val = [0u8; 8];
+            if signed {
+                match (src_sew, vctx.sew_bytes) {
+                    (1, 4) => val[..4].copy_from_slice(&(src_chunk[src_off] as i8 as i32 as u32).to_le_bytes()),
+                    (1, 8) => val[..8].copy_from_slice(&(src_chunk[src_off] as i8 as i64 as u64).to_le_bytes()),
+                    (2, 4) => val[..4].copy_from_slice(&(i16::from_le_bytes(src_chunk[src_off..src_off + 2].try_into().unwrap()) as i32 as u32).to_le_bytes()),
+                    (2, 8) => val[..8].copy_from_slice(&(i16::from_le_bytes(src_chunk[src_off..src_off + 2].try_into().unwrap()) as i64 as u64).to_le_bytes()),
+                    _ => continue,
+                }
+            } else {
+                match (src_sew, vctx.sew_bytes) {
+                    (1, 4) => val[..4].copy_from_slice(&(src_chunk[src_off] as u32).to_le_bytes()),
+                    (1, 8) => val[..8].copy_from_slice(&(src_chunk[src_off] as u64).to_le_bytes()),
+                    (2, 4) => val[..4].copy_from_slice(&(u16::from_le_bytes(src_chunk[src_off..src_off + 2].try_into().unwrap()) as u32).to_le_bytes()),
+                    (2, 8) => val[..8].copy_from_slice(&(u16::from_le_bytes(src_chunk[src_off..src_off + 2].try_into().unwrap()) as u64).to_le_bytes()),
+                    _ => continue,
+                }
+            };
+            let dst_off = (i * vctx.sew_bytes) % vctx.vlenb;
+            dst[dst_off..dst_off + vctx.sew_bytes].copy_from_slice(&val[..vctx.sew_bytes]);
+        }
+        state.reg.vr.raw_write(vd + r, &dst);
+    }
+    *state.reg.pc = state.reg.pc.wrapping_add(4);
+    Ok(())
+}
+
+/// Reduction: acc = vs1[0]; for i in 0..n { if active(i) { acc = acc + vs2[i] } }; vd[0] = acc.
+pub(crate) fn vector_reduction<P, C, F>(
+    ctx: &mut C,
+    vd: usize,
+    vs1: usize,
+    vs2: usize,
+    vm: bool,
+    mut op: F,
+) -> Result<(), remu_state::StateError>
+where
+    P: remu_state::StatePolicy,
+    C: crate::ExecuteContext<P>,
+    F: FnMut(i64, i64) -> i64,
+{
+    let vctx = VContext::from_state::<P, C>(ctx);
+    let state = ctx.state_mut();
+    if vctx.vl == 0 {
+        *state.reg.pc = state.reg.pc.wrapping_add(4);
+        return Ok(());
+    }
+    let nf = vctx.nf.min(32_usize.saturating_sub(vs2));
+    let total_elems = (nf * vctx.vlenb) / vctx.sew_bytes;
+    let n = vctx.vl.min(total_elems as u32) as usize;
+    let v0 = state.reg.vr.raw_read(0).to_vec();
+    let mut acc = vctx.sew.read_i(state.reg.vr.raw_read(vs1), 0);
+
+    for i in 0..n {
+        if !vm && !super::mask_bit(&v0, i) {
+            continue;
+        }
+        let (_, reg_i, off) = vctx.elem_layout(i);
+        let val = vctx.sew.read_i(state.reg.vr.raw_read(vs2 + reg_i), off);
+        acc = op(acc, val);
+    }
+
+    let mut vd_chunk = state.reg.vr.raw_read(vd).to_vec();
+    vctx.sew.write(&mut vd_chunk, 0, acc as u64);
+    state.reg.vr.raw_write(vd, &vd_chunk);
+    *state.reg.pc = state.reg.pc.wrapping_add(4);
+    Ok(())
+}
+
+/// Insert scalar into vd[0]. For vmv.s.x.
+pub(crate) fn vector_insert_scalar<P, C>(
+    ctx: &mut C,
+    vd: usize,
+    scalar: u32,
+) -> Result<(), remu_state::StateError>
+where
+    P: remu_state::StatePolicy,
+    C: crate::ExecuteContext<P>,
+{
+    let vctx = VContext::from_state::<P, C>(ctx);
+    let state = ctx.state_mut();
+    let mut chunk = state.reg.vr.raw_read(vd).to_vec();
+    vctx.sew.write(&mut chunk, 0, scalar as u64);
+    state.reg.vr.raw_write(vd, &chunk);
+    *state.reg.pc = state.reg.pc.wrapping_add(4);
+    Ok(())
+}
+
+/// Extract first element of vs2 to GPR rd. For vmv.x.s.
+pub(crate) fn vector_extract_scalar<P, C>(
+    ctx: &mut C,
+    rd: u8,
+    vs2: usize,
+) -> Result<(), remu_state::StateError>
+where
+    P: remu_state::StatePolicy,
+    C: crate::ExecuteContext<P>,
+{
+    let vctx = VContext::from_state::<P, C>(ctx);
+    let state = ctx.state_mut();
+    let chunk = state.reg.vr.raw_read(vs2);
+    state.reg.gpr.raw_write(rd.into(), vctx.sew.read_i(chunk, 0) as u32);
+    *state.reg.pc = state.reg.pc.wrapping_add(4);
+    Ok(())
+}
+
+/// First set bit in mask: vfirst.m. Returns index or !0.
+pub(crate) fn vector_first_mask<P, C>(
+    ctx: &mut C,
+    vd_reg: u8,
+    vs2: usize,
+) -> Result<(), remu_state::StateError>
+where
+    P: remu_state::StatePolicy,
+    C: crate::ExecuteContext<P>,
+{
+    let vctx = VContext::from_state::<P, C>(ctx);
+    let state = ctx.state_mut();
+    let chunk = state.reg.vr.raw_read(vs2);
+    let mut pos = !0u32;
+    for i in 0..vctx.vl {
+        let (bi, b) = (i as usize / 8, i % 8);
+        if bi < chunk.len() && (chunk[bi] >> b) & 1 != 0 {
+            pos = i;
+            break;
+        }
+    }
+    state.reg.gpr.raw_write(vd_reg.into(), pos);
+    *state.reg.pc = state.reg.pc.wrapping_add(4);
+    Ok(())
+}
+
+/// Mask binary: vd[i] = op(vs1[i], vs2[i]) per bit. For vmor.
+pub(crate) fn vector_mask_binary<P, C, F>(
+    ctx: &mut C,
+    vd: usize,
+    vs1: usize,
+    vs2: usize,
+    op: F,
+) -> Result<(), remu_state::StateError>
+where
+    P: remu_state::StatePolicy,
+    C: crate::ExecuteContext<P>,
+    F: Fn(u8, u8) -> u8,
+{
+    let vctx = VContext::from_state::<P, C>(ctx);
+    let state = ctx.state_mut();
+    let vl = vctx.vl as usize;
+    let vs1_buf = state.reg.vr.raw_read(vs1);
+    let vs2_buf = state.reg.vr.raw_read(vs2);
+    let mut vd_buf = state.reg.vr.raw_read(vd).to_vec();
+
+    for i in 0..vl {
+        let (bi, b) = (i / 8, i % 8);
+        let v = op((vs1_buf[bi] >> b) & 1, (vs2_buf[bi] >> b) & 1) & 1;
+        if v != 0 {
+            vd_buf[bi] |= 1 << b;
+        } else {
+            vd_buf[bi] &= !(1 << b);
+        }
+    }
+    state.reg.vr.raw_write(vd, &vd_buf);
+    *state.reg.pc = state.reg.pc.wrapping_add(4);
+    Ok(())
+}
+
+/// Wide mul vv: vd[i] = vs1[i]*vs2[i] (+ vd[i] if accumulate). signed: signed mul, else unsigned.
+pub(crate) fn vector_wide_mul_vv<P, C>(
+    ctx: &mut C,
+    vd: usize,
+    vs1: usize,
+    vs2: usize,
+    vm: bool,
+    signed: bool,
+    accumulate: bool,
+) -> Result<(), remu_state::StateError>
+where
+    P: remu_state::StatePolicy,
+    C: crate::ExecuteContext<P>,
+{
+    let vctx = VContext::from_state::<P, C>(ctx);
+    let state = ctx.state_mut();
+    if vctx.sew_bytes >= 4 || vctx.vlmul == 3 {
+        return Err(remu_state::StateError::BusError(Box::new(
+            remu_state::bus::BusError::unmapped(0),
+        )));
+    }
+    let (nf_src, nf_dst) = (vctx.nf, vctx.nf * 2);
+    if vd % nf_dst != 0 {
+        return Err(remu_state::StateError::BusError(Box::new(
+            remu_state::bus::BusError::unmapped(0),
+        )));
+    }
+    super::vreg_check::check_regs(vd, nf_dst, Some((vs1, nf_src)), Some((vs2, nf_src)), true)?;
+
+    let total_elems = (nf_src * vctx.vlenb) / vctx.sew_bytes;
+    let n = vctx.vl.min(total_elems as u32) as usize;
+    let dst_bytes = vctx.sew_bytes * 2;
+    let v0 = state.reg.vr.raw_read(0).to_vec();
+
+    for r in 0..nf_dst {
+        let mut dst = state.reg.vr.raw_read(vd + r).to_vec();
+        let start = (r * vctx.vlenb) / dst_bytes;
+        let end = ((r + 1) * vctx.vlenb) / dst_bytes;
+        for i in start..end.min(n) {
+            if !vm && !super::mask_bit(&v0, i) {
+                continue;
+            }
+            let (_, nr, no) = vctx.elem_layout(i);
+            let (vs1_c, vs2_c) = (
+                state.reg.vr.raw_read(vs1 + nr),
+                state.reg.vr.raw_read(vs2 + nr),
+            );
+            let wo = (i * dst_bytes) % vctx.vlenb;
+            let d_old = if accumulate {
+                match dst_bytes {
+                    2 => i16::from_le_bytes(dst[wo..wo + 2].try_into().unwrap()) as i64,
+                    4 => i32::from_le_bytes(dst[wo..wo + 4].try_into().unwrap()) as i64,
+                    8 => i64::from_le_bytes(dst[wo..wo + 8].try_into().unwrap()),
+                    _ => 0,
+                }
+            } else {
+                0
+            };
+            let res = if signed {
+                let (s1, s2) = (vctx.sew.read_i(vs1_c, no), vctx.sew.read_i(vs2_c, no));
+                s1.wrapping_mul(s2).wrapping_add(d_old)
+            } else {
+                let (s1, s2) = (vctx.sew.read_u(vs1_c, no), vctx.sew.read_u(vs2_c, no));
+                (s1.wrapping_mul(s2).wrapping_add(d_old as u64)) as i64
+            };
+            match dst_bytes {
+                2 => dst[wo..wo + 2].copy_from_slice(&(res as i16).to_le_bytes()),
+                4 => dst[wo..wo + 4].copy_from_slice(&(res as i32).to_le_bytes()),
+                8 => dst[wo..wo + 8].copy_from_slice(&res.to_le_bytes()),
+                _ => {}
+            }
+        }
+        state.reg.vr.raw_write(vd + r, &dst);
+    }
+    *state.reg.pc = state.reg.pc.wrapping_add(4);
+    Ok(())
+}
+
+/// Wide mul vx: vd[i] = vs2[i] * scalar. signed mul.
+pub(crate) fn vector_wide_mul_vx<P, C>(
+    ctx: &mut C,
+    vd: usize,
+    vs2: usize,
+    scalar: i64,
+    vm: bool,
+) -> Result<(), remu_state::StateError>
+where
+    P: remu_state::StatePolicy,
+    C: crate::ExecuteContext<P>,
+{
+    let vctx = VContext::from_state::<P, C>(ctx);
+    let state = ctx.state_mut();
+    if vctx.sew_bytes >= 4 || vctx.vlmul == 3 {
+        return Err(remu_state::StateError::BusError(Box::new(
+            remu_state::bus::BusError::unmapped(0),
+        )));
+    }
+    let (nf_src, nf_dst) = (vctx.nf, vctx.nf * 2);
+    if vd % nf_dst != 0 || vd + nf_dst > 32 || vs2 + nf_src > 32 {
+        return Err(remu_state::StateError::BusError(Box::new(
+            remu_state::bus::BusError::unmapped(0),
+        )));
+    }
+    if !(vd + nf_dst <= vs2 || vs2 + nf_src <= vd) || vd == 0 {
+        return Err(remu_state::StateError::BusError(Box::new(
+            remu_state::bus::BusError::unmapped(0),
+        )));
+    }
+
+    let total_elems = (nf_src * vctx.vlenb) / vctx.sew_bytes;
+    let n = vctx.vl.min(total_elems as u32) as usize;
+    let dst_bytes = vctx.sew_bytes * 2;
+    let v0 = state.reg.vr.raw_read(0).to_vec();
+
+    for r in 0..nf_dst {
+        let mut dst = state.reg.vr.raw_read(vd + r).to_vec();
+        let start = (r * vctx.vlenb) / dst_bytes;
+        let end = ((r + 1) * vctx.vlenb) / dst_bytes;
+        for i in start..end.min(n) {
+            if !vm && !super::mask_bit(&v0, i) {
+                continue;
+            }
+            let (_, nr, no) = vctx.elem_layout(i);
+            let vs2_c = state.reg.vr.raw_read(vs2 + nr);
+            let s2 = vctx.sew.read_i(vs2_c, no);
+            let res = s2.wrapping_mul(scalar);
+            let wo = (i * dst_bytes) % vctx.vlenb;
+            match dst_bytes {
+                2 => dst[wo..wo + 2].copy_from_slice(&(res as i16).to_le_bytes()),
+                4 => dst[wo..wo + 4].copy_from_slice(&(res as i32).to_le_bytes()),
+                8 => dst[wo..wo + 8].copy_from_slice(&res.to_le_bytes()),
+                _ => {}
+            }
+        }
+        state.reg.vr.raw_write(vd + r, &dst);
     }
     *state.reg.pc = state.reg.pc.wrapping_add(4);
     Ok(())
