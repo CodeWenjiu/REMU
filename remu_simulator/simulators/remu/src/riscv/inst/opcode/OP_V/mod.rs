@@ -3,6 +3,7 @@
 
 remu_macro::mod_flat!(decode, execute);
 mod context;
+mod loop_ops;
 remu_macro::mod_pub!(op_cfg, op_ivv, op_ivi, op_ivx, op_mvv, op_mvx, utils);
 
 pub(crate) use context::{calculate_vlmax, mask_bit, vreg_check, VContext};

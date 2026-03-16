@@ -135,11 +135,14 @@ where
     Ok(())
 }
 
-/// Mask compare vi with closure. decoded.imm: low 5 bits = simm5, bit 8 = vm.
-/// Result written as 1 bit per element (bit-packed) in vd.
-pub(crate) fn vector_mask_cmp_vi<P, C, F>(
+/// Mask compare: vs2[i] cmp scalar -> 1 bit per element. Unified for vi (simm5) and vx (GPR).
+/// scalar: sign-extended compare operand. vm from decoded.imm bit 8.
+pub(crate) fn vector_mask_cmp<P, C, F>(
     ctx: &mut C,
-    decoded: &crate::riscv::inst::DecodedInst,
+    vd: usize,
+    vs2: usize,
+    scalar: i64,
+    vm: bool,
     cmp_op: F,
 ) -> Result<(), remu_state::StateError>
 where
@@ -149,11 +152,6 @@ where
 {
     let vctx = VContext::from_state::<P, C>(ctx);
     let state = ctx.state_mut();
-    let vd = decoded.rd as usize;
-    let vs2 = decoded.rs2 as usize;
-    let raw_imm5 = decoded.imm & 0x1F;
-    let simm_sext = ((raw_imm5 << 27) as i32 >> 27) as i64;
-    let vm = (decoded.imm >> 8) != 0;
 
     let nf = vctx.nf.min(32_usize.saturating_sub(vs2));
     let total_elems = (nf * vctx.vlenb) / vctx.sew_bytes;
@@ -168,7 +166,7 @@ where
             let (_, reg_i, off) = vctx.elem_layout(i);
             let chunk = state.reg.vr.raw_read(vs2 + reg_i);
             let vs2_val = vctx.sew.read_i(chunk, off);
-            cmp_op(vs2_val, simm_sext)
+            cmp_op(vs2_val, scalar)
         } else {
             false
         };
@@ -182,6 +180,60 @@ where
     }
 
     state.reg.vr.raw_write(vd, &vd_buf);
+    *state.reg.pc = state.reg.pc.wrapping_add(4);
+    Ok(())
+}
+
+/// Slide: vd[i] = vs2[i + offset] if in range else 0. Covers vslidedown.
+pub(crate) fn vector_slide<P, C>(
+    ctx: &mut C,
+    rd: usize,
+    rs2: usize,
+    offset: usize,
+    mode: VectorElementLoopMode,
+) -> Result<(), remu_state::StateError>
+where
+    P: remu_state::StatePolicy,
+    C: crate::ExecuteContext<P>,
+{
+    let vctx = VContext::from_state::<P, C>(ctx);
+    let state = ctx.state_mut();
+    let vlmax = vctx.vlmax as usize;
+    let n = vctx.n_elems() as usize;
+    let nf = vctx.nf
+        .min(32_usize.saturating_sub(rd))
+        .min(32_usize.saturating_sub(rs2))
+        .max(1);
+
+    let vs2_buf: Vec<Vec<u8>> = (0..nf).map(|r| state.reg.vr.raw_read(rs2 + r).to_vec()).collect();
+    let mut vd_buf: Vec<Vec<u8>> = (0..nf).map(|r| state.reg.vr.raw_read(rd + r).to_vec()).collect();
+    let v0 = match mode {
+        VectorElementLoopMode::Unmasked => None,
+        VectorElementLoopMode::Masked => Some(state.reg.vr.raw_read(0).to_vec()),
+    };
+
+    for i in 0..n {
+        let mask = match &v0 {
+            None => true,
+            Some(v) => super::mask_bit(v, i),
+        };
+        if !mask {
+            continue;
+        }
+        let src_idx = i + offset;
+        let val = if src_idx < vlmax {
+            let (_, reg_i, off) = vctx.elem_layout(src_idx);
+            vctx.sew.read_u(&vs2_buf[reg_i], off)
+        } else {
+            0
+        };
+        let (_, dst_reg, dst_off) = vctx.elem_layout(i);
+        vctx.sew.write(&mut vd_buf[dst_reg], dst_off, val);
+    }
+
+    for r in 0..nf {
+        state.reg.vr.raw_write(rd + r, &vd_buf[r]);
+    }
     *state.reg.pc = state.reg.pc.wrapping_add(4);
     Ok(())
 }

@@ -5,8 +5,9 @@ use remu_types::isa::reg::{RegAccess, VrState};
 use crate::riscv::inst::{DecodedInst, opcode::OP_V::OpMvvInst};
 
 use super::{
+    loop_ops::mode_from_vm,
     mask_bit, vreg_check, VContext,
-    utils::{VectorElementLoopMode, vector_element_loop, vector_element_loop_vv},
+    utils::{vector_element_loop, vector_element_loop_vv},
 };
 
 fn vector_redsum_vs<P, C>(ctx: &mut C, decoded: &DecodedInst) -> Result<(), remu_state::StateError>
@@ -373,7 +374,7 @@ pub(crate) fn execute<P: remu_state::StatePolicy, C: crate::ExecuteContext<P>>(
             ctx,
             decoded.rd as usize,
             None,
-            VectorElementLoopMode::Unmasked,
+            mode_from_vm(true),
             |idx, _, _, _mask, _dst| idx as u64,
         ),
         OpMvvInst::Vmv_x_s => {
@@ -427,12 +428,7 @@ pub(crate) fn execute<P: remu_state::StatePolicy, C: crate::ExecuteContext<P>>(
             Ok(())
         }
         OpMvvInst::Vmacc_vv => {
-            let vm = decoded.imm != 0;
-            let mode = if vm {
-                VectorElementLoopMode::Unmasked
-            } else {
-                VectorElementLoopMode::Masked
-            };
+            let mode = mode_from_vm(decoded.imm != 0);
             vector_element_loop_vv(
                 ctx,
                 decoded.rd as usize,
