@@ -106,6 +106,7 @@ impl RemuCompleter {
                 if name.starts_with(needle) {
                     Some(Suggestion {
                         value: name.clone(),
+                        display_override: None,
                         description: None,
                         style: None,
                         extra: None,
@@ -191,6 +192,7 @@ impl RemuCompleter {
         vec![
             Suggestion {
                 value: " and {".to_string(),
+                display_override: None,
                 description: Some("structural".to_string()),
                 style: None,
                 extra: None,
@@ -200,6 +202,7 @@ impl RemuCompleter {
             },
             Suggestion {
                 value: " or {".to_string(),
+                display_override: None,
                 description: Some("structural".to_string()),
                 style: None,
                 extra: None,

@@ -2,9 +2,7 @@ use criterion::{Criterion, black_box, criterion_group, criterion_main};
 use pprof::criterion::{Output, PProfProfiler};
 
 use rand::{
-    Rng,
-    distr::{Distribution, weighted::WeightedIndex},
-    rngs::ThreadRng,
+    RngExt, distr::{Distribution, weighted::WeightedIndex}, rngs::ThreadRng
 };
 use remu_simulator_remu::riscv::inst::{decode, RV32_INSTRUCTION_MIX};
 use remu_state::StateFastProfile;

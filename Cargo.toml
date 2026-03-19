@@ -37,17 +37,19 @@ strip = "none"
 [workspace.dependencies]
 thiserror = "2.0.18"
 miette = "7.6.0"
-anyhow = "1.0.100"
+anyhow = "1.0.102"
 
 tracing = "0.1.44"
 
 petgraph = "0.8.3"
 
-clap = "4.5.54"
-winnow = "0.7.14"
-target-lexicon = "0.13.4"
+clap = "4.6.0"
+winnow = "1.0.0"
+target-lexicon = "0.13.5"
 
 criterion = "0.5.1"
 pprof = "0.15.0"
 
-cc = "1.2.55"
+cc = "1.2.57"
+
+rand = "0.10.0"
