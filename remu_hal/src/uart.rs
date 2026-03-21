@@ -50,3 +50,11 @@ impl embedded_io::Write for Uart16550 {
         Ok(())
     }
 }
+
+impl core::fmt::Write for Uart16550 {
+    fn write_str(&mut self, s: &str) -> core::fmt::Result {
+        use embedded_io::Write;
+        self.write(s.as_bytes()).map_err(|_| core::fmt::Error)?;
+        Ok(())
+    }
+}

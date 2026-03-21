@@ -1,2 +1,20 @@
 [target.'cfg(target_os = "linux")']
 rustflags = ["-C", "link-arg=-fuse-ld=mold"]
+
+# RISC-V bare-metal: linker and runner for remu_app.
+# Use: cargo run -p remu_app_hello_world --target riscv32i-unknown-none-elf -Z build-std=core
+# Or: just run-app hello_world
+
+[target.'cfg(all(any(target_arch = "riscv32", target_arch = "riscv64"), target_os = "none"))']
+linker = "rust-lld"
+# memory.x in -L remu_hal; link.x in -L riscv-rt/out. Order: memory first, then link.
+rustflags = ["-C", "link-arg=-Tmemory.x", "-C", "link-arg=-Tlink.x"]
+
+[target.riscv32i-unknown-none-elf]
+runner = "cargo run -p xtask -q -- run-remu"
+
+[target.riscv32im-unknown-none-elf]
+runner = "cargo run -p xtask -q -- run-remu"
+
+[target.riscv32imac-unknown-none-elf]
+runner = "cargo run -p xtask -q -- run-remu"

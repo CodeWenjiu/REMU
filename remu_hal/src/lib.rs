@@ -11,5 +11,6 @@ extern crate panic_halt;
 mod addresses;
 remu_macro::mod_flat!(exit, uart);
 
+pub use core::fmt::Write as FmtWrite;
 pub use embedded_io::Write;
 pub use riscv_rt::entry;
