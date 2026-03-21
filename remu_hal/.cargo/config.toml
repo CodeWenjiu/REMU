@@ -1,0 +1,17 @@
+# RISC-V bare-metal targets for remu_hal-based apps (memory.x, link.x from riscv-rt).
+# Config lives here: remu_hal owns the embedded target spec; build-app invokes cargo from this dir.
+[target.riscv32i-unknown-none-elf]
+linker = ".cargo/linker-wrapper.sh"
+rustflags = ["-C", "link-arg=-Tmemory.x", "-C", "link-arg=-Tlink.x"]
+
+[target.riscv32im-unknown-none-elf]
+linker = ".cargo/linker-wrapper.sh"
+rustflags = ["-C", "link-arg=-Tmemory.x", "-C", "link-arg=-Tlink.x"]
+
+[target.riscv32imac-unknown-none-elf]
+linker = ".cargo/linker-wrapper.sh"
+rustflags = ["-C", "link-arg=-Tmemory.x", "-C", "link-arg=-Tlink.x"]
+
+[target.riscv64gc-unknown-none-elf]
+linker = ".cargo/linker-wrapper.sh"
+rustflags = ["-C", "link-arg=-Tmemory.x", "-C", "link-arg=-Tlink.x"]

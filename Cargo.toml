@@ -18,6 +18,9 @@ members = [
     "remu_simulator/simulators/nzea",
 
     "remu_state",
+
+    "remu_hal",
+    "remu_app/hello_world",
 ]
 
 [profile.release]
