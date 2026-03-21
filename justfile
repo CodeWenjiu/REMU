@@ -23,7 +23,7 @@ clean-all:
 # TARGET: ISA shorthand (riscv32i, riscv32im, riscv32imac) or full triple.
 # Requires cargo-binutils. Run `just clean-app` to remove target/app/
 build-app APP target="riscv32i":
-    @"{{ justfile_directory() }}/remu_hal/.cargo/build-app.sh" {{ APP }} {{ target }} "{{ justfile_directory() }}"
+    cargo run -p xtask -- build-app {{ APP }} {{ target }}
 
 # Remove all embedded app build artifacts (target/app/). Does not affect remu_cli etc.
 clean-app:

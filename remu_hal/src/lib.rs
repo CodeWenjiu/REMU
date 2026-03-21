@@ -9,10 +9,7 @@
 extern crate panic_halt;
 
 mod addresses;
-mod exit;
-mod uart;
+remu_macro::mod_flat!(exit, uart);
 
 pub use embedded_io::Write;
-pub use exit::{exit_failure, exit_success};
 pub use riscv_rt::entry;
-pub use uart::Uart16550;

@@ -20,6 +20,7 @@ members = [
     "remu_state",
 
     "remu_hal",
+    "remu_hal/xtask",
     "remu_app/hello_world",
 ]
 
