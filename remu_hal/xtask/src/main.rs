@@ -40,23 +40,38 @@ fn run_remu(elf_path: &str) {
         .parent()
         .unwrap();
 
+    let batch = env::var("BATCH").is_ok();
+
+    let mut args = vec![
+        "run".into(),
+        "-p".into(),
+        "remu_cli".into(),
+        "-q".into(),
+        "--release".into(),
+        "--".into(),
+        "--elf".into(),
+        elf_path.to_string(),
+        "--isa".into(),
+        isa.to_string(),
+    ];
+
+    if batch {
+        args.push("--batch".into());
+        args.push("--startup".into());
+        args.push("continue".into());
+    }
+    if let Ok(v) = env::var("PLATFORM") {
+        args.push("--platform".into());
+        args.push(v);
+    }
+    if let Ok(v) = env::var("DIFFTEST") {
+        args.push("--difftest".into());
+        args.push(v);
+    }
+
     let status = Command::new("cargo")
         .current_dir(workspace_root)
-        .args([
-            "run",
-            "-p",
-            "remu_cli",
-            "-q",
-            "--release",
-            "--",
-            "--elf",
-            elf_path,
-            "--isa",
-            isa,
-            "--batch",
-            "--startup",
-            "continue",
-        ])
+        .args(args)
         .status()
         .unwrap_or_else(|e| {
             eprintln!("run-remu: failed to run remu_cli: {e}");
