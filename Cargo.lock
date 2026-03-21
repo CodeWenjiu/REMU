@@ -588,6 +588,16 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "48c757948c5ede0e46177b7add2e67155f70e33c07fea8284df6576da70b3719"
 
 [[package]]
+name = "embedded-alloc"
+version = "0.7.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "2db634e07f552215f7a3572dc0a4d29760c637fcea5a8c18d2cc291f782c216c"
+dependencies = [
+ "critical-section",
+ "linked_list_allocator",
+]
+
+[[package]]
 name = "embedded-hal"
 version = "1.0.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -907,6 +917,12 @@ name = "libc"
 version = "0.2.180"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "bcc35a38544a891a5f7c865aca548a982ccb3b8650a5b06d0fd33a10283c56fc"
+
+[[package]]
+name = "linked_list_allocator"
+version = "0.10.5"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "9afa463f5405ee81cdb9cc2baf37e08ec7e4c8209442b5d72c04cfb2cd6e6286"
 
 [[package]]
 name = "linux-raw-sys"
@@ -1451,6 +1467,13 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "a96887878f22d7bad8a3b6dc5b7440e0ada9a245242924394987b21cf2210a4c"
 
 [[package]]
+name = "remu_app_collection"
+version = "0.1.0"
+dependencies = [
+ "remu_hal",
+]
+
+[[package]]
 name = "remu_app_hello_world"
 version = "0.1.0"
 dependencies = [
@@ -1528,10 +1551,13 @@ dependencies = [
 name = "remu_hal"
 version = "0.1.0"
 dependencies = [
+ "critical-section",
+ "embedded-alloc",
  "embedded-hal",
  "embedded-io",
  "panic-halt",
  "remu_macro",
+ "riscv",
  "riscv-rt",
 ]
 

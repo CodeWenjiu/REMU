@@ -8,4 +8,7 @@ remu_macro = { path = "../remu_macro" }
 embedded-hal = "1.0.0"
 embedded-io = "0.7.1"
 riscv-rt = "0.17.1"
+riscv = { version = "0.16", features = ["critical-section-single-hart"] }
+critical-section = "1.2.0"
 panic-halt = "1.0"
+embedded-alloc = { version = "0.7.0", default-features = false, features = ["llff"] }

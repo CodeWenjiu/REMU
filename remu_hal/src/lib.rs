@@ -5,12 +5,15 @@
 //! Re-exports riscv-rt entry, panic-halt, and traits so app crates need minimal deps.
 
 #![no_std]
+#![feature(alloc_error_handler)]
 
+extern crate alloc;
 extern crate panic_halt;
 
 mod addresses;
-remu_macro::mod_flat!(exit, uart);
+remu_macro::mod_flat!(heap, exit, uart);
 
+pub use alloc::{boxed::Box, string::String, vec::Vec};
 pub use core::fmt::Write as FmtWrite;
 pub use embedded_io::Write;
 pub use riscv_rt::entry;

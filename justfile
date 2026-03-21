@@ -28,7 +28,7 @@ build-app APP target="riscv32i":
 # Run remu-app on remu: build + load ELF + run to exit.
 # Uses Cargo runner (.cargo/config.toml). TARGET: riscv32i, riscv32im, riscv32imac.
 run-app APP target="riscv32i":
-    @cargo run -p remu_app_{{ APP }} --target {{ target }}-unknown-none-elf --release -Z build-std=core
+    @cargo run -p remu_app_{{ APP }} --target {{ target }}-unknown-none-elf --release -Z build-std=core,alloc
 
 # Remove all embedded app build artifacts (target/app/). Does not affect remu_cli etc.
 clean-app:

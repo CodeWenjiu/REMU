@@ -21,9 +21,22 @@ fn main() {
 
 /// Cargo runner: load ELF into remu and run to exit. Infers ISA from path.
 fn run_remu(elf_path: &str) {
-    if !Path::new(elf_path).is_file() {
+    let path = Path::new(elf_path);
+    if !path.is_file() {
         eprintln!("run-remu: ELF file not found: {}", elf_path);
         std::process::exit(1);
+    }
+
+    let manifest_dir = env::var("CARGO_MANIFEST_DIR").expect("CARGO_MANIFEST_DIR");
+    let workspace_root = Path::new(&manifest_dir)
+        .parent()
+        .unwrap()
+        .parent()
+        .unwrap();
+
+    // Generate disassembly: <elf>.asm
+    if let Err(e) = gen_disasm(workspace_root, elf_path) {
+        eprintln!("run-remu: disasm generation failed: {e}");
     }
 
     // Infer ISA from path (e.g. .../riscv32im-unknown-none-elf/release/...)
@@ -32,13 +45,6 @@ fn run_remu(elf_path: &str) {
         .find(|s| s.ends_with("-unknown-none-elf"))
         .and_then(|s| s.strip_suffix("-unknown-none-elf"))
         .unwrap_or("riscv32i");
-
-    let manifest_dir = env::var("CARGO_MANIFEST_DIR").expect("CARGO_MANIFEST_DIR");
-    let workspace_root = Path::new(&manifest_dir)
-        .parent()
-        .unwrap()
-        .parent()
-        .unwrap();
 
     let batch = env::var("BATCH").is_ok();
 
@@ -81,6 +87,51 @@ fn run_remu(elf_path: &str) {
     std::process::exit(status.code().unwrap_or(1));
 }
 
+/// Generate disassembly for elf_path, output to <elf_path>.asm.
+fn gen_disasm(workspace_root: &Path, elf_path: &str) -> Result<(), Box<dyn std::error::Error>> {
+    let path = Path::new(elf_path);
+    let pkg = path
+        .file_stem()
+        .and_then(|s| s.to_str())
+        .ok_or("invalid elf path")?;
+    let triple = path
+        .parent()
+        .and_then(|p| p.parent())
+        .and_then(|p| p.file_name())
+        .and_then(|s| s.to_str())
+        .unwrap_or("riscv32i-unknown-none-elf");
+
+    let asm_path = path.with_extension("asm");
+    let manifest = workspace_root.join("Cargo.toml");
+
+    let out = Command::new("cargo")
+        .current_dir(workspace_root)
+        .args([
+            "objdump",
+            "--release",
+            "-p",
+            pkg,
+            "--target",
+            triple,
+            "--bin",
+            pkg,
+            "-Z",
+            "build-std=core,alloc",
+            "--manifest-path",
+            manifest.to_str().unwrap(),
+            "--",
+            "-d",
+        ])
+        .output()?;
+
+    if out.status.success() {
+        std::fs::write(&asm_path, &out.stdout)?;
+    } else {
+        return Err(String::from_utf8_lossy(&out.stderr).into());
+    }
+    Ok(())
+}
+
 fn expand_target(target: &str) -> String {
     if target.contains('-') {
         target.to_string()
@@ -103,10 +154,10 @@ fn build_app(app: &str, target: &str) {
     let target_dir = workspace_root.join("target").join("app");
     let pkg = format!("remu_app_{app}");
     let manifest = workspace_root.join("Cargo.toml");
-    let disasm_path = target_dir
+    let asm_path = target_dir
         .join(&triple)
         .join("release")
-        .join(format!("{pkg}.disasm"));
+        .join(format!("{pkg}.asm"));
 
     let cargo = "cargo";
     let status = Command::new(cargo)
@@ -120,7 +171,7 @@ fn build_app(app: &str, target: &str) {
             "--target",
             &triple,
             "-Z",
-            "build-std=core",
+            "build-std=core,alloc",
             "--manifest-path",
             manifest.to_str().unwrap(),
         ])
@@ -146,7 +197,7 @@ fn build_app(app: &str, target: &str) {
             "--bin",
             &pkg,
             "-Z",
-            "build-std=core",
+            "build-std=core,alloc",
             "--manifest-path",
             manifest.to_str().unwrap(),
             "--",
@@ -158,5 +209,5 @@ fn build_app(app: &str, target: &str) {
         eprintln!("{}", String::from_utf8_lossy(&out.stderr));
         std::process::exit(1);
     }
-    std::fs::write(&disasm_path, &out.stdout).expect("write disasm");
+    std::fs::write(&asm_path, &out.stdout).expect("write asm");
 }

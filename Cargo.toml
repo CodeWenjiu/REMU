@@ -22,6 +22,7 @@ members = [
     "remu_hal",
     "remu_hal/xtask",
     "remu_app/hello_world",
+    "remu_app/collection",
 ]
 
 [profile.release]
