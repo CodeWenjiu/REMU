@@ -1106,6 +1106,7 @@ name = "remu_app_mnist"
 version = "0.1.0"
 dependencies = [
  "remu_hal",
+ "remu_macro",
 ]
 
 [[package]]
