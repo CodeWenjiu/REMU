@@ -49,6 +49,7 @@
             cargo-edit
 
             gawk
+            just
 
             clang
             libclang

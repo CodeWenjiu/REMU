@@ -1,5 +1,7 @@
 # RISC-V targets
 
+HAL overview: [README.md](README.md) · [README_zh.md](README_zh.md)
+
 Built-in triples: `riscv32i-unknown-none-elf`, `riscv32im-unknown-none-elf`, `riscv32imac-unknown-none-elf`.
 
 ## Zve shorthand (`riscv32im_zve32x_zvl128b`)
