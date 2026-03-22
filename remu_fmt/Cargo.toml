@@ -13,3 +13,6 @@ tracing.workspace = true
 winnow.workspace = true
 target-lexicon.workspace = true
 capstone = "0.14.0"
+
+[lints]
+workspace = true

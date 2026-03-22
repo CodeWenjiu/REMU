@@ -10,3 +10,6 @@ remu_types = { path = "../../../remu_types" }
 
 [build-dependencies]
 cc = { workspace = true }
+
+[lints]
+workspace = true

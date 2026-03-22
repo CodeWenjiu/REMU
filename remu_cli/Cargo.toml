@@ -28,3 +28,6 @@ cfonts = "1.3.0"
 
 clap = { workspace = true, features = [ "derive", "color" ] }
 winnow.workspace = true
+
+[lints]
+workspace = true

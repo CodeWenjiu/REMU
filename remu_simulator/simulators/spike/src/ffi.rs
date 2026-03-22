@@ -6,25 +6,25 @@ use std::os::raw::{c_char, c_int, c_uint};
 
 /// Layout matches difftest_regs_t
 #[repr(C)]
-pub struct DifftestRegs {
-    pub pc: u32,
-    pub gpr: [u32; 32],
+pub(crate) struct DifftestRegs {
+    pub(crate) pc: u32,
+    pub(crate) gpr: [u32; 32],
 }
 
 /// Memory layout: base + size only; Spike owns the memory
 #[repr(C)]
-pub struct DifftestMemLayout {
-    pub guest_base: usize,
-    pub size: usize,
+pub(crate) struct DifftestMemLayout {
+    pub(crate) guest_base: usize,
+    pub(crate) size: usize,
 }
 
 /// Opaque context pointer
-pub type SpikeDifftestCtx = *mut c_void;
+pub(crate) type SpikeDifftestCtx = *mut c_void;
 
 #[allow(unsafe_code)]
 unsafe extern "C" {
     /// VLEN is determined by Spike from ISA string (e.g. zvl128b in rv32i_zve32x_zvl128b).
-    pub fn spike_difftest_init(
+    pub(crate) fn spike_difftest_init(
         layout: *const DifftestMemLayout,
         n_regions: usize,
         init_pc: u32,
@@ -33,21 +33,21 @@ unsafe extern "C" {
         isa: *const c_char,
     ) -> SpikeDifftestCtx;
 
-    pub fn spike_difftest_copy_mem(
+    pub(crate) fn spike_difftest_copy_mem(
         ctx: SpikeDifftestCtx,
         guest_base: usize,
         data: *const u8,
         len: usize,
     );
 
-    pub fn spike_difftest_read_mem(
+    pub(crate) fn spike_difftest_read_mem(
         ctx: SpikeDifftestCtx,
         addr: usize,
         buf: *mut u8,
         len: usize,
     ) -> c_int;
 
-    pub fn spike_difftest_write_mem(
+    pub(crate) fn spike_difftest_write_mem(
         ctx: SpikeDifftestCtx,
         addr: usize,
         data: *const u8,
@@ -55,38 +55,38 @@ unsafe extern "C" {
     ) -> c_int;
 
     /// Returns 0 success, 1 program exit, -1 error
-    pub fn spike_difftest_step(ctx: SpikeDifftestCtx) -> c_int;
+    pub(crate) fn spike_difftest_step(ctx: SpikeDifftestCtx) -> c_int;
 
     /// Pointer to Spike internal PC; for rv32 use as *const u32. Valid until next step/sync.
-    pub fn spike_difftest_get_pc_ptr(ctx: SpikeDifftestCtx) -> *const u32;
+    pub(crate) fn spike_difftest_get_pc_ptr(ctx: SpikeDifftestCtx) -> *const u32;
 
     /// Pointer to Spike internal GPR; reg_t layout, gpr[i] at ptr[2*i] for rv32.
-    pub fn spike_difftest_get_gpr_ptr(ctx: SpikeDifftestCtx) -> *const u32;
+    pub(crate) fn spike_difftest_get_gpr_ptr(ctx: SpikeDifftestCtx) -> *const u32;
 
     /// Read one CSR by address (e.g. 0x300). Returns low 32 bits; 0 if not present.
-    pub fn spike_difftest_get_csr(ctx: SpikeDifftestCtx, csr_addr: u16) -> u32;
+    pub(crate) fn spike_difftest_get_csr(ctx: SpikeDifftestCtx, csr_addr: u16) -> u32;
 
     /// Read one FPR by index (0..31). RV32F: 32-bit float bits. Only valid when ISA has F.
-    pub fn spike_difftest_get_fpr(ctx: SpikeDifftestCtx, index: usize) -> u32;
+    pub(crate) fn spike_difftest_get_fpr(ctx: SpikeDifftestCtx, index: usize) -> u32;
 
-    pub fn spike_difftest_sync_regs_to_spike(ctx: SpikeDifftestCtx, regs: *const DifftestRegs);
+    pub(crate) fn spike_difftest_sync_regs_to_spike(ctx: SpikeDifftestCtx, regs: *const DifftestRegs);
 
     /// Bytes per vector reg (VLEN/8). 0 when no V.
-    pub fn spike_difftest_get_vlenb(ctx: SpikeDifftestCtx) -> usize;
+    pub(crate) fn spike_difftest_get_vlenb(ctx: SpikeDifftestCtx) -> usize;
 
     /// Pointer to 32 * vlenb bytes. Null when no V.
-    pub fn spike_difftest_get_vr_ptr(ctx: SpikeDifftestCtx) -> *const u8;
+    pub(crate) fn spike_difftest_get_vr_ptr(ctx: SpikeDifftestCtx) -> *const u8;
 
     /// Sync DUT VR to Spike; data len must be 32 * vlenb.
-    pub fn spike_difftest_sync_vr_to_spike(ctx: SpikeDifftestCtx, data: *const u8, len: usize);
+    pub(crate) fn spike_difftest_sync_vr_to_spike(ctx: SpikeDifftestCtx, data: *const u8, len: usize);
 
     /// Write one VR in Spike; index 0..31, len must be vlenb.
-    pub fn spike_difftest_write_vr_reg(
+    pub(crate) fn spike_difftest_write_vr_reg(
         ctx: SpikeDifftestCtx,
         index: usize,
         data: *const u8,
         len: usize,
     );
 
-    pub fn spike_difftest_fini(ctx: SpikeDifftestCtx);
+    pub(crate) fn spike_difftest_fini(ctx: SpikeDifftestCtx);
 }

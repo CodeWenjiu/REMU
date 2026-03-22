@@ -7,13 +7,13 @@ pub(crate) struct Func {
 }
 
 impl Func {
-    pub fn new() -> Self {
+    pub(crate) fn new() -> Self {
         Self {
             trace: Trace::new(),
         }
     }
 
-    pub fn execute(&mut self, command: &FuncCmd) {
+    pub(crate) fn execute(&mut self, command: &FuncCmd) {
         match command {
             FuncCmd::Trace { subcmd } => self.trace.execute(subcmd),
             FuncCmd::Print => println!("Function State: {:?}", self),

@@ -17,3 +17,6 @@ tracing.workspace = true
 thiserror.workspace = true
 
 clap = { workspace = true, features = [ "derive", "color" ] }
+
+[lints]
+workspace = true

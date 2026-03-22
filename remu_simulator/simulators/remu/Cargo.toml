@@ -16,3 +16,6 @@ clap = { workspace = true, features = [ "derive", "color" ] }
 target-lexicon.workspace = true
 
 rand.workspace = true
+
+[lints]
+workspace = true

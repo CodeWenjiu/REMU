@@ -12,3 +12,6 @@ path = "src/main.rs"
 remu_macro = { path = "../../remu_macro" }
 
 clap = { workspace = true, features = ["derive", "std"] }
+
+[lints]
+workspace = true

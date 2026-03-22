@@ -10,3 +10,6 @@ tracing.workspace = true
 
 target-lexicon.workspace = true
 strum = { version = "0.28.0", features = ["derive"] }
+
+[lints]
+workspace = true

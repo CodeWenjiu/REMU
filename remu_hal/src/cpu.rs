@@ -12,7 +12,9 @@
 #[inline]
 pub unsafe fn pre_main_init() {
     #[cfg(target_feature = "zve32x")]
-    unsafe { init_zve_mstatus() };
+    {
+        unsafe { init_zve_mstatus() };
+    }
 }
 
 #[cfg(target_feature = "zve32x")]

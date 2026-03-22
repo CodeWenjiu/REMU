@@ -13,3 +13,6 @@ tracing.workspace = true
 
 clap = { workspace = true, features = [ "derive", "color" ] }
 object = { version = "0.38.1", default-features = false, features = ["read_core", "elf"] }
+
+[lints]
+workspace = true

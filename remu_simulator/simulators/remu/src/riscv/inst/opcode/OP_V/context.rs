@@ -183,16 +183,16 @@ pub(crate) mod vreg_check {
     use remu_state::{bus::BusError, StateError};
 
     #[inline]
-    pub fn in_range(reg: usize, nf: usize) -> bool {
+    pub(crate) fn in_range(reg: usize, nf: usize) -> bool {
         reg + nf <= 32
     }
 
     #[inline]
-    pub fn no_overlap(a: usize, na: usize, b: usize, nb: usize) -> bool {
+    pub(crate) fn no_overlap(a: usize, na: usize, b: usize, nb: usize) -> bool {
         a + na <= b || b + nb <= a
     }
 
-    pub fn check_regs(
+    pub(crate) fn check_regs(
         rd: usize,
         nf_rd: usize,
         rs1: Option<(usize, usize)>,

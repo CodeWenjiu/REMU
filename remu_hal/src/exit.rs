@@ -5,10 +5,10 @@
 use crate::addresses::SIFIVE_TEST_FINISHER_BASE;
 
 /// Magic value for success exit (remu reports ExitCode::Good).
-pub const EXIT_SUCCESS: u32 = 0x5555;
+pub(crate) const EXIT_SUCCESS: u32 = 0x5555;
 
 /// Magic value for failure exit (remu reports ExitCode::Bad).
-pub const EXIT_FAILURE: u32 = 0x3333;
+pub(crate) const EXIT_FAILURE: u32 = 0x3333;
 
 /// Notify remu to exit successfully. Does not return.
 #[inline(never)]
