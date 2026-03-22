@@ -1,6 +1,18 @@
+use remu_state::{State, StatePolicy};
 use remu_types::isa::reg::Mcause;
 
 use crate::riscv::inst::{DecodedInst, Inst};
+
+/// Illegal-instruction trap (M-mode); shared by [`execute`] and vector `mstatus.VS` checks.
+#[inline(always)]
+pub(crate) fn trap_illegal_instruction<P: StatePolicy>(state: &mut State<P>) {
+    let fault_pc = *state.reg.pc;
+    state.reg.csr.mepc = fault_pc;
+    state.reg.csr.mcause = Mcause::IllegalInstruction.to_u32();
+    state.reg.csr.mtval = 0;
+    state.reg.csr.mstatus_apply_trap_entry();
+    *state.reg.pc = state.reg.csr.mtvec_base().into();
+}
 
 pub(crate) const OPCODE: u32 = 0b111_1111;
 pub(crate) const INSTRUCTION_MIX: u32 = 2;
@@ -21,12 +33,6 @@ pub(crate) fn execute<P: remu_state::StatePolicy, C: crate::ExecuteContext<P>>(
     ctx: &mut C,
     _decoded: &DecodedInst,
 ) -> Result<(), remu_state::StateError> {
-    let state = ctx.state_mut();
-    let fault_pc = *state.reg.pc;
-    state.reg.csr.mepc = fault_pc;
-    state.reg.csr.mcause = Mcause::IllegalInstruction.to_u32();
-    state.reg.csr.mtval = 0;
-    state.reg.csr.mstatus_apply_trap_entry();
-    *state.reg.pc = state.reg.csr.mtvec_base().into();
+    trap_illegal_instruction(ctx.state_mut());
     Ok(())
 }

@@ -2,7 +2,7 @@
 
 use remu_types::isa::reg::{Csr as CsrKind, RegAccess};
 
-use crate::riscv::inst::{DecodedInst, Inst, csr, funct3, rd, rs1};
+use crate::riscv::inst::{opcode::UNKNOWN, DecodedInst, Inst, csr, funct3, rd, rs1};
 
 pub(crate) const OPCODE: u32 = 0b111_0011;
 pub(crate) const INSTRUCTION_MIX: u32 = 20;
@@ -62,17 +62,35 @@ pub(crate) fn decode<P: remu_state::StatePolicy>(inst: u32) -> DecodedInst {
     }
 }
 
+/// Vector CSR write changed architectural state (excludes read-only `vlenb`).
+#[inline(always)]
+fn csr_write_dirties_vector_state(k: CsrKind, old: u32, new: u32) -> bool {
+    old != new
+        && matches!(
+            k,
+            CsrKind::Vstart
+                | CsrKind::Vxsat
+                | CsrKind::Vxrm
+                | CsrKind::Vcsr
+                | CsrKind::Vl
+                | CsrKind::Vtype
+        )
+}
+
 #[inline(always)]
 fn do_csr<P: remu_state::StatePolicy>(
     state: &mut remu_state::State<P>,
     decoded: &DecodedInst,
+    k: CsrKind,
     old_val: u32,
     new_val: u32,
 ) -> Result<(), remu_state::StateError> {
-    let csr_kind = CsrKind::from_repr((decoded.imm & 0xFFF) as u16).unwrap();
-    state.reg.csr.write(csr_kind, new_val);
+    state.reg.csr.write(k, new_val);
     state.reg.gpr.raw_write(decoded.rd.into(), old_val);
     *state.reg.pc = state.reg.pc.wrapping_add(4);
+    if csr_write_dirties_vector_state(k, old_val, new_val) {
+        state.reg.csr.set_mstatus_vs_dirty();
+    }
     Ok(())
 }
 
@@ -97,6 +115,10 @@ pub(crate) fn execute<P: remu_state::StatePolicy, C: crate::ExecuteContext<P>>(
         SystemInst::Csrrw | SystemInst::Csrrs | SystemInst::Csrrc
         | SystemInst::Csrrwi | SystemInst::Csrrsi | SystemInst::Csrrci => {
             let k = CsrKind::from_repr((decoded.imm & 0xFFF) as u16).unwrap();
+            if k.illegal_when_vs_off() && state.reg.csr.mstatus_vs_off() {
+                UNKNOWN::trap_illegal_instruction(state);
+                return Ok(());
+            }
             let old = state.reg.read_csr(k);
             let new_val = match sys {
                 SystemInst::Csrrw => state.reg.gpr.raw_read(decoded.rs1.into()),
@@ -107,7 +129,7 @@ pub(crate) fn execute<P: remu_state::StatePolicy, C: crate::ExecuteContext<P>>(
                 SystemInst::Csrrci => old & !(decoded.rs1 as u32),
                 _ => unreachable!(),
             };
-            do_csr(state, decoded, old, new_val)
+            do_csr(state, decoded, k, old, new_val)
         }
     }
 }

@@ -3,7 +3,7 @@ use remu_types::isa::extension_v::VExtensionConfig;
 use remu_types::isa::reg::{RegAccess, VectorCsrState, VrState};
 use remu_types::isa::RvIsa;
 
-use crate::riscv::inst::{funct3, rd, rs1, DecodedInst, Inst};
+use crate::riscv::inst::{funct3, opcode::UNKNOWN, rd, rs1, DecodedInst, Inst};
 
 pub(crate) const OPCODE: u32 = 0b010_0111; // STORE-FP (0x27)
 pub(crate) const INSTRUCTION_MIX: u32 = 10;
@@ -113,6 +113,14 @@ pub(crate) fn execute<P: remu_state::StatePolicy, C: crate::ExecuteContext<P>>(
     decoded: &DecodedInst,
 ) -> Result<(), remu_state::StateError> {
     let Inst::StoreFp(store) = decoded.inst else { unreachable!() };
+
+    if <<P::ISA as RvIsa>::VConfig as VExtensionConfig>::VLENB > 0 {
+        let state = ctx.state_mut();
+        if state.reg.csr.mstatus_vs_off() {
+            UNKNOWN::trap_illegal_instruction(state);
+            return Ok(());
+        }
+    }
 
     match store {
         StoreFpInst::Vs2r => {

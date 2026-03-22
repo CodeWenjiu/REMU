@@ -5,7 +5,7 @@ use remu_types::isa::extension_v::VExtensionConfig;
 use remu_types::isa::reg::{RegAccess, VectorCsrState, VrState};
 use remu_types::isa::RvIsa;
 
-use crate::riscv::inst::{funct3, rd, rs1, rs2, DecodedInst, Inst};
+use crate::riscv::inst::{funct3, opcode::UNKNOWN, rd, rs1, rs2, DecodedInst, Inst};
 
 pub(crate) const OPCODE: u32 = 0b000_0111; // LOAD-FP (0x07)
 pub(crate) const INSTRUCTION_MIX: u32 = 10;
@@ -147,6 +147,14 @@ pub(crate) fn execute<P: remu_state::StatePolicy, C: crate::ExecuteContext<P>>(
     decoded: &DecodedInst,
 ) -> Result<(), remu_state::StateError> {
     let Inst::LoadFp(load_fp) = decoded.inst else { unreachable!() };
+
+    if <<P::ISA as RvIsa>::VConfig as VExtensionConfig>::VLENB > 0 {
+        let state = ctx.state_mut();
+        if state.reg.csr.mstatus_vs_off() {
+            UNKNOWN::trap_illegal_instruction(state);
+            return Ok(());
+        }
+    }
 
     match load_fp {
         LoadFpInst::Vlseg4e8 => {
@@ -459,5 +467,8 @@ pub(crate) fn execute<P: remu_state::StatePolicy, C: crate::ExecuteContext<P>>(
         }
     }
 
+    if <<P::ISA as RvIsa>::VConfig as VExtensionConfig>::VLENB > 0 {
+        ctx.state_mut().reg.csr.set_mstatus_vs_dirty();
+    }
     Ok(())
 }

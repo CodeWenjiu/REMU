@@ -21,6 +21,7 @@ pub struct Csr<C: CsrConfig> {
 impl<C: CsrConfig> Default for Csr<C> {
     fn default() -> Self {
         Self {
+            // MPP=M, VS=Off — matches Spike reset for difftest; Zve firmware must set VS (e.g. `pre_main_init`).
             mstatus: 0x0000_1800,
             mie: 0,
             mtvec: 0,
@@ -54,6 +55,12 @@ impl<C: CsrConfig> Csr<C> {
     // --- mstatus bits (RISC-V Privileged) ---
     const MSTATUS_MIE: u32 = 1 << 3;
     const MSTATUS_MPIE: u32 = 1 << 7;
+    /// Vector extension state (VS): bits [10:9], same encoding as FS.
+    const MSTATUS_VS_MASK: u32 = 0b11 << 9;
+    const MSTATUS_FS_MASK: u32 = 0b11 << 13;
+    const MSTATUS_XS_MASK: u32 = 0b11 << 15;
+    /// Summary dirty (RV32): OR of FS/VS/XS dirty states.
+    const MSTATUS_SD: u32 = 1 << 31;
     const MSTATUS_MPP_MASK: u32 = 3 << 11;
     const MSTATUS_MPP_MACHINE: u32 = 3 << 11;
 
@@ -103,6 +110,39 @@ impl<C: CsrConfig> Csr<C> {
         self.set_mstatus_mpp(Self::MSTATUS_MPP_MACHINE >> 11);
     }
 
+    /// `mstatus.VS` field (0=Off, 1=Initial, 2=Clean, 3=Dirty).
+    #[inline(always)]
+    pub fn mstatus_vs(&self) -> u32 {
+        (self.mstatus & Self::MSTATUS_VS_MASK) >> 9
+    }
+
+    /// VS == Off: vector architectural state must not be accessed.
+    #[inline(always)]
+    pub fn mstatus_vs_off(&self) -> bool {
+        self.mstatus_vs() == 0
+    }
+
+    /// Mark vector extension state dirty after an instruction successfully updates vector arch state.
+    #[inline(always)]
+    pub fn set_mstatus_vs_dirty(&mut self) {
+        self.mstatus = (self.mstatus & !Self::MSTATUS_VS_MASK) | (3 << 9);
+        self.mstatus_refresh_sd();
+    }
+
+    /// Recompute read-only SD summary bit from FS / VS / XS.
+    #[inline]
+    pub fn mstatus_refresh_sd(&mut self) {
+        let fs = (self.mstatus & Self::MSTATUS_FS_MASK) >> 13;
+        let vs = (self.mstatus & Self::MSTATUS_VS_MASK) >> 9;
+        let xs = (self.mstatus & Self::MSTATUS_XS_MASK) >> 15;
+        let dirty = fs == 3 || vs == 3 || xs == 3;
+        if dirty {
+            self.mstatus |= Self::MSTATUS_SD;
+        } else {
+            self.mstatus &= !Self::MSTATUS_SD;
+        }
+    }
+
     #[inline(always)]
     pub fn mtvec_base(&self) -> u32 {
         self.mtvec & !3u32
@@ -131,7 +171,10 @@ impl<C: CsrConfig> Csr<C> {
 
     pub fn write(&mut self, reg: CsrKind, value: u32) {
         match reg {
-            CsrKind::Mstatus => self.mstatus = value,
+            CsrKind::Mstatus => {
+                self.mstatus = value;
+                self.mstatus_refresh_sd();
+            }
             CsrKind::Mie => self.mie = value,
             CsrKind::Mtvec => self.mtvec = value,
             CsrKind::Mscratch => self.mscratch = value,

@@ -133,6 +133,21 @@ impl Csr {
         CSRS
     }
 
+    /// CSR number accesses vector architectural state; illegal when `mstatus.VS` = Off.
+    #[inline(always)]
+    pub fn illegal_when_vs_off(self) -> bool {
+        matches!(
+            self,
+            Self::Vstart
+                | Self::Vxsat
+                | Self::Vxrm
+                | Self::Vcsr
+                | Self::Vl
+                | Self::Vtype
+                | Self::Vlenb
+        )
+    }
+
     /// Mask for difftest: bits to compare. 0 = skip this CSR (platform/impl-defined or counter).
     /// Compare passes when (ref_val & mask) == (dut_val & mask).
     #[inline(always)]
@@ -141,8 +156,9 @@ impl Csr {
         match self {
             Mvendorid | Marchid | Mimpid | Mhartid => 0,
             Mstatus => {
-                // RV32: mask off SD (bit 31) and WPRI/reserved. Compare MIE, MPIE, MPP, SPP, SIE, etc.
-                0x0000_1888
+                // RV32: mask off SD (bit 31) and WPRI/reserved. Compare MIE, MPIE, MPP, and VS [10:9]
+                // (remu models VS/SD updates for vector; VS was previously ignored and hid mismatches).
+                0x0000_1E88
             }
             Misa | Mie | Mtvec | Mscratch | Mepc | Mcause | Mtval | Mip => 0xFFFF_FFFF,
             Medeleg | Mideleg | Mcounteren => 0,
