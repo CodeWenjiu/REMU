@@ -19,20 +19,20 @@ flame CRATE BENCH:
 clean-all:
     @cargo clean
 
-# Build remu-app (release). Output: target/app/<triple>/release/
-# TARGET: ISA shorthand (riscv32i, riscv32im, riscv32imac) or full triple.
-# Requires cargo-binutils. Run `just clean-app` to remove target/app/
 build-app APP target="riscv32i":
-    cargo run -p xtask -- build-app {{ APP }} {{ target }}
+    #!/usr/bin/env bash
+    set -euo pipefail
+    cd "{{ justfile_directory() }}"
+    eval "$(cargo run -p xtask -- print build-app "{{ APP }}" "{{ target }}")"
 
-# Run remu-app on remu: build + load ELF + run to exit.
-# Uses Cargo runner (.cargo/config.toml). TARGET: riscv32i, riscv32im, riscv32imac.
 run-app APP target="riscv32i":
-    @cargo run -p remu_app_{{ APP }} --target {{ target }}-unknown-none-elf --release -Z build-std=core,alloc
+    #!/usr/bin/env bash
+    set -euo pipefail
+    cd "{{ justfile_directory() }}"
+    eval "$(cargo run -p xtask -- print run-app "{{ APP }}" "{{ target }}")"
 
-# Remove all embedded app build artifacts (target/app/). Does not affect remu_cli etc.
 clean-app:
-    @rm -rf "{{ justfile_directory() }}/target/app"
+    @rm -rf "{{ justfile_directory() }}/target/app" "{{ justfile_directory() }}/target/app_zve32x"
 
 
 look:

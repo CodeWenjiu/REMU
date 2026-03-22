@@ -1,5 +1,2 @@
-# RISC-V bare-metal: applies to riscv32i, riscv32im, riscv32imac, riscv64*, etc.
-# build-app invokes cargo from remu_hal/ so this config is used.
-# Linker scripts (memory.x, link.x) are injected via remu_hal/build.rs.
 [target.'cfg(all(any(target_arch = "riscv32", target_arch = "riscv64"), target_os = "none"))']
 linker = "rust-lld"

@@ -19,6 +19,7 @@ static HEAP: Heap = Heap::empty();
 ///
 /// Must only be called once. The linker symbols __sheap and __eheap must be valid.
 pub unsafe fn init() {
+    unsafe { crate::cpu::pre_main_init() };
     let heap_start = core::ptr::addr_of_mut!(__sheap) as usize;
     let heap_end = core::ptr::addr_of_mut!(__eheap) as usize;
     let size = heap_end.saturating_sub(heap_start);

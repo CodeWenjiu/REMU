@@ -69,6 +69,8 @@
             flex
             python3
             zlib
+
+            gource
           ];
         };
       }

@@ -9,3 +9,6 @@ name = "xtask"
 path = "src/main.rs"
 
 [dependencies]
+remu_macro = { path = "../../remu_macro" }
+
+clap = { workspace = true, features = ["derive", "std"] }
