@@ -113,6 +113,11 @@ where
                 .state_exec(subcmd)
                 .map_err(DebuggerError::CommandExec)
                 .map(|()| RunOutcome::Done),
+            Command::RefState { subcmd } => self
+                .harness
+                .ref_state_exec(subcmd)
+                .map_err(DebuggerError::CommandExec)
+                .map(|()| RunOutcome::Done),
             Command::Breakpoint { subcmd } => match subcmd {
                 BreakpointCmd::Set { addr } => self
                     .harness

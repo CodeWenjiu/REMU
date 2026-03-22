@@ -66,8 +66,14 @@ pub enum Command {
         subcmd: FuncCmd,
     },
 
-    /// State Command
+    /// State Command (DUT / remu)
     State {
+        #[command(subcommand)]
+        subcmd: StateCmd,
+    },
+
+    /// Reference model state (Spike): same subcommands as `state`, executed on the ref simulator
+    RefState {
         #[command(subcommand)]
         subcmd: StateCmd,
     },
