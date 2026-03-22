@@ -63,6 +63,14 @@ pub(crate) fn decode<P: remu_state::StatePolicy>(inst: u32) -> DecodedInst {
                 imm: vm(inst) as u32,
                 inst: Inst::V(VInst::OpIvv(OpIvvInst::Vmax_vv)),
             },
+            // vmsne.vv vd, vs2, vs1, vm — funct6=0b011001 (MATCH_VMSNE_VV)
+            0b011001 => DecodedInst {
+                rd: rd(inst),
+                rs1: rs1(inst),
+                rs2: rs2(inst),
+                imm: vm(inst) as u32,
+                inst: Inst::V(VInst::OpIvv(OpIvvInst::Vmsne_vv)),
+            },
             _ => return DecodedInst::default(),
         },
         func3::OPMVV => match f6 {
@@ -98,6 +106,13 @@ pub(crate) fn decode<P: remu_state::StatePolicy>(inst: u32) -> DecodedInst {
                     rs2: rs2(inst),
                     imm: 0,
                     inst: Inst::V(VInst::OpMvv(OpMvvInst::Vmv_x_s)),
+                },
+                0b10000 => DecodedInst {
+                    rd: rd(inst),
+                    rs1: 0,
+                    rs2: rs2(inst),
+                    imm: vm(inst) as u32,
+                    inst: Inst::V(VInst::OpMvv(OpMvvInst::Vcpop_m)),
                 },
                 0b10001 => DecodedInst {
                     rd: rd(inst),
@@ -196,6 +211,14 @@ pub(crate) fn decode<P: remu_state::StatePolicy>(inst: u32) -> DecodedInst {
                 imm: (rs1(inst) as u32 & 0x1F) | ((vm(inst) as u32) << 8),
                 inst: Inst::V(VInst::OpIvi(OpIviInst::Vmsne_vi)),
             },
+            // vmsle.vi vd, vs2, simm5, vm — funct6=0b011101 (MATCH_VMSLE_VI)
+            0b011101 => DecodedInst {
+                rd: rd(inst),
+                rs1: 0,
+                rs2: rs2(inst),
+                imm: (rs1(inst) as u32 & 0x1F) | ((vm(inst) as u32) << 8),
+                inst: Inst::V(VInst::OpIvi(OpIviInst::Vmsle_vi)),
+            },
             0b100111 => DecodedInst {
                 rd: rd(inst),
                 rs1: 0,
@@ -233,6 +256,13 @@ pub(crate) fn decode<P: remu_state::StatePolicy>(inst: u32) -> DecodedInst {
                     inst: Inst::V(VInst::OpIvi(OpIviInst::Vand_vi)),
                 }
             }
+            0b001110 => DecodedInst {
+                rd: rd(inst),
+                rs1: 0,
+                rs2: rs2(inst),
+                imm: (rs1(inst) as u32 & 0x1F) | ((vm(inst) as u32) << 8),
+                inst: Inst::V(VInst::OpIvi(OpIviInst::Vslideup_vi)),
+            },
             0b001111 => DecodedInst {
                 rd: rd(inst),
                 rs1: 0,
@@ -291,6 +321,22 @@ pub(crate) fn decode<P: remu_state::StatePolicy>(inst: u32) -> DecodedInst {
                 rs2: rs2(inst),
                 imm: vm(inst) as u32,
                 inst: Inst::V(VInst::OpIvx(OpIvxInst::Vmslt_vx)),
+            },
+            // vsll.vx vd, vs2, rs1, vm — funct6=0b100101 (MATCH_VSLL_VX)
+            0b100101 => DecodedInst {
+                rd: rd(inst),
+                rs1: rs1(inst),
+                rs2: rs2(inst),
+                imm: vm(inst) as u32,
+                inst: Inst::V(VInst::OpIvx(OpIvxInst::Vsll_vx)),
+            },
+            // vsrl.vx vd, vs2, rs1, vm — funct6=0b101000 (MATCH_VSRL_VX)
+            0b101000 => DecodedInst {
+                rd: rd(inst),
+                rs1: rs1(inst),
+                rs2: rs2(inst),
+                imm: vm(inst) as u32,
+                inst: Inst::V(VInst::OpIvx(OpIvxInst::Vsrl_vx)),
             },
             _ => return DecodedInst::default(),
         },

@@ -73,6 +73,34 @@ pub(crate) fn binop_shr_vi(uimm5: u32, src: u64, sew: usize) -> u64 {
     }
 }
 
+/// `vsll.vx`: shift amount = `rs1 & (SEW-1)` (Spike `VI_VX_ULOOP`).
+#[inline]
+pub(crate) fn binop_shl_vx(rs1: u32, src: u64, sew: usize) -> u64 {
+    let bw = (sew * 8) as u32;
+    let shamt = rs1 & (bw - 1);
+    match sew {
+        1 => (src as u8).wrapping_shl(shamt) as u64,
+        2 => (src as u16).wrapping_shl(shamt) as u64,
+        4 => (src as u32).wrapping_shl(shamt) as u64,
+        8 => (src as u64).wrapping_shl(shamt),
+        _ => 0,
+    }
+}
+
+/// `vsrl.vx`: logical right shift; shamt = `rs1 & (SEW-1)`.
+#[inline]
+pub(crate) fn binop_shr_vx(rs1: u32, src: u64, sew: usize) -> u64 {
+    let bw = (sew * 8) as u32;
+    let shamt = rs1 & (bw - 1);
+    match sew {
+        1 => (src as u8).wrapping_shr(shamt) as u64,
+        2 => (src as u16).wrapping_shr(shamt) as u64,
+        4 => (src as u32).wrapping_shr(shamt) as u64,
+        8 => (src as u64).wrapping_shr(shamt),
+        _ => 0,
+    }
+}
+
 /// vv: vd = vs2 - vs1 (signed wrap at SEW). `src1`=vs1, `src2`=vs2.
 #[inline]
 pub(crate) fn binop_sub_vv(src1: u64, src2: u64, sew: usize) -> u64 {

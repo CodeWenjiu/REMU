@@ -4,7 +4,7 @@ use crate::riscv::inst::{DecodedInst, opcode::OP_V::OpIvvInst};
 
 use super::{
     loop_ops::{binop_max_vv, binop_sub_vv, mode_from_vm},
-    utils::vector_element_loop_vv,
+    utils::{vector_element_loop_vv, vector_mask_cmp_vv},
 };
 
 pub(crate) fn execute<P: remu_state::StatePolicy, C: crate::ExecuteContext<P>>(
@@ -48,6 +48,14 @@ pub(crate) fn execute<P: remu_state::StatePolicy, C: crate::ExecuteContext<P>>(
                     dst
                 }
             },
+        ),
+        OpIvvInst::Vmsne_vv => vector_mask_cmp_vv::<P, C, _>(
+            ctx,
+            decoded.rd as usize,
+            decoded.rs1 as usize,
+            decoded.rs2 as usize,
+            decoded.imm != 0,
+            |vs1, vs2| vs1 != vs2,
         ),
     }
 }

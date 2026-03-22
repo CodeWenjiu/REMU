@@ -15,6 +15,7 @@ pub(crate) enum OpIvvInst {
     Vor_vv,
     Vsub_vv,
     Vmax_vv,
+    Vmsne_vv,
 }
 
 /// funct3 = 0b111: vsetivli, vsetvli
@@ -35,6 +36,8 @@ pub(crate) enum OpMvvInst {
     Vid_v,
     Vmv_x_s,
     Vfirst_m,
+    /// vcpop.m rd, vs2, vm — funct6=0b010000, rs1=0b10000 (OP-MVV)
+    Vcpop_m,
     Vsext_vf4,
     Vzext_vf4,
     Vsext_vf2,
@@ -52,10 +55,12 @@ pub(crate) enum OpIviInst {
     Vmerge_vim,
     Vmseq_vi,
     Vmsne_vi,
+    Vmsle_vi,
     VmvNr_v,
     Vrsub_vi,
     Vadd_vi,
     Vslidedown_vi,
+    Vslideup_vi,
     Vsll_vi,
     Vsrl_vi,
     Vand_vi,
@@ -70,6 +75,8 @@ pub(crate) enum OpIvxInst {
     Vand_vx,
     Vmslt_vx,
     Vmseq_vx,
+    Vsll_vx,
+    Vsrl_vx,
 }
 
 /// funct3 = 0b110: OP-MVX (e.g. vmv.s.x, vwmul.vx, vslide1down.vx)

@@ -1,6 +1,6 @@
 //! Shared vector execution helpers for OP-V sub-opcodes (element loop, mask compare, etc.).
 
-use remu_types::isa::reg::{RegAccess, VrState};
+use remu_types::isa::reg::{RegAccess, VectorCsrState, VrState};
 
 use super::context::VContext;
 
@@ -184,6 +184,60 @@ where
     Ok(())
 }
 
+/// Mask compare vector-vector (`vmsne.vv`, etc.): `vd[i] = cmp(vs1[i], vs2[i])` as mask bit.
+/// `vm==true`: unmasked; else inactive elements (`v0[i]==0`) leave `vd[i]` unchanged (Spike `VI_LOOP_ELEMENT_SKIP`).
+/// Only elements `i >= vstart` are processed.
+pub(crate) fn vector_mask_cmp_vv<P, C, F>(
+    ctx: &mut C,
+    vd: usize,
+    vs1: usize,
+    vs2: usize,
+    vm: bool,
+    cmp_op: F,
+) -> Result<(), remu_state::StateError>
+where
+    P: remu_state::StatePolicy,
+    C: crate::ExecuteContext<P>,
+    F: Fn(i64, i64) -> bool,
+{
+    let vctx = VContext::from_state::<P, C>(ctx);
+    let state = ctx.state_mut();
+    let vstart = state.reg.csr.vector.vstart() as usize;
+    let nf = vctx
+        .nf
+        .min(32_usize.saturating_sub(vs1))
+        .min(32_usize.saturating_sub(vs2));
+    let total_elems = (nf * vctx.vlenb) / vctx.sew_bytes;
+    let n = vctx.vl.min(total_elems as u32) as usize;
+
+    let v0 = state.reg.vr.raw_read(0).to_vec();
+    let mut vd_buf = state.reg.vr.raw_read(vd).to_vec();
+
+    let vs1_chunks: Vec<Vec<u8>> = (0..nf).map(|r| state.reg.vr.raw_read(vs1 + r).to_vec()).collect();
+    let vs2_chunks: Vec<Vec<u8>> = (0..nf).map(|r| state.reg.vr.raw_read(vs2 + r).to_vec()).collect();
+
+    for i in vstart..n {
+        if !vm && !super::mask_bit(&v0, i) {
+            continue;
+        }
+        let (_, reg_i, off) = vctx.elem_layout(i);
+        let v1 = vctx.sew.read_i(&vs1_chunks[reg_i], off);
+        let v2 = vctx.sew.read_i(&vs2_chunks[reg_i], off);
+        let result_bit = cmp_op(v1, v2);
+        let byte_idx = i / 8;
+        let bit_idx = i % 8;
+        if result_bit {
+            vd_buf[byte_idx] |= 1u8 << bit_idx;
+        } else {
+            vd_buf[byte_idx] &= !(1u8 << bit_idx);
+        }
+    }
+
+    state.reg.vr.raw_write(vd, &vd_buf);
+    *state.reg.pc = state.reg.pc.wrapping_add(4);
+    Ok(())
+}
+
 /// Slide: vd[i] = vs2[i + offset] if in range else 0. Covers vslidedown.
 pub(crate) fn vector_slide<P, C>(
     ctx: &mut C,
@@ -221,6 +275,74 @@ where
             continue;
         }
         let src_idx = i + offset;
+        let val = if src_idx < vlmax {
+            let (_, reg_i, off) = vctx.elem_layout(src_idx);
+            vctx.sew.read_u(&vs2_buf[reg_i], off)
+        } else {
+            0
+        };
+        let (_, dst_reg, dst_off) = vctx.elem_layout(i);
+        vctx.sew.write(&mut vd_buf[dst_reg], dst_off, val);
+    }
+
+    for r in 0..nf {
+        state.reg.vr.raw_write(rd + r, &vd_buf[r]);
+    }
+    *state.reg.pc = state.reg.pc.wrapping_add(4);
+    Ok(())
+}
+
+/// Slide up (`vslideup.vi` / future `vslideup.vx`): for element indices `i` in `[vstart, vl)`,
+/// when `vstart < offset && i < offset`, destination element is unchanged (Spike / resumable);
+/// otherwise `vd[i] = vs2[i - offset]` when `(i - offset) < vlmax`, else `0`.
+/// Requires `vd != vs2` (same as Spike `VI_CHECK_SLIDE(true)`).
+pub(crate) fn vector_slide_up<P, C>(
+    ctx: &mut C,
+    rd: usize,
+    rs2: usize,
+    offset: usize,
+    mode: VectorElementLoopMode,
+) -> Result<(), remu_state::StateError>
+where
+    P: remu_state::StatePolicy,
+    C: crate::ExecuteContext<P>,
+{
+    let vctx = VContext::from_state::<P, C>(ctx);
+    let state = ctx.state_mut();
+    let vstart = state.reg.csr.vector.vstart() as usize;
+    let vlmax = vctx.vlmax as usize;
+    let n = vctx.n_elems() as usize;
+    let nf = vctx
+        .nf
+        .min(32_usize.saturating_sub(rd))
+        .min(32_usize.saturating_sub(rs2))
+        .max(1);
+
+    if rd == rs2 {
+        return Err(remu_state::StateError::BusError(Box::new(
+            remu_state::bus::BusError::unmapped(0),
+        )));
+    }
+
+    let vs2_buf: Vec<Vec<u8>> = (0..nf).map(|r| state.reg.vr.raw_read(rs2 + r).to_vec()).collect();
+    let mut vd_buf: Vec<Vec<u8>> = (0..nf).map(|r| state.reg.vr.raw_read(rd + r).to_vec()).collect();
+    let v0 = match mode {
+        VectorElementLoopMode::Unmasked => None,
+        VectorElementLoopMode::Masked => Some(state.reg.vr.raw_read(0).to_vec()),
+    };
+
+    for i in vstart..n {
+        let mask = match &v0 {
+            None => true,
+            Some(v) => super::mask_bit(v, i),
+        };
+        if !mask {
+            continue;
+        }
+        if vstart < offset && i < offset {
+            continue;
+        }
+        let src_idx = i - offset;
         let val = if src_idx < vlmax {
             let (_, reg_i, off) = vctx.elem_layout(src_idx);
             vctx.sew.read_u(&vs2_buf[reg_i], off)
@@ -561,6 +683,43 @@ where
         }
     }
     state.reg.gpr.raw_write(vd_reg.into(), pos);
+    *state.reg.pc = state.reg.pc.wrapping_add(4);
+    Ok(())
+}
+
+/// `vcpop.m rd, vs2, vm`: count mask bits set in `vs2` for active elements.
+/// Active when `vm` (unmasked) or `v0[i]==1`. Requires `vstart==0` (Spike).
+pub(crate) fn vector_cpop_m<P, C>(
+    ctx: &mut C,
+    rd_gpr: u8,
+    vs2: usize,
+    vm: bool,
+) -> Result<(), remu_state::StateError>
+where
+    P: remu_state::StatePolicy,
+    C: crate::ExecuteContext<P>,
+{
+    let vctx = VContext::from_state::<P, C>(ctx);
+    let state = ctx.state_mut();
+    if state.reg.csr.vector.vstart() != 0 {
+        return Err(remu_state::StateError::BusError(Box::new(
+            remu_state::bus::BusError::unmapped(0),
+        )));
+    }
+    let vs2_buf = state.reg.vr.raw_read(vs2).to_vec();
+    let v0 = state.reg.vr.raw_read(0).to_vec();
+    let n = vctx.vl as usize;
+
+    let mut popcount: u32 = 0;
+    for i in 0..n {
+        let vs2_bit = super::mask_bit(&vs2_buf, i);
+        let active = vm || super::mask_bit(&v0, i);
+        if vs2_bit && active {
+            popcount = popcount.wrapping_add(1);
+        }
+    }
+
+    state.reg.gpr.raw_write(rd_gpr.into(), popcount);
     *state.reg.pc = state.reg.pc.wrapping_add(4);
     Ok(())
 }

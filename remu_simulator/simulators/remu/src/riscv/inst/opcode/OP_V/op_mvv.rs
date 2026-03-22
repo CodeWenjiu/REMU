@@ -8,7 +8,7 @@ use super::{
     utils::{
         vector_element_loop, vector_element_loop_vv, vector_extend_vf2, vector_extend_vf4,
         vector_extract_scalar,
-        vector_first_mask, vector_mask_binary, vector_reduction, vector_wide_mul_vv,
+        vector_cpop_m, vector_first_mask, vector_mask_binary, vector_reduction, vector_wide_mul_vv,
     },
 };
 
@@ -43,6 +43,12 @@ pub(crate) fn execute<P: remu_state::StatePolicy, C: crate::ExecuteContext<P>>(
         ),
         OpMvvInst::Vmv_x_s => vector_extract_scalar::<P, C>(ctx, decoded.rd, decoded.rs2 as usize),
         OpMvvInst::Vfirst_m => vector_first_mask::<P, C>(ctx, decoded.rd, decoded.rs2 as usize),
+        OpMvvInst::Vcpop_m => vector_cpop_m::<P, C>(
+            ctx,
+            decoded.rd,
+            decoded.rs2 as usize,
+            decoded.imm != 0,
+        ),
         OpMvvInst::Vsext_vf4 => vector_extend_vf4::<P, C>(
             ctx,
             decoded.rd as usize,

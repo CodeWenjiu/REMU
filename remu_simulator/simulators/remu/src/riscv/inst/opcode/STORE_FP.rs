@@ -5,6 +5,8 @@ use remu_types::isa::RvIsa;
 
 use crate::riscv::inst::{funct3, opcode::UNKNOWN, rd, rs1, DecodedInst, Inst};
 
+use super::OP_V::mask_bit;
+
 pub(crate) const OPCODE: u32 = 0b010_0111; // STORE-FP (0x27)
 pub(crate) const INSTRUCTION_MIX: u32 = 10;
 
@@ -101,7 +103,8 @@ pub(crate) fn decode<P: remu_state::StatePolicy>(inst: u32) -> DecodedInst {
             rd: vs3,
             rs1: rs1_val,
             rs2: 0,
-            imm: 0,
+            // Bit 25 `vm`: 1 = unmasked store; 0 = masked (`v0.t` / `v0`).
+            imm: vm(inst),
             inst: Inst::StoreFp(store_fp),
         };
     }
@@ -187,8 +190,19 @@ pub(crate) fn execute<P: remu_state::StatePolicy, C: crate::ExecuteContext<P>>(
                 let vs3 = decoded.rd as usize;
                 let base = state.reg.gpr.raw_read(decoded.rs1.into());
                 let n = vl.min((nf * vlenb) as u32);
+                let unmasked = decoded.imm != 0;
+                let v0 = if unmasked {
+                    None
+                } else {
+                    Some(state.reg.vr.raw_read(0).to_vec())
+                };
 
                 for i in 0..n {
+                    if let Some(ref m) = v0 {
+                        if !mask_bit(m, i as usize) {
+                            continue;
+                        }
+                    }
                     let reg_i = (i as usize) / vlenb;
                     let off = (i as usize) % vlenb;
                     let chunk = state.reg.vr.raw_read(vs3 + reg_i);
@@ -219,8 +233,19 @@ pub(crate) fn execute<P: remu_state::StatePolicy, C: crate::ExecuteContext<P>>(
                 let vs3 = decoded.rd as usize;
                 let base = state.reg.gpr.raw_read(decoded.rs1.into());
                 let n = vl.min((nf * vlenb / 2) as u32);
+                let unmasked = decoded.imm != 0;
+                let v0 = if unmasked {
+                    None
+                } else {
+                    Some(state.reg.vr.raw_read(0).to_vec())
+                };
 
                 for i in 0..n {
+                    if let Some(ref m) = v0 {
+                        if !mask_bit(m, i as usize) {
+                            continue;
+                        }
+                    }
                     let reg_i = ((i as usize) * 2) / vlenb;
                     let off = ((i as usize) * 2) % vlenb;
                     let chunk = state.reg.vr.raw_read(vs3 + reg_i);
@@ -252,8 +277,19 @@ pub(crate) fn execute<P: remu_state::StatePolicy, C: crate::ExecuteContext<P>>(
                 let vs3 = decoded.rd as usize;
                 let base = state.reg.gpr.raw_read(decoded.rs1.into());
                 let n = vl.min((nf * vlenb / 4) as u32);
+                let unmasked = decoded.imm != 0;
+                let v0 = if unmasked {
+                    None
+                } else {
+                    Some(state.reg.vr.raw_read(0).to_vec())
+                };
 
                 for i in 0..n {
+                    if let Some(ref m) = v0 {
+                        if !mask_bit(m, i as usize) {
+                            continue;
+                        }
+                    }
                     let reg_i = ((i as usize) * 4) / vlenb;
                     let off = ((i as usize) * 4) % vlenb;
                     let chunk = state.reg.vr.raw_read(vs3 + reg_i);

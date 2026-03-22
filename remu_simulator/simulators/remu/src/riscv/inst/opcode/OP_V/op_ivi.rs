@@ -6,7 +6,7 @@ use crate::riscv::inst::{DecodedInst, opcode::OP_V::OpIviInst};
 
 use super::{
     loop_ops::{binop_add_vi, binop_and_vi, binop_shl_vi, binop_shr_vi, binop_sub_vi, merge_scalar_vi, mode_from_vm},
-    utils::{vector_element_loop, vector_mask_cmp, vector_slide},
+    utils::{vector_element_loop, vector_mask_cmp, vector_slide, vector_slide_up},
 };
 
 pub(crate) fn execute<P: remu_state::StatePolicy, C: crate::ExecuteContext<P>>(
@@ -52,6 +52,17 @@ pub(crate) fn execute<P: remu_state::StatePolicy, C: crate::ExecuteContext<P>>(
                 simm5 as i64,
                 (decoded.imm >> 8) != 0,
                 |a, b| a != b,
+            )
+        }
+        OpIviInst::Vmsle_vi => {
+            let simm5 = ((decoded.imm << 27) as i32) >> 27;
+            vector_mask_cmp::<P, C, _>(
+                ctx,
+                decoded.rd as usize,
+                decoded.rs2 as usize,
+                simm5 as i64,
+                (decoded.imm >> 8) != 0,
+                |a, b| a <= b,
             )
         }
         OpIviInst::VmvNr_v => {
@@ -119,6 +130,13 @@ pub(crate) fn execute<P: remu_state::StatePolicy, C: crate::ExecuteContext<P>>(
             )
         }
         OpIviInst::Vslidedown_vi => vector_slide::<P, C>(
+            ctx,
+            decoded.rd as usize,
+            decoded.rs2 as usize,
+            (decoded.imm & 0x1F) as usize,
+            mode_from_vm((decoded.imm >> 8) != 0),
+        ),
+        OpIviInst::Vslideup_vi => vector_slide_up::<P, C>(
             ctx,
             decoded.rd as usize,
             decoded.rs2 as usize,
