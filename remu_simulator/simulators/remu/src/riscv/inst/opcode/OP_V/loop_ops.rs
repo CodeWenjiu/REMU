@@ -73,6 +73,18 @@ pub(crate) fn binop_shr_vi(uimm5: u32, src: u64, sew: usize) -> u64 {
     }
 }
 
+/// vv: vd = vs2 - vs1 (signed wrap at SEW). `src1`=vs1, `src2`=vs2.
+#[inline]
+pub(crate) fn binop_sub_vv(src1: u64, src2: u64, sew: usize) -> u64 {
+    match sew {
+        1 => ((src2 as i8).wrapping_sub(src1 as i8)) as u8 as u64,
+        2 => ((src2 as i16).wrapping_sub(src1 as i16)) as u16 as u64,
+        4 => ((src2 as i32).wrapping_sub(src1 as i32)) as u32 as u64,
+        8 => ((src2 as i64).wrapping_sub(src1 as i64)) as u64,
+        _ => 0,
+    }
+}
+
 /// Vx binops (scalar from GPR).
 #[inline]
 pub(crate) fn binop_add_vx(scalar: u64, src: u64, sew: usize) -> u64 {

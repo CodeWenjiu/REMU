@@ -13,6 +13,7 @@ pub(crate) use context::{calculate_vlmax, mask_bit, vreg_check, VContext};
 #[allow(non_camel_case_types)]
 pub(crate) enum OpIvvInst {
     Vor_vv,
+    Vsub_vv,
 }
 
 /// funct3 = 0b111: vsetivli, vsetvli
@@ -67,12 +68,14 @@ pub(crate) enum OpIvxInst {
     Vmseq_vx,
 }
 
-/// funct3 = 0b110: OP-MVX (e.g. vmv.s.x, vwmul.vx)
+/// funct3 = 0b110: OP-MVX (e.g. vmv.s.x, vwmul.vx, vslide1down.vx)
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 #[allow(non_camel_case_types)]
 pub(crate) enum OpMvxInst {
     Vmv_s_x,
     Vwmul_vx,
+    /// vslide1down.vx vd, vs2, rs1 — funct6=0b001111 (distinct from vslidedown.vx on OPIVX).
+    Vslide1down_vx,
 }
 
 /// Top-level V instruction: one variant per funct3.

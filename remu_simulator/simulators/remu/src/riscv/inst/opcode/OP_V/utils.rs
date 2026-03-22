@@ -238,6 +238,77 @@ where
     Ok(())
 }
 
+/// vslide1down.vx: for active i in [0, vl), vd[i] = vs2[i+1] if i != vl-1 else (rs1 truncated to SEW, unsigned).
+pub(crate) fn vector_slide1down_vx<P, C>(
+    ctx: &mut C,
+    rd: usize,
+    rs2: usize,
+    rs1_x: u32,
+    mode: VectorElementLoopMode,
+) -> Result<(), remu_state::StateError>
+where
+    P: remu_state::StatePolicy,
+    C: crate::ExecuteContext<P>,
+{
+    let vctx = VContext::from_state::<P, C>(ctx);
+    let state = ctx.state_mut();
+    let vlmax = vctx.vlmax as usize;
+    let n = vctx.n_elems() as usize;
+    let vl = vctx.vl;
+    let nf = vctx
+        .nf
+        .min(32_usize.saturating_sub(rd))
+        .min(32_usize.saturating_sub(rs2))
+        .max(1);
+
+    let vs2_buf: Vec<Vec<u8>> = (0..nf).map(|r| state.reg.vr.raw_read(rs2 + r).to_vec()).collect();
+    let mut vd_buf: Vec<Vec<u8>> = (0..nf).map(|r| state.reg.vr.raw_read(rd + r).to_vec()).collect();
+    let v0 = match mode {
+        VectorElementLoopMode::Unmasked => None,
+        VectorElementLoopMode::Masked => Some(state.reg.vr.raw_read(0).to_vec()),
+    };
+
+    let scalar_u = rs1_x as u64;
+    let scalar_for_sew = match vctx.sew_bytes {
+        1 => scalar_u & 0xff,
+        2 => scalar_u & 0xffff,
+        4 => scalar_u & 0xffff_ffff,
+        8 => scalar_u,
+        _ => scalar_u & 0xffff_ffff,
+    };
+
+    let last_i = vl.wrapping_sub(1);
+
+    for i in 0..n {
+        let mask = match &v0 {
+            None => true,
+            Some(v) => super::mask_bit(v, i),
+        };
+        if !mask {
+            continue;
+        }
+        let val = if (i as u32) == last_i {
+            scalar_for_sew
+        } else {
+            let src_idx = i + 1;
+            if src_idx < vlmax {
+                let (_, reg_i, off) = vctx.elem_layout(src_idx);
+                vctx.sew.read_u(&vs2_buf[reg_i], off)
+            } else {
+                0
+            }
+        };
+        let (_, dst_reg, dst_off) = vctx.elem_layout(i);
+        vctx.sew.write(&mut vd_buf[dst_reg], dst_off, val);
+    }
+
+    for r in 0..nf {
+        state.reg.vr.raw_write(rd + r, &vd_buf[r]);
+    }
+    *state.reg.pc = state.reg.pc.wrapping_add(4);
+    Ok(())
+}
+
 /// Extend vf4: read narrow (sew/4), write wide (sew). signed=true => sext, false => zext.
 pub(crate) fn vector_extend_vf4<P, C>(
     ctx: &mut C,

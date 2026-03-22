@@ -41,6 +41,13 @@ pub(crate) fn decode<P: remu_state::StatePolicy>(inst: u32) -> DecodedInst {
             _ => return DecodedInst::default(),
         },
         func3::OPIVV => match f6 {
+            0b000010 => DecodedInst {
+                rd: rd(inst),
+                rs1: rs1(inst),
+                rs2: rs2(inst),
+                imm: vm(inst) as u32,
+                inst: Inst::V(VInst::OpIvv(OpIvvInst::Vsub_vv)),
+            },
             0b001010 => DecodedInst {
                 rd: rd(inst),
                 rs1: rs1(inst),
@@ -264,6 +271,14 @@ pub(crate) fn decode<P: remu_state::StatePolicy>(inst: u32) -> DecodedInst {
                 rs2: 0,
                 imm: 0,
                 inst: Inst::V(VInst::OpMvx(OpMvxInst::Vmv_s_x)),
+            },
+            // vslide1down.vx vd, vs2, rs1 (Spike MATCH_VSLIDE1DOWN_VX; funct3=OP-MVX)
+            0b001111 => DecodedInst {
+                rd: rd(inst),
+                rs1: rs1(inst),
+                rs2: rs2(inst),
+                imm: vm(inst) as u32,
+                inst: Inst::V(VInst::OpMvx(OpMvxInst::Vslide1down_vx)),
             },
             0b111011 => DecodedInst {
                 rd: rd(inst),

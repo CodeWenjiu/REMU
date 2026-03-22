@@ -13,15 +13,3 @@ tracing.workspace = true
 
 clap = { workspace = true, features = [ "derive", "color" ] }
 object = { version = "0.38.1", default-features = false, features = ["read_core", "elf"] }
-
-[dev-dependencies]
-criterion.workspace = true
-pprof = { workspace = true, features = [ "criterion", "flamegraph" ] }
-
-[[bench]]
-name = "bus_read"
-harness = false # Disable default harness
-
-[[bench]]
-name = "bus_write"
-harness = false

@@ -1,0 +1,7 @@
+[package]
+name = "remu_app_mnist"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+remu_hal = { path = "../../remu_hal" }

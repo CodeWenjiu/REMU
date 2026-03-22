@@ -23,6 +23,7 @@ members = [
     "remu_hal/xtask",
     "remu_app/hello_world",
     "remu_app/collection",
+    "remu_app/mnist",
 ]
 
 [profile.release]
@@ -51,9 +52,6 @@ petgraph = "0.8.3"
 clap = "4.6.0"
 winnow = "1.0.0"
 target-lexicon = "0.13.5"
-
-criterion = "0.5.1"
-pprof = "0.15.0"
 
 cc = "1.2.57"
 

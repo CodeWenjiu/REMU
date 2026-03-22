@@ -12,12 +12,12 @@
 #[inline]
 pub unsafe fn pre_main_init() {
     #[cfg(target_feature = "zve32x")]
-    init_zve_mstatus();
+    unsafe { init_zve_mstatus() };
 }
 
 #[cfg(target_feature = "zve32x")]
 #[inline]
 unsafe fn init_zve_mstatus() {
     use riscv::register::mstatus::{set_vs, VS};
-    set_vs(VS::Initial);
+    unsafe { set_vs(VS::Initial) };
 }
