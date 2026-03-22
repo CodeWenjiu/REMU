@@ -75,11 +75,19 @@ struct spike_difftest_ctx {
     processor_t* proc;
 };
 
+static reg_t difftest_u32_to_reg_t(uint32_t u, unsigned xlen)
+{
+    if (xlen == 32)
+        return static_cast<reg_t>(static_cast<int32_t>(u));
+    return static_cast<reg_t>(u);
+}
+
 static void sync_regs_to_spike(const difftest_regs_t* r, processor_t* p) {
     state_t* s = p->get_state();
-    s->pc = r->pc;
+    const unsigned xl = p->get_xlen();
+    s->pc = difftest_u32_to_reg_t(r->pc, xl);
     for (int i = 0; i < 32; i++) {
-        s->XPR.write(i, r->gpr[i]);
+        s->XPR.write(i, difftest_u32_to_reg_t(r->gpr[i], xl));
     }
 }
 
