@@ -13,7 +13,8 @@ static BENCHMARK_MODE: bool = false;
 
 #[entry]
 fn main() -> ! {
-    unsafe { remu_hal::pre_main_init() };
+    // `init()` 内含 `pre_main_init()`，并初始化全局堆；分配前必须调用。
+    unsafe { remu_hal::init() };
     let mut uart = Uart16550::default_base();
 
     let infer = Inference::new();

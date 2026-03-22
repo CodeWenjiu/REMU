@@ -160,8 +160,10 @@ pub(crate) fn execute<P: remu_state::StatePolicy, C: crate::ExecuteContext<P>>(
             }
             match m {
                 OpInstM::Mul => rs1_val.wrapping_mul(rs2_val),
-                OpInstM::Mulh => (rs1_val as i64)
-                    .wrapping_mul(rs2_val as i64)
+                // RV32 mulh: high XLEN bits of signed×signed product. Operands must be
+                // **sign-extended** to i64; `u32 as i64` zero-extends and breaks negatives.
+                OpInstM::Mulh => (rs1_val as i32 as i64)
+                    .wrapping_mul(rs2_val as i32 as i64)
                     .wrapping_shr(32) as u32,
                 OpInstM::Mulhsu => (rs1_val as i32 as i64)
                     .wrapping_mul(rs2_val as u32 as i64)

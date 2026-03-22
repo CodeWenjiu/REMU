@@ -14,6 +14,7 @@ pub(crate) use context::{calculate_vlmax, mask_bit, vreg_check, VContext};
 pub(crate) enum OpIvvInst {
     Vor_vv,
     Vsub_vv,
+    Vmax_vv,
 }
 
 /// funct3 = 0b111: vsetivli, vsetvli
@@ -30,11 +31,14 @@ pub(crate) enum OpCfgInst {
 #[allow(non_camel_case_types)]
 pub(crate) enum OpMvvInst {
     Vredsum_vs,
+    Vredmax_vs,
     Vid_v,
     Vmv_x_s,
     Vfirst_m,
     Vsext_vf4,
     Vzext_vf4,
+    Vsext_vf2,
+    Vzext_vf2,
     Vmor_mm,
     Vmacc_vv,
     Vwmacc_vv,

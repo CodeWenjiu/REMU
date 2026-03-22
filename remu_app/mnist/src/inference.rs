@@ -1,4 +1,4 @@
-use remu_hal::{println, Vec};
+use remu_hal::{println, read_mtime, Vec, MTIME_TICK_HZ};
 
 include!(concat!(env!("OUT_DIR"), "/embedded_images.rs"));
 
@@ -191,29 +191,6 @@ impl Inference {
         );
     }
 
-    // RISC-V cycle counter access
-    #[inline(always)]
-    fn read_cycle_counter() -> usize {
-        let cycles: usize;
-        unsafe {
-            #[cfg(not(test))]
-            core::arch::asm!("rdcycle {}", out(reg) cycles);
-            #[cfg(test)]
-            {
-                let low: u32;
-                let high: u32;
-                core::arch::asm!(
-                    "rdtsc",
-                    out("eax") low,
-                    out("edx") high,
-                    options(nomem, nostack)
-                );
-                cycles = ((high as usize) << 32) | (low as usize);
-            }
-        }
-        cycles
-    }
-
     pub(crate) fn run_benchmark(&self) {
         println!("=== BENCHMARK MODE ===");
         println!("Warmup iterations: {}", WARMUP_ITERATIONS);
@@ -229,40 +206,42 @@ impl Inference {
             let _ = self.mnist_inference_pure_int8(&image_data);
         }
 
-        // Benchmark phase with cycle counting
-        println!("Running benchmark with cycle counting...");
+        // Benchmark phase: CLINT mtime @ 10 MHz (see remu_hal::MTIME_TICK_HZ)
+        println!("Running benchmark (CLINT mtime @ {} Hz)...", MTIME_TICK_HZ);
 
-        let start_cycles = Self::read_cycle_counter();
+        let start_ticks = read_mtime();
 
         for _ in 0..BENCHMARK_ITERATIONS {
             let _ = self.mnist_inference_pure_int8(&image_data);
         }
 
-        let end_cycles = Self::read_cycle_counter();
-        let total_cycles = (end_cycles - start_cycles) as u64;
+        let end_ticks = read_mtime();
+        let total_ticks = end_ticks.wrapping_sub(start_ticks);
 
-        // Calculate metrics
-        let cycles_per_inference = total_cycles / BENCHMARK_ITERATIONS as u64;
-        let inferences_per_second = if total_cycles > 0 {
-            // Assuming 1GHz clock for calculation
-            (1_000_000_000u64 * BENCHMARK_ITERATIONS as u64) / total_cycles
+        // Calculate metrics (mtime ticks at MTIME_TICK_HZ)
+        let ticks_per_inference = total_ticks / BENCHMARK_ITERATIONS as u64;
+        let inferences_per_second = if total_ticks > 0 {
+            (BENCHMARK_ITERATIONS as u128 * MTIME_TICK_HZ as u128 / total_ticks as u128) as u64
         } else {
             0
         };
 
         println!("=== BENCHMARK RESULTS ===");
-        println!("Total cycles measured: {}", total_cycles);
+        println!("Total mtime ticks: {}", total_ticks);
         println!("Iterations completed: {}", BENCHMARK_ITERATIONS);
-        println!("Cycles per inference: {}", cycles_per_inference);
-        println!("Inferences per second (1GHz): {}", inferences_per_second);
+        println!("Ticks per inference: {}", ticks_per_inference);
+        println!(
+            "Inferences per second (from mtime, {} Hz): {}",
+            MTIME_TICK_HZ, inferences_per_second
+        );
 
-        // Performance classification
+        // Performance classification (10 MHz → 10_000 ticks ≈ 1 ms / inference)
         println!("Performance classification:");
-        if cycles_per_inference < 100_000 {
+        if ticks_per_inference < 10_000 {
             println!("Excellent performance");
-        } else if cycles_per_inference < 500_000 {
+        } else if ticks_per_inference < 50_000 {
             println!("Good performance");
-        } else if cycles_per_inference < 2_000_000 {
+        } else if ticks_per_inference < 200_000 {
             println!("Moderate performance");
         } else {
             println!("Needs optimization");
@@ -271,15 +250,15 @@ impl Inference {
         // Performance analysis
         let total_mac_operations =
             BENCHMARK_ITERATIONS as u64 * ((784 * 256) + (256 * 128) + (128 * 10)) as u64;
-        let macs_per_cycle = if total_cycles > 0 {
-            total_mac_operations as f64 / total_cycles as f64
+        let macs_per_tick = if total_ticks > 0 {
+            total_mac_operations as f64 / total_ticks as f64
         } else {
             0.0
         };
 
         println!("Total MAC operations: {}", total_mac_operations);
-        println!("MACs per cycle: {:.4}", macs_per_cycle);
-        println!("Note: Higher MACs/cycle indicates better vectorization");
+        println!("MACs per mtime tick: {:.4}", macs_per_tick);
+        println!("Note: Higher MACs/tick indicates better throughput at fixed mtime rate");
 
         if BENCHMARK_ITERATIONS > 0 {
             println!("Benchmark completed successfully");
@@ -296,21 +275,21 @@ impl Inference {
         let (image_data, _) = Self::parse_image_binary(benchmark_image_data);
         let normalized_input = Self::normalize_and_quantize_input(&image_data);
 
-        // Benchmark individual components
-        let mut total_cycles: u64 = 0;
+        // Benchmark individual components (CLINT mtime ticks)
+        let mut total_ticks_sum: u64 = 0;
 
         // Benchmark normalize_input_pure_int8
-        let start = Self::read_cycle_counter();
+        let start = read_mtime();
         for _ in 0..DETAILED_BENCHMARK_ITERATIONS {
             let _ = Self::normalize_and_quantize_input(&image_data);
         }
-        let end = Self::read_cycle_counter();
-        let norm_cycles = ((end - start) as u64) / DETAILED_BENCHMARK_ITERATIONS as u64;
-        println!("normalize_input_pure_int8: {} cycles/call", norm_cycles);
-        total_cycles += norm_cycles;
+        let end = read_mtime();
+        let norm_ticks = end.wrapping_sub(start) / DETAILED_BENCHMARK_ITERATIONS as u64;
+        println!("normalize_input_pure_int8: {} mtime ticks/call", norm_ticks);
+        total_ticks_sum += norm_ticks;
 
         // Benchmark FC1 matrix multiplication
-        let start = Self::read_cycle_counter();
+        let start = read_mtime();
         for _ in 0..DETAILED_BENCHMARK_ITERATIONS {
             let _ = Self::int8_matmul_symmetric::<256, 784>(
                 &self.fc1_weights,
@@ -318,10 +297,10 @@ impl Inference {
                 self.fc1_scale_q16,
             );
         }
-        let end = Self::read_cycle_counter();
-        let fc1_cycles = ((end - start) as u64) / DETAILED_BENCHMARK_ITERATIONS as u64;
-        println!("FC1 matmul (256x784): {} cycles/call", fc1_cycles);
-        total_cycles += fc1_cycles;
+        let end = read_mtime();
+        let fc1_ticks = end.wrapping_sub(start) / DETAILED_BENCHMARK_ITERATIONS as u64;
+        println!("FC1 matmul (256x784): {} mtime ticks/call", fc1_ticks);
+        total_ticks_sum += fc1_ticks;
 
         // Benchmark int32_to_int8_with_scaling
         let fc1_output = Self::int8_matmul_symmetric::<256, 784>(
@@ -329,43 +308,46 @@ impl Inference {
             &normalized_input,
             self.fc1_scale_q16,
         );
-        let start = Self::read_cycle_counter();
+        let start = read_mtime();
         for _ in 0..DETAILED_BENCHMARK_ITERATIONS {
             let _ = Self::int32_to_int8_with_scaling(&fc1_output);
         }
-        let end = Self::read_cycle_counter();
-        let scale_cycles = ((end - start) as u64) / DETAILED_BENCHMARK_ITERATIONS as u64;
-        println!("int32_to_int8_with_scaling: {} cycles/call", scale_cycles);
-        total_cycles += scale_cycles;
+        let end = read_mtime();
+        let scale_ticks = end.wrapping_sub(start) / DETAILED_BENCHMARK_ITERATIONS as u64;
+        println!("int32_to_int8_with_scaling: {} mtime ticks/call", scale_ticks);
+        total_ticks_sum += scale_ticks;
 
         // Benchmark relu6_int8
         let mut fc1_activations = Self::int32_to_int8_with_scaling(&fc1_output);
-        let start = Self::read_cycle_counter();
+        let start = read_mtime();
         for _ in 0..DETAILED_BENCHMARK_ITERATIONS {
             Self::relu_int8(&mut fc1_activations);
         }
-        let end = Self::read_cycle_counter();
-        let relu_cycles = ((end - start) as u64) / DETAILED_BENCHMARK_ITERATIONS as u64;
-        println!("relu6_int8: {} cycles/call", relu_cycles);
-        total_cycles += relu_cycles;
+        let end = read_mtime();
+        let relu_ticks = end.wrapping_sub(start) / DETAILED_BENCHMARK_ITERATIONS as u64;
+        println!("relu6_int8: {} mtime ticks/call", relu_ticks);
+        total_ticks_sum += relu_ticks;
 
-        println!("Estimated total cycles per inference: {}", total_cycles);
+        println!(
+            "Estimated total mtime ticks (partial micro-bench sum): {}",
+            total_ticks_sum
+        );
         println!("Breakdown:");
         println!(
             "  - Input normalization: {:.1}%",
-            (norm_cycles * 100) as f64 / total_cycles as f64
+            (norm_ticks * 100) as f64 / total_ticks_sum as f64
         );
         println!(
             "  - FC1 matmul: {:.1}%",
-            (fc1_cycles * 100) as f64 / total_cycles as f64
+            (fc1_ticks * 100) as f64 / total_ticks_sum as f64
         );
         println!(
             "  - Scaling: {:.1}%",
-            (scale_cycles * 100) as f64 / total_cycles as f64
+            (scale_ticks * 100) as f64 / total_ticks_sum as f64
         );
         println!(
             "  - Activation: {:.1}%",
-            (relu_cycles * 100) as f64 / total_cycles as f64
+            (relu_ticks * 100) as f64 / total_ticks_sum as f64
         );
     }
 

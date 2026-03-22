@@ -11,6 +11,16 @@ pub enum StateError {
     /// Execution stopped at a breakpoint (DUT debugger). PC where ebreak was hit.
     #[error("breakpoint hit at 0x{0:08x}")]
     BreakpointHit(u32),
+
+    /// CSR index is not in `remu_types::isa::reg::csr::Csr` / not wired in `remu_state` yet.
+    #[error(
+        "unimplemented CSR at PC 0x{pc:08x} (csr_addr = 0x{csr_addr:03x}, decoded CSR immediate field = 0x{imm_raw:08x})"
+    )]
+    UnimplementedCsr {
+        pc: u32,
+        csr_addr: u16,
+        imm_raw: u32,
+    },
 }
 
 impl From<BusError> for StateError {
@@ -25,7 +35,7 @@ impl StateError {
     pub fn backtrace(&self) -> Option<&Backtrace> {
         match self {
             StateError::BusError(b) => b.backtrace(),
-            StateError::BreakpointHit(_) => None,
+            StateError::BreakpointHit(_) | StateError::UnimplementedCsr { .. } => None,
         }
     }
 
@@ -36,7 +46,7 @@ impl StateError {
                 BusError::ProgramExit(ec) => Some(*ec),
                 _ => None,
             },
-            StateError::BreakpointHit(_) => None,
+            StateError::BreakpointHit(_) | StateError::UnimplementedCsr { .. } => None,
         }
     }
 
@@ -44,7 +54,7 @@ impl StateError {
     pub fn breakpoint_pc(&self) -> Option<u32> {
         match self {
             StateError::BreakpointHit(pc) => Some(*pc),
-            _ => None,
+            StateError::BusError(_) | StateError::UnimplementedCsr { .. } => None,
         }
     }
 }

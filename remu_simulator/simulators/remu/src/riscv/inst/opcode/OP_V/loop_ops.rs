@@ -85,6 +85,50 @@ pub(crate) fn binop_sub_vv(src1: u64, src2: u64, sew: usize) -> u64 {
     }
 }
 
+/// vmax.vv: signed max(vs1, vs2). `src1`=vs1, `src2`=vs2 (same as Spike VI_VV_LOOP).
+#[inline]
+pub(crate) fn binop_max_vv(src1: u64, src2: u64, sew: usize) -> u64 {
+    match sew {
+        1 => {
+            let a = src1 as u8 as i8;
+            let b = src2 as u8 as i8;
+            if a >= b {
+                src1 & 0xff
+            } else {
+                src2 & 0xff
+            }
+        }
+        2 => {
+            let a = src1 as u16 as i16;
+            let b = src2 as u16 as i16;
+            if a >= b {
+                src1 & 0xffff
+            } else {
+                src2 & 0xffff
+            }
+        }
+        4 => {
+            let a = src1 as u32 as i32;
+            let b = src2 as u32 as i32;
+            if a >= b {
+                src1 & 0xffff_ffff
+            } else {
+                src2 & 0xffff_ffff
+            }
+        }
+        8 => {
+            let a = src1 as i64;
+            let b = src2 as i64;
+            if a >= b {
+                src1
+            } else {
+                src2
+            }
+        }
+        _ => 0,
+    }
+}
+
 /// Vx binops (scalar from GPR).
 #[inline]
 pub(crate) fn binop_add_vx(scalar: u64, src: u64, sew: usize) -> u64 {

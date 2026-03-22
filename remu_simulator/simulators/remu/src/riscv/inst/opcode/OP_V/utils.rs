@@ -309,6 +309,91 @@ where
     Ok(())
 }
 
+/// Extend vf2: read narrow (sew/2), write wide (sew). signed=true => sext, false => zext.
+pub(crate) fn vector_extend_vf2<P, C>(
+    ctx: &mut C,
+    vd: usize,
+    vs2: usize,
+    vm: bool,
+    signed: bool,
+) -> Result<(), remu_state::StateError>
+where
+    P: remu_state::StatePolicy,
+    C: crate::ExecuteContext<P>,
+{
+    let vctx = VContext::from_state::<P, C>(ctx);
+    let state = ctx.state_mut();
+    let src_sew = vctx.sew_bytes / 2;
+    if src_sew == 0 {
+        return Err(remu_state::StateError::BusError(Box::new(
+            remu_state::bus::BusError::unmapped(0),
+        )));
+    }
+    let nf = vctx
+        .nf
+        .min(32_usize.saturating_sub(vd))
+        .min(32_usize.saturating_sub(vs2));
+    let total_elems = (nf * vctx.vlenb) / vctx.sew_bytes;
+    let n = vctx.vl.min(total_elems as u32) as usize;
+    let v0 = state.reg.vr.raw_read(0).to_vec();
+
+    for r in 0..nf {
+        let mut dst = state.reg.vr.raw_read(vd + r).to_vec();
+        let start = (r * vctx.vlenb) / vctx.sew_bytes;
+        let end = ((r + 1) * vctx.vlenb) / vctx.sew_bytes;
+        for i in start..end.min(n) {
+            if !vm && !super::mask_bit(&v0, i) {
+                continue;
+            }
+            let src_byte_off = i * src_sew;
+            let src_reg = src_byte_off / vctx.vlenb;
+            let src_off = src_byte_off % vctx.vlenb;
+            let src_chunk = state.reg.vr.raw_read(vs2 + src_reg);
+            let mut val = [0u8; 8];
+            if signed {
+                match (src_sew, vctx.sew_bytes) {
+                    (1, 2) => {
+                        val[..2].copy_from_slice(&(src_chunk[src_off] as i8 as i16 as u16).to_le_bytes())
+                    }
+                    (2, 4) => val[..4].copy_from_slice(
+                        &(i16::from_le_bytes(src_chunk[src_off..src_off + 2].try_into().unwrap())
+                            as i32 as u32)
+                            .to_le_bytes(),
+                    ),
+                    (4, 8) => val[..8].copy_from_slice(
+                        &(i32::from_le_bytes(src_chunk[src_off..src_off + 4].try_into().unwrap())
+                            as i64 as u64)
+                            .to_le_bytes(),
+                    ),
+                    _ => continue,
+                }
+            } else {
+                match (src_sew, vctx.sew_bytes) {
+                    (1, 2) => {
+                        val[..2].copy_from_slice(&(src_chunk[src_off] as u16).to_le_bytes())
+                    }
+                    (2, 4) => val[..4].copy_from_slice(
+                        &(u16::from_le_bytes(src_chunk[src_off..src_off + 2].try_into().unwrap())
+                            as u32)
+                            .to_le_bytes(),
+                    ),
+                    (4, 8) => val[..8].copy_from_slice(
+                        &(u32::from_le_bytes(src_chunk[src_off..src_off + 4].try_into().unwrap())
+                            as u64)
+                            .to_le_bytes(),
+                    ),
+                    _ => continue,
+                }
+            };
+            let dst_off = (i * vctx.sew_bytes) % vctx.vlenb;
+            dst[dst_off..dst_off + vctx.sew_bytes].copy_from_slice(&val[..vctx.sew_bytes]);
+        }
+        state.reg.vr.raw_write(vd + r, &dst);
+    }
+    *state.reg.pc = state.reg.pc.wrapping_add(4);
+    Ok(())
+}
+
 /// Extend vf4: read narrow (sew/4), write wide (sew). signed=true => sext, false => zext.
 pub(crate) fn vector_extend_vf4<P, C>(
     ctx: &mut C,

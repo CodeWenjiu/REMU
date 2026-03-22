@@ -55,6 +55,14 @@ pub(crate) fn decode<P: remu_state::StatePolicy>(inst: u32) -> DecodedInst {
                 imm: vm(inst) as u32,
                 inst: Inst::V(VInst::OpIvv(OpIvvInst::Vor_vv)),
             },
+            // vmax.vv vd, vs2, vs1, vm — funct6=0b000111 (MATCH_VMAX_VV)
+            0b000111 => DecodedInst {
+                rd: rd(inst),
+                rs1: rs1(inst),
+                rs2: rs2(inst),
+                imm: vm(inst) as u32,
+                inst: Inst::V(VInst::OpIvv(OpIvvInst::Vmax_vv)),
+            },
             _ => return DecodedInst::default(),
         },
         func3::OPMVV => match f6 {
@@ -64,6 +72,14 @@ pub(crate) fn decode<P: remu_state::StatePolicy>(inst: u32) -> DecodedInst {
                 rs2: rs2(inst),
                 imm: vm(inst) as u32,
                 inst: Inst::V(VInst::OpMvv(OpMvvInst::Vredsum_vs)),
+            },
+            // vredmax.vs vd, vs2, vs1, vm — funct6=0b000111, OP-MVV (MATCH_VREDMAX_VS)
+            0b000111 => DecodedInst {
+                rd: rd(inst),
+                rs1: rs1(inst),
+                rs2: rs2(inst),
+                imm: vm(inst) as u32,
+                inst: Inst::V(VInst::OpMvv(OpMvvInst::Vredmax_vs)),
             },
             0b010100 => match rs2(inst) {
                 0b00000 if vm(inst) == 1 => DecodedInst {
@@ -108,7 +124,21 @@ pub(crate) fn decode<P: remu_state::StatePolicy>(inst: u32) -> DecodedInst {
                     imm: vm(inst) as u32,
                     inst: Inst::V(VInst::OpMvv(OpMvvInst::Vsext_vf4)),
                 },
-                // 0b00010 vzext.vf8, 0b00011 vsext.vf8, 0b00110 vzext.vf2, 0b00111 vsext.vf2 reserved
+                // 0b00010 vzext.vf8, 0b00011 vsext.vf8 (not implemented)
+                0b00110 => DecodedInst {
+                    rd: rd(inst),
+                    rs1: 0,
+                    rs2: rs2(inst),
+                    imm: vm(inst) as u32,
+                    inst: Inst::V(VInst::OpMvv(OpMvvInst::Vzext_vf2)),
+                },
+                0b00111 => DecodedInst {
+                    rd: rd(inst),
+                    rs1: 0,
+                    rs2: rs2(inst),
+                    imm: vm(inst) as u32,
+                    inst: Inst::V(VInst::OpMvv(OpMvvInst::Vsext_vf2)),
+                },
                 _ => return DecodedInst::default(),
             },
             0b011010 if vm(inst) == 1 => DecodedInst {

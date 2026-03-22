@@ -6,7 +6,8 @@ use crate::riscv::inst::{DecodedInst, opcode::OP_V::OpMvvInst};
 use super::{
     loop_ops::{binop_macc, mode_from_vm},
     utils::{
-        vector_element_loop, vector_element_loop_vv, vector_extend_vf4, vector_extract_scalar,
+        vector_element_loop, vector_element_loop_vv, vector_extend_vf2, vector_extend_vf4,
+        vector_extract_scalar,
         vector_first_mask, vector_mask_binary, vector_reduction, vector_wide_mul_vv,
     },
 };
@@ -25,6 +26,14 @@ pub(crate) fn execute<P: remu_state::StatePolicy, C: crate::ExecuteContext<P>>(
             decoded.imm != 0,
             |acc, v| acc.wrapping_add(v),
         ),
+        OpMvvInst::Vredmax_vs => vector_reduction::<P, C, _>(
+            ctx,
+            decoded.rd as usize,
+            decoded.rs1 as usize,
+            decoded.rs2 as usize,
+            decoded.imm != 0,
+            |acc, v| if acc >= v { acc } else { v },
+        ),
         OpMvvInst::Vid_v => vector_element_loop(
             ctx,
             decoded.rd as usize,
@@ -42,6 +51,20 @@ pub(crate) fn execute<P: remu_state::StatePolicy, C: crate::ExecuteContext<P>>(
             true,
         ),
         OpMvvInst::Vzext_vf4 => vector_extend_vf4::<P, C>(
+            ctx,
+            decoded.rd as usize,
+            decoded.rs2 as usize,
+            decoded.imm != 0,
+            false,
+        ),
+        OpMvvInst::Vsext_vf2 => vector_extend_vf2::<P, C>(
+            ctx,
+            decoded.rd as usize,
+            decoded.rs2 as usize,
+            decoded.imm != 0,
+            true,
+        ),
+        OpMvvInst::Vzext_vf2 => vector_extend_vf2::<P, C>(
             ctx,
             decoded.rd as usize,
             decoded.rs2 as usize,

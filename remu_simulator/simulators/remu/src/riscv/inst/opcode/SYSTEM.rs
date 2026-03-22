@@ -114,7 +114,17 @@ pub(crate) fn execute<P: remu_state::StatePolicy, C: crate::ExecuteContext<P>>(
         }
         SystemInst::Csrrw | SystemInst::Csrrs | SystemInst::Csrrc
         | SystemInst::Csrrwi | SystemInst::Csrrsi | SystemInst::Csrrci => {
-            let k = CsrKind::from_repr((decoded.imm & 0xFFF) as u16).unwrap();
+            let csr_imm = (decoded.imm & 0xFFF) as u16;
+            let k = match CsrKind::from_repr(csr_imm) {
+                Some(k) => k,
+                None => {
+                    return Err(remu_state::StateError::UnimplementedCsr {
+                        pc: *state.reg.pc,
+                        csr_addr: csr_imm,
+                        imm_raw: decoded.imm,
+                    });
+                }
+            };
             if k.illegal_when_vs_off() && state.reg.csr.mstatus_vs_off() {
                 UNKNOWN::trap_illegal_instruction(state);
                 return Ok(());
