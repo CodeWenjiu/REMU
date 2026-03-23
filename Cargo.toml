@@ -23,7 +23,7 @@ members = [
     "remu_hal/xtask",
     "remu_app/hello_world",
     "remu_app/collection",
-    "remu_app/mnist",
+    "remu_app/mnist", "remu_app/mnist/mnist_generator",
 ]
 
 [workspace.lints.rust]

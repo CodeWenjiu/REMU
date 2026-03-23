@@ -22,13 +22,27 @@
           inherit system;
           overlays = [ (import rust-overlay) ];
         };
+
+        # Runtime dlopen (GPUI / winit / Wayland): mkShell alone does not always put these on LD_LIBRARY_PATH.
+        guiRuntime = with pkgs; [
+          wayland
+          libxkbcommon
+          libGL
+          vulkan-loader
+          libX11
+          libXcursor
+          libXrandr
+          libXi
+          libxcb
+        ];
       in
       {
         devShells.default = pkgs.mkShell {
           TMPDIR = "/tmp";
           LIBCLANG_PATH = "${pkgs.libclang.lib}/lib";
 
-          buildInputs = with pkgs; [
+          buildInputs =
+            (with pkgs; [
             # rust toolchain (nightly for error_generic_member_access / #[backtrace])
             (rust-bin.nightly.latest.default.override {
               extensions = [
@@ -72,7 +86,13 @@
             zlib
 
             gource
-          ];
+            ])
+            ++ guiRuntime;
+
+          shellHook = ''
+            export LD_LIBRARY_PATH="${pkgs.lib.makeLibraryPath guiRuntime}''${LD_LIBRARY_PATH:+:}$LD_LIBRARY_PATH"
+            export PKG_CONFIG_PATH="${pkgs.lib.makeSearchPath "lib/pkgconfig" (builtins.map pkgs.lib.getDev guiRuntime)}''${PKG_CONFIG_PATH:+:}$PKG_CONFIG_PATH"
+          '';
         };
       }
     );
