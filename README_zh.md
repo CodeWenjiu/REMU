@@ -18,7 +18,7 @@
 
 解释器核心针对 **稳态执行** 做了优化（译码分发、访存形态、热路径布局等）。在相同负载下，remu 的吞吐约可达作者先前 **用 C 编写的类 NEMU 实现的十倍**。
 
-**负载：** [Abstract Machine (AM)](https://github.com/NJU-ProjectN/abstract-machine) **microbench**，`ref` 规模。
+**负载：** [Abstract Machine (AM)](https://github.com/NJU-ProjectN/abstract-machine) **microbench**，**`ref` 规模**，ISA 为 **`riscv32im`**（RV32 + **M** 扩展）。下表各分数基于 **同一套二进制与主机环境**。
 
 | 模拟器   | microbench-ref 分数 |
 |---------|--------------------:|
@@ -28,6 +28,14 @@
 
 *该基准分数越高越好；上表为单次参考测试，实际会随 CPU、编译器与编译选项变化。*
 
+**参考运行环境**（上表分数在该机上测得；你的机器结果会不同）：
+
+| | |
+|--|--|
+| **操作系统** | Linux **x86_64**，**WSL2**（内核 `6.6.87.2-microsoft-standard-WSL2`） |
+| **CPU** | **Intel Core i5-13600KF**（虚拟机视角：**10 核 / 20 线程**，1 路） |
+| **内存** | **约 32 GiB** |
+
 **相对 remu 的速度（同一基准）：**
 
 | 对比 **remu** | 相对速度 |
@@ -35,6 +43,15 @@
 | Spike        | ~2.0×    |
 | QEMU         | ~4.3×    |
 | 作者先前用 C 写的 NEMU | remu 约 **10×** 更快 |
+
+**复现方式**（在完整拉取的 **[chip-dev](https://github.com/CodeWenjiu/chip-dev)** 仓库中，进入 **`am-zig/`** 目录执行）：
+
+```bash
+cd am-zig
+BATCH=true just run <platform> riscv32 im am-microbench ref
+```
+
+将 **`<platform>`** 换成 `remu`、`spike`、`qemu` 等。**`BATCH=true`** 表示非交互跑完（与 remu 侧 `run-app` 里 `BATCH` 的用途一致）。
 
 ---
 

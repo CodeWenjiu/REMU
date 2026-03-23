@@ -18,7 +18,7 @@ This project is **inspired by and draws on ideas from [NEMU](https://github.com/
 
 The interpreter core has been **optimized for steady-state execution** (decode/dispatch, memory access patterns, and hot-path layout). On the same workload, remu reaches roughly **an order of magnitude higher throughput than the author’s earlier C-based NEMU-style implementation**.
 
-**Workload:** [Abstract Machine (AM)](https://github.com/NJU-ProjectN/abstract-machine) **microbench**, `ref` scale.
+**Workload:** [Abstract Machine (AM)](https://github.com/NJU-ProjectN/abstract-machine) **microbench**, **`ref` scale**, ISA **`riscv32im`** (RV32 + **M** extension). All scores below use the same binary and host environment.
 
 | Simulator   | microbench-ref score |
 |------------|----------------------:|
@@ -28,6 +28,14 @@ The interpreter core has been **optimized for steady-state execution** (decode/d
 
 *Scores are higher-is-better for this benchmark; numbers are a single reference run and will vary by CPU, compiler, and build flags.*
 
+**Reference host** (where the table above was measured; yours will differ):
+
+| | |
+|--|--|
+| **OS** | Linux **x86_64**, **WSL2** (kernel `6.6.87.2-microsoft-standard-WSL2`) |
+| **CPU** | **Intel Core i5-13600KF** (guest view: **10 cores / 20 threads**, 1 socket) |
+| **RAM** | **~32 GiB** |
+
 **Speed vs remu (same benchmark):**
 
 | vs **remu** | Relative |
@@ -35,6 +43,15 @@ The interpreter core has been **optimized for steady-state execution** (decode/d
 | Spike      | ~2.0×    |
 | QEMU       | ~4.3×    |
 | Author’s C NEMU (prior work) | remu ~**10×** faster |
+
+**Reproduce** (inside a full **[chip-dev](https://github.com/CodeWenjiu/chip-dev)** checkout, from the **`am-zig/`** directory):
+
+```bash
+cd am-zig
+BATCH=true just run <platform> riscv32 im am-microbench ref
+```
+
+Replace **`<platform>`** with `remu`, `spike`, `qemu`, etc. **`BATCH=true`** runs the workload non-interactively (same idea as in remu’s own `run-app` tooling).
 
 ---
 
