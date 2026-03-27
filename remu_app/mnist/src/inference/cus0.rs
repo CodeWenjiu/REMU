@@ -1,4 +1,5 @@
-//! CUS0-only backend: no embedded weights; inference is delegated to accelerator custom instructions.
+//! CUS0-only backend: weights live in the remu simulator (`opcode/OP_CUS0`); on device, inference is
+//! custom instructions only.
 
 use remu_hal::println;
 
@@ -18,7 +19,7 @@ fn argmax_logits(bits: &[u32; 10]) -> usize {
 
 impl Cus0Inference {
     pub fn new() -> Self {
-        println!("MNIST backend: CUS0 (NN_LOAD_ACT / NN_START / NN_LOAD), no embedded weights.");
+        println!("MNIST backend: CUS0 (NN_LOAD_ACT / NN_START / NN_LOAD).");
         Self
     }
 }

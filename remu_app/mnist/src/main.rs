@@ -10,7 +10,7 @@ use remu_hal::{entry, FmtWrite, Uart16550, exit_success};
 use crate::inference::{MnistInference};
 
 /// Switch backend: [`WeightedInference`] (CPU + weights) or [`crate::inference::Cus0Inference`].
-type Engine = crate::inference::Cus0Inference;
+type Engine = crate::inference::WeightedInference;
 
 static BENCHMARK_MODE: bool = false;
 

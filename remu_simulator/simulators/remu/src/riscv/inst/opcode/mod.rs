@@ -2,5 +2,8 @@
 
 remu_macro::mod_pub!(
     LUI, AUIPC, JAL, JALR, BRANCH, OP_IMM, OP, LOAD, LOAD_FP, STORE, STORE_FP, MISC_MEM, SYSTEM,
-    OP_V, CUS0, UNKNOWN
+    OP_V, UNKNOWN
 );
+
+pub mod OP_CUS0;
+pub use OP_CUS0 as CUS0;

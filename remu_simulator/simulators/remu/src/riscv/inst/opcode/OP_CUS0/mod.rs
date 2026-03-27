@@ -1,15 +1,15 @@
-//! Custom opcode **CUS0** (`0b0001011` / `0x0B`, RV custom-0).
+//! Custom opcode **CUS0** (`0b0001011` / `0x0B`, RV custom-0) + simulated MNIST accelerator.
 //!
-//! - `func3=000` — **NN_LOAD_ACT**: **R-type**, `funct7=0`, `opcode=CUSTOM_0`. **`rs1`** = bias (index /
-//!   address in GPR), **`rs2`** = value to write; **`rd`** reserved (often `x0`). No memory access.
-//! - `func3=001` — **CTL** family: no GPR sources; remaining bits select opcode. **`NN_START`**: all
-//!   non-opcode / non-funct3 bits zero (`0x100B`).
-//! - `func3=010` — **NN_LOAD** family: I-type with **`rd` as destination** and **`rs1`** = which
-//!   output to extract (**bias** / logit index, typically `0..9` in a GPR). **`NN_LOAD`**: `imm_i==0`;
-//!   immediate field is `0`; **`rs1`** is not required to be `x0` (use `x0` if bias is literal `0`).
-//!   Other `imm` variants reserved for future use.
+//! - **NN_LOAD_ACT** — buffer one input activation (`rs1` / `rs2` GPR values).
+//! - **NN_START** — run embedded MLP forward on the buffer.
+//! - **NN_LOAD** — read one logit; **`rs1`** = GPR holding output index, **`rd`** = destination.
+
+mod mnist_infer;
+
+use core::hint::unreachable_unchecked;
 
 use remu_state::StateError;
+use remu_types::isa::reg::RegAccess;
 
 use crate::riscv::inst::{funct3, funct7, imm_i, rd, rs1, rs2, DecodedInst, Inst};
 
@@ -28,7 +28,7 @@ mod func3 {
 /// Top-level CUS0 decoded operation.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub(crate) enum Cus0Inst {
-    /// `func3=000`, `funct7=0` — R-type: `rs1` = bias, `rs2` = value.
+    /// `func3=000`, `funct7=0` — R-type: `rs1` / `rs2` operand registers.
     NnLoadAct,
     /// `func3=001` — CTL family.
     Ctl(CtlInst),
@@ -43,10 +43,10 @@ pub(crate) enum CtlInst {
     NnStart,
 }
 
-/// `func3=010` — `rd` present; **`rs1`** carries extract bias (which scalar to read).
+/// `func3=010` — `rd` present; **`rs1`** carries extract index (GPR number).
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub(crate) enum NnLoadRdInst {
-    /// I-type: `imm_i=0`, `simm12=0`; **`rd`** = destination, **`rs1`** = bias / output index.
+    /// I-type: `imm_i=0`, `simm12=0`; **`rd`** = destination, **`rs1`** = bias index register.
     NnLoad,
 }
 
@@ -102,18 +102,29 @@ pub(crate) fn execute<P: remu_state::StatePolicy, C: crate::ExecuteContext<P>>(
 ) -> Result<(), StateError> {
     let state = ctx.state_mut();
     let Inst::Cus0(op) = decoded.inst else {
-        unsafe { core::hint::unreachable_unchecked() }
+        unsafe { unreachable_unchecked() }
     };
-    let _ = state;
     match op {
         Cus0Inst::NnLoadAct => {
-            todo!()
+            let idx = state.reg.gpr.raw_read(decoded.rs1.into()) as i32;
+            let v = state.reg.gpr.raw_read(decoded.rs2.into()) as i32;
+            if idx >= 0 {
+                let u = idx as usize;
+                mnist_infer::buffer_load_act(u, v as i8);
+            }
         }
         Cus0Inst::Ctl(CtlInst::NnStart) => {
-            todo!()
+            mnist_infer::run_inference();
         }
         Cus0Inst::NnLoadRd(NnLoadRdInst::NnLoad) => {
-            todo!()
+            let k = state.reg.gpr.raw_read(decoded.rs1.into()) as i32;
+            let idx = k.clamp(0, 9) as usize;
+            let logit = mnist_infer::read_logit(idx);
+            if decoded.rd != 0 {
+                state.reg.gpr.raw_write(decoded.rd.into(), logit as u32);
+            }
         }
     }
+    *state.reg.pc = state.reg.pc.wrapping_add(4);
+    Ok(())
 }
