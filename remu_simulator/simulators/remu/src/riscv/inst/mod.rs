@@ -8,8 +8,8 @@ remu_macro::mod_pub!(opcode);
 remu_macro::mod_flat!(bytes);
 
 use crate::riscv::inst::opcode::{
-    AUIPC, BRANCH, JAL, JALR, LOAD, LOAD_FP, LUI, MISC_MEM, OP, OP_IMM, OP_V, STORE, STORE_FP,
-    SYSTEM, UNKNOWN,
+    AUIPC, BRANCH, CUS0, JAL, JALR, LOAD, LOAD_FP, LUI, MISC_MEM, OP, OP_IMM, OP_V, STORE,
+    STORE_FP, SYSTEM, UNKNOWN,
 };
 
 /// Instruction kind: one variant per opcode, with opcode-specific sub-enum where needed.
@@ -29,6 +29,7 @@ pub(crate) enum Inst {
     MiscMem(MISC_MEM::MiscMemInst),
     System(SYSTEM::SystemInst),
     V(OP_V::VInst),
+    Cus0(CUS0::Cus0Inst),
     #[default]
     Unknown,
 }
@@ -66,6 +67,7 @@ pub fn decode<P: StatePolicy>(inst: u32) -> DecodedInst {
                 UNKNOWN::decode::<P>(inst)
             }
         }
+        CUS0::OPCODE => CUS0::decode::<P>(inst),
         _ => UNKNOWN::decode::<P>(inst),
     }
 }
@@ -96,6 +98,7 @@ pub(crate) fn execute<P: StatePolicy, C: crate::ExecuteContext<P>>(
                 unsafe { core::hint::unreachable_unchecked() }
             }
         }
+        Inst::Cus0(..) => CUS0::execute(ctx, decoded),
         Inst::Unknown => UNKNOWN::execute(ctx, decoded),
     }
 }
@@ -115,5 +118,6 @@ pub const RV32_INSTRUCTION_MIX: &[(u32, u32)] = &[
     (STORE_FP::OPCODE, STORE_FP::INSTRUCTION_MIX),
     (SYSTEM::OPCODE, SYSTEM::INSTRUCTION_MIX),
     (OP_V::OPCODE, OP_V::INSTRUCTION_MIX),
+    (CUS0::OPCODE, CUS0::INSTRUCTION_MIX),
     (UNKNOWN::OPCODE, UNKNOWN::INSTRUCTION_MIX),
 ];

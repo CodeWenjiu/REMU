@@ -7,7 +7,10 @@ extern crate alloc;
 remu_macro::mod_pub!(inference);
 use remu_hal::{entry, FmtWrite, Uart16550, exit_success};
 
-use crate::inference::Inference;
+use crate::inference::{MnistInference};
+
+/// Switch backend: [`WeightedInference`] (CPU + weights) or [`crate::inference::Cus0Inference`].
+type Engine = crate::inference::Cus0Inference;
 
 static BENCHMARK_MODE: bool = false;
 
@@ -17,7 +20,7 @@ fn main() -> ! {
     unsafe { remu_hal::init() };
     let mut uart = Uart16550::default_base();
 
-    let infer = Inference::new();
+    let infer = Engine::new();
 
     // Run benchmarks based on mode
     if BENCHMARK_MODE {
