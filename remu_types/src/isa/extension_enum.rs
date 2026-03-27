@@ -104,3 +104,37 @@ impl RvIsa for RV32IM_zve32x_zvl128b {
         DIFFTEST_SLICES_BASE_AND_V
     }
 }
+
+/// RV32I + **remuCus0**: remu custom opcode space **CUS0** only (no standard extra letters in MISA).
+#[allow(non_camel_case_types)]
+#[derive(Clone, Copy)]
+pub struct RV32I_remuCus0;
+impl RvIsa for RV32I_remuCus0 {
+    type XLEN = u32;
+    type Conf = ConfigRV32I;
+    type PcState = PcState;
+    type GprState = GprState;
+    type FprState = ();
+    type VConfig = NoV;
+
+    const ISA_STR: &'static str = "riscv32i_remuCus0";
+    const MISA: u32 = 0x4000_0100; // RV32, I
+    const HAS_REMU_CUS0: bool = true;
+}
+
+/// RV32IM + **remuCus0**: M extension + remu custom opcode space **CUS0**.
+#[allow(non_camel_case_types)]
+#[derive(Clone, Copy)]
+pub struct RV32IM_remuCus0;
+impl RvIsa for RV32IM_remuCus0 {
+    type XLEN = u32;
+    type Conf = ConfigRV32IM;
+    type PcState = PcState;
+    type GprState = GprState;
+    type FprState = ();
+    type VConfig = NoV;
+
+    const ISA_STR: &'static str = "riscv32im_remuCus0";
+    const MISA: u32 = 0x4000_1100; // RV32, I, M
+    const HAS_REMU_CUS0: bool = true;
+}

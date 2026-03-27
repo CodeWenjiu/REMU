@@ -8,7 +8,9 @@ use remu_types::{
     DifftestRef, Platform,
     isa::{
         ExtensionSpec, RvIsa,
-        extension_enum::{RV32I, RV32I_zve32x_zvl128b, RV32IM, RV32IM_zve32x_zvl128b},
+        extension_enum::{
+            RV32I, RV32I_remuCus0, RV32I_zve32x_zvl128b, RV32IM, RV32IM_remuCus0, RV32IM_zve32x_zvl128b,
+        },
     },
 };
 use target_lexicon::{Architecture, Riscv32Architecture};
@@ -70,6 +72,8 @@ pub fn boot<R: DebuggerRunner>(
             match (isa.base, isa.extensions) {
                 (Architecture::Riscv32(Riscv32i), None) => $boot_fn::<RV32I, R>(option, runner, interrupt),
                 (Architecture::Riscv32(Riscv32im), None) => $boot_fn::<RV32IM, R>(option, runner, interrupt),
+                (Architecture::Riscv32(Riscv32i), RemuCus0) => $boot_fn::<RV32I_remuCus0, R>(option, runner, interrupt),
+                (Architecture::Riscv32(Riscv32im), RemuCus0) => $boot_fn::<RV32IM_remuCus0, R>(option, runner, interrupt),
                 (Architecture::Riscv32(Riscv32i), Zve32xZvl128b) => $boot_fn::<RV32I_zve32x_zvl128b, R>(option, runner, interrupt),
                 (Architecture::Riscv32(Riscv32im), Zve32xZvl128b) => $boot_fn::<RV32IM_zve32x_zvl128b, R>(option, runner, interrupt),
                 (arch, ext) => panic!(

@@ -9,6 +9,9 @@ pub const CARGO_TARGET_RUSTFLAGS_RV32IM_ENV: &str =
 pub const CARGO_TARGET_DIR_SUBDIR_APP: &str = "app";
 pub const CARGO_TARGET_DIR_SUBDIR_ZVE: &str = "app_zve32x";
 pub const REMU_ISA_ENV: &str = "REMU_ISA";
+/// When set (value ignored), `print run-remu` appends `REMU_CUS0_ISA_SUFFIX` (`_remuCus0`) to `--isa`.
+pub const EXISA0_ENV: &str = "EXISA0";
+pub const REMU_CUS0_ISA_SUFFIX: &str = "_remuCus0";
 
 #[derive(Debug, Clone)]
 pub struct CargoTarget {

@@ -67,7 +67,13 @@ pub fn decode<P: StatePolicy>(inst: u32) -> DecodedInst {
                 UNKNOWN::decode::<P>(inst)
             }
         }
-        CUS0::OPCODE => CUS0::decode::<P>(inst),
+        CUS0::OPCODE => {
+            if <P::ISA as RvIsa>::HAS_REMU_CUS0 {
+                CUS0::decode::<P>(inst)
+            } else {
+                UNKNOWN::decode::<P>(inst)
+            }
+        }
         _ => UNKNOWN::decode::<P>(inst),
     }
 }
@@ -98,7 +104,13 @@ pub(crate) fn execute<P: StatePolicy, C: crate::ExecuteContext<P>>(
                 unsafe { core::hint::unreachable_unchecked() }
             }
         }
-        Inst::Cus0(..) => CUS0::execute(ctx, decoded),
+        Inst::Cus0(..) => {
+            if <P::ISA as RvIsa>::HAS_REMU_CUS0 {
+                CUS0::execute(ctx, decoded)
+            } else {
+                UNKNOWN::execute(ctx, decoded)
+            }
+        }
         Inst::Unknown => UNKNOWN::execute(ctx, decoded),
     }
 }
