@@ -9,7 +9,6 @@ remu_harness = { path = "../remu_harness" }
 remu_simulator_nzea = { path = "../remu_simulator/simulators/nzea" }
 remu_state = { path = "../remu_state" }
 remu_types = { path = "../remu_types" }
-target-lexicon = { workspace = true }
 
 [lints]
 workspace = true

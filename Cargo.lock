@@ -3311,7 +3311,6 @@ dependencies = [
  "remu_simulator_nzea",
  "remu_state",
  "remu_types",
- "target-lexicon",
 ]
 
 [[package]]
@@ -3395,6 +3394,7 @@ dependencies = [
  "remu_simulator_spike",
  "remu_state",
  "remu_types",
+ "target-lexicon",
  "thiserror 2.0.18",
  "tracing",
 ]
@@ -3436,6 +3436,7 @@ dependencies = [
  "remu_simulator",
  "remu_state",
  "remu_types",
+ "target-lexicon",
  "thiserror 2.0.18",
  "tracing",
 ]

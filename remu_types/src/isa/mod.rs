@@ -1,4 +1,6 @@
-remu_macro::mod_pub!(reg, extension, extension_enum, extension_v);
+remu_macro::mod_pub!(reg, extension, extension_enum, extension_v, isa_kind);
+
+pub use isa_kind::IsaKind;
 
 use std::str::FromStr;
 

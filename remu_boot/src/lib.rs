@@ -1,21 +1,26 @@
+//! Debugger entry: wires [`DebuggerOption`] to the correct simulator + ISA generic.
+//!
+//! ISA classification uses [`IsaKind`](remu_types::isa::IsaKind): [`RemuIsaKind`](remu_harness::RemuIsaKind)
+//! and [`NzeaIsaKind`](remu_simulator_nzea::NzeaIsaKind). This crate only dispatches on [`Platform`].
+
 use std::sync::Arc;
 
 use remu_debugger::{DebuggerOption, DebuggerRunner};
-use remu_harness::{SimulatorNzea, SimulatorRemu};
-use remu_simulator_nzea::NzeaIsa;
+use remu_harness::{RemuIsaKind, SimulatorNzea, SimulatorRemu};
+use remu_simulator_nzea::{NzeaIsa, NzeaIsaKind};
 use remu_state::{StateFastProfile, StateMmioProfile};
 use remu_types::{
     DifftestRef, Platform,
     isa::{
-        ExtensionSpec, RvIsa,
+        IsaKind,
+        RvIsa,
         extension_enum::{
             RV32I, RV32I_remuCus0, RV32I_zve32x_zvl128b, RV32IM, RV32IM_remuCus0, RV32IM_zve32x_zvl128b,
         },
     },
 };
-use target_lexicon::{Architecture, Riscv32Architecture};
 
-fn boot_with_isa<ISA, Run>(
+fn boot_with_isa_remu<ISA, Run>(
     option: DebuggerOption,
     runner: Run,
     interrupt: Arc<std::sync::atomic::AtomicBool>,
@@ -61,43 +66,25 @@ pub fn boot<R: DebuggerRunner>(
     runner: R,
     interrupt: Arc<std::sync::atomic::AtomicBool>,
 ) {
-    use ExtensionSpec::*;
-    use Riscv32Architecture::*;
-
-    let isa = &option.isa;
     let platform = option.platform;
 
-    macro_rules! dispatch {
-        ($boot_fn:ident) => {
-            match (isa.base, isa.extensions) {
-                (Architecture::Riscv32(Riscv32i), None) => $boot_fn::<RV32I, R>(option, runner, interrupt),
-                (Architecture::Riscv32(Riscv32im), None) => $boot_fn::<RV32IM, R>(option, runner, interrupt),
-                (Architecture::Riscv32(Riscv32i), RemuCus0) => $boot_fn::<RV32I_remuCus0, R>(option, runner, interrupt),
-                (Architecture::Riscv32(Riscv32im), RemuCus0) => $boot_fn::<RV32IM_remuCus0, R>(option, runner, interrupt),
-                (Architecture::Riscv32(Riscv32i), Zve32xZvl128b) => $boot_fn::<RV32I_zve32x_zvl128b, R>(option, runner, interrupt),
-                (Architecture::Riscv32(Riscv32im), Zve32xZvl128b) => $boot_fn::<RV32IM_zve32x_zvl128b, R>(option, runner, interrupt),
-                (arch, ext) => panic!(
-                    "unsupported ISA combination: base={:?}, extensions={:?}",
-                    arch, ext
-                ),
-            }
-        };
-    }
-
     if platform == Platform::Nzea {
-        match (isa.base, isa.extensions) {
-            (Architecture::Riscv32(Riscv32i), ExtensionSpec::None) => {
-                boot_with_isa_nzea::<RV32I, R>(option, runner, interrupt)
-            }
-            (Architecture::Riscv32(Riscv32im), ExtensionSpec::None) => {
-                boot_with_isa_nzea::<RV32IM, R>(option, runner, interrupt)
-            }
-            (arch, ext) => panic!(
-                "nzea only supports riscv32i and riscv32im; got base={:?}, extensions={:?}",
-                arch, ext
-            ),
+        match NzeaIsaKind::from_isa_spec_or_panic(&option.isa) {
+            NzeaIsaKind::Rv32I => boot_with_isa_nzea::<RV32I, R>(option, runner, interrupt),
+            NzeaIsaKind::Rv32Im => boot_with_isa_nzea::<RV32IM, R>(option, runner, interrupt),
         }
     } else {
-        dispatch!(boot_with_isa);
+        match RemuIsaKind::from_isa_spec_or_panic(&option.isa) {
+            RemuIsaKind::Rv32I => boot_with_isa_remu::<RV32I, R>(option, runner, interrupt),
+            RemuIsaKind::Rv32Im => boot_with_isa_remu::<RV32IM, R>(option, runner, interrupt),
+            RemuIsaKind::Rv32IRemuCus0 => boot_with_isa_remu::<RV32I_remuCus0, R>(option, runner, interrupt),
+            RemuIsaKind::Rv32ImRemuCus0 => boot_with_isa_remu::<RV32IM_remuCus0, R>(option, runner, interrupt),
+            RemuIsaKind::Rv32IZve32xZvl128b => {
+                boot_with_isa_remu::<RV32I_zve32x_zvl128b, R>(option, runner, interrupt)
+            }
+            RemuIsaKind::Rv32ImZve32xZvl128b => {
+                boot_with_isa_remu::<RV32IM_zve32x_zvl128b, R>(option, runner, interrupt)
+            }
+        }
     }
 }

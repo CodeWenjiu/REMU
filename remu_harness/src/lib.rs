@@ -1,5 +1,8 @@
 remu_macro::mod_flat!(error, func, option, policy, run_state,);
 
+pub mod isa_dispatch;
+pub use isa_dispatch::RemuIsaKind;
+
 pub use error::HarnessError;
 pub use option::HarnessOption;
 pub use policy::HarnessPolicy;
