@@ -55,10 +55,10 @@ pub trait RvIsa: 'static + Copy {
     const HAS_M: bool = <Self::Conf as ArchConfig>::M::ENABLED;
     const HAS_F: bool = <Self::Conf as ArchConfig>::F::ENABLED;
 
-    /// remu-only **CUS0** custom opcode (e.g. MNIST accelerator). Decode/execute only when **true**
-    /// ([`RV32I_remuCus0`](crate::isa::extension_enum::RV32I_remuCus0) /
-    /// [`RV32IM_remuCus0`](crate::isa::extension_enum::RV32IM_remuCus0)); otherwise custom-0 is illegal.
-    const HAS_REMU_CUS0: bool = false;
+    /// **wjCus0** custom opcode (e.g. MNIST accelerator). Decode/execute only when **true**
+    /// ([`RV32I_wjCus0`](crate::isa::extension_enum::RV32I_wjCus0) /
+    /// [`RV32IM_wjCus0`](crate::isa::extension_enum::RV32IM_wjCus0)); otherwise custom-0 is illegal.
+    const HAS_WJ_CUS0: bool = false;
 
     /// CSRs to compare in difftest, as segments: base segment(s) + optional extension segment(s).
     /// Default: base only. Override when V is present (e.g. [`CSRS_FOR_DIFFTEST_V`](crate::isa::reg::CSRS_FOR_DIFFTEST_V)).
@@ -78,9 +78,9 @@ pub enum ExtensionSpec {
     None,
     /// Zve32x + Zvl128b (V extension, VLENB=16).
     Zve32xZvl128b,
-    /// remu-only custom opcode set **CUS0** (MNIST / accelerator); not a standard RISC-V letter.
-    /// ISA strings: `riscv32i_remuCus0`, `riscv32im_remuCus0`.
-    RemuCus0,
+    /// **wjCus0** custom opcode set (MNIST / accelerator); not a standard RISC-V letter.
+    /// ISA strings: `riscv32i_wjCus0`, `riscv32im_wjCus0`.
+    WjCus0,
 }
 
 impl FromStr for ExtensionSpec {
@@ -93,7 +93,7 @@ impl FromStr for ExtensionSpec {
         }
         match to_ascii_lowercase(s).as_str() {
             "zve32x_zvl128b" => Ok(ExtensionSpec::Zve32xZvl128b),
-            "remucus0" => Ok(ExtensionSpec::RemuCus0),
+            "wjcus0" => Ok(ExtensionSpec::WjCus0),
             _ => Err(format!("Unrecognized extension spec: '{}'", s)),
         }
     }

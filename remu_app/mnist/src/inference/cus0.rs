@@ -1,4 +1,4 @@
-//! CUS0-only backend: weights live in the remu simulator (`opcode/OP_CUS0`); on device, inference is
+//! CUS0-only backend: weights live in the remu simulator (`opcode/OP_WJCUS0`); on device, inference is
 //! custom instructions only.
 
 use remu_hal::println;

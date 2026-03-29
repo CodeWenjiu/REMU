@@ -68,7 +68,7 @@ pub fn decode<P: StatePolicy>(inst: u32) -> DecodedInst {
             }
         }
         CUS0::OPCODE => {
-            if <P::ISA as RvIsa>::HAS_REMU_CUS0 {
+            if <P::ISA as RvIsa>::HAS_WJ_CUS0 {
                 CUS0::decode::<P>(inst)
             } else {
                 UNKNOWN::decode::<P>(inst)
@@ -105,7 +105,7 @@ pub(crate) fn execute<P: StatePolicy, C: crate::ExecuteContext<P>>(
             }
         }
         Inst::Cus0(..) => {
-            if <P::ISA as RvIsa>::HAS_REMU_CUS0 {
+            if <P::ISA as RvIsa>::HAS_WJ_CUS0 {
                 CUS0::execute(ctx, decoded)
             } else {
                 UNKNOWN::execute(ctx, decoded)

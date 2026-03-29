@@ -10,7 +10,12 @@ use std::process::Command;
 use std::sync::mpsc;
 use std::thread;
 
-const NZEA_ISAS: &[&str] = &["riscv32i", "riscv32im"];
+const NZEA_ISAS: &[&str] = &[
+    "riscv32i",
+    "riscv32im",
+    "riscv32i_wjCus0",
+    "riscv32im_wjCus0",
+];
 
 fn find_workspace_root(manifest_dir: &Path) -> PathBuf {
     for p in manifest_dir.ancestors() {

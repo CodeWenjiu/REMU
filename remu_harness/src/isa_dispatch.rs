@@ -10,8 +10,8 @@ use target_lexicon::{Architecture, Riscv32Architecture};
 pub enum RemuIsaKind {
     Rv32I,
     Rv32Im,
-    Rv32IRemuCus0,
-    Rv32ImRemuCus0,
+    Rv32IWjCus0,
+    Rv32ImWjCus0,
     Rv32IZve32xZvl128b,
     Rv32ImZve32xZvl128b,
 }
@@ -24,8 +24,8 @@ impl IsaKind for RemuIsaKind {
         match (spec.base, spec.extensions) {
             (Riscv32(Riscv32i), None) => Self::Rv32I,
             (Riscv32(Riscv32im), None) => Self::Rv32Im,
-            (Riscv32(Riscv32i), RemuCus0) => Self::Rv32IRemuCus0,
-            (Riscv32(Riscv32im), RemuCus0) => Self::Rv32ImRemuCus0,
+            (Riscv32(Riscv32i), WjCus0) => Self::Rv32IWjCus0,
+            (Riscv32(Riscv32im), WjCus0) => Self::Rv32ImWjCus0,
             (Riscv32(Riscv32i), Zve32xZvl128b) => Self::Rv32IZve32xZvl128b,
             (Riscv32(Riscv32im), Zve32xZvl128b) => Self::Rv32ImZve32xZvl128b,
             (arch, ext) => panic!(

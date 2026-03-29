@@ -5,5 +5,5 @@ remu_macro::mod_pub!(
     OP_V, UNKNOWN
 );
 
-pub mod OP_CUS0;
-pub use OP_CUS0 as CUS0;
+pub mod OP_WJCUS0;
+pub use OP_WJCUS0 as CUS0;

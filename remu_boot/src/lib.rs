@@ -15,7 +15,7 @@ use remu_types::{
         IsaKind,
         RvIsa,
         extension_enum::{
-            RV32I, RV32I_remuCus0, RV32I_zve32x_zvl128b, RV32IM, RV32IM_remuCus0, RV32IM_zve32x_zvl128b,
+            RV32I, RV32I_wjCus0, RV32I_zve32x_zvl128b, RV32IM, RV32IM_wjCus0, RV32IM_zve32x_zvl128b,
         },
     },
 };
@@ -72,13 +72,15 @@ pub fn boot<R: DebuggerRunner>(
         match NzeaIsaKind::from_isa_spec_or_panic(&option.isa) {
             NzeaIsaKind::Rv32I => boot_with_isa_nzea::<RV32I, R>(option, runner, interrupt),
             NzeaIsaKind::Rv32Im => boot_with_isa_nzea::<RV32IM, R>(option, runner, interrupt),
+            NzeaIsaKind::Rv32IWjCus0 => boot_with_isa_nzea::<RV32I_wjCus0, R>(option, runner, interrupt),
+            NzeaIsaKind::Rv32ImWjCus0 => boot_with_isa_nzea::<RV32IM_wjCus0, R>(option, runner, interrupt),
         }
     } else {
         match RemuIsaKind::from_isa_spec_or_panic(&option.isa) {
             RemuIsaKind::Rv32I => boot_with_isa_remu::<RV32I, R>(option, runner, interrupt),
             RemuIsaKind::Rv32Im => boot_with_isa_remu::<RV32IM, R>(option, runner, interrupt),
-            RemuIsaKind::Rv32IRemuCus0 => boot_with_isa_remu::<RV32I_remuCus0, R>(option, runner, interrupt),
-            RemuIsaKind::Rv32ImRemuCus0 => boot_with_isa_remu::<RV32IM_remuCus0, R>(option, runner, interrupt),
+            RemuIsaKind::Rv32IWjCus0 => boot_with_isa_remu::<RV32I_wjCus0, R>(option, runner, interrupt),
+            RemuIsaKind::Rv32ImWjCus0 => boot_with_isa_remu::<RV32IM_wjCus0, R>(option, runner, interrupt),
             RemuIsaKind::Rv32IZve32xZvl128b => {
                 boot_with_isa_remu::<RV32I_zve32x_zvl128b, R>(option, runner, interrupt)
             }

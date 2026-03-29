@@ -1,9 +1,9 @@
 //! Raw FFI to C++ glue (nzea_wrapper.cpp): create/destroy/drive the Verilated model.
-//! Supports multiple ISAs (riscv32i, riscv32im); ISA is passed to select the model.
+//! ISA string selects the Verilated model (`riscv32i` / `riscv32im` and `*_wjCus0` aliases).
 
 use std::ffi::{c_char, c_void};
 
-use remu_types::isa::extension_enum::{RV32I, RV32IM};
+use remu_types::isa::extension_enum::{RV32I, RV32I_wjCus0, RV32IM, RV32IM_wjCus0};
 
 unsafe extern "C" {
     pub(crate) fn nzea_create(isa: *const c_char) -> *mut c_void;
@@ -28,4 +28,12 @@ impl NzeaIsa for RV32I {
 
 impl NzeaIsa for RV32IM {
     const NZEA_ISA_STR: &'static str = "riscv32im";
+}
+
+impl NzeaIsa for RV32I_wjCus0 {
+    const NZEA_ISA_STR: &'static str = "riscv32i_wjCus0";
+}
+
+impl NzeaIsa for RV32IM_wjCus0 {
+    const NZEA_ISA_STR: &'static str = "riscv32im_wjCus0";
 }

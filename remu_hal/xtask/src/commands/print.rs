@@ -6,8 +6,8 @@ use crate::disasm::infer_isa_from_elf_path;
 use crate::paths::Paths;
 use crate::target::{
     artifact_dir_name, cargo_target_dir_subdir, merge_cargo_target_rv32im_rustflags,
-    resolve_for_hal_dir, resolve_for_workspace_root, CARGO_TARGET_RUSTFLAGS_RV32IM_ENV, EXISA0_ENV,
-    REMU_CUS0_ISA_SUFFIX, REMU_ISA_ENV,
+    resolve_for_hal_dir, resolve_for_workspace_root, CARGO_TARGET_RUSTFLAGS_RV32IM_ENV,     EXISA0_ENV,
+    WJ_CUS0_ISA_SUFFIX, REMU_ISA_ENV,
     ZVE32_REMU_ISA, ZVE32_TARGET_RUSTFLAGS,
 };
 use crate::util::shell_escape;
@@ -132,8 +132,8 @@ fn print_run_remu(args: RunRemuArgs) -> ExitCode {
 
     let mut isa: String = std::env::var(REMU_ISA_ENV)
         .unwrap_or_else(|_| infer_isa_from_elf_path(elf_abs.to_str().expect("utf-8")));
-    if std::env::var(EXISA0_ENV).is_ok() && !isa.ends_with(REMU_CUS0_ISA_SUFFIX) {
-        isa.push_str(REMU_CUS0_ISA_SUFFIX);
+    if std::env::var(EXISA0_ENV).is_ok() && !isa.ends_with(WJ_CUS0_ISA_SUFFIX) {
+        isa.push_str(WJ_CUS0_ISA_SUFFIX);
     }
     let isa_s = shell_escape(&isa);
 

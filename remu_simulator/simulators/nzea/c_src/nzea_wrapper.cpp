@@ -1,5 +1,5 @@
 // C++ glue for Verilated Nzea/Top: C API so Rust can create/drive the sim.
-// Supports multiple ISAs: riscv32i, riscv32im. Each has its own VTop_<isa> class.
+// One Verilated model per `NZEA_ISAS` entry in build.rs (each has its own VTop_<isa> class).
 #include "verilated.h"
 #include "verilated_fst_c.h"
 #include <cstddef>
@@ -8,6 +8,8 @@
 
 #include "VTop_riscv32i.h"
 #include "VTop_riscv32im.h"
+#include "VTop_riscv32i_wjCus0.h"
+#include "VTop_riscv32im_wjCus0.h"
 
 struct TraceState {
     VerilatedFstC* tfp = nullptr;
@@ -29,6 +31,12 @@ void* nzea_create(const char* isa) {
     if (isa_eq(isa, "riscv32im")) {
         return new VTop_riscv32im();
     }
+    if (isa_eq(isa, "riscv32i_wjCus0")) {
+        return new VTop_riscv32i_wjCus0();
+    }
+    if (isa_eq(isa, "riscv32im_wjCus0")) {
+        return new VTop_riscv32im_wjCus0();
+    }
     return nullptr;
 }
 
@@ -43,6 +51,10 @@ void nzea_destroy(void* sim, const char* isa) {
         delete static_cast<VTop_riscv32i*>(sim);
     } else if (isa_eq(isa, "riscv32im")) {
         delete static_cast<VTop_riscv32im*>(sim);
+    } else if (isa_eq(isa, "riscv32i_wjCus0")) {
+        delete static_cast<VTop_riscv32i_wjCus0*>(sim);
+    } else if (isa_eq(isa, "riscv32im_wjCus0")) {
+        delete static_cast<VTop_riscv32im_wjCus0*>(sim);
     }
 }
 
@@ -51,6 +63,10 @@ void nzea_set_clock(void* sim, const char* isa, int val) {
         static_cast<VTop_riscv32i*>(sim)->clock = val;
     } else if (isa_eq(isa, "riscv32im")) {
         static_cast<VTop_riscv32im*>(sim)->clock = val;
+    } else if (isa_eq(isa, "riscv32i_wjCus0")) {
+        static_cast<VTop_riscv32i_wjCus0*>(sim)->clock = val;
+    } else if (isa_eq(isa, "riscv32im_wjCus0")) {
+        static_cast<VTop_riscv32im_wjCus0*>(sim)->clock = val;
     }
 }
 
@@ -59,6 +75,10 @@ void nzea_set_reset(void* sim, const char* isa, int val) {
         static_cast<VTop_riscv32i*>(sim)->reset = val;
     } else if (isa_eq(isa, "riscv32im")) {
         static_cast<VTop_riscv32im*>(sim)->reset = val;
+    } else if (isa_eq(isa, "riscv32i_wjCus0")) {
+        static_cast<VTop_riscv32i_wjCus0*>(sim)->reset = val;
+    } else if (isa_eq(isa, "riscv32im_wjCus0")) {
+        static_cast<VTop_riscv32im_wjCus0*>(sim)->reset = val;
     }
 }
 
@@ -67,6 +87,10 @@ void nzea_eval(void* sim, const char* isa) {
         static_cast<VTop_riscv32i*>(sim)->eval();
     } else if (isa_eq(isa, "riscv32im")) {
         static_cast<VTop_riscv32im*>(sim)->eval();
+    } else if (isa_eq(isa, "riscv32i_wjCus0")) {
+        static_cast<VTop_riscv32i_wjCus0*>(sim)->eval();
+    } else if (isa_eq(isa, "riscv32im_wjCus0")) {
+        static_cast<VTop_riscv32im_wjCus0*>(sim)->eval();
     }
 }
 
@@ -77,6 +101,10 @@ void nzea_trace_open(void* sim, const char* isa, const char* filename) {
         static_cast<VTop_riscv32i*>(sim)->contextp()->trace(tfp, 99, 0);
     } else if (isa_eq(isa, "riscv32im")) {
         static_cast<VTop_riscv32im*>(sim)->contextp()->trace(tfp, 99, 0);
+    } else if (isa_eq(isa, "riscv32i_wjCus0")) {
+        static_cast<VTop_riscv32i_wjCus0*>(sim)->contextp()->trace(tfp, 99, 0);
+    } else if (isa_eq(isa, "riscv32im_wjCus0")) {
+        static_cast<VTop_riscv32im_wjCus0*>(sim)->contextp()->trace(tfp, 99, 0);
     } else {
         delete tfp;
         return;
