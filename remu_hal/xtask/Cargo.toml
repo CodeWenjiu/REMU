@@ -10,8 +10,10 @@ path = "src/main.rs"
 
 [dependencies]
 remu_macro = { path = "../../remu_macro" }
+remu_types = { path = "../../remu_types" }
 
 clap = { workspace = true, features = ["derive", "std"] }
+winnow.workspace = true
 
 [lints]
 workspace = true

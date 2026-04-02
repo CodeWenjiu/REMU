@@ -1,5 +1,7 @@
 use std::process::ExitCode;
 
+mod isa_shorthand;
+
 remu_macro::mod_pub![cli, paths, target, disasm, util];
 
 pub mod commands {

@@ -5,10 +5,10 @@ use crate::cli::{BuildAppArgs, PrintCmd, RunAppArgs, RunRemuArgs};
 use crate::disasm::infer_isa_from_elf_path;
 use crate::paths::Paths;
 use crate::target::{
-    artifact_dir_name, cargo_target_dir_subdir, merge_cargo_target_rv32im_rustflags,
-    resolve_for_hal_dir, resolve_for_workspace_root, CARGO_TARGET_RUSTFLAGS_RV32IM_ENV,     EXISA0_ENV,
-    WJ_CUS0_ISA_SUFFIX, REMU_ISA_ENV,
-    ZVE32_REMU_ISA, ZVE32_TARGET_RUSTFLAGS,
+    artifact_dir_name, cargo_target_dir_subdir, merge_cargo_target_rustflags, resolve_for_hal_dir,
+    resolve_for_workspace_root, CARGO_TARGET_RUSTFLAGS_RV32IM_ENV,
+    CARGO_TARGET_RUSTFLAGS_RV32I_ENV, EXISA0_ENV, REMU_ISA_ENV, WJ_CUS0_ISA_SUFFIX,
+    ZVE32_TARGET_RUSTFLAGS,
 };
 use crate::util::shell_escape;
 
@@ -23,7 +23,13 @@ pub fn run(cmd: PrintCmd) -> ExitCode {
 fn print_run_app(args: RunAppArgs) -> ExitCode {
     let paths = Paths::from_env();
     let ws = paths.workspace_canonical();
-    let resolved = resolve_for_workspace_root(&ws, &args.target);
+    let resolved = match resolve_for_workspace_root(&ws, &args.target) {
+        Ok(t) => t,
+        Err(e) => {
+            eprintln!("xtask: {e}");
+            return ExitCode::from(1);
+        }
+    };
     let sub = cargo_target_dir_subdir(resolved.zve);
     let target_dir = ws.join("target").join(sub);
     let td = shell_escape(target_dir.to_str().expect("utf-8 path"));
@@ -37,28 +43,29 @@ fn print_run_app(args: RunAppArgs) -> ExitCode {
         ""
     };
 
-    let body = if resolved.zve {
-        format!(
-            "export {isa_k}={isa_v}; export {rf_k}={rf_v}; cargo run -p {pkg} --target {tgt} --release -Z build-std=core,alloc{json}",
-            isa_k = REMU_ISA_ENV,
-            isa_v = shell_escape(ZVE32_REMU_ISA),
-            rf_k = CARGO_TARGET_RUSTFLAGS_RV32IM_ENV,
-            rf_v = shell_escape(&merge_cargo_target_rv32im_rustflags(ZVE32_TARGET_RUSTFLAGS)),
-            pkg = shell_escape(&pkg),
-            tgt = tgt,
-            json = json,
-        )
+    let mut exports: Vec<String> = Vec::new();
+    if let Some(env_k) = resolved.zve_cargo_rustflags_env {
+        let rf_v = shell_escape(&merge_cargo_target_rustflags(env_k, ZVE32_TARGET_RUSTFLAGS));
+        exports.push(format!("{env_k}={rf_v}"));
+    }
+    if let Some(isa) = &resolved.remu_isa {
+        exports.push(format!("{}={}", REMU_ISA_ENV, shell_escape(isa)));
+    }
+    let export_prefix = if exports.is_empty() {
+        String::new()
     } else {
-        format!(
-            "cargo run -p {pkg} --target {tgt} --release -Z build-std=core,alloc{json}",
-            pkg = shell_escape(&pkg),
-            tgt = tgt,
-            json = json,
-        )
+        format!("export {}; ", exports.join("; export "))
     };
 
+    let body = format!(
+        "{export_prefix}cargo run -p {pkg} --target {tgt} --release -Z build-std=core,alloc{json}",
+        pkg = shell_escape(&pkg),
+        tgt = tgt,
+        json = json,
+    );
+
     println!(
-        "(unset {REMU_ISA_ENV} {CARGO_TARGET_RUSTFLAGS_RV32IM_ENV}; export CARGO_TARGET_DIR={td}; {body})"
+        "(unset {REMU_ISA_ENV} {CARGO_TARGET_RUSTFLAGS_RV32I_ENV} {CARGO_TARGET_RUSTFLAGS_RV32IM_ENV}; export CARGO_TARGET_DIR={td}; {body})"
     );
     ExitCode::SUCCESS
 }
@@ -67,7 +74,13 @@ fn print_build_app(args: BuildAppArgs) -> ExitCode {
     let paths = Paths::from_env();
     let hal_abs = paths.hal_canonical();
     let ws = paths.workspace_canonical();
-    let resolved = resolve_for_hal_dir(&args.target);
+    let resolved = match resolve_for_hal_dir(&args.target) {
+        Ok(t) => t,
+        Err(e) => {
+            eprintln!("xtask: {e}");
+            return ExitCode::from(1);
+        }
+    };
     let sub = cargo_target_dir_subdir(resolved.zve);
     let target_dir = ws.join("target").join(sub);
     let artifact_dir = artifact_dir_name(&resolved.triple_or_json);
@@ -78,11 +91,11 @@ fn print_build_app(args: BuildAppArgs) -> ExitCode {
         "CARGO_TARGET_DIR={}",
         shell_escape(target_dir.to_str().expect("utf-8 path"))
     )];
-    if resolved.zve {
+    if let Some(env_k) = resolved.zve_cargo_rustflags_env {
         env_parts.push(format!(
             "{}={}",
-            CARGO_TARGET_RUSTFLAGS_RV32IM_ENV,
-            shell_escape(&merge_cargo_target_rv32im_rustflags(ZVE32_TARGET_RUSTFLAGS))
+            env_k,
+            shell_escape(&merge_cargo_target_rustflags(env_k, ZVE32_TARGET_RUSTFLAGS,))
         ));
     }
 
@@ -102,10 +115,7 @@ fn print_build_app(args: BuildAppArgs) -> ExitCode {
         env_parts.join(" ")
     );
 
-    let elf = target_dir
-        .join(&artifact_dir)
-        .join("release")
-        .join(&pkg);
+    let elf = target_dir.join(&artifact_dir).join("release").join(&pkg);
     let elf_s = shell_escape(elf.to_str().expect("utf-8"));
     let asm = elf.with_extension("asm");
     let asm_s = shell_escape(asm.to_str().expect("utf-8"));

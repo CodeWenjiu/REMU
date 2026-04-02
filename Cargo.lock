@@ -5627,6 +5627,8 @@ version = "0.1.0"
 dependencies = [
  "clap",
  "remu_macro",
+ "remu_types",
+ "winnow 1.0.0",
 ]
 
 [[package]]

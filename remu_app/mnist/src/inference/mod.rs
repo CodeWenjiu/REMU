@@ -12,8 +12,8 @@ include!(concat!(env!("OUT_DIR"), "/embedded_images.rs"));
 
 pub const Q16_SHIFT: u32 = 16;
 
-pub(crate) const BENCHMARK_ITERATIONS: usize = 100;
-pub(crate) const WARMUP_ITERATIONS: usize = 10;
+pub(crate) const BENCHMARK_ITERATIONS: usize = 10;
+pub(crate) const WARMUP_ITERATIONS: usize = 1;
 pub(crate) const DETAILED_BENCHMARK_ITERATIONS: usize = 100;
 
 /// Shared MNIST entry: run [`MnistInference::infer`] on embedded test images.
