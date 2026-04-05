@@ -133,6 +133,7 @@ just run-app mnist riscv32im_zve32x_zvl128b
 |----------|--------|
 | **`PLATFORM`** | `--platform …` for `remu_cli`: `remu` (default in CLI), `spike`, `nzea`, `none` |
 | **`DIFFTEST`** | Enable difftest with reference model: `spike` or `remu` (omit / unset = **off**) |
+| **`DEV`** | If set (any value), `print run-remu` uses **debug** `remu_cli` (`cargo run -p remu_cli` without `--release`). **Embedded `remu_app_*` stays `--release`** (`run-app` / `build-app` unchanged) |
 | **`BATCH`** | If set (any value), adds `--batch --startup continue` for non-interactive runs |
 
 Example: run **mnist** on **remu** with **Spike** as difftest reference:

@@ -87,41 +87,74 @@ fn run_verilog_generation_for_isa(
     match status {
         Ok(s) if s.success() => true,
         Ok(s) => {
-            eprintln!("cargo:warning=nzea just dump --isa {} failed: {:?}", isa, s.code());
+            eprintln!(
+                "cargo:warning=nzea just dump --isa {} failed: {:?}",
+                isa,
+                s.code()
+            );
             false
         }
         Err(e) => {
-            eprintln!("cargo:warning=nzea Verilog generation for {} failed: {}", isa, e);
+            eprintln!(
+                "cargo:warning=nzea Verilog generation for {} failed: {}",
+                isa, e
+            );
             false
         }
     }
 }
 
+/// CIRCT firtool emits `<mem>_init.sv` (`bind` + `$readmemb` for `loadMemoryFromFile`) next to
+/// `filelist.f` but **does not list** those files in `filelist.f`. Verilator only sees sources on
+/// its command line, so omitting them leaves `Memory` arrays zero — NNU weights never load.
+fn append_firtool_memory_init_sv(verilog_dir: &Path, prefix: &str, files: &mut Vec<String>) {
+    let Ok(rd) = std::fs::read_dir(verilog_dir) else {
+        return;
+    };
+    let mut extra: Vec<String> = rd
+        .flatten()
+        .filter_map(|e| {
+            let name = e.file_name();
+            let name = name.to_str()?;
+            if !name.ends_with("_init.sv") {
+                return None;
+            }
+            let rel = format!("{}/{}", prefix, name);
+            if files.contains(&rel) {
+                return None;
+            }
+            Some(rel)
+        })
+        .collect();
+    extra.sort();
+    files.extend(extra);
+}
+
 /// Collect .sv file paths from filelist.f, or fallback to Top.sv.
 fn collect_sv_files(verilog_dir: &Path, prefix: &str) -> Vec<String> {
     let filelist_path = verilog_dir.join("filelist.f");
-    if filelist_path.exists() {
-        let files: Vec<String> = std::fs::read_to_string(&filelist_path)
+    let mut files = if filelist_path.exists() {
+        let listed: Vec<String> = std::fs::read_to_string(&filelist_path)
             .unwrap_or_default()
             .lines()
             .map(|s| s.trim().to_string())
             .filter(|s| s.ends_with(".sv"))
             .map(|s| format!("{}/{}", prefix, s))
             .collect();
-        if !files.is_empty() {
-            return files;
+        if !listed.is_empty() {
+            listed
+        } else {
+            vec![format!("{}/Top.sv", prefix)]
         }
-    }
-    vec![format!("{}/Top.sv", prefix)]
+    } else {
+        vec![format!("{}/Top.sv", prefix)]
+    };
+    append_firtool_memory_init_sv(verilog_dir, prefix, &mut files);
+    files
 }
 
 /// Run verilator --cc --build for one ISA.
-fn run_verilator_for_isa(
-    out_dir: &Path,
-    verilog_dir: &Path,
-    isa: &str,
-    prefix: &str,
-) -> bool {
+fn run_verilator_for_isa(out_dir: &Path, verilog_dir: &Path, isa: &str, prefix: &str) -> bool {
     let v_build = out_dir.join(format!("verilator_build_{}", isa));
     std::fs::create_dir_all(&v_build).expect("create verilator_build dir");
 
@@ -130,7 +163,10 @@ fn run_verilator_for_isa(
     let ccache_cc = format!("ccache {}", cc);
     let ccache_cxx = format!("ccache {}", cxx);
 
-    let out_dir_escaped = out_dir.as_os_str().to_string_lossy().replace('\'', "'\"'\"'");
+    let out_dir_escaped = out_dir
+        .as_os_str()
+        .to_string_lossy()
+        .replace('\'', "'\"'\"'");
     let sv_files = collect_sv_files(verilog_dir, &format!("nzea-verilog/{}", isa));
     let files_arg = sv_files.join(" ");
     let makeflags = format!("CC=\"{}\" CXX=\"{}\"", ccache_cc, ccache_cxx);
@@ -214,7 +250,9 @@ fn compile_wrapper_and_link(
         build.flag(v_include.to_string_lossy().as_ref());
         build.flag("-isystem");
         build.flag(v_include_vltstd.to_string_lossy().as_ref());
-        build.flag("-Wno-unused-parameter").flag("-Wno-sign-compare");
+        build
+            .flag("-Wno-unused-parameter")
+            .flag("-Wno-sign-compare");
     }
     #[cfg(target_env = "msvc")]
     {
@@ -255,7 +293,9 @@ fn main() {
 
     let verilog_out = out_dir.join("nzea-verilog");
     std::fs::create_dir_all(&verilog_out).expect("create nzea-verilog");
-    let verilog_out_abs = verilog_out.canonicalize().expect("canonicalize nzea-verilog");
+    let verilog_out_abs = verilog_out
+        .canonicalize()
+        .expect("canonicalize nzea-verilog");
 
     // Step 1: Generate Verilog for each ISA
     for isa in NZEA_ISAS {
@@ -313,6 +353,9 @@ fn main() {
 
     #[cfg(unix)]
     {
-        let _ = Command::new("chmod").args(["-R", "u+w"]).arg(&out_dir).status();
+        let _ = Command::new("chmod")
+            .args(["-R", "u+w"])
+            .arg(&out_dir)
+            .status();
     }
 }

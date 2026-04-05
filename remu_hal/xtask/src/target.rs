@@ -19,6 +19,23 @@ pub const REMU_ISA_ENV: &str = "REMU_ISA";
 /// When set (value ignored), `print run-remu` appends `WJ_CUS0_ISA_SUFFIX` (`_wjCus0`) to `--isa`.
 pub const EXISA0_ENV: &str = "EXISA0";
 pub const WJ_CUS0_ISA_SUFFIX: &str = "_wjCus0";
+/// When set (value ignored), `print run-remu` omits `--release` for **host** `cargo run -p remu_cli` only.
+/// Embedded `remu_app_*` builds always use `--release` (see `print run-app` / `print build-app`).
+pub const DEV_ENV: &str = "DEV";
+
+#[inline]
+pub fn dev_mode_from_env() -> bool {
+    std::env::var(DEV_ENV).is_ok()
+}
+
+/// Host `remu_cli` only: `""` or `" --release"` for `cargo run -p remu_cli …`.
+pub fn remu_cli_cargo_release_suffix() -> &'static str {
+    if dev_mode_from_env() {
+        ""
+    } else {
+        " --release"
+    }
+}
 
 #[derive(Debug, Clone)]
 pub struct CargoTarget {

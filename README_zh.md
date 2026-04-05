@@ -133,6 +133,7 @@ just run-app mnist riscv32im_zve32x_zvl128b
 |------|------|
 | **`PLATFORM`** | 传给 `remu_cli` 的 `--platform`：`remu`（CLI 默认）、`spike`、`nzea`、`none` |
 | **`DIFFTEST`** | 打开差分测试并指定参考模型：`spike` 或 `remu`；**不设 / 清空 = 关闭** |
+| **`DEV`** | 若设置（任意值），`print run-remu` 用 **debug** 版宿主 `remu_cli`（`cargo run -p remu_cli` 不加 `--release`）。**嵌入式 `remu_app_*` 仍为 `--release`**（`run-app` / `build-app` 不变） |
 | **`BATCH`** | 只要已设置（任意值），会加上 `--batch --startup continue`，用于非交互跑完 |
 
 示例：在 **remu** 平台上跑 **mnist**，并以 **Spike** 为 difftest 参考：

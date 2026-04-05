@@ -5,10 +5,10 @@ use crate::cli::{BuildAppArgs, PrintCmd, RunAppArgs, RunRemuArgs};
 use crate::disasm::infer_isa_from_elf_path;
 use crate::paths::Paths;
 use crate::target::{
-    artifact_dir_name, cargo_target_dir_subdir, merge_cargo_target_rustflags, resolve_for_hal_dir,
-    resolve_for_workspace_root, CARGO_TARGET_RUSTFLAGS_RV32IM_ENV,
-    CARGO_TARGET_RUSTFLAGS_RV32I_ENV, EXISA0_ENV, REMU_ISA_ENV, WJ_CUS0_ISA_SUFFIX,
-    ZVE32_TARGET_RUSTFLAGS,
+    artifact_dir_name, cargo_target_dir_subdir, merge_cargo_target_rustflags,
+    remu_cli_cargo_release_suffix, resolve_for_hal_dir, resolve_for_workspace_root,
+    CARGO_TARGET_RUSTFLAGS_RV32IM_ENV, CARGO_TARGET_RUSTFLAGS_RV32I_ENV, EXISA0_ENV, REMU_ISA_ENV,
+    WJ_CUS0_ISA_SUFFIX, ZVE32_TARGET_RUSTFLAGS,
 };
 use crate::util::shell_escape;
 
@@ -151,8 +151,9 @@ fn print_run_remu(args: RunRemuArgs) -> ExitCode {
     let manifest = paths.workspace_root.join("Cargo.toml");
     let manifest_s = shell_escape(manifest.to_str().expect("utf-8"));
 
+    let rel = remu_cli_cargo_release_suffix();
     print!(
-        "cargo run -p remu_cli --release --manifest-path {manifest_s} -- --elf {elf_s} --isa {isa_s}"
+        "cargo run -p remu_cli{rel} --manifest-path {manifest_s} -- --elf {elf_s} --isa {isa_s}"
     );
 
     if std::env::var("BATCH").is_ok() {
