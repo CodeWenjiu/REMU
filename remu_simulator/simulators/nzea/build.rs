@@ -172,7 +172,11 @@ fn run_verilator_for_isa(out_dir: &Path, verilog_dir: &Path, isa: &str, prefix: 
     let makeflags = format!("CC=\"{}\" CXX=\"{}\"", ccache_cc, ccache_cxx);
     let cmd = format!(
         "cd '{}' && verilator --cc --build --trace-fst -MAKEFLAGS '{}' --Mdir {} --top-module Top --prefix {} {}",
-        out_dir_escaped, makeflags, v_build.display(), prefix, files_arg
+        out_dir_escaped,
+        makeflags,
+        v_build.display(),
+        prefix,
+        files_arg
     );
 
     let mut cmd_build = Command::new("sh");

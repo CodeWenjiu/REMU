@@ -12,7 +12,7 @@ pub use memory::{
 pub use observer::ObserverEvent;
 use remu_types::{AllUsize, DynDiagError, isa::RvIsa};
 
-use crate::bus::device::{DeviceAccess, get_device};
+use crate::bus::device::{DeviceAccess, instantiate_device};
 
 pub struct Bus<I: RvIsa, O: BusObserver> {
     memory: Memory,
@@ -51,13 +51,10 @@ impl<I: RvIsa, O: BusObserver> Bus<I, O> {
                     tracing::info!(
                         "{} new device {} config initialized at 0x{:08x}",
                         prefix,
-                        config.name,
+                        config.kind.as_str(),
                         config.start
                     );
-                    (
-                        config.start,
-                        get_device(&config.name).expect("invalid device name"),
-                    )
+                    (config.start, instantiate_device(config.kind))
                 })
                 .collect()
         } else {

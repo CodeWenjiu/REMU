@@ -16,6 +16,19 @@ use eframe::egui::{
 const GRID: usize = 28;
 const BIN_LEN: usize = 8 + 1 + GRID * GRID; // 793
 
+fn main() -> eframe::Result {
+    env_logger::init();
+    let options = eframe::NativeOptions {
+        viewport: egui::ViewportBuilder::default().with_inner_size([560.0, 720.0]),
+        ..Default::default()
+    };
+    eframe::run_native(
+        "MNIST digit capture",
+        options,
+        Box::new(|_cc| Ok(Box::<MnistDrawApp>::default())),
+    )
+}
+
 fn test_images_dir() -> PathBuf {
     Path::new(env!("CARGO_MANIFEST_DIR")).join("../test_images")
 }
@@ -107,19 +120,6 @@ fn pointer_to_cell(pos: Pos2, rect: Rect) -> Option<(i32, i32)> {
     } else {
         None
     }
-}
-
-fn main() -> eframe::Result {
-    env_logger::init();
-    let options = eframe::NativeOptions {
-        viewport: egui::ViewportBuilder::default().with_inner_size([560.0, 720.0]),
-        ..Default::default()
-    };
-    eframe::run_native(
-        "MNIST digit capture",
-        options,
-        Box::new(|_cc| Ok(Box::<MnistDrawApp>::default())),
-    )
 }
 
 struct MnistDrawApp {

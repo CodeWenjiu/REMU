@@ -2,8 +2,8 @@
 //! Supports multiple ISAs (riscv32i, riscv32im); the model is selected by the Policy's ISA.
 
 use std::ffi::{CString, c_void};
-use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
+use std::sync::atomic::{AtomicBool, Ordering};
 
 use remu_state::{State, StateCmd};
 use remu_types::{ExitCode, TraceFlags, TraceKind, TracerDyn};
@@ -64,10 +64,19 @@ where
     P: SimulatorPolicy + 'static,
     P::ISA: NzeaIsa,
 {
-    fn new(opt: SimulatorOption, tracer: TracerDyn, interrupt: Arc<std::sync::atomic::AtomicBool>) -> Self {
-        let isa_c = CString::new(<P::ISA as NzeaIsa>::NZEA_ISA_STR).expect("nzea ISA str contains null");
+    fn new(
+        opt: SimulatorOption,
+        tracer: TracerDyn,
+        interrupt: Arc<std::sync::atomic::AtomicBool>,
+    ) -> Self {
+        let isa_c =
+            CString::new(<P::ISA as NzeaIsa>::NZEA_ISA_STR).expect("nzea ISA str contains null");
         let sim_ptr = unsafe { nzea_ffi::nzea_create(isa_c.as_ptr()) };
-        assert!(!sim_ptr.is_null(), "nzea_create failed for ISA {}", <P::ISA as NzeaIsa>::NZEA_ISA_STR);
+        assert!(
+            !sim_ptr.is_null(),
+            "nzea_create failed for ISA {}",
+            <P::ISA as NzeaIsa>::NZEA_ISA_STR
+        );
 
         let state = State::new(opt.state.clone(), tracer.clone(), IS_DUT);
         Self {
@@ -320,7 +329,9 @@ where
     fn platform_stats(&self, ctx: &StatContext) -> Vec<StatEntry> {
         let mut v = vec![StatEntry::CycleCount(self.cycle_count)];
         if self.cycle_count > 0 {
-            v.push(StatEntry::Ipc(ctx.inst_count as f64 / self.cycle_count as f64));
+            v.push(StatEntry::Ipc(
+                ctx.inst_count as f64 / self.cycle_count as f64,
+            ));
         }
         v
     }

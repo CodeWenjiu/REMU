@@ -1,7 +1,8 @@
 //! DPI-C bus_read/bus_write: dispatch via global NZEA pointer to SimulatorNzea.state.
+//! RTL is expected to supply **full physical addresses** (same as `remu_state::Bus`), not device-local offsets.
 
-use remu_state::bus::BusError;
 use remu_simulator::{SimulatorCore, SimulatorPolicy};
+use remu_state::bus::BusError;
 
 /// Commit info from RTL; pushed by commit_trace DPI, applied after step drains.
 #[derive(Clone, Copy, Debug)]
@@ -45,7 +46,9 @@ where
         self.state_mut().bus.read_32(addr).unwrap_or(0)
     }
     fn dpi_write_32(&mut self, addr: usize, data: u32, wstrb: u32) {
-        if let Err(BusError::ProgramExit(ec)) = self.state_mut().bus.write_32_masked(addr, data, wstrb) {
+        if let Err(BusError::ProgramExit(ec)) =
+            self.state_mut().bus.write_32_masked(addr, data, wstrb)
+        {
             self.set_pending_exit_code(ec);
         }
     }
