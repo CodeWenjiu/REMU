@@ -5,10 +5,10 @@ use crate::cli::{BuildAppArgs, PrintCmd, RunAppArgs, RunRemuArgs};
 use crate::disasm::infer_isa_from_elf_path;
 use crate::paths::Paths;
 use crate::target::{
-    artifact_dir_name, cargo_target_dir_subdir, merge_cargo_target_rustflags,
-    remu_cli_cargo_release_suffix, resolve_for_hal_dir, resolve_for_workspace_root,
-    CARGO_TARGET_RUSTFLAGS_RV32IM_ENV, CARGO_TARGET_RUSTFLAGS_RV32I_ENV, EXISA0_ENV, REMU_ISA_ENV,
-    WJ_CUS0_ISA_SUFFIX, ZVE32_TARGET_RUSTFLAGS,
+    CARGO_TARGET_RUSTFLAGS_RV32I_ENV, CARGO_TARGET_RUSTFLAGS_RV32IM_ENV, EXISA0_ENV, REMU_ISA_ENV,
+    WJ_CUS0_ISA_SUFFIX, ZVE32_TARGET_RUSTFLAGS, artifact_dir_name, cargo_target_dir_subdir,
+    merge_cargo_target_rustflags, remu_cli_cargo_release_suffix, resolve_for_hal_dir,
+    resolve_for_workspace_root,
 };
 use crate::util::shell_escape;
 
@@ -57,11 +57,23 @@ fn print_run_app(args: RunAppArgs) -> ExitCode {
         format!("export {}; ", exports.join("; export "))
     };
 
+    let remu_cli_args = args
+        .remu_cli_args
+        .iter()
+        .map(|s| shell_escape(s))
+        .collect::<Vec<_>>();
+    let forward_args = if remu_cli_args.is_empty() {
+        String::new()
+    } else {
+        format!(" -- {}", remu_cli_args.join(" "))
+    };
+
     let body = format!(
-        "{export_prefix}cargo run -p {pkg} --target {tgt} --release -Z build-std=core,alloc{json}",
+        "{export_prefix}cargo run -p {pkg} --target {tgt} --release -Z build-std=core,alloc{json}{forward_args}",
         pkg = shell_escape(&pkg),
         tgt = tgt,
         json = json,
+        forward_args = forward_args,
     );
 
     println!(
@@ -164,6 +176,9 @@ fn print_run_remu(args: RunRemuArgs) -> ExitCode {
     }
     if let Ok(v) = std::env::var("DIFFTEST") {
         print!(" --difftest {}", shell_escape(&v));
+    }
+    for arg in args.remu_cli_args {
+        print!(" {}", shell_escape(&arg));
     }
     println!();
 

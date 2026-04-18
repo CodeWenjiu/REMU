@@ -42,9 +42,15 @@ pub struct BuildAppArgs {
 pub struct RunAppArgs {
     pub app: String,
     pub target: String,
+    /// Extra args forwarded to remu_cli (pass after `--`, e.g. -- --platform nzea --sim-opt nzea.target=tile).
+    #[arg(last = true)]
+    pub remu_cli_args: Vec<String>,
 }
 
 #[derive(Debug, clap::Args)]
 pub struct RunRemuArgs {
     pub elf_path: PathBuf,
+    /// Extra args forwarded to remu_cli (already tokenized by caller).
+    #[arg(last = true)]
+    pub remu_cli_args: Vec<String>,
 }

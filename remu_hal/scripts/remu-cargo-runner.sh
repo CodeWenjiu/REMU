@@ -9,4 +9,7 @@ cd "$ws"
 # artifacts live under target/app and `just clean-app` wipes them, forcing a full rebuild.
 unset CARGO_TARGET_DIR
 cmd="$(cargo run -p xtask --manifest-path "$ws/Cargo.toml" -- print run-remu "$elf")"
+if [ "$#" -gt 0 ]; then
+  cmd="$(cargo run -p xtask --manifest-path "$ws/Cargo.toml" -- print run-remu "$elf" -- "$@")"
+fi
 eval "$cmd"

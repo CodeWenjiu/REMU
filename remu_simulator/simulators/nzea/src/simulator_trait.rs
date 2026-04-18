@@ -30,8 +30,8 @@ where
 {
     state: State<P>,
     sim_ptr: *mut c_void,
-    /// C string for ISA; kept alive for nzea_* FFI calls.
-    isa_c: CString,
+    /// C string for model key (`core|tile` + ISA); kept alive for nzea_* FFI calls.
+    model_c: CString,
     tracer: TracerDyn,
     commit_buffer: Vec<CommitMsg>,
     interrupt: Arc<std::sync::atomic::AtomicBool>,
@@ -69,20 +69,38 @@ where
         tracer: TracerDyn,
         interrupt: Arc<std::sync::atomic::AtomicBool>,
     ) -> Self {
-        let isa_c =
-            CString::new(<P::ISA as NzeaIsa>::NZEA_ISA_STR).expect("nzea ISA str contains null");
-        let sim_ptr = unsafe { nzea_ffi::nzea_create(isa_c.as_ptr()) };
+        let backend_args = opt
+            .backend_args()
+            .unwrap_or_else(|e| panic!("invalid --sim-opt: {e}"));
+        backend_args
+            .assert_only_namespaces(&["nzea"])
+            .unwrap_or_else(|e| panic!("invalid --sim-opt for nzea: {e}"));
+        let nzea_opt = backend_args.scope("nzea");
+        nzea_opt
+            .assert_known_keys(&["target"])
+            .unwrap_or_else(|e| panic!("invalid --sim-opt for nzea: {e}"));
+        let target = nzea_opt
+            .get("target")
+            .map(|s| {
+                s.parse::<crate::NzeaTarget>()
+                    .unwrap_or_else(|e| panic!("invalid --sim-opt nzea.target: {e}"))
+            })
+            .unwrap_or_default();
+
+        let model_key = format!("{}:{}", target.as_str(), <P::ISA as NzeaIsa>::NZEA_ISA_STR);
+        let model_c = CString::new(model_key.as_str()).expect("nzea model key contains null");
+        let sim_ptr = unsafe { nzea_ffi::nzea_create(model_c.as_ptr()) };
         assert!(
             !sim_ptr.is_null(),
-            "nzea_create failed for ISA {}",
-            <P::ISA as NzeaIsa>::NZEA_ISA_STR
+            "nzea_create failed for model {}",
+            model_key
         );
 
         let state = State::new(opt.state.clone(), tracer.clone(), IS_DUT);
         Self {
             state,
             sim_ptr,
-            isa_c,
+            model_c,
             tracer,
             commit_buffer: Vec::new(),
             interrupt,
@@ -100,16 +118,16 @@ where
         unsafe {
             dpi::set_nzea(self as *mut Self as *mut dyn NzeaDpi);
         }
-        let isa_ptr = self.isa_c.as_ptr();
+        let model_ptr = self.model_c.as_ptr();
         unsafe {
-            nzea_ffi::nzea_set_reset(self.sim_ptr, isa_ptr, 1);
+            nzea_ffi::nzea_set_reset(self.sim_ptr, model_ptr, 1);
             for _ in 0..100 {
-                nzea_ffi::nzea_set_clock(self.sim_ptr, isa_ptr, 0);
-                nzea_ffi::nzea_eval(self.sim_ptr, isa_ptr);
-                nzea_ffi::nzea_set_clock(self.sim_ptr, isa_ptr, 1);
-                nzea_ffi::nzea_eval(self.sim_ptr, isa_ptr);
+                nzea_ffi::nzea_set_clock(self.sim_ptr, model_ptr, 0);
+                nzea_ffi::nzea_eval(self.sim_ptr, model_ptr);
+                nzea_ffi::nzea_set_clock(self.sim_ptr, model_ptr, 1);
+                nzea_ffi::nzea_eval(self.sim_ptr, model_ptr);
             }
-            nzea_ffi::nzea_set_reset(self.sim_ptr, isa_ptr, 0);
+            nzea_ffi::nzea_set_reset(self.sim_ptr, model_ptr, 0);
         }
         // Waveform file is opened in on_trace_change() when Wavetrace is first enabled,
         // so a run with wavetrace disabled does not overwrite an existing trace.fst.
@@ -200,7 +218,7 @@ where
             let trace_path = Self::trace_path();
             let path_c = CString::new(trace_path.to_string_lossy().as_ref()).unwrap();
             unsafe {
-                nzea_ffi::nzea_trace_open(self.sim_ptr, self.isa_c.as_ptr(), path_c.as_ptr());
+                nzea_ffi::nzea_trace_open(self.sim_ptr, self.model_c.as_ptr(), path_c.as_ptr());
             }
         }
     }
@@ -224,15 +242,15 @@ where
     /// Run one clock cycle (low + high phase). TRACE_CYCLE const selects whether to dump; trace_dump is DCE'd when false.
     fn cycle<const TRACE_CYCLE: u64>(&mut self) {
         self.cycle_count += 1;
-        let isa_ptr = self.isa_c.as_ptr();
+        let model_ptr = self.model_c.as_ptr();
         unsafe {
-            nzea_ffi::nzea_set_clock(self.sim_ptr, isa_ptr, 0);
-            nzea_ffi::nzea_eval(self.sim_ptr, isa_ptr);
+            nzea_ffi::nzea_set_clock(self.sim_ptr, model_ptr, 0);
+            nzea_ffi::nzea_eval(self.sim_ptr, model_ptr);
             if TraceFlags::waveform(TRACE_CYCLE) && IS_DUT {
                 nzea_ffi::nzea_trace_dump(self.sim_ptr);
             }
-            nzea_ffi::nzea_set_clock(self.sim_ptr, isa_ptr, 1);
-            nzea_ffi::nzea_eval(self.sim_ptr, isa_ptr);
+            nzea_ffi::nzea_set_clock(self.sim_ptr, model_ptr, 1);
+            nzea_ffi::nzea_eval(self.sim_ptr, model_ptr);
             if TraceFlags::waveform(TRACE_CYCLE) && IS_DUT {
                 nzea_ffi::nzea_trace_dump(self.sim_ptr);
             }
@@ -288,7 +306,7 @@ where
 {
     fn drop(&mut self) {
         unsafe {
-            nzea_ffi::nzea_destroy(self.sim_ptr, self.isa_c.as_ptr());
+            nzea_ffi::nzea_destroy(self.sim_ptr, self.model_c.as_ptr());
             dpi::clear_nzea();
         }
     }
