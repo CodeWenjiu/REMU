@@ -91,6 +91,7 @@ fn run_verilog_generation_for_model(
     }
 
     let status = Command::new("direnv")
+        .env("REQUIRE_FLAKE", "1")
         .arg("exec")
         .arg(nzea_dir)
         .arg("just")

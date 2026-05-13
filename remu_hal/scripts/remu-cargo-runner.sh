@@ -8,6 +8,7 @@ cd "$ws"
 # runner. Host `remu_cli` / `xtask` must use the workspace default target dir — otherwise their
 # artifacts live under target/app and `just clean-app` wipes them, forcing a full rebuild.
 unset CARGO_TARGET_DIR
+shift
 cmd="$(cargo run -p xtask --manifest-path "$ws/Cargo.toml" -- print run-remu "$elf")"
 if [ "$#" -gt 0 ]; then
   cmd="$(cargo run -p xtask --manifest-path "$ws/Cargo.toml" -- print run-remu "$elf" -- "$@")"
