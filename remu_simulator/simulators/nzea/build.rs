@@ -19,7 +19,7 @@ const NZEA_ISAS: &[&str] = &[
 ];
 
 /// (target, top_module)
-const NZEA_TARGETS: &[(&str, &str)] = &[("core", "Top"), ("tile", "NzeaTile")];
+const NZEA_TARGETS: &[(&str, &str)] = &[("core", "NzeaCore"), ("tile", "NzeaTile")];
 
 #[inline]
 fn model_desc(target: &str, isa: &str) -> String {
