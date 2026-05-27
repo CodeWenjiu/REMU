@@ -11,6 +11,44 @@ This repository is a Rust workspace (Edition 2024, nightly toolchain) centered o
 
 Note: `remu` is intended to be used inside the parent `chip-dev` checkout with submodules.
 
+### Module Declaration Constitution (MUST follow)
+
+Every crate MUST declare its modules exclusively through `remu_macro` macros. **Manual `mod` / `pub mod` / `pub use` for module plumbing is forbidden** — the macros are the single source of truth for how modules are wired into the crate.
+
+| Directory shape | Macro | Generated code | When |
+|---|---|---|---|
+| `src/X.rs` (same-dir file) | `remu_macro::mod_flat!(X);` | `mod X; pub use X::*;` | Single or multiple `.rs` files directly in `src/` |
+| `src/X/mod.rs` (sub-dir) | `remu_macro::mod_pub!(X);` | `pub mod X;` | Module is a directory with its own nested structure |
+
+```rust
+// ✅ CORRECT — same-directory files use mod_flat!
+remu_macro::mod_flat!(error, func, option, policy, run_state);
+
+// ✅ CORRECT — sub-directories use mod_pub!
+remu_macro::mod_pub!(reg, bus);
+
+// ❌ WRONG — manual mod for same-directory files
+mod addresses;
+mod print;
+
+// ❌ WRONG — manual mod with separate pub use (just use mod_flat!)
+mod ffi;
+pub use ffi::*;
+
+// ❌ WRONG — mod_pub! for same-directory files (should be mod_flat!)
+remu_macro::mod_pub!(cli, paths, target);
+
+// ❌ WRONG — bare pub mod for a file (should be mod_flat!)
+pub mod isa_dispatch;
+pub use isa_dispatch::RemuIsaKind;
+```
+
+**Rationale**: `mod_flat!` communicates "this file's public API is part of the crate's flat namespace"; `mod_pub!` communicates "this is a sub-module with its own hierarchy". When every crate follows this convention, readers instantly know where to find code without guessing whether a module was manually wired or macro-generated.
+
+**Selective re-exports**: Control visibility *inside* the module — mark items `pub` only if they belong in the crate's public API, `pub(crate)` if they're shared within the crate but should not be re-exported, and private otherwise. Then `mod_flat!` naturally exports exactly the right set. Do NOT add manual `pub use` lines after `mod_flat!` (they are redundant).
+
+**Private/internal modules**: Crates MAY use bare `mod X;` for truly internal implementation-detail modules that should never be accessible outside the crate (e.g., proc-macro internals like `remu_macro/src/lib.rs`'s `mod module; mod pattern;`). Add a comment explaining why it's private.
+
 ## Build, Test, and Development Commands
 Use `just` recipes for day-to-day work:
 

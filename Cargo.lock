@@ -3433,6 +3433,7 @@ name = "remu_simulator_nzea"
 version = "0.1.0"
 dependencies = [
  "cc",
+ "remu_macro",
  "remu_simulator",
  "remu_state",
  "remu_types",
@@ -3461,6 +3462,7 @@ name = "remu_simulator_spike"
 version = "0.1.0"
 dependencies = [
  "cc",
+ "remu_macro",
  "remu_simulator",
  "remu_state",
  "remu_types",

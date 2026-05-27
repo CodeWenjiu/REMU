@@ -1,4 +1,1 @@
-mod ffi;
-mod simulator;
-
-pub use simulator::SimulatorSpike;
+remu_macro::mod_flat!(ffi, simulator);

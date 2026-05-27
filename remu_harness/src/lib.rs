@@ -1,7 +1,4 @@
-remu_macro::mod_flat!(error, func, option, policy, run_state,);
-
-pub mod isa_dispatch;
-pub use isa_dispatch::RemuIsaKind;
+remu_macro::mod_flat!(error, func, option, policy, run_state, isa_dispatch);
 
 pub use error::HarnessError;
 pub use option::HarnessOption;
@@ -13,13 +10,13 @@ pub use remu_simulator::{
     SimulatorInnerError, SimulatorPolicy, SimulatorPolicyOf, SimulatorRef, StatCmd, StatContext,
     StatEntry, TraceCmd,
 };
-use remu_types::{AllUsize, DifftestMismatchItem, RegGroup, TraceKind};
-pub use remu_simulator_remu::SimulatorRemu;
 pub use remu_simulator_nzea::SimulatorNzea;
+pub use remu_simulator_remu::SimulatorRemu;
 pub use remu_simulator_spike::SimulatorSpike;
 pub use remu_state::StateCmd;
 pub use remu_state::bus::ObserverEvent;
 pub use remu_types::ExitCode;
+use remu_types::{AllUsize, DifftestMismatchItem, RegGroup, TraceKind};
 
 /// Outcome of a run (e.g. run_steps). Propagated to debugger and CLI.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -109,9 +106,7 @@ where
                 .map_err(SimulatorError::Ref)?;
             let mut diff = self.ref_model.regs_diff(&self.dut_model.state().reg);
             for (addr, dut_data) in &mem_writes {
-                if let Some(ref_bytes) =
-                    self.ref_model.mem_compare(*addr, dut_data.as_ref())
-                {
+                if let Some(ref_bytes) = self.ref_model.mem_compare(*addr, dut_data.as_ref()) {
                     diff.push(DifftestMismatchItem {
                         group: RegGroup::Mem,
                         name: format!("0x{:08x}:{}", addr, dut_data.len()),

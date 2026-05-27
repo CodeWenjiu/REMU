@@ -22,18 +22,7 @@
 extern crate alloc;
 extern crate panic_halt;
 
-mod addresses;
-mod print;
-mod time;
-mod trap;
-remu_macro::mod_pub!(cpu, heap, exit, uart);
-
-pub use print::write_fmt;
-pub use cpu::pre_main_init;
-pub use heap::init;
-pub use exit::{exit_failure, exit_success};
-pub use time::{read_mtime, CLINT_BASE, MTIME_LO_OFF, MTIME_TICK_HZ};
-pub use uart::Uart16550;
+remu_macro::mod_flat!(addresses, print, time, trap, cpu, heap, exit, uart);
 
 pub use alloc::{boxed::Box, string::String, vec::Vec};
 pub use core::fmt::Write as FmtWrite;
