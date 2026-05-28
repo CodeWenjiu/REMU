@@ -7,20 +7,11 @@ use std::str::FromStr;
 use core::ops::{Deref, DerefMut, Index};
 use target_lexicon::{Architecture, Triple};
 
-use crate::{
-    Xlen,
-    isa::{extension::Extension, reg::CSRS_FOR_DIFFTEST_BASE},
-};
-
-pub trait ArchConfig: 'static + Copy {
-    type M: Extension<State = ()>;
-
-    type F: Extension;
-}
+use crate::Xlen;
+use crate::isa::reg::CSRS_FOR_DIFFTEST_BASE;
 
 pub trait RvIsa: 'static + Copy {
     type XLEN: Xlen;
-    type Conf: ArchConfig;
 
     type PcState: Default
         + Copy
@@ -44,20 +35,13 @@ pub trait RvIsa: 'static + Copy {
         + crate::isa::reg::FprAccess
         + crate::isa::reg::RegDiff;
 
-    /// V extension options: FP level, ELEN, VLENB, and VectorCsrState. Use [`NoV`](crate::isa::extension_v::NoV) when disabled.
+    /// V extension options. Use [`NoV`](crate::isa::extension_v::NoV) when disabled.
     type VConfig: crate::isa::extension_v::VExtensionConfig;
 
     const ISA_STR: &'static str = "rv32i";
-
-    /// Read-only MISA value (XLEN + extensions). Used for CSR read and difftest.
-    const MISA: u32 = 0x4000_0100; // rv32i default
-
-    const HAS_M: bool = <Self::Conf as ArchConfig>::M::ENABLED;
-    const HAS_F: bool = <Self::Conf as ArchConfig>::F::ENABLED;
-
-    /// **wjCus0** custom opcode (e.g. MNIST accelerator). Decode/execute only when **true**
-    /// ([`RV32I_wjCus0`](crate::isa::extension_enum::RV32I_wjCus0) /
-    /// [`RV32IM_wjCus0`](crate::isa::extension_enum::RV32IM_wjCus0)); otherwise custom-0 is illegal.
+    const MISA: u32 = 0x4000_0100;
+    const HAS_M: bool = false;
+    const HAS_F: bool = false;
     const HAS_WJ_CUS0: bool = false;
 
     /// CSRs to compare in difftest, as segments: base segment(s) + optional extension segment(s).
@@ -145,7 +129,10 @@ impl FromStr for IsaSpec {
 
         let extensions = ExtensionSpec::from_str(suffix)?;
 
-        Ok(IsaSpec { base: architecture, extensions })
+        Ok(IsaSpec {
+            base: architecture,
+            extensions,
+        })
     }
 }
 

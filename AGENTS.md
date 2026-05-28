@@ -45,9 +45,19 @@ pub use isa_dispatch::RemuIsaKind;
 
 **Rationale**: `mod_flat!` communicates "this file's public API is part of the crate's flat namespace"; `mod_pub!` communicates "this is a sub-module with its own hierarchy". When every crate follows this convention, readers instantly know where to find code without guessing whether a module was manually wired or macro-generated.
 
+**Single-call-per-type rule**: Each macro (`mod_flat!` or `mod_pub!`) MUST appear at most once per file. Merge all same-directory files into one `mod_flat!` call, and all sub-directory modules into one `mod_pub!` call. Different macro types may coexist (e.g., one `mod_flat!` + one `mod_pub!` is fine).
+
+**Inline modules are exempt**: `mod func3 { ... }`, `mod tests { ... }`, and similar inline module blocks that do NOT reference external files are not subject to these rules — only file-based module declarations are.
+
+**`as` alias exception**: When a module needs a public alias (`pub use LongName as Short;`), keep the `pub use` line after `mod_pub!` — this is the one case where a manual `pub use` is necessary because `mod_pub!` cannot express aliases.
+
 **Selective re-exports**: Control visibility *inside* the module — mark items `pub` only if they belong in the crate's public API, `pub(crate)` if they're shared within the crate but should not be re-exported, and private otherwise. Then `mod_flat!` naturally exports exactly the right set. Do NOT add manual `pub use` lines after `mod_flat!` (they are redundant).
 
-**Private/internal modules**: Crates MAY use bare `mod X;` for truly internal implementation-detail modules that should never be accessible outside the crate (e.g., proc-macro internals like `remu_macro/src/lib.rs`'s `mod module; mod pattern;`). Add a comment explaining why it's private.
+**`#[macro_export]` macro rules**: A macro annotated with `#[macro_export]` MUST be defined and consumed in the same Rust source file. Never `use` a `#[macro_export]` macro across modules within the same crate — this triggers Rust future-compatibility errors and defeats the purpose of the module convention. External crates import normally via `use crate_name::macro_name;`.
+
+**`prelude` module convention**: Crates that act as facades (re-exporting symbols from dependencies) define `src/prelude/mod.rs` and declare it with `mod_pub!(prelude)`. These crates SHOULD include `pub use crate::prelude::*;` in their `lib.rs` to flatten the re-exports. Leaf crates (whose prelude contains only their own symbols) MUST NOT include this line — their symbols are already re-exported by `mod_flat!`.
+
+**Exception — `remu_macro` bootstrap**: `remu_macro/src/lib.rs` uses bare `mod module; mod pattern;` because `mod_flat!` / `mod_pub!` are defined *inside* those modules. This is the **only** crate allowed to use bare `mod`, and the reason must be documented with a comment.
 
 ## Build, Test, and Development Commands
 Use `just` recipes for day-to-day work:

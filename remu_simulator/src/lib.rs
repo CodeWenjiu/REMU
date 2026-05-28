@@ -7,5 +7,4 @@ remu_macro::mod_flat!(
     stat,
     platform_config
 );
-pub mod prelude;
-pub use crate::prelude::*;
+remu_macro::mod_pub!(prelude);

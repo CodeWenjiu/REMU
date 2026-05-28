@@ -4,14 +4,14 @@
 //! - **NN_START** — run embedded MLP forward on the buffer.
 //! - **NN_LOAD** — read one logit; **`rs1`** = GPR holding output index, **`rd`** = destination.
 
-mod mnist_infer;
+remu_macro::mod_flat!(mnist_infer);
 
 use core::hint::unreachable_unchecked;
 
 use remu_state::StateError;
 use remu_types::isa::reg::RegAccess;
 
-use crate::riscv::inst::{funct3, funct7, imm_i, rd, rs1, rs2, DecodedInst, Inst};
+use crate::riscv::inst::{DecodedInst, Inst, funct3, funct7, imm_i, rd, rs1, rs2};
 
 pub(crate) const OPCODE: u32 = 0b000_1011;
 pub(crate) const INSTRUCTION_MIX: u32 = 60;

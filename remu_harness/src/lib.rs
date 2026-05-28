@@ -1,5 +1,5 @@
 remu_macro::mod_flat!(error, func, option, policy, run_state, isa_dispatch);
-pub mod prelude;
+remu_macro::mod_pub!(prelude);
 pub use crate::prelude::*;
 
 use std::sync::Arc;

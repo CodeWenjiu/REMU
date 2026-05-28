@@ -1,7 +1,5 @@
-remu_macro::mod_pub!(isa);
+remu_macro::mod_pub!(isa, prelude);
 remu_macro::mod_flat!(difftest, exit_code, platform, trace_flags, wordlen);
-pub mod prelude;
-pub use crate::prelude::*;
 
 use std::{cell::RefCell, error::Error, fmt::Display, ops::Range, rc::Rc};
 

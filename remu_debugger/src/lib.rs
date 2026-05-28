@@ -3,7 +3,7 @@ use std::sync::Arc;
 use clap::Parser;
 
 remu_macro::mod_flat!(command, option, policy, error, compound_command);
-pub mod prelude;
+remu_macro::mod_pub!(prelude);
 pub use crate::prelude::*;
 
 use remu_harness::Harness;

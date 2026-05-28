@@ -4,6 +4,7 @@ version = "0.1.0"
 edition = "2024"
 
 [dependencies]
+remu_macro = { path = "../remu_macro" }
 remu_debugger = { path = "../remu_debugger" }
 remu_harness = { path = "../remu_harness" }
 remu_simulator_nzea = { path = "../remu_simulator/simulators/nzea" }

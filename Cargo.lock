@@ -3308,6 +3308,7 @@ version = "0.1.0"
 dependencies = [
  "remu_debugger",
  "remu_harness",
+ "remu_macro",
  "remu_simulator_nzea",
  "remu_state",
  "remu_types",

@@ -3,7 +3,7 @@
 //! ISA classification uses [`IsaKind`](remu_types::isa::IsaKind): [`RemuIsaKind`](remu_harness::RemuIsaKind)
 //! and [`NzeaIsaKind`](remu_simulator_nzea::NzeaIsaKind). This crate only dispatches on [`Platform`].
 
-mod config;
+remu_macro::mod_flat!(config);
 
 use std::sync::Arc;
 
