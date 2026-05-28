@@ -1,18 +1,18 @@
 use remu_isa::isa::reg::RegAccess;
 
-use crate::riscv::inst::{imm_j, rd, DecodedInst, Inst};
+use crate::riscv::{imm_i, rd, rs1, DecodedInst, Inst};
 
-pub(crate) const OPCODE: u32 = 0b110_1111;
+pub(crate) const OPCODE: u32 = 0b110_0111;
 pub(crate) const INSTRUCTION_MIX: u32 = 30;
 
 #[inline(always)]
 pub(crate) fn decode<P: remu_state::StatePolicy>(inst: u32) -> DecodedInst {
     DecodedInst {
-        rs1: 0,
+        rs1: rs1(inst),
         rs2: 0,
         rd: rd(inst),
-        imm: imm_j(inst),
-        inst: Inst::Jal,
+        imm: imm_i(inst),
+        inst: Inst::Jalr,
     }
 }
 
@@ -22,8 +22,11 @@ pub(crate) fn execute<P: remu_state::StatePolicy, C: crate::ExecuteContext<P>>(
     decoded: &DecodedInst,
 ) -> Result<(), remu_state::StateError> {
     let state = ctx.state_mut();
-    let value: u32 = state.reg.pc.wrapping_add(4);
-    state.reg.gpr.raw_write(decoded.rd.into(), value);
-    *state.reg.pc = state.reg.pc.wrapping_add(decoded.imm);
+    let rs1_val = state.reg.gpr.raw_read(decoded.rs1.into());
+    state
+        .reg
+        .gpr
+        .raw_write(decoded.rd.into(), state.reg.pc.wrapping_add(4));
+    *state.reg.pc = rs1_val.wrapping_add(decoded.imm) & !1;
     Ok(())
 }

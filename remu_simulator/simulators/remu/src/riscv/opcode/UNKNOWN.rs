@@ -1,7 +1,7 @@
 use remu_state::{State, StatePolicy};
 use remu_isa::isa::reg::Mcause;
 
-use crate::riscv::inst::{DecodedInst, Inst};
+use crate::riscv::{DecodedInst, Inst};
 
 /// Illegal-instruction trap (M-mode); shared by [`execute`] and vector `mstatus.VS` checks.
 #[inline(always)]

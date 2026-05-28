@@ -1,6 +1,6 @@
 //! funct3 = 0b000: OP-IVV (vector-vector)
 
-use crate::riscv::inst::{DecodedInst, opcode::OP_V::OpIvvInst};
+use crate::riscv::{DecodedInst, opcode::OP_V::OpIvvInst};
 
 use super::{
     loop_ops::{binop_max_vv, binop_sub_vv, mode_from_vm},

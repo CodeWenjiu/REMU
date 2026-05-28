@@ -11,7 +11,7 @@ use core::hint::unreachable_unchecked;
 use remu_state::StateError;
 use remu_isa::isa::reg::RegAccess;
 
-use crate::riscv::inst::{DecodedInst, Inst, funct3, funct7, imm_i, rd, rs1, rs2};
+use crate::riscv::{DecodedInst, Inst, funct3, funct7, imm_i, rd, rs1, rs2};
 
 pub(crate) const OPCODE: u32 = 0b000_1011;
 pub(crate) const INSTRUCTION_MIX: u32 = 60;

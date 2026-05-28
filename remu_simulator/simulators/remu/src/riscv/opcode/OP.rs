@@ -2,7 +2,7 @@ use std::hint::unreachable_unchecked;
 
 use remu_isa::isa::{RvIsa, reg::RegAccess};
 
-use crate::riscv::inst::{DecodedInst, Inst, funct3, funct7, rd, rs1, rs2};
+use crate::riscv::{DecodedInst, Inst, funct3, funct7, rd, rs1, rs2};
 
 pub(crate) const OPCODE: u32 = 0b011_0011;
 pub(crate) const INSTRUCTION_MIX: u32 = 130;

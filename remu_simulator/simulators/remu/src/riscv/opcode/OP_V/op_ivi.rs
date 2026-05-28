@@ -2,7 +2,7 @@
 
 use remu_isa::isa::reg::VrState;
 
-use crate::riscv::inst::{DecodedInst, opcode::OP_V::OpIviInst};
+use crate::riscv::{DecodedInst, opcode::OP_V::OpIviInst};
 
 use super::{
     loop_ops::{binop_add_vi, binop_and_vi, binop_shl_vi, binop_shr_vi, binop_sub_vi, merge_scalar_vi, mode_from_vm},

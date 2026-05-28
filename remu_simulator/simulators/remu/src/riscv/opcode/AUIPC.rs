@@ -1,6 +1,6 @@
 use remu_isa::isa::reg::RegAccess;
 
-use crate::riscv::inst::{imm_u, rd, DecodedInst, Inst};
+use crate::riscv::{imm_u, rd, DecodedInst, Inst};
 
 pub(crate) const OPCODE: u32 = 0b001_0111;
 pub(crate) const INSTRUCTION_MIX: u32 = 20;

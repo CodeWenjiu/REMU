@@ -2,7 +2,7 @@
 
 use remu_isa::isa::reg::RegAccess;
 
-use crate::riscv::inst::{DecodedInst, opcode::OP_V::OpMvxInst};
+use crate::riscv::{DecodedInst, opcode::OP_V::OpMvxInst};
 
 use super::{
     loop_ops::{mode_from_vm, scalar_sext},

@@ -1,7 +1,7 @@
 use remu_state::StateError;
 use remu_isa::isa::reg::RegAccess;
 
-use crate::riscv::inst::{funct3, imm_s, rs1, rs2, DecodedInst, Inst};
+use crate::riscv::{funct3, imm_s, rs1, rs2, DecodedInst, Inst};
 
 pub(crate) const OPCODE: u32 = 0b010_0011;
 pub(crate) const INSTRUCTION_MIX: u32 = 110;

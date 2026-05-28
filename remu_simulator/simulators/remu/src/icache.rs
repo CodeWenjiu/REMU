@@ -1,4 +1,4 @@
-use crate::riscv::inst::DecodedInst;
+use crate::riscv::DecodedInst;
 
 /// Sentinel for empty slot. No valid fetch PC equals this (e.g. top of 32-bit space).
 pub(crate) const INVALID_ADDR: u32 = u32::MAX;

@@ -3,7 +3,7 @@ use remu_isa::isa::extension_v::VExtensionConfig;
 use remu_isa::isa::reg::{RegAccess, VectorCsrState, VrState};
 use remu_isa::isa::RvIsa;
 
-use crate::riscv::inst::{funct3, opcode::UNKNOWN, rd, rs1, DecodedInst, Inst};
+use crate::riscv::{funct3, opcode::UNKNOWN, rd, rs1, DecodedInst, Inst};
 
 use super::OP_V::mask_bit;
 
@@ -152,7 +152,7 @@ pub(crate) fn execute<P: remu_state::StatePolicy, C: crate::ExecuteContext<P>>(
             if <<P::ISA as RvIsa>::VConfig as VExtensionConfig>::VLENB > 0 {
                 // Whole register store ignores vtype and vl, but requires vstart == 0
                 if ctx.state_mut().reg.csr.vector.vstart() != 0 {
-                    return crate::riscv::inst::opcode::UNKNOWN::execute(ctx, decoded);
+                    return crate::riscv::opcode::UNKNOWN::execute(ctx, decoded);
                 }
 
                 let state = ctx.state_mut();

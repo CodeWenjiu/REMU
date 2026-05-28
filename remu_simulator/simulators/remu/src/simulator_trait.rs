@@ -10,7 +10,7 @@ use remu_simulator::{
 };
 
 use crate::icache::Icache;
-use crate::riscv::inst::decode;
+use crate::riscv::decode;
 use remu_state::StatePolicy;
 
 const ICACHE_SIZE: usize = 1 << 16;
@@ -81,9 +81,9 @@ impl<P: SimulatorPolicy, const IS_DUT: bool> SimulatorRemu<P, IS_DUT> {
     #[inline(always)]
     fn execute_inst(
         &mut self,
-        decoded: &crate::riscv::inst::DecodedInst,
+        decoded: &crate::riscv::DecodedInst,
     ) -> Result<(), StateError> {
-        crate::riscv::inst::execute(self, decoded)
+        crate::riscv::execute(self, decoded)
     }
 }
 

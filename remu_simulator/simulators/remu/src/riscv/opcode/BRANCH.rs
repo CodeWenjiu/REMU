@@ -1,7 +1,7 @@
 use remu_isa::isa::reg::RegAccess;
 use remu_isa::Xlen;
 
-use crate::riscv::inst::{funct3, imm_b, rs1, rs2, DecodedInst, Inst};
+use crate::riscv::{funct3, imm_b, rs1, rs2, DecodedInst, Inst};
 
 pub(crate) const OPCODE: u32 = 0b110_0011;
 pub(crate) const INSTRUCTION_MIX: u32 = 140;

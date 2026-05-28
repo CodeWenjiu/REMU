@@ -5,7 +5,7 @@ use remu_isa::isa::extension_v::VExtensionConfig;
 use remu_isa::isa::reg::{RegAccess, VectorCsrState, VrState};
 use remu_isa::isa::RvIsa;
 
-use crate::riscv::inst::{funct3, opcode::UNKNOWN, rd, rs1, rs2, DecodedInst, Inst};
+use crate::riscv::{funct3, opcode::UNKNOWN, rd, rs1, rs2, DecodedInst, Inst};
 
 pub(crate) const OPCODE: u32 = 0b000_0111; // LOAD-FP (0x07)
 pub(crate) const INSTRUCTION_MIX: u32 = 10;

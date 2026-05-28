@@ -1,7 +1,7 @@
 //! funct3 = 0b010: OP-MVV
 
 
-use crate::riscv::inst::{DecodedInst, opcode::OP_V::OpMvvInst};
+use crate::riscv::{DecodedInst, opcode::OP_V::OpMvvInst};
 
 use super::{
     loop_ops::{binop_macc, mode_from_vm},

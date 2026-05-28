@@ -6,7 +6,7 @@ use remu_isa::isa::{
     RvIsa,
 };
 
-use crate::riscv::inst::{DecodedInst, opcode::OP_V::OpCfgInst};
+use crate::riscv::{DecodedInst, opcode::OP_V::OpCfgInst};
 
 use super::calculate_vlmax;
 

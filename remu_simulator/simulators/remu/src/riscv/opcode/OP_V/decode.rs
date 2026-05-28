@@ -1,4 +1,4 @@
-use crate::riscv::inst::{
+use crate::riscv::{
     DecodedInst, Inst, funct3,
     opcode::OP_V::{OpCfgInst, OpIviInst, OpIvvInst, OpIvxInst, OpMvvInst, OpMvxInst, VInst},
     rd, rs1, rs2,
