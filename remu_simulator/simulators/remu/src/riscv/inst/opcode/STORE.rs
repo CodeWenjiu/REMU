@@ -1,5 +1,5 @@
 use remu_state::StateError;
-use remu_types::isa::reg::RegAccess;
+use remu_isa::isa::reg::RegAccess;
 
 use crate::riscv::inst::{funct3, imm_s, rs1, rs2, DecodedInst, Inst};
 

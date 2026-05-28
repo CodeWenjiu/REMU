@@ -9,7 +9,7 @@ remu_macro::mod_flat!(mnist_infer);
 use core::hint::unreachable_unchecked;
 
 use remu_state::StateError;
-use remu_types::isa::reg::RegAccess;
+use remu_isa::isa::reg::RegAccess;
 
 use crate::riscv::inst::{DecodedInst, Inst, funct3, funct7, imm_i, rd, rs1, rs2};
 

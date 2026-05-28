@@ -1,5 +1,5 @@
 use remu_state::{State, StatePolicy};
-use remu_types::isa::reg::Mcause;
+use remu_isa::isa::reg::Mcause;
 
 use crate::riscv::inst::{DecodedInst, Inst};
 

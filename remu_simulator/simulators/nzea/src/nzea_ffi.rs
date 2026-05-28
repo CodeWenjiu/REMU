@@ -3,7 +3,7 @@
 
 use std::ffi::{c_char, c_void};
 
-use remu_types::isa::extension_enum::{RV32I, RV32I_wjCus0, RV32IM, RV32IM_wjCus0};
+use remu_isa::isa::extension_enum::{RV32I, RV32I_wjCus0, RV32IM, RV32IM_wjCus0};
 
 unsafe extern "C" {
     pub(crate) fn nzea_create(model: *const c_char) -> *mut c_void;
@@ -18,7 +18,7 @@ unsafe extern "C" {
 }
 
 /// ISA string for nzea DPI; must match nzea `just dump --isa <str>`.
-pub trait NzeaIsa: remu_types::isa::RvIsa {
+pub trait NzeaIsa: remu_isa::isa::RvIsa {
     const NZEA_ISA_STR: &'static str;
 }
 

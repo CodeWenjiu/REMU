@@ -1,6 +1,7 @@
 use clap::builder::styling;
 use remu_harness::HarnessOption;
-use remu_types::{DifftestRef, isa::IsaSpec, Platform};
+use remu_isa::isa::IsaSpec;
+use remu_types::{DifftestRef, Platform};
 
 #[derive(clap::Parser, Debug, Clone)]
 #[command(

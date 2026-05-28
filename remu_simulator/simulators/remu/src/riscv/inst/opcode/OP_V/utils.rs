@@ -1,6 +1,6 @@
 //! Shared vector execution helpers for OP-V sub-opcodes (element loop, mask compare, etc.).
 
-use remu_types::isa::reg::{RegAccess, VectorCsrState, VrState};
+use remu_isa::isa::reg::{RegAccess, VectorCsrState, VrState};
 
 use super::context::VContext;
 

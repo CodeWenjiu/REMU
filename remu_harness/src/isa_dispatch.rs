@@ -1,8 +1,8 @@
-//! Classify [`IsaSpec`](remu_types::isa::IsaSpec) for the **remu** simulator backend (full matrix).
+//! Classify [`IsaSpec`](remu_isa::isa::IsaSpec) for the **remu** simulator backend (full matrix).
 //!
-//! Implements [`IsaKind`](remu_types::isa::IsaKind); nzea uses [`NzeaIsaKind`](remu_simulator_nzea::NzeaIsaKind).
+//! Implements [`IsaKind`](remu_isa::isa::IsaKind); nzea uses [`NzeaIsaKind`](remu_simulator_nzea::NzeaIsaKind).
 
-use remu_types::isa::{ExtensionSpec, IsaKind, IsaSpec};
+use remu_isa::isa::{ExtensionSpec, IsaKind, IsaSpec};
 use target_lexicon::{Architecture, Riscv32Architecture};
 
 /// Every ISA combination the remu CPU model can run today (see `remu_boot` dispatch).

@@ -172,11 +172,11 @@ impl<P: SimulatorPolicy, const IS_DUT: bool> SimulatorCore<P> for SimulatorRemu<
     }
 
     fn regs_diff(&self, dut_reg: &RiscvReg<P::ISA>) -> Vec<DifftestMismatchItem> {
-        use remu_types::isa::reg::RegDiff;
+        use remu_isa::isa::reg::RegDiff;
         let mut out = Vec::new();
         let (r, d) = (&self.state.reg, dut_reg);
         for (name, ref_val, dut_val) in
-            <P::ISA as remu_types::isa::RvIsa>::PcState::diff(&r.pc, &d.pc)
+            <P::ISA as remu_isa::isa::RvIsa>::PcState::diff(&r.pc, &d.pc)
         {
             out.push(DifftestMismatchItem {
                 group: RegGroup::Pc,
@@ -186,7 +186,7 @@ impl<P: SimulatorPolicy, const IS_DUT: bool> SimulatorCore<P> for SimulatorRemu<
             });
         }
         for (name, ref_val, dut_val) in
-            <P::ISA as remu_types::isa::RvIsa>::GprState::diff(&r.gpr, &d.gpr)
+            <P::ISA as remu_isa::isa::RvIsa>::GprState::diff(&r.gpr, &d.gpr)
         {
             out.push(DifftestMismatchItem {
                 group: RegGroup::Gpr,
@@ -196,7 +196,7 @@ impl<P: SimulatorPolicy, const IS_DUT: bool> SimulatorCore<P> for SimulatorRemu<
             });
         }
         for (name, ref_val, dut_val) in
-            <P::ISA as remu_types::isa::RvIsa>::FprState::diff(&r.fpr, &d.fpr)
+            <P::ISA as remu_isa::isa::RvIsa>::FprState::diff(&r.fpr, &d.fpr)
         {
             out.push(DifftestMismatchItem {
                 group: RegGroup::Fpr,
@@ -206,7 +206,7 @@ impl<P: SimulatorPolicy, const IS_DUT: bool> SimulatorCore<P> for SimulatorRemu<
             });
         }
         for (name, ref_val, dut_val) in
-            <<P::ISA as remu_types::isa::RvIsa>::VConfig as remu_types::isa::extension_v::VExtensionConfig>::VrState::diff(
+            <<P::ISA as remu_isa::isa::RvIsa>::VConfig as remu_isa::isa::extension_v::VExtensionConfig>::VrState::diff(
                 &r.vr, &d.vr,
             )
         {

@@ -1,7 +1,7 @@
 use remu_state::StateError;
-use remu_types::isa::extension_v::VExtensionConfig;
-use remu_types::isa::reg::{RegAccess, VectorCsrState, VrState};
-use remu_types::isa::RvIsa;
+use remu_isa::isa::extension_v::VExtensionConfig;
+use remu_isa::isa::reg::{RegAccess, VectorCsrState, VrState};
+use remu_isa::isa::RvIsa;
 
 use crate::riscv::inst::{funct3, opcode::UNKNOWN, rd, rs1, DecodedInst, Inst};
 

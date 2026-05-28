@@ -1,6 +1,6 @@
 //! funct3 = 0b110: OP-MVX (vmv.s.x, vwmul.vx)
 
-use remu_types::isa::reg::RegAccess;
+use remu_isa::isa::reg::RegAccess;
 
 use crate::riscv::inst::{DecodedInst, opcode::OP_V::OpMvxInst};
 

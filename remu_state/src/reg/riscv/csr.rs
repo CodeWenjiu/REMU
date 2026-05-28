@@ -1,5 +1,5 @@
-use remu_types::isa::extension_v::CsrConfig;
-use remu_types::isa::reg::{Csr as CsrKind, VectorCsrState};
+use remu_isa::isa::extension_v::CsrConfig;
+use remu_isa::isa::reg::{Csr as CsrKind, VectorCsrState};
 
 #[derive(Clone)]
 pub struct Csr<C: CsrConfig> {

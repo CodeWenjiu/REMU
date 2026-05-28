@@ -3308,6 +3308,7 @@ version = "0.1.0"
 dependencies = [
  "remu_debugger",
  "remu_harness",
+ "remu_isa",
  "remu_macro",
  "remu_simulator_nzea",
  "remu_state",
@@ -3330,6 +3331,7 @@ dependencies = [
  "remu_boot",
  "remu_debugger",
  "remu_fmt",
+ "remu_isa",
  "remu_logger",
  "remu_macro",
  "remu_simulator",
@@ -3348,6 +3350,7 @@ dependencies = [
  "petgraph",
  "remu_fmt",
  "remu_harness",
+ "remu_isa",
  "remu_macro",
  "remu_state",
  "remu_types",
@@ -3361,6 +3364,7 @@ name = "remu_fmt"
 version = "0.1.0"
 dependencies = [
  "capstone",
+ "remu_isa",
  "remu_macro",
  "remu_types",
  "target-lexicon",
@@ -3388,6 +3392,7 @@ name = "remu_harness"
 version = "0.1.0"
 dependencies = [
  "clap",
+ "remu_isa",
  "remu_macro",
  "remu_simulator",
  "remu_simulator_nzea",
@@ -3430,6 +3435,7 @@ version = "0.1.0"
 dependencies = [
  "clap",
  "rand 0.10.0",
+ "remu_isa",
  "remu_macro",
  "remu_state",
  "remu_types",
@@ -3443,6 +3449,7 @@ name = "remu_simulator_nzea"
 version = "0.1.0"
 dependencies = [
  "cc",
+ "remu_isa",
  "remu_macro",
  "remu_simulator",
  "remu_state",
@@ -3458,6 +3465,7 @@ version = "0.1.0"
 dependencies = [
  "clap",
  "rand 0.10.0",
+ "remu_isa",
  "remu_macro",
  "remu_simulator",
  "remu_state",
@@ -3472,6 +3480,7 @@ name = "remu_simulator_spike"
 version = "0.1.0"
 dependencies = [
  "cc",
+ "remu_isa",
  "remu_macro",
  "remu_simulator",
  "remu_state",
@@ -3485,6 +3494,7 @@ dependencies = [
  "clap",
  "object 0.38.1",
  "remu_fmt",
+ "remu_isa",
  "remu_macro",
  "remu_types",
  "thiserror 2.0.18",
@@ -5639,6 +5649,7 @@ name = "xtask"
 version = "0.1.0"
 dependencies = [
  "clap",
+ "remu_isa",
  "remu_macro",
  "remu_types",
  "winnow 1.0.0",

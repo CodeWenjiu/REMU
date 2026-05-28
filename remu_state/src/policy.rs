@@ -1,6 +1,6 @@
 use std::marker::PhantomData;
 
-use remu_types::isa::RvIsa;
+use remu_isa::isa::RvIsa;
 
 use crate::bus::{BusObserver, DifftestObserver, FastObserver};
 

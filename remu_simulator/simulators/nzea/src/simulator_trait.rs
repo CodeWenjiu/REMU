@@ -17,7 +17,7 @@ use remu_state::bus::ObserverEvent;
 
 use crate::dpi::{self, CommitMsg, NzeaDpi};
 use crate::nzea_ffi::{self, NzeaIsa};
-use remu_types::isa::reg::{Csr as CsrKind, RegAccess};
+use remu_isa::isa::reg::{Csr as CsrKind, RegAccess};
 
 /// True after the first time wavetrace is enabled in this process; then we do not open trace.fst again,
 /// so a later run with wavetrace off does not overwrite the file.

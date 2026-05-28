@@ -1,6 +1,6 @@
 use std::hint::unreachable_unchecked;
 
-use remu_types::isa::{RvIsa, reg::RegAccess};
+use remu_isa::isa::{RvIsa, reg::RegAccess};
 
 use crate::riscv::inst::{DecodedInst, Inst, funct3, funct7, rd, rs1, rs2};
 

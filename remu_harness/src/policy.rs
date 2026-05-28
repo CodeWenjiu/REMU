@@ -1,5 +1,5 @@
 use remu_state::{StateFastProfile, StateMmioProfile};
-use remu_types::isa::RvIsa;
+use remu_isa::isa::RvIsa;
 
 use crate::SimulatorPolicy;
 

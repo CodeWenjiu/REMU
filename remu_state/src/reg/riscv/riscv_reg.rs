@@ -1,6 +1,6 @@
-use remu_types::isa::extension_v::VExtensionConfig;
-use remu_types::isa::reg::{Csr as CsrKind, Gpr, VrState as VrStateTrait};
-use remu_types::isa::{RvIsa, reg::RegAccess};
+use remu_isa::isa::extension_v::VExtensionConfig;
+use remu_isa::isa::reg::{Csr as CsrKind, Gpr, VrState as VrStateTrait};
+use remu_isa::isa::{RvIsa, reg::RegAccess};
 
 use crate::reg::{CsrRegCmd, FprRegCmd, GprRegCmd, PcRegCmd, RegCmd, RegOption, VrRegCmd};
 

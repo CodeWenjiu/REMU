@@ -2,10 +2,11 @@ use std::ops::Range;
 
 use colored::Colorize;
 use remu_fmt::ByteGuesser;
-use remu_types::{
-    DynDiagError, Tracer,
-    isa::{IsaSpec, reg::{Gpr, Fpr}},
+use remu_isa::isa::{
+    IsaSpec,
+    reg::{Fpr, Gpr},
 };
+use remu_types::{DynDiagError, Tracer};
 use tabled::{
     Table, Tabled,
     settings::{Color, Style, object::Columns},
@@ -203,7 +204,7 @@ impl Tracer for CLITracer {
         }
     }
 
-    fn mem_show(&self, begin: usize, data: Result<remu_types::AllUsize, Box<dyn DynDiagError>>) {
+    fn mem_show(&self, begin: usize, data: Result<remu_isa::AllUsize, Box<dyn DynDiagError>>) {
         match data {
             Ok(value) => println!(
                 "{}: {}",
@@ -251,21 +252,14 @@ impl Tracer for CLITracer {
     }
 
     fn reg_show_pc(&self, data: u32) {
-        println!(
-            "pc: {}",
-            format!("0x{:08x}", data).blue()
-        )
+        println!("pc: {}", format!("0x{:08x}", data).blue())
     }
 
     fn reg_show_fpr(&self, index: usize, data: u32) {
         let name = Fpr::from_repr(index)
             .map(|f| f.to_string())
             .unwrap_or_else(|| format!("f{index}"));
-        println!(
-            "{}: {}",
-            name.yellow(),
-            format!("0x{:08x}", data).blue()
-        )
+        println!("{}: {}", name.yellow(), format!("0x{:08x}", data).blue())
     }
 
     fn reg_print_fpr(&self, regs: &[(usize, u32)], _range: Range<usize>) {

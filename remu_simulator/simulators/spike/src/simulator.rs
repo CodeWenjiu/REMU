@@ -5,10 +5,11 @@ use std::os::raw::c_uint;
 use remu_state::bus::{BusOption, MemoryEntry, try_load_elf_into_memory};
 use remu_state::reg::riscv::RiscvReg;
 use remu_state::{State, StateCmd};
-use remu_types::isa::RvIsa;
-use remu_types::isa::extension_v::VExtensionConfig;
-use remu_types::isa::reg::{Fpr, Gpr, RegAccess, VrState as VrStateTrait};
-use remu_types::{AllUsize, DifftestMismatchItem, RegGroup, TracerDyn, Xlen};
+use remu_isa::isa::RvIsa;
+use remu_isa::isa::extension_v::VExtensionConfig;
+use remu_isa::isa::reg::{Fpr, Gpr, RegAccess, VrState as VrStateTrait};
+use remu_isa::{AllUsize, Xlen};
+use remu_types::{DifftestMismatchItem, RegGroup, TracerDyn};
 
 use remu_simulator::{
     SimulatorCore, SimulatorInnerError, SimulatorOption, SimulatorPolicy, SimulatorRef,

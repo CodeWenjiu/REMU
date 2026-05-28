@@ -1,6 +1,6 @@
 //! funct3 = 0b011: OP-IVI
 
-use remu_types::isa::reg::VrState;
+use remu_isa::isa::reg::VrState;
 
 use crate::riscv::inst::{DecodedInst, opcode::OP_V::OpIviInst};
 

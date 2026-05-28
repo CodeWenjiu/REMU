@@ -1,6 +1,6 @@
 //! Debugger entry: wires [`DebuggerOption`] to the correct simulator + ISA generic.
 //!
-//! ISA classification uses [`IsaKind`](remu_types::isa::IsaKind): [`RemuIsaKind`](remu_harness::RemuIsaKind)
+//! ISA classification uses [`IsaKind`](remu_isa::isa::IsaKind): [`RemuIsaKind`](remu_harness::RemuIsaKind)
 //! and [`NzeaIsaKind`](remu_simulator_nzea::NzeaIsaKind). This crate only dispatches on [`Platform`].
 
 remu_macro::mod_flat!(config);
@@ -9,16 +9,14 @@ use std::sync::Arc;
 
 use remu_debugger::{DebuggerOption, DebuggerRunner};
 use remu_harness::RemuIsaKind;
-use remu_simulator_nzea::NzeaIsaKind;
-use remu_types::{
-    DifftestRef, Platform,
-    isa::{
-        IsaKind,
-        extension_enum::{
-            RV32I, RV32I_wjCus0, RV32I_zve32x_zvl128b, RV32IM, RV32IM_wjCus0, RV32IM_zve32x_zvl128b,
-        },
+use remu_isa::isa::{
+    IsaKind,
+    extension_enum::{
+        RV32I, RV32I_wjCus0, RV32I_zve32x_zvl128b, RV32IM, RV32IM_wjCus0, RV32IM_zve32x_zvl128b,
     },
 };
+use remu_simulator_nzea::NzeaIsaKind;
+use remu_types::{DifftestRef, Platform};
 
 use crate::config::{NzeaFast, NzeaMmioRemu, RemuFast, RemuMmioRemu, RemuMmioSpike};
 

@@ -1,6 +1,6 @@
 //! funct3 = 0b100: OP-IVX
 
-use remu_types::isa::reg::RegAccess;
+use remu_isa::isa::reg::RegAccess;
 
 use crate::riscv::inst::{DecodedInst, opcode::OP_V::OpIvxInst};
 

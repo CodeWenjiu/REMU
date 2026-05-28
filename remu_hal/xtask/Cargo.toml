@@ -9,6 +9,7 @@ name = "xtask"
 path = "src/main.rs"
 
 [dependencies]
+remu_isa = { path = "../../remu_isa" }
 remu_macro = { path = "../../remu_macro" }
 remu_types = { path = "../../remu_types" }
 

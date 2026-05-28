@@ -1,6 +1,6 @@
 //! Vector context and SEW abstraction. Parsed once per instruction, reused across element loops.
 
-use remu_types::isa::{
+use remu_isa::isa::{
     extension_v::VExtensionConfig,
     reg::VectorCsrState,
     RvIsa,

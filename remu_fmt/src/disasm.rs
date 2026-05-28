@@ -2,7 +2,7 @@ use capstone::{
     Capstone,
     arch::{self, BuildsCapstone, BuildsCapstoneExtraMode},
 };
-use remu_types::isa::IsaSpec;
+use remu_isa::isa::IsaSpec;
 use target_lexicon::Architecture;
 use thiserror::Error;
 

@@ -1,6 +1,6 @@
 //! RISC-V SYSTEM opcode: ECALL, EBREAK, CSR read/write (CSRRW, CSRRS, ...).
 
-use remu_types::isa::reg::{Csr as CsrKind, RegAccess};
+use remu_isa::isa::reg::{Csr as CsrKind, RegAccess};
 
 use crate::riscv::inst::{opcode::UNKNOWN, DecodedInst, Inst, csr, funct3, rd, rs1};
 

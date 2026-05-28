@@ -1,6 +1,4 @@
-remu_macro::mod_flat!(
-    error, command, option, parse, access, observer
-);
+remu_macro::mod_flat!(error, command, option, parse, access, observer);
 
 remu_macro::mod_pub!(device, memory);
 
@@ -10,7 +8,9 @@ pub use memory::{
     AccessKind, MemFault, MemRegionSpec, Memory, MemoryEntry, try_load_elf_into_memory,
 };
 pub use observer::ObserverEvent;
-use remu_types::{AllUsize, DynDiagError, isa::RvIsa};
+use remu_isa::AllUsize;
+use remu_isa::isa::RvIsa;
+use remu_types::DynDiagError;
 
 use crate::bus::device::{DeviceAccess, instantiate_device};
 
@@ -118,21 +118,30 @@ impl<I: RvIsa, O: BusObserver> Bus<I, O> {
         match subcmd {
             BusCmd::Read { subcmd } => {
                 let (addr, result) = match subcmd {
-                    ReadCommand::U8(arg) => {
-                        (arg.addr, self.read_8_impl::<false>(arg.addr).map(|v| AllUsize::U8(v)))
-                    }
-                    ReadCommand::U16(arg) => {
-                        (arg.addr, self.read_16_impl::<false>(arg.addr).map(|v| AllUsize::U16(v)))
-                    }
-                    ReadCommand::U32(arg) => {
-                        (arg.addr, self.read_32_impl::<false>(arg.addr).map(|v| AllUsize::U32(v)))
-                    }
-                    ReadCommand::U64(arg) => {
-                        (arg.addr, self.read_64_impl::<false>(arg.addr).map(|v| AllUsize::U64(v)))
-                    }
-                    ReadCommand::U128(arg) => {
-                        (arg.addr, self.read_128_impl::<false>(arg.addr).map(|v| AllUsize::U128(v)))
-                    }
+                    ReadCommand::U8(arg) => (
+                        arg.addr,
+                        self.read_8_impl::<false>(arg.addr).map(|v| AllUsize::U8(v)),
+                    ),
+                    ReadCommand::U16(arg) => (
+                        arg.addr,
+                        self.read_16_impl::<false>(arg.addr)
+                            .map(|v| AllUsize::U16(v)),
+                    ),
+                    ReadCommand::U32(arg) => (
+                        arg.addr,
+                        self.read_32_impl::<false>(arg.addr)
+                            .map(|v| AllUsize::U32(v)),
+                    ),
+                    ReadCommand::U64(arg) => (
+                        arg.addr,
+                        self.read_64_impl::<false>(arg.addr)
+                            .map(|v| AllUsize::U64(v)),
+                    ),
+                    ReadCommand::U128(arg) => (
+                        arg.addr,
+                        self.read_128_impl::<false>(arg.addr)
+                            .map(|v| AllUsize::U128(v)),
+                    ),
                 };
                 self.tracer.borrow().mem_show(
                     addr,
@@ -151,7 +160,9 @@ impl<I: RvIsa, O: BusObserver> Bus<I, O> {
                 WriteCommand::U16 { addr, value } => self.write_16_impl::<false>(*addr, *value)?,
                 WriteCommand::U32 { addr, value } => self.write_32_impl::<false>(*addr, *value)?,
                 WriteCommand::U64 { addr, value } => self.write_64_impl::<false>(*addr, *value)?,
-                WriteCommand::U128 { addr, value } => self.write_128_impl::<false>(*addr, *value)?,
+                WriteCommand::U128 { addr, value } => {
+                    self.write_128_impl::<false>(*addr, *value)?
+                }
             },
             BusCmd::Set { address, value } => {
                 let mut addr = *address;

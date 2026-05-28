@@ -12,7 +12,7 @@ pub enum StateError {
     #[error("breakpoint hit at 0x{0:08x}")]
     BreakpointHit(u32),
 
-    /// CSR index is not in `remu_types::isa::reg::csr::Csr` / not wired in `remu_state` yet.
+    /// CSR index is not in `remu_isa::isa::reg::csr::Csr` / not wired in `remu_state` yet.
     #[error(
         "unimplemented CSR at PC 0x{pc:08x} (csr_addr = 0x{csr_addr:03x}, decoded CSR immediate field = 0x{imm_raw:08x})"
     )]

@@ -1,6 +1,6 @@
-//! Which [`IsaSpec`](remu_types::isa::IsaSpec) values the nzea Verilated backend accepts.
+//! Which [`IsaSpec`](remu_isa::isa::IsaSpec) values the nzea Verilated backend accepts.
 
-use remu_types::isa::{ExtensionSpec, IsaKind, IsaSpec};
+use remu_isa::isa::{ExtensionSpec, IsaKind, IsaSpec};
 use target_lexicon::{Architecture, Riscv32Architecture};
 
 /// nzea models **riscv32i** / **riscv32im**, optionally with **`wjCus0`** suffix (same RTL as base).

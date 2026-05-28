@@ -1,5 +1,5 @@
 use remu_state::{StateFastProfile, StateMmioProfile, StatePolicy};
-use remu_types::isa::RvIsa;
+use remu_isa::isa::RvIsa;
 
 pub trait SimulatorPolicy: StatePolicy {}
 

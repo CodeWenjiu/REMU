@@ -1,7 +1,7 @@
 use std::path::Path;
 use std::str::FromStr;
 
-use remu_types::isa::IsaSpec;
+use remu_isa::isa::IsaSpec;
 
 use crate::isa_shorthand::{self, NamedExtension, ParsedAppShorthand};
 

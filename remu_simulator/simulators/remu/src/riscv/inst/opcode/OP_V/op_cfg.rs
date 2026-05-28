@@ -1,6 +1,6 @@
 //! funct3 = 0b111: vsetivli, vsetvli
 
-use remu_types::isa::{
+use remu_isa::isa::{
     extension_v::VExtensionConfig,
     reg::{RegAccess, VectorCsrState},
     RvIsa,

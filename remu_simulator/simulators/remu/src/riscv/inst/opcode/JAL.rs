@@ -1,4 +1,4 @@
-use remu_types::isa::reg::RegAccess;
+use remu_isa::isa::reg::RegAccess;
 
 use crate::riscv::inst::{imm_j, rd, DecodedInst, Inst};
 

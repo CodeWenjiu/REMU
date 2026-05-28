@@ -1,7 +1,7 @@
 use std::ops::Range;
 
 use remu_fmt::{parse_byte_vec, parse_prefixed_uint};
-use remu_types::isa::reg::{Csr as CsrReg, Fpr, Gpr};
+use remu_isa::isa::reg::{Csr as CsrReg, Fpr, Gpr};
 
 fn parse_vr_index(s: &str) -> Result<usize, String> {
     let i = parse_prefixed_uint::<usize>(s.trim()).map_err(|e| e.to_string())?;

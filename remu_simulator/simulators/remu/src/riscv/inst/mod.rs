@@ -1,8 +1,8 @@
 #![allow(non_snake_case)]
 
 use remu_state::{StateError, StatePolicy};
-use remu_types::isa::RvIsa;
-use remu_types::isa::extension_v::VExtensionConfig;
+use remu_isa::isa::RvIsa;
+use remu_isa::isa::extension_v::VExtensionConfig;
 
 remu_macro::mod_pub!(opcode);
 remu_macro::mod_flat!(bytes);
