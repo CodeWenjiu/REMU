@@ -7,5 +7,5 @@ pub use crate::difftest::DifftestMismatchItem;
 pub use crate::exit_code::ExitCode;
 pub use crate::platform::Platform;
 pub use crate::trace_flags::{TraceFlags, TraceKind};
-pub use crate::wordlen::Xlen;
 pub use crate::{AllUsize, DifftestRef, RegGroup, TracerDyn};
+pub use remu_isa::Xlen;

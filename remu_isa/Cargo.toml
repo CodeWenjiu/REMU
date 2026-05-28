@@ -1,14 +1,10 @@
 [package]
-name = "remu_types"
+name = "remu_isa"
 version = "0.1.0"
 edition = "2024"
 
 [dependencies]
-remu_isa = { path = "../remu_isa" }
 remu_macro = { path = "../remu_macro" }
-thiserror.workspace = true
-tracing.workspace = true
-
 target-lexicon.workspace = true
 strum = { version = "0.28.0", features = ["derive"] }
 

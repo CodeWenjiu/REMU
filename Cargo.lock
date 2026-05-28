@@ -3401,6 +3401,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "remu_isa"
+version = "0.1.0"
+dependencies = [
+ "remu_macro",
+ "strum 0.28.0",
+ "target-lexicon",
+]
+
+[[package]]
 name = "remu_logger"
 version = "0.1.0"
 dependencies = [
@@ -3486,6 +3495,7 @@ dependencies = [
 name = "remu_types"
 version = "0.1.0"
 dependencies = [
+ "remu_isa",
  "remu_macro",
  "strum 0.28.0",
  "target-lexicon",

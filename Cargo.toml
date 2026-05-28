@@ -2,6 +2,7 @@
 resolver = "2"
 members = [
     "remu_macro",
+    "remu_isa",
     "remu_logger",
     "remu_types",
     "remu_fmt",
