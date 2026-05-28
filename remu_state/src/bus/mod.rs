@@ -1,6 +1,6 @@
-remu_macro::mod_flat!(error, command, option, parse, access, observer);
-
 remu_macro::mod_pub!(device, memory);
+remu_macro::mod_pub_flat!(flow);
+remu_macro::mod_flat!(error, parse, access, observer);
 
 use std::{marker::PhantomData, ops::Range};
 

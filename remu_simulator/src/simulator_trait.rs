@@ -8,7 +8,7 @@ use remu_types::{DifftestMismatchItem, TraceKind, TracerDyn};
 
 use crate::SimulatorOption;
 use crate::error::SimulatorInnerError;
-use crate::policy::SimulatorPolicy;
+use crate::SimulatorPolicy;
 use crate::stat::{StatContext, StatEntry};
 
 pub trait SimulatorCore<P: StatePolicy> {

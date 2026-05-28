@@ -19,6 +19,7 @@ Every crate MUST declare its modules exclusively through `remu_macro` macros. **
 |---|---|---|---|
 | `src/X.rs` (same-dir file) | `remu_macro::mod_flat!(X);` | `mod X; pub use X::*;` | Single or multiple `.rs` files directly in `src/` |
 | `src/X/mod.rs` (sub-dir) | `remu_macro::mod_pub!(X);` | `pub mod X;` | Module is a directory with its own nested structure |
+| `src/X.rs` (file, but needs path access) | `remu_macro::mod_pub_flat!(X);` | `pub mod X; pub use X::*;` | Single file that must be both publicly accessible by path AND flattened (e.g., `prelude.rs`) |
 
 ```rust
 // ✅ CORRECT — same-directory files use mod_flat!
@@ -58,6 +59,30 @@ pub use isa_dispatch::RemuIsaKind;
 **`prelude` module convention**: Crates that act as facades (re-exporting symbols from dependencies) define `src/prelude/mod.rs` and declare it with `mod_pub!(prelude)`. These crates SHOULD include `pub use crate::prelude::*;` in their `lib.rs` to flatten the re-exports. Leaf crates (whose prelude contains only their own symbols) MUST NOT include this line — their symbols are already re-exported by `mod_flat!`.
 
 **Exception — `remu_macro` bootstrap**: `remu_macro/src/lib.rs` uses bare `mod module; mod pattern;` because `mod_flat!` / `mod_pub!` are defined *inside* those modules. This is the **only** crate allowed to use bare `mod`, and the reason must be documented with a comment.
+
+### Data-Flow File Conventions (SHOULD follow)
+
+When a crate needs to define its own runtime initialization, compile-time generics, or operation commands, group them in a `src/flow/` subdirectory:
+
+```
+src/flow/
+  mod.rs         → remu_macro::mod_flat!(command, option, generic);
+  command.rs     → Runtime operation commands
+  option.rs      → Runtime initialization config
+  generic.rs     → Compile-time generic type configuration
+```
+
+The parent `lib.rs` declares the flow module with `mod_pub_flat!` so all flow items (StatePolicy, StateCmd, StateOption) are both path-accessible via `remu_state::flow::*` and flat at the crate root:
+
+```rust
+remu_macro::mod_pub_flat!(flow);
+```
+
+Rules:
+- Create only the files needed. A crate with no generics skips `generic.rs`; a crate with no commands skips `command.rs`.
+- The pattern recurses downward: `remu_state/src/flow/`, `remu_state/src/bus/flow/`, `remu_state/src/reg/flow/`.
+- `mod_flat!` inside `flow/mod.rs` makes the individual modules private; `pub use crate::flow::*;` in the parent re-exports all their public items at the parent level.
+- This replaces the old `policy.rs` naming. If you see `policy.rs`, rename to `generic.rs` and move into `flow/`.
 
 ## Build, Test, and Development Commands
 Use `just` recipes for day-to-day work:

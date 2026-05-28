@@ -8,6 +8,16 @@ macro_rules! mod_pub {
 }
 
 #[macro_export]
+macro_rules! mod_pub_flat {
+    [ $( $name:ident $(,)? )+ ] => {
+        $(
+            pub mod $name;
+            pub use $name::*;
+        )+
+    };
+}
+
+#[macro_export]
 macro_rules! mod_flat {
     [ $( $name:ident $(,)? )+ ] => {
         $(

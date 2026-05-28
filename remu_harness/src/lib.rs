@@ -1,6 +1,6 @@
-remu_macro::mod_flat!(error, func, option, policy, run_state, isa_dispatch);
-remu_macro::mod_pub!(prelude);
-pub use crate::prelude::*;
+remu_macro::mod_pub_flat!(prelude);
+remu_macro::mod_pub_flat!(flow);
+remu_macro::mod_flat!(error, func, run_state, isa_dispatch);
 
 use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, Ordering};

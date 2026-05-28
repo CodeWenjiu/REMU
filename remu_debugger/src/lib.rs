@@ -2,9 +2,9 @@ use std::sync::Arc;
 
 use clap::Parser;
 
-remu_macro::mod_flat!(command, option, policy, error, compound_command);
-remu_macro::mod_pub!(prelude);
-pub use crate::prelude::*;
+remu_macro::mod_pub_flat!(prelude);
+remu_macro::mod_pub_flat!(flow);
+remu_macro::mod_flat!(error, compound_command);
 
 use remu_harness::Harness;
 
