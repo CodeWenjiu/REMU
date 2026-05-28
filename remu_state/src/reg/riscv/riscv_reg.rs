@@ -2,9 +2,8 @@ use remu_isa::isa::extension_v::VExtensionConfig;
 use remu_isa::isa::reg::{Csr as CsrKind, Gpr, VrState as VrStateTrait};
 use remu_isa::isa::{RvIsa, reg::RegAccess};
 
-use crate::reg::{CsrRegCmd, FprRegCmd, GprRegCmd, PcRegCmd, RegCmd, RegOption, VrRegCmd};
-
 use super::Csr;
+use crate::reg::{CsrRegCmd, FprRegCmd, GprRegCmd, PcRegCmd, RegCmd, RegOption, VrRegCmd};
 
 pub struct RiscvReg<I: RvIsa> {
     pub pc: I::PcState,

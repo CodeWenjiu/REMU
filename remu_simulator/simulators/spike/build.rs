@@ -7,10 +7,10 @@ const SPIKE_LIBS: &[&str] = &["fesvr", "fdt", "softfloat", "disasm", "riscv"];
 fn main() {
     let profile = env::var("PROFILE").unwrap_or_else(|_| "debug".to_string());
     // Debug: use -O1 for wrapper so glibc _FORTIFY_SOURCE does not warn (it requires -O).
-    // -O1 compiles quickly; spike libs stay -O0 -g for fastest rebuild.
+    // -fPIC needed for shared library. -O1 on wrapper for fast compilation.
     let (spike_cflags, spike_cxxflags, wrapper_opt) = match profile.as_str() {
-        "release" => ("-O3", "-O3", "3"),
-        _ => ("-O0 -g", "-O0 -g", "1"),
+        "release" => ("-O3 -fPIC", "-O3 -fPIC", "3"),
+        _ => ("-O0 -g -fPIC", "-O0 -g -fPIC", "1"),
     };
 
     let manifest_dir = PathBuf::from(env::var("CARGO_MANIFEST_DIR").unwrap());
@@ -80,23 +80,49 @@ fn main() {
         return;
     }
 
-    for lib in SPIKE_LIBS {
-        let lib_path = build_dir.join(format!("lib{lib}.a"));
-        if !lib_path.exists() {
-            eprintln!(
-                "cargo:warning=expected lib{lib}.a not found at {}",
-                lib_path.display()
-            );
-            return;
+    // Verify static libs were built, then try to pack into a shared library.
+    // If g++ -shared fails (e.g. outside nix shell), fall back to static linking —
+    // cargo check still works, and cargo build inside nix will produce the .so.
+    let so_path = build_dir.join("libspike.so");
+    let use_shared = {
+        for lib in SPIKE_LIBS {
+            let lib_path = build_dir.join(format!("lib{lib}.a"));
+            if !lib_path.exists() {
+                println!(
+                    "cargo:warning=expected lib{lib}.a not found at {}",
+                    lib_path.display()
+                );
+                return;
+            }
         }
-    }
+        let mut cmd = Command::new("g++");
+        cmd.arg("-shared").arg("-fPIC").arg("-o").arg(&so_path);
+        cmd.arg("-Wl,--whole-archive");
+        for lib in SPIKE_LIBS {
+            cmd.arg(build_dir.join(format!("lib{lib}.a")));
+        }
+        cmd.arg("-Wl,--no-whole-archive");
+        cmd.arg("-lz");
+        match cmd.status() {
+            Ok(s) if s.success() => true,
+            Ok(_) | Err(_) => {
+                println!("cargo:warning=libspike.so not created, falling back to static linking");
+                false
+            }
+        }
+    };
 
     // Compile wrapper.cc (needs spike headers and config.h)
     compile_wrapper(&manifest_dir, &spike_src, &build_dir, wrapper_opt);
 
     println!("cargo:rustc-link-search=native={}", build_dir.display());
-    for lib in SPIKE_LIBS {
-        println!("cargo:rustc-link-lib=static={lib}");
+    if use_shared {
+        println!("cargo:rustc-link-lib=dylib=spike");
+        println!("cargo:rustc-link-arg=-Wl,-rpath,{}", build_dir.display());
+    } else {
+        for lib in SPIKE_LIBS {
+            println!("cargo:rustc-link-lib=static={lib}");
+        }
     }
     println!("cargo:rustc-link-lib=dylib=pthread");
     println!("cargo:rustc-link-lib=dylib=dl");

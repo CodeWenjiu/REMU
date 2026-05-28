@@ -8,10 +8,7 @@ use std::fs::{self, File};
 use std::io::Write;
 use std::path::{Path, PathBuf};
 
-use eframe::egui::{
-    self, Color32, Pos2, Rect, Sense, Stroke, StrokeKind, vec2,
-    PointerButton,
-};
+use eframe::egui::{self, Color32, PointerButton, Pos2, Rect, Sense, Stroke, StrokeKind, vec2};
 
 const GRID: usize = 28;
 const BIN_LEN: usize = 8 + 1 + GRID * GRID; // 793
@@ -56,7 +53,12 @@ fn next_save_index(dir: &Path) -> u32 {
     max_ix.map_or(0, |m| m.saturating_add(1))
 }
 
-fn write_txt(path: &Path, image_index: u32, label: u8, pixels: &[u8; GRID * GRID]) -> std::io::Result<()> {
+fn write_txt(
+    path: &Path,
+    image_index: u32,
+    label: u8,
+    pixels: &[u8; GRID * GRID],
+) -> std::io::Result<()> {
     let mut f = File::create(path)?;
     writeln!(f, "Image Index: {}", image_index)?;
     writeln!(f, "True Label: {}", label)?;
@@ -81,13 +83,7 @@ fn write_bin(path: &Path, label: u8, pixels: &[u8; GRID * GRID]) -> std::io::Res
     fs::write(path, &buf)
 }
 
-fn paint_stamp(
-    pixels: &mut [u8; GRID * GRID],
-    cx: i32,
-    cy: i32,
-    radius: i32,
-    ink: bool,
-) {
+fn paint_stamp(pixels: &mut [u8; GRID * GRID], cx: i32, cy: i32, radius: i32, ink: bool) {
     for dy in -radius..=radius {
         for dx in -radius..=radius {
             if dx * dx + dy * dy > radius * radius {
@@ -147,7 +143,11 @@ impl eframe::App for MnistDrawApp {
         egui::TopBottomPanel::top("toolbar").show(ctx, |ui| {
             ui.horizontal(|ui| {
                 ui.label("Label (0-9):");
-                ui.add(egui::DragValue::new(&mut self.label).range(0..=9).speed(0.2));
+                ui.add(
+                    egui::DragValue::new(&mut self.label)
+                        .range(0..=9)
+                        .speed(0.2),
+                );
                 ui.separator();
                 ui.label("Brush radius:");
                 ui.add(egui::Slider::new(&mut self.brush_radius, 0..=3));
@@ -183,7 +183,7 @@ impl eframe::App for MnistDrawApp {
                     painter.rect_filled(cell, 0.0, Color32::from_gray(v));
                 }
             }
-            painter.rect_stroke(rect, 0.0, Stroke::new(1.0, Color32::GRAY), StrokeKind::Inside);
+            painter.rect_stroke(rect, 0.0, Stroke::new(1.0_f32, Color32::GRAY), StrokeKind::Inside);
 
             if let Some(pos) = response.interact_pointer_pos() {
                 let primary = ctx.input(|i| i.pointer.button_down(PointerButton::Primary));

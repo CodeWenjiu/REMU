@@ -88,6 +88,9 @@ Do not add verbose comments on business logic. Comments are only warranted on co
 The CLI defines a concrete `Tracer` trait implementation (the "frontend" — how data is displayed). The simulator and harness layers only see a `TracerDyn` ( `Rc<RefCell<dyn Tracer>>` ) and call it when they have information to output. The frontend decides display format; the backend decides what and when to emit.
 
 ## Build, Test, and Development Commands
+
+**All commands MUST run inside the Nix dev shell** (`nix develop` or via `direnv allow`). The flake provides required toolchains (Rust nightly, mold, verilator, clang, cmake, etc.) and library paths (zlib, openssl) that the linker needs. Never run `cargo` directly outside the shell.
+
 Use `just` recipes for day-to-day work:
 
 - `just build`: build `remu_cli` in debug mode.
