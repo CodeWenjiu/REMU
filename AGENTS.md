@@ -5,7 +5,8 @@ This repository is a Rust workspace (Edition 2024, nightly toolchain) centered o
 
 - `remu_cli`, `remu_debugger`: interactive CLI and command handling.
 - `remu_simulator`: simulator abstraction and backends (`simulators/remu`, `simulators/spike`, `simulators/nzea`).
-- `remu_state`, `remu_types`, `remu_fmt`, `remu_macro`, `remu_logger`: shared state, ISA/types, formatting/parsing, macros, logging.
+- `remu_isa`: ISA type definitions (RvIsa trait, register types, Xlen, extension configs).
+- `remu_state`, `remu_types`, `remu_fmt`, `remu_macro`, `remu_logger`: shared state, utility types, formatting/parsing, macros, logging.
 - `remu_hal`, `remu_hal/xtask`: embedded HAL + task helpers used by app build/run flows.
 - `remu_app/*`: sample apps (`hello_world`, `mnist`, `collection`).
 
@@ -23,30 +24,19 @@ Every crate MUST declare its modules exclusively through `remu_macro` macros. **
 
 ```rust
 // ✅ CORRECT — same-directory files use mod_flat!
-remu_macro::mod_flat!(error, func, option, policy, run_state);
+remu_macro::mod_flat!(error, func, option, generic, run_state);
 
 // ✅ CORRECT — sub-directories use mod_pub!
 remu_macro::mod_pub!(reg, bus);
 
-// ❌ WRONG — manual mod for same-directory files
-mod addresses;
-mod print;
-
-// ❌ WRONG — manual mod with separate pub use (just use mod_flat!)
-mod ffi;
-pub use ffi::*;
-
-// ❌ WRONG — mod_pub! for same-directory files (should be mod_flat!)
-remu_macro::mod_pub!(cli, paths, target);
-
-// ❌ WRONG — bare pub mod for a file (should be mod_flat!)
-pub mod isa_dispatch;
-pub use isa_dispatch::RemuIsaKind;
+// ❌ WRONG — manual mod, mod_pub! for flat files, bare pub mod all violate the rules above
 ```
 
 **Rationale**: `mod_flat!` communicates "this file's public API is part of the crate's flat namespace"; `mod_pub!` communicates "this is a sub-module with its own hierarchy". When every crate follows this convention, readers instantly know where to find code without guessing whether a module was manually wired or macro-generated.
 
-**Single-call-per-type rule**: Each macro (`mod_flat!` or `mod_pub!`) MUST appear at most once per file. Merge all same-directory files into one `mod_flat!` call, and all sub-directory modules into one `mod_pub!` call. Different macro types may coexist (e.g., one `mod_flat!` + one `mod_pub!` is fine).
+> See `.agents/skills/module-setup/` for step-by-step workflows and common mistakes.
+
+**Single-call-per-type rule**: Each macro (`mod_flat!`, `mod_pub!`, or `mod_pub_flat!`) MUST appear at most once per file. Merge all same-directory files into one `mod_flat!` call, and all sub-directory modules into one `mod_pub!` call. Different macro types may coexist (e.g., one `mod_flat!` + one `mod_pub_flat!` is fine).
 
 **Inline modules are exempt**: `mod func3 { ... }`, `mod tests { ... }`, and similar inline module blocks that do NOT reference external files are not subject to these rules — only file-based module declarations are.
 
@@ -56,7 +46,7 @@ pub use isa_dispatch::RemuIsaKind;
 
 **`#[macro_export]` macro rules**: A macro annotated with `#[macro_export]` MUST be defined and consumed in the same Rust source file. Never `use` a `#[macro_export]` macro across modules within the same crate — this triggers Rust future-compatibility errors and defeats the purpose of the module convention. External crates import normally via `use crate_name::macro_name;`.
 
-**`prelude` module convention**: Crates that act as facades (re-exporting symbols from dependencies) define `src/prelude/mod.rs` and declare it with `mod_pub!(prelude)`. These crates SHOULD include `pub use crate::prelude::*;` in their `lib.rs` to flatten the re-exports. Leaf crates (whose prelude contains only their own symbols) MUST NOT include this line — their symbols are already re-exported by `mod_flat!`.
+**`prelude` module convention**: Crates define `src/prelude.rs` and declare it with `remu_macro::mod_pub_flat!(prelude);`. This makes prelude both path-accessible (`remu_xxx::prelude::*`) and flattened at the crate root. No separate `pub use crate::prelude::*;` line is needed.
 
 **Exception — `remu_macro` bootstrap**: `remu_macro/src/lib.rs` uses bare `mod module; mod pattern;` because `mod_flat!` / `mod_pub!` are defined *inside* those modules. This is the **only** crate allowed to use bare `mod`, and the reason must be documented with a comment.
 
@@ -72,17 +62,30 @@ src/flow/
   generic.rs     → Compile-time generic type configuration
 ```
 
-The parent `lib.rs` declares the flow module with `mod_pub_flat!` so all flow items (StatePolicy, StateCmd, StateOption) are both path-accessible via `remu_state::flow::*` and flat at the crate root:
-
-```rust
-remu_macro::mod_pub_flat!(flow);
-```
+The parent `lib.rs` declares it with `remu_macro::mod_pub_flat!(flow);` so items are both path-accessible and flat.
 
 Rules:
-- Create only the files needed. A crate with no generics skips `generic.rs`; a crate with no commands skips `command.rs`.
-- The pattern recurses downward: `remu_state/src/flow/`, `remu_state/src/bus/flow/`, `remu_state/src/reg/flow/`.
-- `mod_flat!` inside `flow/mod.rs` makes the individual modules private; `pub use crate::flow::*;` in the parent re-exports all their public items at the parent level.
-- This replaces the old `policy.rs` naming. If you see `policy.rs`, rename to `generic.rs` and move into `flow/`.
+- Create only the files needed. Skip `generic.rs` or `command.rs` if not applicable.
+- The pattern recurses downward: `src/flow/`, `src/bus/flow/`, `src/reg/flow/`.
+- `generic.rs` replaces the old `policy.rs` naming.
+
+> See `.agents/skills/flow-files/` for templates and detailed conventions.
+
+## Design Decisions & Patterns (SHOULD understand)
+
+This section records smaller architectural choices that guide day-to-day implementation. Unlike the Module Declaration Constitution, these are not enforced by macros — they are conventions to follow when writing new code.
+
+### Comment philosophy
+
+Do not add verbose comments on business logic. Comments are only warranted on complex generics or `unsafe` blocks (with `// Safety:` justification).
+
+### Performance-first architecture
+
+`State` lives under `Simulator`, not `Debugger`. The performance bottleneck is instruction execution, so State must be owned by the simulator to enable unchecked memory access, aggressive inlining, and zero-cost generics on the hot path.
+
+### Tracer frontend/backend decoupling
+
+The CLI defines a concrete `Tracer` trait implementation (the "frontend" — how data is displayed). The simulator and harness layers only see a `TracerDyn` ( `Rc<RefCell<dyn Tracer>>` ) and call it when they have information to output. The frontend decides display format; the backend decides what and when to emit.
 
 ## Build, Test, and Development Commands
 Use `just` recipes for day-to-day work:
