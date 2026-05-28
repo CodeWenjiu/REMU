@@ -3,11 +3,12 @@ use std::sync::Arc;
 use clap::Parser;
 
 remu_macro::mod_flat!(command, option, policy, error, compound_command);
-pub use command::get_command_graph;
-pub use compound_command::{CommandExpr, Op, ParseError};
+pub mod prelude;
+pub use crate::prelude::*;
+
 use remu_harness::Harness;
-pub use remu_harness::{ExitCode, RunOutcome};
-use remu_types::TracerDyn;
+
+// TracerDyn is available from pub use crate::prelude::*;
 
 pub struct Debugger<D, R>
 where

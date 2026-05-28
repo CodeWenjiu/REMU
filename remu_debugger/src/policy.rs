@@ -1,6 +1,6 @@
 use std::sync::Arc;
 
-pub use remu_harness::{HarnessPolicy, SimulatorDut, SimulatorRef};
+use remu_harness::{SimulatorDut, SimulatorRef};
 
 pub trait DebuggerRunner {
     fn run<D, R>(

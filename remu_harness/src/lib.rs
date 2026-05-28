@@ -1,44 +1,7 @@
 remu_macro::mod_flat!(error, func, option, policy, run_state, isa_dispatch);
+pub mod prelude;
+pub use crate::prelude::*;
 
-pub use error::HarnessError;
-pub use option::HarnessOption;
-pub use policy::HarnessPolicy;
-pub use run_state::RunState;
-
-pub use remu_simulator::{
-    DifftestMismatchList, FuncCmd, SimulatorCore, SimulatorDut, SimulatorError,
-    SimulatorInnerError, SimulatorPolicy, SimulatorPolicyOf, SimulatorRef, StatCmd, StatContext,
-    StatEntry, TraceCmd,
-};
-pub use remu_simulator_nzea::SimulatorNzea;
-pub use remu_simulator_remu::SimulatorRemu;
-pub use remu_simulator_spike::SimulatorSpike;
-pub use remu_state::StateCmd;
-pub use remu_state::bus::ObserverEvent;
-pub use remu_types::ExitCode;
-use remu_types::{AllUsize, DifftestMismatchItem, RegGroup, TraceKind};
-
-/// Outcome of a run (e.g. run_steps). Propagated to debugger and CLI.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum RunOutcome {
-    /// Run stopped without program exit (limit reached or already idle).
-    Done,
-    /// Program requested exit (e.g. ecall).
-    ProgramExit(ExitCode),
-}
-
-impl RunOutcome {
-    /// Prefer ProgramExit over Done when merging outcomes from multiple commands.
-    #[inline(always)]
-    pub fn or_else(self, other: RunOutcome) -> RunOutcome {
-        match self {
-            RunOutcome::ProgramExit(_) => self,
-            RunOutcome::Done => other,
-        }
-    }
-}
-
-use remu_types::TracerDyn;
 use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, Ordering};
 

@@ -6,6 +6,8 @@ use crate::{bus::Bus, reg::riscv::RiscvReg};
 
 remu_macro::mod_pub!(reg, bus);
 remu_macro::mod_flat!(option, policy, command, error);
+pub mod prelude;
+pub use crate::prelude::*;
 
 pub struct State<P: StatePolicy> {
     pub bus: Bus<P::ISA, P::Observer>,
