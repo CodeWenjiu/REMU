@@ -10,7 +10,7 @@ use remu_types::{ExitCode, TraceFlags, TraceKind, TracerDyn};
 
 use remu_simulator::{
     SimulatorCore, SimulatorDut, SimulatorInnerError, SimulatorOption, SimulatorPolicy,
-    SimulatorPolicyOf, StatContext, StatEntry, from_state_error,
+    StatContext, StatEntry, from_state_error,
 };
 
 use remu_state::bus::ObserverEvent;
@@ -49,14 +49,6 @@ where
     pending_exit_code: Option<ExitCode>,
     /// Total clock cycles executed (each cycle() = one clock).
     cycle_count: u64,
-}
-
-impl<P, const IS_DUT: bool> SimulatorPolicyOf for SimulatorNzea<P, IS_DUT>
-where
-    P: SimulatorPolicy,
-    P::ISA: NzeaIsa,
-{
-    type Policy = P;
 }
 
 impl<P, const IS_DUT: bool> SimulatorCore<P> for SimulatorNzea<P, IS_DUT>
@@ -317,6 +309,8 @@ where
     P: SimulatorPolicy + 'static,
     P::ISA: NzeaIsa,
 {
+    type Policy = P;
+
     fn set_breakpoint(&mut self, addr: u32) -> Result<(), SimulatorInnerError> {
         if addr % 4 != 0 {
             return Err(SimulatorInnerError::BreakpointError(

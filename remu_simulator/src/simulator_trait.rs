@@ -1,15 +1,15 @@
-use std::sync::atomic::AtomicBool;
 use std::sync::Arc;
+use std::sync::atomic::AtomicBool;
 
 use remu_state::bus::ObserverEvent;
 use remu_state::reg::riscv::RiscvReg;
 use remu_state::{State, StateCmd, StatePolicy};
 use remu_types::{DifftestMismatchItem, TraceKind, TracerDyn};
 
-use crate::stat::{StatContext, StatEntry};
 use crate::SimulatorOption;
 use crate::error::SimulatorInnerError;
 use crate::policy::SimulatorPolicy;
+use crate::stat::{StatContext, StatEntry};
 
 pub trait SimulatorCore<P: StatePolicy> {
     fn new(opt: SimulatorOption, tracer: TracerDyn, interrupt: Arc<AtomicBool>) -> Self;
@@ -72,7 +72,8 @@ pub trait SimulatorCore<P: StatePolicy> {
     }
 }
 
-pub trait SimulatorDut: crate::policy::SimulatorPolicyOf + SimulatorCore<Self::Policy> {
+pub trait SimulatorDut: SimulatorCore<<Self as SimulatorDut>::Policy> {
+    type Policy: SimulatorPolicy;
     #[inline(always)]
     fn set_breakpoint(&mut self, addr: u32) -> Result<(), SimulatorInnerError> {
         let _ = addr;

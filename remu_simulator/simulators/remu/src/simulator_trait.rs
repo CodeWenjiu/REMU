@@ -5,8 +5,8 @@ use remu_state::{State, StateCmd, StateError};
 use remu_types::{DifftestMismatchItem, RegGroup, TracerDyn};
 
 use remu_simulator::{
-    from_state_error, SimulatorCore, SimulatorDut, SimulatorInnerError, SimulatorOption,
-    SimulatorPolicy, SimulatorPolicyOf, SimulatorRef,
+    SimulatorCore, SimulatorDut, SimulatorInnerError, SimulatorOption, SimulatorPolicy,
+    SimulatorRef, from_state_error,
 };
 
 use crate::icache::Icache;
@@ -50,10 +50,6 @@ pub struct SimulatorRemu<P: SimulatorPolicy, const IS_DUT: bool> {
     breakpoint_state: BreakpointState,
 }
 
-impl<P: SimulatorPolicy, const IS_DUT: bool> SimulatorPolicyOf for SimulatorRemu<P, IS_DUT> {
-    type Policy = P;
-}
-
 impl<P: SimulatorPolicy, const IS_DUT: bool> ExecuteContext<P> for SimulatorRemu<P, IS_DUT> {
     fn state_mut(&mut self) -> &mut State<P> {
         SimulatorCore::state_mut(self)
@@ -92,7 +88,11 @@ impl<P: SimulatorPolicy, const IS_DUT: bool> SimulatorRemu<P, IS_DUT> {
 }
 
 impl<P: SimulatorPolicy, const IS_DUT: bool> SimulatorCore<P> for SimulatorRemu<P, IS_DUT> {
-    fn new(opt: SimulatorOption, tracer: TracerDyn, _interrupt: std::sync::Arc<std::sync::atomic::AtomicBool>) -> Self {
+    fn new(
+        opt: SimulatorOption,
+        tracer: TracerDyn,
+        _interrupt: std::sync::Arc<std::sync::atomic::AtomicBool>,
+    ) -> Self {
         Self {
             state: State::new(opt.state.clone(), tracer.clone(), IS_DUT),
             tracer,
@@ -127,8 +127,7 @@ impl<P: SimulatorPolicy, const IS_DUT: bool> SimulatorCore<P> for SimulatorRemu<
                 let inst = if let Some(&orig) = self.breakpoints.get(&pc) {
                     orig
                 } else {
-                    self
-                        .state
+                    self.state
                         .bus
                         .read_32(pc as usize)
                         .map_err(|e| from_state_error(StateError::from(e)))
@@ -231,7 +230,10 @@ impl<P: SimulatorPolicy, const IS_DUT: bool> SimulatorCore<P> for SimulatorRemu<
             return None;
         }
         let mut buf = vec![0u8; dut_data.len()];
-        SimulatorCore::state_mut(self).bus.read_bytes(addr, &mut buf).ok()?;
+        SimulatorCore::state_mut(self)
+            .bus
+            .read_bytes(addr, &mut buf)
+            .ok()?;
         if buf == dut_data {
             None
         } else {
@@ -241,6 +243,8 @@ impl<P: SimulatorPolicy, const IS_DUT: bool> SimulatorCore<P> for SimulatorRemu<
 }
 
 impl<P: SimulatorPolicy> SimulatorDut for SimulatorRemu<P, true> {
+    type Policy = P;
+
     fn set_breakpoint(&mut self, addr: u32) -> Result<(), SimulatorInnerError> {
         if addr % 4 != 0 {
             return Err(SimulatorInnerError::BreakpointError(

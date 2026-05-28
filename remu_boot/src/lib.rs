@@ -3,61 +3,57 @@
 //! ISA classification uses [`IsaKind`](remu_types::isa::IsaKind): [`RemuIsaKind`](remu_harness::RemuIsaKind)
 //! and [`NzeaIsaKind`](remu_simulator_nzea::NzeaIsaKind). This crate only dispatches on [`Platform`].
 
+mod config;
+
 use std::sync::Arc;
 
 use remu_debugger::{DebuggerOption, DebuggerRunner};
-use remu_harness::{RemuIsaKind, SimulatorNzea, SimulatorRemu};
-use remu_simulator_nzea::{NzeaIsa, NzeaIsaKind};
-use remu_state::{StateFastProfile, StateMmioProfile};
+use remu_harness::RemuIsaKind;
+use remu_simulator_nzea::NzeaIsaKind;
 use remu_types::{
     DifftestRef, Platform,
     isa::{
-        IsaKind, RvIsa,
+        IsaKind,
         extension_enum::{
             RV32I, RV32I_wjCus0, RV32I_zve32x_zvl128b, RV32IM, RV32IM_wjCus0, RV32IM_zve32x_zvl128b,
         },
     },
 };
 
-fn boot_with_isa_remu<ISA, Run>(
-    option: DebuggerOption,
-    runner: Run,
-    interrupt: Arc<std::sync::atomic::AtomicBool>,
-) where
-    ISA: RvIsa,
-    Run: DebuggerRunner,
-{
-    match option.difftest {
-        None => runner.run::<SimulatorRemu<StateFastProfile<ISA>, true>, ()>(option, Arc::clone(&interrupt)),
-        Some(DifftestRef::Remu) => runner.run::<SimulatorRemu<StateMmioProfile<ISA>, true>, SimulatorRemu<StateMmioProfile<ISA>, false>>(
-            option,
-            Arc::clone(&interrupt),
-        ),
-        Some(DifftestRef::Spike) => runner.run::<
-            SimulatorRemu<StateMmioProfile<ISA>, true>,
-            remu_harness::SimulatorSpike<StateMmioProfile<ISA>>,
-        >(option, interrupt),
-    }
+use crate::config::{NzeaFast, NzeaMmioRemu, RemuFast, RemuMmioRemu, RemuMmioSpike};
+
+macro_rules! with_config {
+    ($runner:expr, $opt:expr, $irq:expr, $Config:ty $(,)?) => {
+        $runner.run_with_config::<$Config>($opt, $irq)
+    };
 }
 
-fn boot_with_isa_nzea<ISA, Run>(
-    option: DebuggerOption,
-    runner: Run,
-    interrupt: Arc<std::sync::atomic::AtomicBool>,
-) where
-    ISA: RvIsa + NzeaIsa,
-    Run: DebuggerRunner,
-{
-    match option.difftest {
-        None => runner.run::<SimulatorNzea<StateFastProfile<ISA>, true>, ()>(option, interrupt),
-        Some(DifftestRef::Remu) => runner.run::<
-            SimulatorNzea<StateMmioProfile<ISA>, true>,
-            SimulatorRemu<StateMmioProfile<ISA>, false>,
-        >(option, interrupt),
-        Some(DifftestRef::Spike) => {
-            panic!("nzea + difftest spike not supported yet")
+macro_rules! dispatch_remu {
+    ($kind:expr, $Config:ident, $runner:expr, $opt:expr, $irq:expr) => {
+        match $kind {
+            RemuIsaKind::Rv32I => with_config!($runner, $opt, $irq, $Config<RV32I>),
+            RemuIsaKind::Rv32Im => with_config!($runner, $opt, $irq, $Config<RV32IM>),
+            RemuIsaKind::Rv32IWjCus0 => with_config!($runner, $opt, $irq, $Config<RV32I_wjCus0>),
+            RemuIsaKind::Rv32ImWjCus0 => with_config!($runner, $opt, $irq, $Config<RV32IM_wjCus0>),
+            RemuIsaKind::Rv32IZve32xZvl128b => {
+                with_config!($runner, $opt, $irq, $Config<RV32I_zve32x_zvl128b>)
+            }
+            RemuIsaKind::Rv32ImZve32xZvl128b => {
+                with_config!($runner, $opt, $irq, $Config<RV32IM_zve32x_zvl128b>)
+            }
         }
-    }
+    };
+}
+
+macro_rules! dispatch_nzea {
+    ($kind:expr, $Config:ident, $runner:expr, $opt:expr, $irq:expr) => {
+        match $kind {
+            NzeaIsaKind::Rv32I => with_config!($runner, $opt, $irq, $Config<RV32I>),
+            NzeaIsaKind::Rv32Im => with_config!($runner, $opt, $irq, $Config<RV32IM>),
+            NzeaIsaKind::Rv32IWjCus0 => with_config!($runner, $opt, $irq, $Config<RV32I_wjCus0>),
+            NzeaIsaKind::Rv32ImWjCus0 => with_config!($runner, $opt, $irq, $Config<RV32IM_wjCus0>),
+        }
+    };
 }
 
 pub fn boot<R: DebuggerRunner>(
@@ -68,31 +64,23 @@ pub fn boot<R: DebuggerRunner>(
     let platform = option.platform;
 
     if platform == Platform::Nzea {
-        match NzeaIsaKind::from_isa_spec_or_panic(&option.isa) {
-            NzeaIsaKind::Rv32I => boot_with_isa_nzea::<RV32I, R>(option, runner, interrupt),
-            NzeaIsaKind::Rv32Im => boot_with_isa_nzea::<RV32IM, R>(option, runner, interrupt),
-            NzeaIsaKind::Rv32IWjCus0 => {
-                boot_with_isa_nzea::<RV32I_wjCus0, R>(option, runner, interrupt)
+        let kind = NzeaIsaKind::from_isa_spec_or_panic(&option.isa);
+        match option.difftest {
+            None => dispatch_nzea!(kind, NzeaFast, runner, option, interrupt),
+            Some(DifftestRef::Remu) => {
+                dispatch_nzea!(kind, NzeaMmioRemu, runner, option, interrupt)
             }
-            NzeaIsaKind::Rv32ImWjCus0 => {
-                boot_with_isa_nzea::<RV32IM_wjCus0, R>(option, runner, interrupt)
-            }
+            Some(DifftestRef::Spike) => panic!("nzea + difftest spike not supported yet"),
         }
     } else {
-        match RemuIsaKind::from_isa_spec_or_panic(&option.isa) {
-            RemuIsaKind::Rv32I => boot_with_isa_remu::<RV32I, R>(option, runner, interrupt),
-            RemuIsaKind::Rv32Im => boot_with_isa_remu::<RV32IM, R>(option, runner, interrupt),
-            RemuIsaKind::Rv32IWjCus0 => {
-                boot_with_isa_remu::<RV32I_wjCus0, R>(option, runner, interrupt)
+        let kind = RemuIsaKind::from_isa_spec_or_panic(&option.isa);
+        match option.difftest {
+            None => dispatch_remu!(kind, RemuFast, runner, option, interrupt),
+            Some(DifftestRef::Remu) => {
+                dispatch_remu!(kind, RemuMmioRemu, runner, option, interrupt)
             }
-            RemuIsaKind::Rv32ImWjCus0 => {
-                boot_with_isa_remu::<RV32IM_wjCus0, R>(option, runner, interrupt)
-            }
-            RemuIsaKind::Rv32IZve32xZvl128b => {
-                boot_with_isa_remu::<RV32I_zve32x_zvl128b, R>(option, runner, interrupt)
-            }
-            RemuIsaKind::Rv32ImZve32xZvl128b => {
-                boot_with_isa_remu::<RV32IM_zve32x_zvl128b, R>(option, runner, interrupt)
+            Some(DifftestRef::Spike) => {
+                dispatch_remu!(kind, RemuMmioSpike, runner, option, interrupt)
             }
         }
     }

@@ -5,28 +5,22 @@ pub use crate::prelude::*;
 use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, Ordering};
 
-pub struct Harness<D, R> {
-    dut_model: D,
-    ref_model: R,
+pub struct Harness<C: PlatformConfig> {
+    dut_model: <C as PlatformConfig>::Dut,
+    ref_model: <C as PlatformConfig>::Ref,
     func: func::Func,
     interrupt: Arc<AtomicBool>,
     run_state: RunState,
-    /// Total instructions executed (incremented on each successful step_once).
     total_instructions: u64,
-    /// Tracer for output (breakpoint_print, stat_print); data flows to display layer.
     tracer: TracerDyn,
 }
 
-impl<D, R> Harness<D, R>
-where
-    D: SimulatorDut,
-    R: SimulatorRef<D::Policy>,
-{
+impl<C: PlatformConfig> Harness<C> {
     pub fn new(opt: HarnessOption, tracer: TracerDyn, interrupt: Arc<AtomicBool>) -> Self {
-        let mut dut_model = D::new(opt.sim.clone(), tracer.clone(), Arc::clone(&interrupt));
-        let mut ref_model = R::new(opt.sim, tracer.clone(), Arc::clone(&interrupt));
-        dut_model.init();
-        ref_model.init();
+        let mut dut_model = C::create_dut(&opt.sim, tracer.clone(), Arc::clone(&interrupt));
+        let mut ref_model = C::create_ref(&opt.sim, tracer.clone(), Arc::clone(&interrupt));
+        <C::Dut as remu_simulator::SimulatorCore<C::Policy>>::init(&mut dut_model);
+        <C::Ref as remu_simulator::SimulatorCore<C::Policy>>::init(&mut ref_model);
         Self {
             dut_model,
             ref_model,
@@ -48,7 +42,7 @@ where
         self.dut_model
             .step_once::<TRACE>()
             .map_err(SimulatorError::Dut)?;
-        if R::ENABLE {
+        if <C::Ref as SimulatorRef<C::Policy>>::ENABLE {
             let events = self.dut_model.take_observer_events();
             let mut need_sync = false;
             let mut mem_writes: Vec<(usize, Box<[u8]>)> = Vec::new();
@@ -110,8 +104,6 @@ where
             .map_err(HarnessError::from)
     }
 
-    /// Set a breakpoint at the given address on the DUT.
-    /// Fails if the address is not 4-byte aligned or not mapped to memory.
     #[inline(always)]
     pub fn set_breakpoint(&mut self, addr: u32) -> Result<(), HarnessError> {
         self.dut_model
@@ -120,8 +112,6 @@ where
             .map_err(HarnessError::from)
     }
 
-    /// Delete a breakpoint at the given address on the DUT.
-    /// Fails if the breakpoint does not exist.
     #[inline(always)]
     pub fn del_breakpoint(&mut self, addr: u32) -> Result<(), HarnessError> {
         self.dut_model
@@ -130,13 +120,11 @@ where
             .map_err(HarnessError::from)
     }
 
-    /// Print all breakpoints (via DUT tracer).
     #[inline(always)]
     pub fn print_breakpoints(&self) {
         self.dut_model.print_breakpoints();
     }
 
-    /// Collect all statistics (common + platform-specific, including derived).
     pub fn collect_stats(&self) -> Vec<StatEntry> {
         let mut entries = vec![StatEntry::InstCount(self.total_instructions)];
         let ctx = StatContext {
@@ -146,7 +134,6 @@ where
         entries
     }
 
-    /// Execute a stat command. Data is sent via tracer to the display layer.
     pub fn stat_exec(&mut self, subcmd: &StatCmd) {
         match subcmd {
             StatCmd::Print => {
@@ -160,11 +147,6 @@ where
         }
     }
 
-    /// Run steps in batch until limit reached, interrupt set, program exit, or error.
-    /// Uses the harness's `interrupt` and `run_state`; sets `run_state` to `Exit` on program exit.
-    /// Returns `Ok(RunOutcome::ProgramExit(code))` when program exited; `Ok(RunOutcome::Done)` when stopped without exit.
-    /// Returns `Err(HarnessError::Interrupted)` when `interrupt` was set.
-    /// Trace flags are read once and fixed for the whole run.
     pub fn run_steps(&mut self, max_steps: Option<usize>) -> Result<RunOutcome, HarnessError> {
         const BATCH: usize = 4096;
         if self.run_state == RunState::Exit {
@@ -176,7 +158,7 @@ where
             1 => self.run_steps_impl::<1>(max_steps, BATCH),
             2 => self.run_steps_impl::<2>(max_steps, BATCH),
             3 => self.run_steps_impl::<3>(max_steps, BATCH),
-            _ => self.run_steps_impl::<0>(max_steps, BATCH), // Fallback for unknown trace combo
+            _ => self.run_steps_impl::<0>(max_steps, BATCH),
         }
     }
 

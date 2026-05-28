@@ -5,6 +5,6 @@ pub use crate::error::{
 };
 pub use crate::func::{FuncCmd, TraceCmd};
 pub use crate::option::SimulatorOption;
-pub use crate::policy::{SimulatorPolicy, SimulatorPolicyOf};
+pub use crate::policy::SimulatorPolicy;
 pub use crate::simulator_trait::{SimulatorCore, SimulatorDut, SimulatorRef};
 pub use crate::stat::{StatCmd, StatContext, StatEntry};

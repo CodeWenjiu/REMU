@@ -12,8 +12,9 @@ use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, Ordering};
 
 use remu_boot::boot;
-use remu_debugger::{DebuggerError, DebuggerOption, DebuggerRunner, ExitCode, RunOutcome};
-use remu_simulator::{SimulatorDut, SimulatorRef};
+use remu_debugger::{
+    DebuggerError, DebuggerOption, DebuggerRunner, ExitCode, PlatformConfig, RunOutcome,
+};
 use remu_types::{Platform, TracerDyn};
 use std::error::Error;
 use std::{cell::RefCell, rc::Rc};
@@ -90,14 +91,14 @@ fn hello() {
 struct APPRunner;
 
 impl DebuggerRunner for APPRunner {
-    fn run<D, R>(self, option: DebuggerOption, interrupt: Arc<AtomicBool>)
-    where
-        D: SimulatorDut,
-        R: SimulatorRef<D::Policy>,
-    {
+    fn run_with_config<C: PlatformConfig>(
+        self,
+        option: DebuggerOption,
+        interrupt: Arc<AtomicBool>,
+    ) {
         let tracer: TracerDyn = Rc::new(RefCell::new(CLITracer::new(option.isa.clone())));
 
-        let mut debugger = remu_debugger::Debugger::<D, R>::new(option.clone(), tracer, interrupt);
+        let mut debugger = remu_debugger::Debugger::<C>::new(option.clone(), tracer, interrupt);
 
         if let Err(e) = debugger.run_startup(&option) {
             match e {
@@ -135,12 +136,10 @@ impl DebuggerRunner for APPRunner {
                     };
                     if !to_run.trim().is_empty() {
                         match debugger.execute_line(to_run) {
-                            Ok(RunOutcome::ProgramExit(exit_code)) => {
-                                match exit_code {
-                                    ExitCode::Good => println!("{}", "GOOD EXIT".green()),
-                                    ExitCode::Bad => println!("{}", "BAD EXIT".red()),
-                                }
-                            }
+                            Ok(RunOutcome::ProgramExit(exit_code)) => match exit_code {
+                                ExitCode::Good => println!("{}", "GOOD EXIT".green()),
+                                ExitCode::Bad => println!("{}", "BAD EXIT".red()),
+                            },
                             Ok(RunOutcome::Done) => {}
                             Err(e) => {
                                 if matches!(&e, DebuggerError::ExitRequested) {

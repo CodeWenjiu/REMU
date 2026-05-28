@@ -1,13 +1,11 @@
 use std::sync::Arc;
 
-use remu_harness::{SimulatorDut, SimulatorRef};
+use remu_harness::PlatformConfig;
 
 pub trait DebuggerRunner {
-    fn run<D, R>(
+    fn run_with_config<C: PlatformConfig>(
         self,
         option: crate::DebuggerOption,
         interrupt: Arc<std::sync::atomic::AtomicBool>,
-    ) where
-        D: SimulatorDut,
-        R: SimulatorRef<D::Policy>;
+    );
 }

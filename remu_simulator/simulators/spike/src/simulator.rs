@@ -5,23 +5,22 @@ use std::os::raw::c_uint;
 use remu_state::bus::{BusOption, MemoryEntry, try_load_elf_into_memory};
 use remu_state::reg::riscv::RiscvReg;
 use remu_state::{State, StateCmd};
+use remu_types::isa::RvIsa;
 use remu_types::isa::extension_v::VExtensionConfig;
 use remu_types::isa::reg::{Fpr, Gpr, RegAccess, VrState as VrStateTrait};
-use remu_types::isa::RvIsa;
 use remu_types::{AllUsize, DifftestMismatchItem, RegGroup, TracerDyn, Xlen};
 
 use remu_simulator::{
-    SimulatorCore, SimulatorInnerError, SimulatorOption, SimulatorPolicy, SimulatorPolicyOf,
-    SimulatorRef,
+    SimulatorCore, SimulatorInnerError, SimulatorOption, SimulatorPolicy, SimulatorRef,
 };
 
 use crate::ffi::{
-    spike_difftest_copy_mem, spike_difftest_fini, spike_difftest_get_csr, spike_difftest_get_fpr,
+    DifftestMemLayout, DifftestRegs, SpikeDifftestCtx, spike_difftest_copy_mem,
+    spike_difftest_fini, spike_difftest_get_csr, spike_difftest_get_fpr,
     spike_difftest_get_gpr_ptr, spike_difftest_get_pc_ptr, spike_difftest_get_vlenb,
     spike_difftest_get_vr_ptr, spike_difftest_init, spike_difftest_read_mem, spike_difftest_step,
-    spike_difftest_sync_regs_to_spike, spike_difftest_sync_vr_to_spike,
-    spike_difftest_write_mem, spike_difftest_write_vr_reg, DifftestMemLayout, DifftestRegs,
-    SpikeDifftestCtx,
+    spike_difftest_sync_regs_to_spike, spike_difftest_sync_vr_to_spike, spike_difftest_write_mem,
+    spike_difftest_write_vr_reg,
 };
 
 pub struct SimulatorSpike<P: SimulatorPolicy> {
@@ -31,12 +30,12 @@ pub struct SimulatorSpike<P: SimulatorPolicy> {
     _marker: PhantomData<P>,
 }
 
-impl<P: SimulatorPolicy> SimulatorPolicyOf for SimulatorSpike<P> {
-    type Policy = P;
-}
-
 impl<P: SimulatorPolicy> SimulatorCore<P> for SimulatorSpike<P> {
-    fn new(opt: SimulatorOption, tracer: TracerDyn, _interrupt: std::sync::Arc<std::sync::atomic::AtomicBool>) -> Self {
+    fn new(
+        opt: SimulatorOption,
+        tracer: TracerDyn,
+        _interrupt: std::sync::Arc<std::sync::atomic::AtomicBool>,
+    ) -> Self {
         let bus_option = opt.state.bus.clone();
 
         let mut memory: Vec<MemoryEntry> = bus_option
@@ -327,10 +326,7 @@ fn reg_to_difftest_regs<P: SimulatorPolicy>(reg: &RiscvReg<P::ISA>) -> DifftestR
     for i in 0..32 {
         gpr[i] = reg.gpr.raw_read(i);
     }
-    DifftestRegs {
-        pc: *reg.pc,
-        gpr,
-    }
+    DifftestRegs { pc: *reg.pc, gpr }
 }
 
 fn state_exec_reg(
@@ -374,7 +370,9 @@ fn state_exec_reg(
             }
             remu_state::reg::GprRegCmd::Print { range } => {
                 let regs_arr: [(Gpr, u32); 32] = core::array::from_fn(|i| {
-                    (Gpr::from_repr(i).expect("valid"), unsafe { *gpr_ptr.add(2 * i) })
+                    (Gpr::from_repr(i).expect("valid"), unsafe {
+                        *gpr_ptr.add(2 * i)
+                    })
                 });
                 tracer.borrow().reg_print(&regs_arr, range.clone());
             }
@@ -409,8 +407,9 @@ fn state_exec_reg(
             match subcmd {
                 VrRegCmd::Read { index } => {
                     if has_vr && (*index) < 32 {
-                        let slice =
-                            unsafe { std::slice::from_raw_parts(vr_ptr.add((*index) * vlenb), vlenb) };
+                        let slice = unsafe {
+                            std::slice::from_raw_parts(vr_ptr.add((*index) * vlenb), vlenb)
+                        };
                         tracer.borrow().reg_show_vr(*index, slice);
                     } else {
                         tracer.borrow().reg_show_vr(*index, &[]);
@@ -420,8 +419,9 @@ fn state_exec_reg(
                     if has_vr {
                         let regs: Vec<(usize, Vec<u8>)> = (range.start..range.end)
                             .map(|i| {
-                                let slice =
-                                    unsafe { std::slice::from_raw_parts(vr_ptr.add(i * vlenb), vlenb) };
+                                let slice = unsafe {
+                                    std::slice::from_raw_parts(vr_ptr.add(i * vlenb), vlenb)
+                                };
                                 (i, slice.to_vec())
                             })
                             .collect();
@@ -488,8 +488,8 @@ fn state_exec_bus(
                         buf[0], buf[1], buf[2], buf[3], buf[4], buf[5], buf[6], buf[7],
                     ])),
                     16 => AllUsize::U128(u128::from_le_bytes([
-                        buf[0], buf[1], buf[2], buf[3], buf[4], buf[5], buf[6], buf[7],
-                        buf[8], buf[9], buf[10], buf[11], buf[12], buf[13], buf[14], buf[15],
+                        buf[0], buf[1], buf[2], buf[3], buf[4], buf[5], buf[6], buf[7], buf[8],
+                        buf[9], buf[10], buf[11], buf[12], buf[13], buf[14], buf[15],
                     ])),
                     _ => unreachable!(),
                 };
@@ -504,14 +504,15 @@ fn state_exec_bus(
             let count = (*count).min(PRINT_BUF_SIZE);
             let mut buf = [0u8; PRINT_BUF_SIZE];
             let buf_slice = &mut buf[..count];
-            let result = if unsafe {
-                spike_difftest_read_mem(ctx, *addr, buf_slice.as_mut_ptr(), count)
-            } == 0
-            {
-                Ok(())
-            } else {
-                Err(Box::new(remu_state::bus::BusError::unmapped(*addr)) as Box<dyn DynDiagError>)
-            };
+            let result =
+                if unsafe { spike_difftest_read_mem(ctx, *addr, buf_slice.as_mut_ptr(), count) }
+                    == 0
+                {
+                    Ok(())
+                } else {
+                    Err(Box::new(remu_state::bus::BusError::unmapped(*addr))
+                        as Box<dyn DynDiagError>)
+                };
             tracer.borrow().mem_print(*addr, buf_slice, result);
         }
         remu_state::bus::BusCmd::Write { subcmd } => match subcmd {

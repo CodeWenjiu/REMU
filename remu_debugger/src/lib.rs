@@ -8,21 +8,11 @@ pub use crate::prelude::*;
 
 use remu_harness::Harness;
 
-// TracerDyn is available from pub use crate::prelude::*;
-
-pub struct Debugger<D, R>
-where
-    D: SimulatorDut,
-    R: SimulatorRef<D::Policy>,
-{
-    harness: Harness<D, R>,
+pub struct Debugger<C: PlatformConfig> {
+    harness: Harness<C>,
 }
 
-impl<D, R> Debugger<D, R>
-where
-    D: SimulatorDut,
-    R: SimulatorRef<D::Policy>,
-{
+impl<C: PlatformConfig> Debugger<C> {
     pub fn new(
         opt: DebuggerOption,
         tracer: TracerDyn,
@@ -44,14 +34,11 @@ where
         self.execute_command_expr(&startup).map(drop)
     }
 
-    /// Returns the run outcome (Done or ProgramExit(code)) for the last run, if any.
     pub fn execute_line(&mut self, buffer: String) -> Result<RunOutcome, DebuggerError> {
         let expr = compound_command::parse_expression(&buffer)?;
         self.execute_command_expr(&expr)
     }
 
-    /// Execute a pre-parsed command expression (e.g. from startup sequence).
-    /// Returns the merged run outcome (ProgramExit wins over Done when multiple commands run).
     pub fn execute_command_expr(
         &mut self,
         expr: &CommandExpr,
@@ -89,7 +76,7 @@ where
         match DebuggerCommand::try_parse_from(commands) {
             Ok(v) => Ok(v),
             Err(e) => {
-                let _ = e.print(); // keep clap colorized output
+                let _ = e.print();
                 Err(DebuggerError::CommandExprHandled)
             }
         }
