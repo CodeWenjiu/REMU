@@ -4,8 +4,9 @@ version = "0.1.0"
 edition = "2024"
 
 [dependencies]
-eframe = { version = "0.33.3", features = [ "default", "__screenshot" ]}
-env_logger = "0.11.9"
+eframe = { version = "0.34.3", default-features = false, features = ["accesskit", "default_fonts", "wayland", "web_screen_reader", "wgpu_no_default_features", "x11", "__screenshot"] }
+wgpu = { version = "29", features = ["vulkan"] }
+env_logger = "0.11.10"
 
 [lints]
 workspace = true

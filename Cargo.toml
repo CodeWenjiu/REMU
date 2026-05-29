@@ -54,10 +54,10 @@ tracing = "0.1.44"
 
 petgraph = "0.8.3"
 
-clap = "4.6.0"
-winnow = "1.0.0"
+clap = "4.6.1"
+winnow = "1.0.3"
 target-lexicon = "0.13.5"
 
-cc = "1.2.57"
+cc = "1.2.62"
 
-rand = "0.10.0"
+rand = "0.10.1"

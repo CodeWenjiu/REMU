@@ -9,13 +9,26 @@ use std::io::Write;
 use std::path::{Path, PathBuf};
 
 use eframe::egui::{self, Color32, PointerButton, Pos2, Rect, Sense, Stroke, StrokeKind, vec2};
+use eframe::{Renderer, egui_wgpu, wgpu};
 
 const GRID: usize = 28;
 const BIN_LEN: usize = 8 + 1 + GRID * GRID; // 793
 
 fn main() -> eframe::Result {
     env_logger::init();
+
+    let mut wgpu_setup = egui_wgpu::WgpuSetupCreateNew::without_display_handle();
+    wgpu_setup.instance_descriptor.flags |=
+        wgpu::InstanceFlags::ALLOW_UNDERLYING_NONCOMPLIANT_ADAPTER;
+
+    let wgpu_options = egui_wgpu::WgpuConfiguration {
+        wgpu_setup: egui_wgpu::WgpuSetup::CreateNew(wgpu_setup),
+        ..Default::default()
+    };
+
     let options = eframe::NativeOptions {
+        renderer: Renderer::Wgpu,
+        wgpu_options,
         viewport: egui::ViewportBuilder::default().with_inner_size([560.0, 720.0]),
         ..Default::default()
     };
@@ -139,8 +152,8 @@ impl Default for MnistDrawApp {
 }
 
 impl eframe::App for MnistDrawApp {
-    fn update(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame) {
-        egui::TopBottomPanel::top("toolbar").show(ctx, |ui| {
+    fn ui(&mut self, ui: &mut egui::Ui, _frame: &mut eframe::Frame) {
+        egui::Panel::top("toolbar").show_inside(ui, |ui| {
             ui.horizontal(|ui| {
                 ui.label("Label (0-9):");
                 ui.add(
@@ -165,7 +178,7 @@ impl eframe::App for MnistDrawApp {
             });
         });
 
-        egui::CentralPanel::default().show(ctx, |ui| {
+        egui::CentralPanel::default().show_inside(ui, |ui| {
             ui.label(&self.status);
             ui.add_space(8.0);
 
@@ -186,8 +199,8 @@ impl eframe::App for MnistDrawApp {
             painter.rect_stroke(rect, 0.0, Stroke::new(1.0_f32, Color32::GRAY), StrokeKind::Inside);
 
             if let Some(pos) = response.interact_pointer_pos() {
-                let primary = ctx.input(|i| i.pointer.button_down(PointerButton::Primary));
-                let secondary = ctx.input(|i| i.pointer.button_down(PointerButton::Secondary));
+                let primary = ui.ctx().input(|i| i.pointer.button_down(PointerButton::Primary));
+                let secondary = ui.ctx().input(|i| i.pointer.button_down(PointerButton::Secondary));
                 if primary {
                     if let Some((gx, gy)) = pointer_to_cell(pos, rect) {
                         paint_stamp(&mut self.pixels, gx, gy, self.brush_radius, true);
@@ -204,7 +217,8 @@ impl eframe::App for MnistDrawApp {
             ui.label("Tip: MNIST-style light strokes on dark background; draw multiple passes to thicken. Save writes matching .txt and .bin; rebuild the mnist app to embed new .bin files.");
         });
 
-        ctx.request_repaint_after(std::time::Duration::from_millis(32));
+        ui.ctx()
+            .request_repaint_after(std::time::Duration::from_millis(32));
     }
 }
 

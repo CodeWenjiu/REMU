@@ -13,7 +13,7 @@ tracing.workspace = true
 
 winnow.workspace = true
 target-lexicon.workspace = true
-capstone = "0.14.0"
+capstone = { git = "https://github.com/CodeWenjiu/capstone-rs", branch = "capstone-v6-fix", default-features = false, features = ["full", "arch_riscv"] }
 
 [lints]
 workspace = true

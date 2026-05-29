@@ -78,8 +78,8 @@ pub struct ByteGuesser {
 }
 
 impl ByteGuesser {
-    /// Builds a disassembler for the given ISA. Capstone 0.14 has no RISC-V V mode;
-    /// when extensions contain Zve32x we fall back to a minimal RVV disassembler.
+    /// Builds a RISC-V disassembler for the given ISA. Capstone v6 (via git)
+    /// supports RISC-V vector extension (RVV) disassembly.
     pub fn new(isa: IsaSpec) -> Self {
         let arch_mode = match isa.base {
             Architecture::Riscv32(_) => arch::riscv::ArchMode::RiscV32,
