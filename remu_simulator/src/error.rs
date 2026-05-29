@@ -36,10 +36,6 @@ pub enum SimulatorInnerError {
     /// DUT hit a breakpoint (ebreak at this PC). Execution stopped.
     #[error("breakpoint hit at 0x{0:08x}")]
     BreakpointHit(u32),
-
-    /// Decoder hit unknown/illegal opcode. Execution trapped, details follow.
-    #[error("illegal instruction at 0x{pc:08x}: 0x{inst:08x}")]
-    IllegalInstruction { pc: u32, inst: u32 },
 }
 
 impl SimulatorInnerError {
@@ -51,16 +47,13 @@ impl SimulatorInnerError {
             | SimulatorInnerError::ProgramExit(_)
             | SimulatorInnerError::Interrupted
             | SimulatorInnerError::BreakpointError(_)
-            | SimulatorInnerError::BreakpointHit(_)
-            | SimulatorInnerError::IllegalInstruction { .. } => None,
+            | SimulatorInnerError::BreakpointHit(_) => None,
         }
     }
 }
 
 pub fn from_state_error(e: StateError) -> SimulatorInnerError {
-    if let StateError::IllegalInstruction { pc, inst } = e {
-        SimulatorInnerError::IllegalInstruction { pc, inst }
-    } else if let Some(exit_code) = e.exit_code() {
+    if let Some(exit_code) = e.exit_code() {
         SimulatorInnerError::ProgramExit(exit_code)
     } else if let Some(pc) = e.breakpoint_pc() {
         SimulatorInnerError::BreakpointHit(pc)

@@ -33,8 +33,6 @@ pub(crate) fn execute<P: remu_state::StatePolicy, C: crate::ExecuteContext<P>>(
     ctx: &mut C,
     _decoded: &DecodedInst,
 ) -> Result<(), remu_state::StateError> {
-    let pc = *ctx.state_mut().reg.pc;
-    let inst = ctx.state_mut().bus.read_32(pc as usize).unwrap_or(0);
     trap_illegal_instruction(ctx.state_mut());
-    Err(remu_state::StateError::IllegalInstruction { pc, inst })
+    Ok(())
 }

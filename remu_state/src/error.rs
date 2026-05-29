@@ -21,10 +21,6 @@ pub enum StateError {
         csr_addr: u16,
         imm_raw: u32,
     },
-
-    /// Decoder hit an unknown/illegal opcode. PC and raw instruction word.
-    #[error("illegal instruction at 0x{pc:08x}: 0x{inst:08x}")]
-    IllegalInstruction { pc: u32, inst: u32 },
 }
 
 impl From<BusError> for StateError {
@@ -39,9 +35,7 @@ impl StateError {
     pub fn backtrace(&self) -> Option<&Backtrace> {
         match self {
             StateError::BusError(b) => b.backtrace(),
-            StateError::BreakpointHit(_)
-            | StateError::UnimplementedCsr { .. }
-            | StateError::IllegalInstruction { .. } => None,
+            StateError::BreakpointHit(_) | StateError::UnimplementedCsr { .. } => None,
         }
     }
 
@@ -52,9 +46,7 @@ impl StateError {
                 BusError::ProgramExit(ec) => Some(*ec),
                 _ => None,
             },
-            StateError::BreakpointHit(_)
-            | StateError::UnimplementedCsr { .. }
-            | StateError::IllegalInstruction { .. } => None,
+            StateError::BreakpointHit(_) | StateError::UnimplementedCsr { .. } => None,
         }
     }
 
@@ -62,9 +54,7 @@ impl StateError {
     pub fn breakpoint_pc(&self) -> Option<u32> {
         match self {
             StateError::BreakpointHit(pc) => Some(*pc),
-            StateError::BusError(_)
-            | StateError::UnimplementedCsr { .. }
-            | StateError::IllegalInstruction { .. } => None,
+            StateError::BusError(_) | StateError::UnimplementedCsr { .. } => None,
         }
     }
 }

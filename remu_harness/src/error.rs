@@ -40,8 +40,7 @@ impl HarnessError {
                     | SimulatorInnerError::BreakpointError(_) => ErrorStyle::Diagnostic,
                     SimulatorInnerError::ProgramExit(_)
                     | SimulatorInnerError::Interrupted
-                    | SimulatorInnerError::BreakpointHit(_)
-                    | SimulatorInnerError::IllegalInstruction { .. } => ErrorStyle::Trap,
+                    | SimulatorInnerError::BreakpointHit(_) => ErrorStyle::Trap,
                 },
                 SimulatorError::Difftest(_) => ErrorStyle::Diagnostic,
             },
