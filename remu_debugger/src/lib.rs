@@ -6,6 +6,7 @@ remu_macro::mod_pub_flat!(prelude);
 remu_macro::mod_pub_flat!(flow);
 remu_macro::mod_flat!(error, compound_command);
 
+pub use remu_harness::ErrorStyle;
 use remu_harness::Harness;
 
 pub struct Debugger<C: PlatformConfig> {

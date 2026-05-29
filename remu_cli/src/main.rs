@@ -13,7 +13,7 @@ use std::sync::atomic::{AtomicBool, Ordering};
 
 use remu_boot::boot;
 use remu_debugger::{
-    DebuggerError, DebuggerOption, DebuggerRunner, ExitCode, PlatformConfig, RunOutcome,
+    DebuggerError, DebuggerOption, DebuggerRunner, ErrorStyle, ExitCode, PlatformConfig, RunOutcome,
 };
 use remu_types::{Platform, TracerDyn};
 use std::error::Error;
@@ -146,14 +146,24 @@ impl DebuggerRunner for APPRunner {
                                     println!("{}", "Quiting...".cyan());
                                     break;
                                 }
-                                eprintln!("{}", e);
-                                let mut src: Option<&(dyn Error + 'static)> = e.source();
-                                while let Some(s) = src {
-                                    eprintln!("  caused by: {}", s);
-                                    src = s.source();
-                                }
-                                if let Some(bt) = e.backtrace() {
-                                    eprintln!("\nStack backtrace:\n{}", bt);
+                                match e.style() {
+                                    Some(ErrorStyle::Trap) => {
+                                        eprintln!("{e}");
+                                    }
+                                    Some(ErrorStyle::Diagnostic) => {
+                                        eprintln!("{e}");
+                                        let mut src: Option<&(dyn Error + 'static)> = e.source();
+                                        while let Some(s) = src {
+                                            eprintln!("  caused by: {}", s);
+                                            src = s.source();
+                                        }
+                                        if let Some(bt) = e.backtrace() {
+                                            eprintln!("\nStack backtrace:\n{bt}");
+                                        }
+                                    }
+                                    None => {
+                                        eprintln!("{e}");
+                                    }
                                 }
                             }
                         }

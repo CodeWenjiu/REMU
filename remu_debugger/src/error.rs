@@ -31,4 +31,12 @@ impl DebuggerError {
             _ => None,
         }
     }
+
+    /// Forward display style decision to the harness layer.
+    pub fn style(&self) -> Option<remu_harness::ErrorStyle> {
+        match self {
+            DebuggerError::CommandExec(harness) => Some(harness.style()),
+            _ => None,
+        }
+    }
 }
