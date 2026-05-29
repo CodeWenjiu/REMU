@@ -111,7 +111,7 @@ fn run_verilog_generation_for_model(
     match status {
         Ok(s) if s.success() => true,
         Ok(s) => {
-            eprintln!(
+            println!(
                 "cargo:warning=nzea just dump for {} failed: {:?}",
                 model,
                 s.code()
@@ -119,7 +119,7 @@ fn run_verilog_generation_for_model(
             false
         }
         Err(e) => {
-            eprintln!(
+            println!(
                 "cargo:warning=nzea Verilog generation for {} failed: {}",
                 model, e
             );
@@ -206,7 +206,7 @@ fn run_verilator_for_model(
     let makeflags = format!("CC=\"{ccache_cc}\" CXX=\"{ccache_cxx}\"");
     let prefix = model_prefix(target, isa);
     let cmd = format!(
-        "cd '{out_dir_escaped}' && verilator --cc --build --trace-fst -MAKEFLAGS '{makeflags}' --Mdir {} --top-module {top_module} --prefix {prefix} {files_arg}",
+        "cd '{out_dir_escaped}' && verilator --cc --build --trace-fst -MAKEFLAGS '{makeflags}' -CFLAGS -fPIC --Mdir {} --top-module {top_module} --prefix {prefix} {files_arg}",
         v_build.display()
     );
 
@@ -218,18 +218,18 @@ fn run_verilator_for_model(
     match cmd_build.output() {
         Ok(out) if out.status.success() => true,
         Ok(out) => {
-            eprintln!(
+            println!(
                 "cargo:warning=verilator for {model} stderr: {}",
                 String::from_utf8_lossy(&out.stderr)
             );
-            eprintln!(
+            println!(
                 "cargo:warning=verilator for {model} stdout: {}",
                 String::from_utf8_lossy(&out.stdout)
             );
             false
         }
         Err(e) => {
-            eprintln!("cargo:warning=verilator for {model} spawn failed: {e}");
+            println!("cargo:warning=verilator for {model} spawn failed: {e}");
             false
         }
     }
@@ -271,7 +271,7 @@ fn compile_wrapper_and_link(
     };
 
     let mut build = cc::Build::new();
-    build.cpp(true).std("c++17").opt_level(opt);
+    build.cpp(true).std("c++17").opt_level(opt).flag("-fPIC");
 
     for (target, _) in NZEA_TARGETS {
         for isa in NZEA_ISAS {
@@ -295,18 +295,59 @@ fn compile_wrapper_and_link(
     }
     build.file(&wrapper_src).compile("nzea_wrapper");
 
+    // Collect all static libs and pack into a single shared library.
+    // Falls back to static linking if g++ -shared fails (e.g. outside nix shell).
+    let so_path = out_dir.join("libnzea.so");
+    let mut static_libs: Vec<PathBuf> = Vec::new();
+    static_libs.push(out_dir.join("libnzea_wrapper.a"));
     for (target, _) in NZEA_TARGETS {
         for isa in NZEA_ISAS {
             let v_build = model_build_dir(out_dir, target, isa);
-            println!("cargo:rustc-link-search=native={}", v_build.display());
-            println!("cargo:rustc-link-lib=static={}", model_prefix(target, isa));
+            static_libs.push(v_build.join(format!("lib{}.a", model_prefix(target, isa))));
         }
     }
+    // libverilated.a from any one model dir is sufficient (all identical)
+    static_libs
+        .push(model_build_dir(out_dir, NZEA_TARGETS[0].0, NZEA_ISAS[0]).join("libverilated.a"));
 
-    // libverilated.a from any generated model build dir is sufficient.
-    let first_build = model_build_dir(out_dir, NZEA_TARGETS[0].0, NZEA_ISAS[0]);
-    println!("cargo:rustc-link-search=native={}", first_build.display());
-    println!("cargo:rustc-link-lib=static=verilated");
+    let use_shared = {
+        let mut cmd = Command::new("g++");
+        cmd.arg("-shared").arg("-fPIC").arg("-o").arg(&so_path);
+        cmd.arg("-Wl,--whole-archive");
+        for lib in &static_libs {
+            if lib.exists() {
+                cmd.arg(lib);
+            }
+        }
+        cmd.arg("-Wl,--no-whole-archive");
+        cmd.arg("-lz");
+        match cmd.status() {
+            Ok(s) if s.success() => true,
+            Ok(_) | Err(_) => {
+                println!("cargo:warning=libnzea.so not created, falling back to static linking");
+                false
+            }
+        }
+    };
+
+    if use_shared {
+        println!("cargo:rustc-link-search=native={}", out_dir.display());
+        println!("cargo:rustc-link-lib=dylib=nzea");
+        println!("cargo:rustc-link-arg=-Wl,-rpath,{}", out_dir.display());
+        // DPI-C: let libnzea.so resolve extern "C" symbols back into the binary
+        println!("cargo:rustc-link-arg=-Wl,--export-dynamic");
+    } else {
+        for (target, _) in NZEA_TARGETS {
+            for isa in NZEA_ISAS {
+                let v_build = model_build_dir(out_dir, target, isa);
+                println!("cargo:rustc-link-search=native={}", v_build.display());
+                println!("cargo:rustc-link-lib=static={}", model_prefix(target, isa));
+            }
+        }
+        let first_build = model_build_dir(out_dir, NZEA_TARGETS[0].0, NZEA_ISAS[0]);
+        println!("cargo:rustc-link-search=native={}", first_build.display());
+        println!("cargo:rustc-link-lib=static=verilated");
+    }
     println!("cargo:rustc-link-lib=z");
     #[cfg(not(target_env = "msvc"))]
     {
@@ -328,6 +369,8 @@ fn main() {
     for path in collect_scala_files(&nzea_dir) {
         println!("cargo:rerun-if-changed={}", path.display());
     }
+    println!("cargo:rerun-if-changed=build.rs");
+    println!("cargo:rerun-if-changed=c_src/nzea_wrapper.cpp");
 
     let verilog_out = out_dir.join("nzea-verilog");
     std::fs::create_dir_all(&verilog_out).expect("create nzea-verilog");

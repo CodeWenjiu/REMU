@@ -31,10 +31,11 @@ members = [
 unreachable_pub = "warn"
 
 [profile.release]
-codegen-units = 1
-lto           = true
+codegen-units = 16
+lto           = false
+opt-level     = 2
 panic         = "abort"
-strip         = true
+incremental   = true
 
 # Bench-only profile for more informative flamegraphs:
 # - keep symbols (`debug = 1`, `strip = "none"`)
