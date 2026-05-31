@@ -29,6 +29,7 @@
             "clippy"
             "rust-analyzer"
             "llvm-tools-preview"
+            "rustc-codegen-cranelift-preview"
           ];
           targets = [
             "riscv32i-unknown-none-elf"

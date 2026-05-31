@@ -30,10 +30,13 @@ members = [
 [workspace.lints.rust]
 unreachable_pub = "warn"
 
+[profile.dev]
+opt-level = 1
+
+[profile.dev.package."*"]
+opt-level = 3
+
 [profile.release]
-codegen-units = 16
-lto           = false
-opt-level     = 2
 panic         = "abort"
 incremental   = true
 

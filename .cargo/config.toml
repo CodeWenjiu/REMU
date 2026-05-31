@@ -1,5 +1,17 @@
+[unstable]
+codegen-backend = true
+
+[profile.dev]
+codegen-backend = "cranelift"
+
+[profile.dev.package."*"]
+codegen-backend = "llvm"
+
 [target.'cfg(target_os = "linux")']
-rustflags = ["-C", "link-arg=-fuse-ld=mold"]
+rustflags = [
+    "-C", "link-arg=-fuse-ld=mold",
+    "-Zshare-generics=y",
+]
 
 [target.'cfg(all(any(target_arch = "riscv32", target_arch = "riscv64"), target_os = "none"))']
 linker = "rust-lld"
