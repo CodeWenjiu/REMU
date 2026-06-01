@@ -1,5 +1,5 @@
 // C++ glue for Verilated Nzea models: C API so Rust can create/drive the simulator.
-// One Verilated model per (target, isa) tuple from remu nzea/build.rs.
+// Built per (target, isa) combination; define NZEA_MODEL_TYPE and NZEA_MODEL_KEY before compiling.
 #include "verilated.h"
 #include "verilated_fst_c.h"
 
@@ -7,14 +7,18 @@
 #include <cstring>
 #include <map>
 
-#include "VTop_core_riscv32i.h"
-#include "VTop_core_riscv32im.h"
-#include "VTop_core_riscv32i_wjCus0.h"
-#include "VTop_core_riscv32im_wjCus0.h"
-#include "VTop_tile_riscv32i.h"
-#include "VTop_tile_riscv32im.h"
-#include "VTop_tile_riscv32i_wjCus0.h"
-#include "VTop_tile_riscv32im_wjCus0.h"
+#ifndef NZEA_MODEL_TYPE
+#error "Define NZEA_MODEL_TYPE to the Verilator class (e.g. -DNZEA_MODEL_TYPE=VTop_core_riscv32i)"
+#endif
+#ifndef NZEA_MODEL_KEY
+#error "Define NZEA_MODEL_KEY to the model key string (e.g. -DNZEA_MODEL_KEY=\\\"core:riscv32i\\\")"
+#endif
+#ifndef NZEA_MODEL_H
+#error "Define NZEA_MODEL_H to the header filename (e.g. -DNZEA_MODEL_H=\\\"VTop_core_riscv32i.h\\\")"
+#endif
+#include NZEA_MODEL_H
+
+#define NZEA_MODEL_LIST(X) X(NZEA_MODEL_KEY, NZEA_MODEL_TYPE)
 
 struct TraceState {
     VerilatedFstC* tfp = nullptr;
@@ -26,16 +30,6 @@ static std::map<void*, TraceState> s_trace_map;
 static bool model_eq(const char* a, const char* b) {
     return a && b && std::strcmp(a, b) == 0;
 }
-
-#define NZEA_MODEL_LIST(X)                                    \
-    X("core:riscv32i", VTop_core_riscv32i)                  \
-    X("core:riscv32im", VTop_core_riscv32im)                \
-    X("core:riscv32i_wjCus0", VTop_core_riscv32i_wjCus0)    \
-    X("core:riscv32im_wjCus0", VTop_core_riscv32im_wjCus0)  \
-    X("tile:riscv32i", VTop_tile_riscv32i)                  \
-    X("tile:riscv32im", VTop_tile_riscv32im)                \
-    X("tile:riscv32i_wjCus0", VTop_tile_riscv32i_wjCus0)    \
-    X("tile:riscv32im_wjCus0", VTop_tile_riscv32im_wjCus0)
 
 extern "C" {
 

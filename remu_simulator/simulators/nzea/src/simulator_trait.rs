@@ -16,7 +16,8 @@ use remu_simulator::{
 use remu_state::bus::ObserverEvent;
 
 use crate::dpi::{self, CommitMsg, NzeaDpi};
-use crate::nzea_ffi::{self, NzeaIsa};
+use crate::nzea_ffi::NzeaIsa;
+use crate::runtime::{ensure_nzea_loaded, get_nzea_fns};
 use remu_isa::isa::reg::{Csr as CsrKind, RegAccess};
 
 /// True after the first time wavetrace is enabled in this process; then we do not open trace.fst again,
@@ -30,8 +31,10 @@ where
 {
     state: State<P>,
     sim_ptr: *mut c_void,
-    /// C string for model key (`core|tile` + ISA); kept alive for nzea_* FFI calls.
+    /// C string for model key (`core|tile` + ISA); kept alive for FFI calls.
     model_c: CString,
+    /// Function table loaded from libnzea.so
+    fns: &'static crate::nzea_ffi::NzeaFns,
     tracer: TracerDyn,
     commit_buffer: Vec<CommitMsg>,
     interrupt: Arc<std::sync::atomic::AtomicBool>,
@@ -81,7 +84,17 @@ where
 
         let model_key = format!("{}:{}", target.as_str(), <P::ISA as NzeaIsa>::NZEA_ISA_STR);
         let model_c = CString::new(model_key.as_str()).expect("nzea model key contains null");
-        let sim_ptr = unsafe { nzea_ffi::nzea_create(model_c.as_ptr()) };
+
+        let isa_str = <P::ISA as NzeaIsa>::NZEA_ISA_STR;
+        if let Err(e) = ensure_nzea_loaded(&target, isa_str) {
+            panic!(
+                "nzea .so load failed for {}:{}: {e}",
+                target.as_str(),
+                isa_str
+            );
+        }
+        let fns = get_nzea_fns(target.as_str(), isa_str);
+        let sim_ptr = unsafe { (fns.create)(model_c.as_ptr() as *const i8) };
         assert!(
             !sim_ptr.is_null(),
             "nzea_create failed for model {}",
@@ -93,6 +106,7 @@ where
             state,
             sim_ptr,
             model_c,
+            fns,
             tracer,
             commit_buffer: Vec::new(),
             interrupt,
@@ -112,14 +126,14 @@ where
         }
         let model_ptr = self.model_c.as_ptr();
         unsafe {
-            nzea_ffi::nzea_set_reset(self.sim_ptr, model_ptr, 1);
+            (self.fns.set_reset)(self.sim_ptr, model_ptr, 1);
             for _ in 0..100 {
-                nzea_ffi::nzea_set_clock(self.sim_ptr, model_ptr, 0);
-                nzea_ffi::nzea_eval(self.sim_ptr, model_ptr);
-                nzea_ffi::nzea_set_clock(self.sim_ptr, model_ptr, 1);
-                nzea_ffi::nzea_eval(self.sim_ptr, model_ptr);
+                (self.fns.set_clock)(self.sim_ptr, model_ptr, 0);
+                (self.fns.eval)(self.sim_ptr, model_ptr);
+                (self.fns.set_clock)(self.sim_ptr, model_ptr, 1);
+                (self.fns.eval)(self.sim_ptr, model_ptr);
             }
-            nzea_ffi::nzea_set_reset(self.sim_ptr, model_ptr, 0);
+            (self.fns.set_reset)(self.sim_ptr, model_ptr, 0);
         }
         // Waveform file is opened in on_trace_change() when Wavetrace is first enabled,
         // so a run with wavetrace disabled does not overwrite an existing trace.fst.
@@ -210,7 +224,7 @@ where
             let trace_path = Self::trace_path();
             let path_c = CString::new(trace_path.to_string_lossy().as_ref()).unwrap();
             unsafe {
-                nzea_ffi::nzea_trace_open(self.sim_ptr, self.model_c.as_ptr(), path_c.as_ptr());
+                (self.fns.trace_open)(self.sim_ptr, self.model_c.as_ptr(), path_c.as_ptr());
             }
         }
     }
@@ -236,15 +250,15 @@ where
         self.cycle_count += 1;
         let model_ptr = self.model_c.as_ptr();
         unsafe {
-            nzea_ffi::nzea_set_clock(self.sim_ptr, model_ptr, 0);
-            nzea_ffi::nzea_eval(self.sim_ptr, model_ptr);
+            (self.fns.set_clock)(self.sim_ptr, model_ptr, 0);
+            (self.fns.eval)(self.sim_ptr, model_ptr);
             if TraceFlags::waveform(TRACE_CYCLE) && IS_DUT {
-                nzea_ffi::nzea_trace_dump(self.sim_ptr);
+                (self.fns.trace_dump)(self.sim_ptr);
             }
-            nzea_ffi::nzea_set_clock(self.sim_ptr, model_ptr, 1);
-            nzea_ffi::nzea_eval(self.sim_ptr, model_ptr);
+            (self.fns.set_clock)(self.sim_ptr, model_ptr, 1);
+            (self.fns.eval)(self.sim_ptr, model_ptr);
             if TraceFlags::waveform(TRACE_CYCLE) && IS_DUT {
-                nzea_ffi::nzea_trace_dump(self.sim_ptr);
+                (self.fns.trace_dump)(self.sim_ptr);
             }
         }
     }
@@ -298,7 +312,7 @@ where
 {
     fn drop(&mut self) {
         unsafe {
-            nzea_ffi::nzea_destroy(self.sim_ptr, self.model_c.as_ptr());
+            (self.fns.destroy)(self.sim_ptr, self.model_c.as_ptr());
             dpi::clear_nzea();
         }
     }

@@ -12,6 +12,12 @@ This repository is a Rust workspace (Edition 2024, nightly toolchain) centered o
 
 Note: `remu` is intended to be used inside the parent `chip-dev` checkout with submodules.
 
+### Build Script Rules (MUST follow)
+
+1. **Cross-crate logic goes through `[build-dependencies]`.** When a library crate (e.g. `nzea`) owns linker flags or build logic that the final binary (e.g. `cli`) must emit, the library exposes a **normal Rust function** (not a build.rs side-effect), and `cli` depends on it via `[build-dependencies]` and calls it. Never try to smuggle data through `cargo:rustc-link-arg` from a library's build.rs.
+
+2. **`cargo:rustc-link-arg` from a library crate's build.rs only applies to that library's compilation, never to the final binary.** Linker flags for the binary MUST come from the binary crate's own build.rs (or a function called from it).
+
 ### Module Declaration Constitution (MUST follow)
 
 Every crate MUST declare its modules exclusively through `remu_macro` macros. **Manual `mod` / `pub mod` / `pub use` for module plumbing is forbidden** — the macros are the single source of truth for how modules are wired into the crate.

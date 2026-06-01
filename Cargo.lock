@@ -3502,6 +3502,7 @@ dependencies = [
  "remu_logger",
  "remu_macro",
  "remu_simulator",
+ "remu_simulator_nzea",
  "remu_types",
  "tabled",
  "tracing",
@@ -3615,12 +3616,14 @@ dependencies = [
 name = "remu_simulator_nzea"
 version = "0.1.0"
 dependencies = [
- "cc",
+ "indicatif",
+ "libloading",
  "remu_isa",
  "remu_macro",
  "remu_simulator",
  "remu_state",
  "remu_types",
+ "sha2",
  "target-lexicon",
  "thiserror 2.0.18",
  "tracing",

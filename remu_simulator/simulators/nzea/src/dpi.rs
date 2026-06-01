@@ -111,7 +111,7 @@ fn nzea() -> *mut dyn NzeaDpi {
 }
 
 #[unsafe(no_mangle)]
-pub(crate) extern "C" fn bus_read(addr: i32, rdata: *mut i32) {
+pub extern "C" fn bus_read(addr: i32, rdata: *mut i32) {
     // addr is 32-bit; RISC-V 0x8000_0000 is negative as i32. Preserve bits via u32 to avoid sign-extension.
     let addr_u = addr as u32 as usize;
     let val = unsafe { (*nzea()).dpi_read_32(addr_u) };
@@ -119,17 +119,21 @@ pub(crate) extern "C" fn bus_read(addr: i32, rdata: *mut i32) {
         *rdata = val as i32;
     }
 }
+#[used]
+static _KEEP_BUS_READ: unsafe extern "C" fn(i32, *mut i32) = bus_read;
 
 #[unsafe(no_mangle)]
-pub(crate) extern "C" fn bus_write(addr: i32, wdata: i32, wstrb: i32) {
+pub extern "C" fn bus_write(addr: i32, wdata: i32, wstrb: i32) {
     let addr_u = addr as u32 as usize;
     unsafe {
         (*nzea()).dpi_write_32(addr_u, wdata as u32, wstrb as u32);
     }
 }
+#[used]
+static _KEEP_BUS_WRITE: unsafe extern "C" fn(i32, i32, i32) = bus_write;
 
 #[unsafe(no_mangle)]
-pub(crate) extern "C" fn commit_trace(
+pub extern "C" fn commit_trace(
     next_pc: i32,
     csr_valid: bool,
     csr_addr: i32,
@@ -159,3 +163,6 @@ pub(crate) extern "C" fn commit_trace(
         );
     }
 }
+#[used]
+static _KEEP_COMMIT_TRACE: unsafe extern "C" fn(i32, bool, i32, i32, i32, i32, i32, i32) =
+    commit_trace;

@@ -1,8 +1,6 @@
-use std::borrow::Cow;
-
 use reedline::{DefaultPrompt, DefaultPromptSegment, Prompt, PromptEditMode, PromptHistorySearch};
-
 use remu_types::Platform;
+use std::borrow::Cow;
 
 #[derive(Clone)]
 pub struct RemuPrompt {

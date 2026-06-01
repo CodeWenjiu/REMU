@@ -14,6 +14,13 @@ impl NzeaTarget {
             Self::Tile => "tile",
         }
     }
+
+    pub const fn top_module(self) -> &'static str {
+        match self {
+            Self::Core => "NzeaCore",
+            Self::Tile => "NzeaTile",
+        }
+    }
 }
 
 impl FromStr for NzeaTarget {

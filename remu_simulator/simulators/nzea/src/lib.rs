@@ -1,1 +1,9 @@
-remu_macro::mod_flat!(dpi, nzea_ffi, nzea_target, simulator_trait, supported_isa);
+remu_macro::mod_flat!(
+    dpi,
+    link_args,
+    nzea_ffi,
+    nzea_target,
+    runtime,
+    simulator_trait,
+    supported_isa
+);
