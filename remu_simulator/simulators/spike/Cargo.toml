@@ -9,9 +9,9 @@ remu_macro = { path = "../../../remu_macro" }
 remu_simulator = { path = "../.." }
 remu_state = { path = "../../../remu_state" }
 remu_types = { path = "../../../remu_types" }
-
-[build-dependencies]
-cc = { workspace = true }
+libloading = "0.8"
+sha2 = "0.10"
+indicatif.workspace = true
 
 [lints]
 workspace = true

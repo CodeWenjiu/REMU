@@ -1,1 +1,1 @@
-remu_macro::mod_flat!(ffi, simulator);
+remu_macro::mod_flat!(ffi, runtime, simulator);

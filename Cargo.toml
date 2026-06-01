@@ -64,3 +64,4 @@ target-lexicon = "0.13.5"
 cc = "1.2.62"
 
 rand = "0.10.1"
+indicatif = "0.17"

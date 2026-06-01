@@ -1,8 +1,10 @@
-//! FFI bindings: C ABI types and functions matching difftest_abi.h
-//! Spike owns its own data; no remu pointers held
+//! FFI bindings: C ABI types and function pointers loaded from libspike.so at runtime.
+//! Spike owns its own data; no remu pointers held.
 
 use std::ffi::c_void;
 use std::os::raw::{c_char, c_int, c_uint};
+
+use libloading::Library;
 
 /// Layout matches difftest_regs_t
 #[repr(C)]
@@ -21,72 +23,95 @@ pub(crate) struct DifftestMemLayout {
 /// Opaque context pointer
 pub(crate) type SpikeDifftestCtx = *mut c_void;
 
-#[allow(unsafe_code)]
-unsafe extern "C" {
-    /// VLEN is determined by Spike from ISA string (e.g. zvl128b in rv32i_zve32x_zvl128b).
-    pub(crate) fn spike_difftest_init(
+// ---------------------------------------------------------------------------
+// Function pointer table — loaded once via libloading, stored in a static.
+// ---------------------------------------------------------------------------
+
+#[allow(non_camel_case_types, unused)]
+pub(crate) struct SpikeFns {
+    pub init: unsafe extern "C" fn(
         layout: *const DifftestMemLayout,
         n_regions: usize,
         init_pc: u32,
         init_gpr: *const u32,
         xlen: c_uint,
         isa: *const c_char,
-    ) -> SpikeDifftestCtx;
+    ) -> SpikeDifftestCtx,
 
-    pub(crate) fn spike_difftest_copy_mem(
-        ctx: SpikeDifftestCtx,
-        guest_base: usize,
-        data: *const u8,
-        len: usize,
-    );
+    pub copy_mem:
+        unsafe extern "C" fn(ctx: SpikeDifftestCtx, guest_base: usize, data: *const u8, len: usize),
 
-    pub(crate) fn spike_difftest_read_mem(
-        ctx: SpikeDifftestCtx,
-        addr: usize,
-        buf: *mut u8,
-        len: usize,
-    ) -> c_int;
+    pub read_mem:
+        unsafe extern "C" fn(ctx: SpikeDifftestCtx, addr: usize, buf: *mut u8, len: usize) -> c_int,
 
-    pub(crate) fn spike_difftest_write_mem(
+    pub write_mem: unsafe extern "C" fn(
         ctx: SpikeDifftestCtx,
         addr: usize,
         data: *const u8,
         len: usize,
-    ) -> c_int;
+    ) -> c_int,
 
     /// Returns 0 success, 1 program exit, -1 error
-    pub(crate) fn spike_difftest_step(ctx: SpikeDifftestCtx) -> c_int;
+    pub step: unsafe extern "C" fn(ctx: SpikeDifftestCtx) -> c_int,
 
-    /// Pointer to Spike internal PC; for rv32 use as *const u32. Valid until next step/sync.
-    pub(crate) fn spike_difftest_get_pc_ptr(ctx: SpikeDifftestCtx) -> *const u32;
+    pub get_pc_ptr: unsafe extern "C" fn(ctx: SpikeDifftestCtx) -> *const u32,
 
-    /// Pointer to Spike internal GPR; reg_t layout, gpr[i] at ptr[2*i] for rv32.
-    pub(crate) fn spike_difftest_get_gpr_ptr(ctx: SpikeDifftestCtx) -> *const u32;
+    pub get_gpr_ptr: unsafe extern "C" fn(ctx: SpikeDifftestCtx) -> *const u32,
 
-    /// Read one CSR by address (e.g. 0x300). Returns low 32 bits; 0 if not present.
-    pub(crate) fn spike_difftest_get_csr(ctx: SpikeDifftestCtx, csr_addr: u16) -> u32;
+    pub get_csr: unsafe extern "C" fn(ctx: SpikeDifftestCtx, csr_addr: u16) -> u32,
 
-    /// Read one FPR by index (0..31). RV32F: 32-bit float bits. Only valid when ISA has F.
-    pub(crate) fn spike_difftest_get_fpr(ctx: SpikeDifftestCtx, index: usize) -> u32;
+    pub get_fpr: unsafe extern "C" fn(ctx: SpikeDifftestCtx, index: usize) -> u32,
 
-    pub(crate) fn spike_difftest_sync_regs_to_spike(ctx: SpikeDifftestCtx, regs: *const DifftestRegs);
+    pub sync_regs_to_spike: unsafe extern "C" fn(ctx: SpikeDifftestCtx, regs: *const DifftestRegs),
 
-    /// Bytes per vector reg (VLEN/8). 0 when no V.
-    pub(crate) fn spike_difftest_get_vlenb(ctx: SpikeDifftestCtx) -> usize;
+    pub get_vlenb: unsafe extern "C" fn(ctx: SpikeDifftestCtx) -> usize,
 
-    /// Pointer to 32 * vlenb bytes. Null when no V.
-    pub(crate) fn spike_difftest_get_vr_ptr(ctx: SpikeDifftestCtx) -> *const u8;
+    pub get_vr_ptr: unsafe extern "C" fn(ctx: SpikeDifftestCtx) -> *const u8,
 
-    /// Sync DUT VR to Spike; data len must be 32 * vlenb.
-    pub(crate) fn spike_difftest_sync_vr_to_spike(ctx: SpikeDifftestCtx, data: *const u8, len: usize);
+    pub sync_vr_to_spike: unsafe extern "C" fn(ctx: SpikeDifftestCtx, data: *const u8, len: usize),
 
-    /// Write one VR in Spike; index 0..31, len must be vlenb.
-    pub(crate) fn spike_difftest_write_vr_reg(
-        ctx: SpikeDifftestCtx,
-        index: usize,
-        data: *const u8,
-        len: usize,
-    );
+    pub write_vr_reg:
+        unsafe extern "C" fn(ctx: SpikeDifftestCtx, index: usize, data: *const u8, len: usize),
 
-    pub(crate) fn spike_difftest_fini(ctx: SpikeDifftestCtx);
+    pub fini: unsafe extern "C" fn(ctx: SpikeDifftestCtx),
+}
+
+impl SpikeFns {
+    pub(crate) fn from_library(lib: Library) -> Result<SpikeFns, String> {
+        macro_rules! load {
+            ($lib:ident, $name:literal) => {
+                *$lib
+                    .get::<unsafe extern "C" fn()>($name.as_bytes())
+                    .map_err(|e| format!("symbol {}: {e}", $name))?
+            };
+        }
+
+        // Safety: the loaded `.so` is never unloaded (held in static OnceLock).
+        // Function pointers are copied out via deref and remain valid.
+        Ok(unsafe {
+            SpikeFns {
+                init: std::mem::transmute(load!(lib, "spike_difftest_init")),
+                copy_mem: std::mem::transmute(load!(lib, "spike_difftest_copy_mem")),
+                read_mem: std::mem::transmute(load!(lib, "spike_difftest_read_mem")),
+                write_mem: std::mem::transmute(load!(lib, "spike_difftest_write_mem")),
+                step: std::mem::transmute(load!(lib, "spike_difftest_step")),
+                get_pc_ptr: std::mem::transmute(load!(lib, "spike_difftest_get_pc_ptr")),
+                get_gpr_ptr: std::mem::transmute(load!(lib, "spike_difftest_get_gpr_ptr")),
+                get_csr: std::mem::transmute(load!(lib, "spike_difftest_get_csr")),
+                get_fpr: std::mem::transmute(load!(lib, "spike_difftest_get_fpr")),
+                sync_regs_to_spike: std::mem::transmute(load!(
+                    lib,
+                    "spike_difftest_sync_regs_to_spike"
+                )),
+                get_vlenb: std::mem::transmute(load!(lib, "spike_difftest_get_vlenb")),
+                get_vr_ptr: std::mem::transmute(load!(lib, "spike_difftest_get_vr_ptr")),
+                sync_vr_to_spike: std::mem::transmute(load!(
+                    lib,
+                    "spike_difftest_sync_vr_to_spike"
+                )),
+                write_vr_reg: std::mem::transmute(load!(lib, "spike_difftest_write_vr_reg")),
+                fini: std::mem::transmute(load!(lib, "spike_difftest_fini")),
+            }
+        })
+    }
 }
