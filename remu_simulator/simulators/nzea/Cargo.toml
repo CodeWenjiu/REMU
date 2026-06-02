@@ -13,7 +13,7 @@ remu_state = { path = "../../../remu_state" }
 thiserror.workspace = true
 tracing.workspace = true
 target-lexicon.workspace = true
-libloading = "0.8"
+libloading.workspace = true
 sha2 = "0.10"
 indicatif.workspace = true
 

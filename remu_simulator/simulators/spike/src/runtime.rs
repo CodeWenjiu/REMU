@@ -114,14 +114,6 @@ fn hash_dir(hasher: &mut Sha256, dir: &Path, base: &Path) -> io::Result<()> {
 // ---------------------------------------------------------------------------
 
 fn build_spike_so() -> Result<(), String> {
-    let spinner = ProgressBar::new_spinner();
-    spinner.set_style(
-        ProgressStyle::with_template("{spinner:.cyan} {msg}")
-            .unwrap()
-            .tick_chars("⠋⠙⠹⠸⠼⠴⠦⠧⠇⠏"),
-    );
-    spinner.enable_steady_tick(Duration::from_millis(100));
-
     let manifest_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
     let spike_src = spike_src_dir();
     let out = so_dir();
@@ -130,9 +122,12 @@ fn build_spike_so() -> Result<(), String> {
     let build_dir = out.join("spike-build");
     fs::create_dir_all(&build_dir).map_err(|e| format!("mkdir build dir: {e}"))?;
 
-    // --- configure ---
-    let makefile = build_dir.join("Makefile");
-    if !makefile.is_file() {
+    let need_configure = !build_dir.join("Makefile").is_file();
+    let steps = if need_configure { 4 } else { 3 };
+    let spinner = new_spinner(steps);
+
+    // --- configure (optional) ---
+    if need_configure {
         let configure = spike_src.join("configure");
         if !configure.exists() {
             spinner.finish_with_message("spike configure not found");
@@ -156,6 +151,7 @@ fn build_spike_so() -> Result<(), String> {
             spinner.finish_with_message("spike configure failed");
             return Err("spike configure failed".into());
         }
+        spinner.inc(1);
     }
 
     // --- make ---
@@ -174,6 +170,7 @@ fn build_spike_so() -> Result<(), String> {
         spinner.finish_with_message("spike make failed");
         return Err("spike make failed".into());
     }
+    spinner.inc(1);
 
     // --- verify static libs ---
     for lib in SPIKE_LIBS {
@@ -220,8 +217,9 @@ fn build_spike_so() -> Result<(), String> {
         spinner.finish_with_message("wrapper.cc compile failed");
         return Err("compile wrapper.cc failed".into());
     }
+    spinner.inc(1);
 
-    // --- link everything into .so (single g++ invocation) ---
+    // --- link everything into .so ---
     spinner.set_message("linking libspike.so...");
     let so = so_path();
     let so_tmp = so.with_extension("so.tmp");
@@ -298,4 +296,15 @@ fn num_cpus() -> String {
             .map(|p| p.get().to_string())
             .unwrap_or_else(|_| "1".to_string())
     })
+}
+
+fn new_spinner(steps: u64) -> ProgressBar {
+    let pb = ProgressBar::new(steps);
+    pb.set_style(
+        ProgressStyle::with_template("{spinner:.cyan} [{pos}/{len}] {msg}")
+            .unwrap()
+            .tick_chars("⠋⠙⠹⠸⠼⠴⠦⠧⠇⠏"),
+    );
+    pb.enable_steady_tick(Duration::from_millis(100));
+    pb
 }

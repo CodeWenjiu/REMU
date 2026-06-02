@@ -65,3 +65,4 @@ cc = "1.2.62"
 
 rand = "0.10.1"
 indicatif = "0.17"
+libloading = "0.9"

@@ -148,10 +148,10 @@ fn build_nzea_so(target: &NzeaTarget, isa_str: &str) -> Result<(), String> {
 
     fs::create_dir_all(&so_d).map_err(|e| format!("mkdir: {e}"))?;
 
-    let spinner = new_spinner();
+    let spinner = new_spinner(4);
 
     // --- Step 1: just dump (Verilog generation) ---
-    spinner.set_message(format!("generating Verilog for {t}:{isa_str}..."));
+    spinner.set_message(format!("generating Verilog {t}:{isa_str}..."));
     let justfile = nzea.join("justfile");
     if !justfile.exists() {
         spinner.finish_with_message(format!("justfile not found at {}", justfile.display()));
@@ -175,9 +175,10 @@ fn build_nzea_so(target: &NzeaTarget, isa_str: &str) -> Result<(), String> {
         .current_dir(&find_workspace_root());
 
     run_silent(&mut dump, &format!("just dump {t}:{isa_str}"))?;
+    spinner.inc(1);
 
     // --- Step 2: verilator --cc --build ---
-    spinner.set_message(format!("building Verilator model {t}:{isa_str}..."));
+    spinner.set_message(format!("building model {t}:{isa_str}..."));
     fs::create_dir_all(&v_build).map_err(|e| format!("mkdir verilator_build: {e}"))?;
 
     let cc = env::var("CC").unwrap_or_else(|_| "gcc".to_string());
@@ -221,9 +222,10 @@ fn build_nzea_so(target: &NzeaTarget, isa_str: &str) -> Result<(), String> {
         .env("CXX", &ccache_cxx);
 
     run_silent(&mut vcmd, &format!("verilator {t}:{isa_str}"))?;
+    spinner.inc(1);
 
     // --- Step 3: compile wrapper ---
-    spinner.set_message(format!("compiling wrapper for {t}:{isa_str}..."));
+    spinner.set_message(format!("compiling wrapper {t}:{isa_str}..."));
     let wrapper_cc = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("c_src/nzea_wrapper.cpp");
     let wrapper_o = wrapper_obj(t, isa_str);
     let v_include = find_verilator_include()?;
@@ -248,10 +250,12 @@ fn build_nzea_so(target: &NzeaTarget, isa_str: &str) -> Result<(), String> {
         .arg(format!("-DNZEA_MODEL_H=\"{prefix}.h\""))
         .arg(format!("-DNZEA_MODEL_TYPE={prefix}"))
         .arg(format!("-DNZEA_MODEL_KEY=\"{t}:{isa_str}\""));
+
     run_silent(&mut wcmd, &format!("wrapper compile {t}:{isa_str}"))?;
+    spinner.inc(1);
 
     // --- Step 4: link .so ---
-    spinner.set_message(format!("linking libnzea.so for {t}:{isa_str}..."));
+    spinner.set_message(format!("linking {t}:{isa_str}..."));
     let so = so_path(t, isa_str);
     let so_tmp = so.with_extension("so.tmp");
     let mut cmd = Command::new("g++");
@@ -330,15 +334,15 @@ pub(crate) fn get_nzea_fns(target: &str, isa_str: &str) -> &'static NzeaFns {
 // Helpers
 // ---------------------------------------------------------------------------
 
-fn new_spinner() -> ProgressBar {
-    let spinner = ProgressBar::new_spinner();
-    spinner.set_style(
-        ProgressStyle::with_template("{spinner:.cyan} {msg}")
+fn new_spinner(steps: u64) -> ProgressBar {
+    let pb = ProgressBar::new(steps);
+    pb.set_style(
+        ProgressStyle::with_template("{spinner:.cyan} [{pos}/{len}] {msg}")
             .unwrap()
             .tick_chars("⠋⠙⠹⠸⠼⠴⠦⠧⠇⠏"),
     );
-    spinner.enable_steady_tick(Duration::from_millis(100));
-    spinner
+    pb.enable_steady_tick(Duration::from_millis(100));
+    pb
 }
 
 fn append_memory_inits(verilog_dir: &Path, prefix: &str, mut files: Vec<String>) -> Vec<String> {
