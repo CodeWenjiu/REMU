@@ -11,10 +11,9 @@ use std::io;
 use std::path::{Path, PathBuf};
 use std::process::Command;
 use std::sync::OnceLock;
-use std::time::Duration;
 
-use indicatif::{ProgressBar, ProgressStyle};
 use libloading::Library;
+use nanospinner::Spinner;
 use sha2::{Digest, Sha256};
 
 use crate::ffi::SpikeFns;
@@ -29,7 +28,7 @@ fn spike_src_dir() -> PathBuf {
 
 /// Directory where libspike.so and its stamp file live.
 fn so_dir() -> PathBuf {
-    out_dir().join("remu-so")
+    out_dir().join("remu-so").join("spike")
 }
 
 fn out_dir() -> PathBuf {
@@ -124,19 +123,24 @@ fn build_spike_so() -> Result<(), String> {
 
     let need_configure = !build_dir.join("Makefile").is_file();
     let steps = if need_configure { 4 } else { 3 };
-    let spinner = new_spinner(steps);
+    let first = if need_configure {
+        "configuring spike..."
+    } else {
+        "building spike..."
+    };
+    let mut spinner = StepSpinner::new(steps, first);
 
     // --- configure (optional) ---
     if need_configure {
         let configure = spike_src.join("configure");
         if !configure.exists() {
-            spinner.finish_with_message("spike configure not found");
+            spinner.fail("spike configure not found");
             return Err(format!(
                 "spike configure not found at {}",
                 configure.display()
             ));
         }
-        spinner.set_message("configuring spike...");
+        spinner.inc("configuring spike...");
         let status = Command::new(&configure)
             .current_dir(&build_dir)
             .env("CFLAGS", "-O2 -fPIC")
@@ -148,14 +152,13 @@ fn build_spike_so() -> Result<(), String> {
             .status()
             .map_err(|e| format!("spike configure: {e}"))?;
         if !status.success() {
-            spinner.finish_with_message("spike configure failed");
+            spinner.fail("spike configure failed");
             return Err("spike configure failed".into());
         }
-        spinner.inc(1);
     }
 
     // --- make ---
-    spinner.set_message("building spike...");
+    spinner.inc("building spike...");
     let make_status = Command::new("make")
         .current_dir(&build_dir)
         .env("CFLAGS", "-O2 -fPIC")
@@ -167,25 +170,24 @@ fn build_spike_so() -> Result<(), String> {
         .status()
         .map_err(|e| format!("spike make: {e}"))?;
     if !make_status.success() {
-        spinner.finish_with_message("spike make failed");
+        spinner.fail("spike make failed");
         return Err("spike make failed".into());
     }
-    spinner.inc(1);
 
     // --- verify static libs ---
     for lib in SPIKE_LIBS {
         let lib_path = build_dir.join(format!("lib{lib}.a"));
         if !lib_path.exists() {
-            spinner.finish_with_message(format!("missing lib{lib}.a"));
+            spinner.fail(format!("missing lib{lib}.a"));
             return Err(format!("missing lib{lib}.a"));
         }
     }
 
     // --- compile wrapper.cc ---
-    spinner.set_message("compiling spike wrapper...");
+    spinner.inc("compiling spike wrapper...");
     let wrapper_cc = manifest_dir.join("src/wrapper.cc");
     if !wrapper_cc.exists() {
-        spinner.finish_with_message("wrapper.cc not found");
+        spinner.fail("wrapper.cc not found");
         return Err(format!("wrapper.cc not found at {}", wrapper_cc.display()));
     }
     let wrapper_o = out.join("spike_wrapper.o");
@@ -214,13 +216,12 @@ fn build_spike_so() -> Result<(), String> {
         .status()
         .map_err(|e| format!("compile wrapper.cc: {e}"))?;
     if !wrapper_status.success() {
-        spinner.finish_with_message("wrapper.cc compile failed");
+        spinner.fail("wrapper.cc compile failed");
         return Err("compile wrapper.cc failed".into());
     }
-    spinner.inc(1);
 
     // --- link everything into .so ---
-    spinner.set_message("linking libspike.so...");
+    spinner.inc("linking libspike.so...");
     let so = so_path();
     let so_tmp = so.with_extension("so.tmp");
     let mut cmd = Command::new("g++");
@@ -236,7 +237,7 @@ fn build_spike_so() -> Result<(), String> {
     cmd.stderr(std::process::Stdio::null());
     let link_status = cmd.status().map_err(|e| format!("g++ -shared: {e}"))?;
     if !link_status.success() {
-        spinner.finish_with_message("linking failed");
+        spinner.fail("linking failed");
         return Err("g++ -shared failed".into());
     }
 
@@ -247,7 +248,7 @@ fn build_spike_so() -> Result<(), String> {
     let hash = hash_sources();
     fs::write(stamp_path(), &hash).map_err(|e| format!("write stamp: {e}"))?;
 
-    spinner.finish_and_clear();
+    spinner.done();
     Ok(())
 }
 
@@ -298,13 +299,31 @@ fn num_cpus() -> String {
     })
 }
 
-fn new_spinner(steps: u64) -> ProgressBar {
-    let pb = ProgressBar::new(steps);
-    pb.set_style(
-        ProgressStyle::with_template("{spinner:.cyan} [{pos}/{len}] {msg}")
-            .unwrap()
-            .tick_chars("⠋⠙⠹⠸⠼⠴⠦⠧⠇⠏"),
-    );
-    pb.enable_steady_tick(Duration::from_millis(100));
-    pb
+struct StepSpinner {
+    handle: nanospinner::SpinnerHandle,
+    step: u64,
+    total: u64,
+}
+
+impl StepSpinner {
+    fn new(total: u64, msg: impl Into<String>) -> Self {
+        let s = Spinner::new(&format!("[1/{total}] {}", msg.into()));
+        Self {
+            handle: s.start(),
+            step: 1,
+            total,
+        }
+    }
+    fn inc(&mut self, msg: impl Into<String>) {
+        self.step += 1;
+        self.handle
+            .update(format!("[{}/{}] {}", self.step, self.total, msg.into()));
+    }
+    fn done(&mut self) {
+        self.handle.stop();
+    }
+    fn fail(&mut self, msg: impl Into<String>) {
+        self.handle.stop();
+        eprintln!("{}", msg.into());
+    }
 }

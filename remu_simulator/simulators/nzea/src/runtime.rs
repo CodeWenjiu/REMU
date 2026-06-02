@@ -17,10 +17,9 @@ use std::io::{self, Write};
 use std::path::{Path, PathBuf};
 use std::process::Command;
 use std::sync::Mutex;
-use std::time::Duration;
 
-use indicatif::{ProgressBar, ProgressStyle};
 use libloading::Library;
+use nanospinner::Spinner;
 use sha2::{Digest, Sha256};
 
 use crate::NzeaTarget;
@@ -148,13 +147,12 @@ fn build_nzea_so(target: &NzeaTarget, isa_str: &str) -> Result<(), String> {
 
     fs::create_dir_all(&so_d).map_err(|e| format!("mkdir: {e}"))?;
 
-    let spinner = new_spinner(4);
+    let mut spinner = StepSpinner::new(4, format!("generating Verilog {t}:{isa_str}..."));
 
     // --- Step 1: just dump (Verilog generation) ---
-    spinner.set_message(format!("generating Verilog {t}:{isa_str}..."));
     let justfile = nzea.join("justfile");
     if !justfile.exists() {
-        spinner.finish_with_message(format!("justfile not found at {}", justfile.display()));
+        spinner.fail(format!("justfile not found at {}", justfile.display()));
         return Err(format!("justfile not found at {}", justfile.display()));
     }
 
@@ -175,10 +173,9 @@ fn build_nzea_so(target: &NzeaTarget, isa_str: &str) -> Result<(), String> {
         .current_dir(&find_workspace_root());
 
     run_silent(&mut dump, &format!("just dump {t}:{isa_str}"))?;
-    spinner.inc(1);
+    spinner.inc(format!("building model {t}:{isa_str}..."));
 
     // --- Step 2: verilator --cc --build ---
-    spinner.set_message(format!("building model {t}:{isa_str}..."));
     fs::create_dir_all(&v_build).map_err(|e| format!("mkdir verilator_build: {e}"))?;
 
     let cc = env::var("CC").unwrap_or_else(|_| "gcc".to_string());
@@ -222,10 +219,9 @@ fn build_nzea_so(target: &NzeaTarget, isa_str: &str) -> Result<(), String> {
         .env("CXX", &ccache_cxx);
 
     run_silent(&mut vcmd, &format!("verilator {t}:{isa_str}"))?;
-    spinner.inc(1);
+    spinner.inc(format!("compiling wrapper {t}:{isa_str}..."));
 
     // --- Step 3: compile wrapper ---
-    spinner.set_message(format!("compiling wrapper {t}:{isa_str}..."));
     let wrapper_cc = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("c_src/nzea_wrapper.cpp");
     let wrapper_o = wrapper_obj(t, isa_str);
     let v_include = find_verilator_include()?;
@@ -252,10 +248,9 @@ fn build_nzea_so(target: &NzeaTarget, isa_str: &str) -> Result<(), String> {
         .arg(format!("-DNZEA_MODEL_KEY=\"{t}:{isa_str}\""));
 
     run_silent(&mut wcmd, &format!("wrapper compile {t}:{isa_str}"))?;
-    spinner.inc(1);
+    spinner.inc(format!("linking {t}:{isa_str}..."));
 
     // --- Step 4: link .so ---
-    spinner.set_message(format!("linking {t}:{isa_str}..."));
     let so = so_path(t, isa_str);
     let so_tmp = so.with_extension("so.tmp");
     let mut cmd = Command::new("g++");
@@ -276,7 +271,7 @@ fn build_nzea_so(target: &NzeaTarget, isa_str: &str) -> Result<(), String> {
     let hash = hash_nzea_sources(t, isa_str);
     fs::write(stamp_path(t, isa_str), &hash).map_err(|e| format!("write stamp: {e}"))?;
 
-    spinner.finish_and_clear();
+    spinner.done();
     Ok(())
 }
 
@@ -334,15 +329,33 @@ pub(crate) fn get_nzea_fns(target: &str, isa_str: &str) -> &'static NzeaFns {
 // Helpers
 // ---------------------------------------------------------------------------
 
-fn new_spinner(steps: u64) -> ProgressBar {
-    let pb = ProgressBar::new(steps);
-    pb.set_style(
-        ProgressStyle::with_template("{spinner:.cyan} [{pos}/{len}] {msg}")
-            .unwrap()
-            .tick_chars("⠋⠙⠹⠸⠼⠴⠦⠧⠇⠏"),
-    );
-    pb.enable_steady_tick(Duration::from_millis(100));
-    pb
+struct StepSpinner {
+    handle: nanospinner::SpinnerHandle,
+    step: u64,
+    total: u64,
+}
+
+impl StepSpinner {
+    fn new(total: u64, msg: impl Into<String>) -> Self {
+        let s = Spinner::new(&format!("[1/{total}] {}", msg.into()));
+        Self {
+            handle: s.start(),
+            step: 1,
+            total,
+        }
+    }
+    fn inc(&mut self, msg: impl Into<String>) {
+        self.step += 1;
+        self.handle
+            .update(format!("[{}/{}] {}", self.step, self.total, msg.into()));
+    }
+    fn done(&mut self) {
+        self.handle.stop();
+    }
+    fn fail(&mut self, msg: impl Into<String>) {
+        let _ = writeln!(io::stderr(), "{}", msg.into());
+        self.handle.stop();
+    }
 }
 
 fn append_memory_inits(verilog_dir: &Path, prefix: &str, mut files: Vec<String>) -> Vec<String> {
