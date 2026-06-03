@@ -254,14 +254,12 @@ fn build_nzea_so(target: &NzeaTarget, isa_str: &str) -> Result<(), String> {
     let so = so_path(t, isa_str);
     let so_tmp = so.with_extension("so.tmp");
     let mut cmd = Command::new("g++");
-    let zlib_dir = option_env!("NZEA_ZLIB_LIB_DIR").unwrap_or("/usr/lib");
     cmd.arg("-shared").arg("-fPIC").arg("-o").arg(&so_tmp);
     cmd.arg(&wrapper_o);
     cmd.arg("-Wl,--whole-archive");
     cmd.arg(v_build.join(format!("lib{prefix}.a")));
     cmd.arg(v_build.join("libverilated.a"));
     cmd.arg("-Wl,--no-whole-archive");
-    cmd.arg("-L").arg(zlib_dir);
     cmd.arg("-lz");
 
     run_silent(&mut cmd, &format!("link {t}:{isa_str}"))?;

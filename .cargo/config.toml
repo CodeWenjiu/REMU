@@ -4,7 +4,7 @@ codegen-backend = true
 [profile.dev]
 codegen-backend = "cranelift"
 
-[profile.dev.package."*"]
+[profile.dev.build-override]
 codegen-backend = "llvm"
 
 [target.'cfg(target_os = "linux")']

@@ -70,6 +70,7 @@
           cmake
           verilator
           ccache
+          sccache
 
           mold
 
@@ -96,11 +97,14 @@
           buildInputs = devPackages;
 
           shellHook = ''
+            export RUSTC_WRAPPER=sccache
+            export SCCACHE_DIR="$PWD/.sccache"
             mkdir -p .direnv/bin
-            # use mold linker via env var (only active inside nix shell)
             export CARGO_TARGET_X86_64_UNKNOWN_LINUX_GNU_RUSTFLAGS="-C link-arg=-fuse-ld=mold"
             export CARGO_TARGET_AARCH64_UNKNOWN_LINUX_GNU_RUSTFLAGS="-C link-arg=-fuse-ld=mold"
             export LD_LIBRARY_PATH=${pkgs.lib.makeLibraryPath guiRuntime}:$LD_LIBRARY_PATH
+            export LD_LIBRARY_PATH=${pkgs.zlib.out}/lib:$LD_LIBRARY_PATH
+            export LIBRARY_PATH=${pkgs.zlib.out}/lib
             export OPENSSL_NO_VENDOR=1
             export OPENSSL_DIR=${pkgs.openssl.dev}
             export OPENSSL_LIB_DIR=${pkgs.openssl.out}/lib
