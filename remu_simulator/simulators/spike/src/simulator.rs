@@ -9,7 +9,7 @@ use remu_isa::{AllUsize, Xlen};
 use remu_state::bus::{BusOption, MemoryEntry, try_load_elf_into_memory};
 use remu_state::reg::riscv::RiscvReg;
 use remu_state::{State, StateCmd};
-use remu_types::{DifftestMismatchItem, RegGroup, TracerDyn};
+use remu_types::{DifftestGroup, DifftestMismatchItem, DifftestRegGroup, TracerDyn};
 
 use remu_simulator::{
     SimulatorCore, SimulatorInnerError, SimulatorOption, SimulatorPolicy, SimulatorRef,
@@ -195,7 +195,7 @@ impl<P: SimulatorPolicy> SimulatorCore<P> for SimulatorSpike<P> {
 
         if ref_pc != *dut_reg.pc {
             out.push(DifftestMismatchItem {
-                group: RegGroup::Pc,
+                group: DifftestGroup::Reg(DifftestRegGroup::Pc),
                 name: "pc".to_string(),
                 ref_val: AllUsize::U32(ref_pc),
                 dut_val: AllUsize::U32(*dut_reg.pc),
@@ -210,7 +210,7 @@ impl<P: SimulatorPolicy> SimulatorCore<P> for SimulatorSpike<P> {
                     .map(|g| g.to_string())
                     .unwrap_or_else(|| format!("x{i}"));
                 out.push(DifftestMismatchItem {
-                    group: RegGroup::Gpr,
+                    group: DifftestGroup::Reg(DifftestRegGroup::Gpr),
                     name,
                     ref_val: AllUsize::U32(r),
                     dut_val: AllUsize::U32(d),
@@ -227,7 +227,7 @@ impl<P: SimulatorPolicy> SimulatorCore<P> for SimulatorSpike<P> {
                         .map(|f| f.to_string())
                         .unwrap_or_else(|| format!("f{i}"));
                     out.push(DifftestMismatchItem {
-                        group: RegGroup::Fpr,
+                        group: DifftestGroup::Reg(DifftestRegGroup::Fpr),
                         name,
                         ref_val: AllUsize::U32(r),
                         dut_val: AllUsize::U32(d),
@@ -246,7 +246,7 @@ impl<P: SimulatorPolicy> SimulatorCore<P> for SimulatorSpike<P> {
                 let dut_val = dut_reg.read_csr(*csr);
                 if (ref_val & mask) != (dut_val & mask) {
                     out.push(DifftestMismatchItem {
-                        group: RegGroup::Csr,
+                        group: DifftestGroup::Reg(DifftestRegGroup::Csr),
                         name: csr.to_string(),
                         ref_val: AllUsize::U32(ref_val),
                         dut_val: AllUsize::U32(dut_val),
@@ -279,7 +279,7 @@ impl<P: SimulatorPolicy> SimulatorCore<P> for SimulatorSpike<P> {
                             (AllUsize::U64(0), AllUsize::U64(0))
                         };
                         out.push(DifftestMismatchItem {
-                            group: RegGroup::Vr,
+                            group: DifftestGroup::Reg(DifftestRegGroup::Vr),
                             name: format!("v{i}"),
                             ref_val,
                             dut_val,

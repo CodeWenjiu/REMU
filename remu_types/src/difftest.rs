@@ -10,19 +10,44 @@ pub enum DifftestRef {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum RegGroup {
+pub enum DifftestRegGroup {
     Pc,
     Gpr,
     Fpr,
     Vr,
     Csr,
-    /// Memory region written by DUT; difftest compares with ref memory.
+}
+
+impl fmt::Display for DifftestRegGroup {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.write_str(match self {
+            Self::Pc => "pc",
+            Self::Gpr => "gpr",
+            Self::Fpr => "fpr",
+            Self::Vr => "vr",
+            Self::Csr => "csr",
+        })
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum DifftestGroup {
+    Reg(DifftestRegGroup),
     Mem,
+}
+
+impl fmt::Display for DifftestGroup {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Self::Reg(r) => write!(f, "reg:{}", r),
+            Self::Mem => f.write_str("mem"),
+        }
+    }
 }
 
 #[derive(Debug, Clone)]
 pub struct DifftestMismatchItem {
-    pub group: RegGroup,
+    pub group: DifftestGroup,
     pub name: String,
     pub ref_val: AllUsize,
     pub dut_val: AllUsize,
@@ -33,17 +58,7 @@ impl fmt::Display for DifftestMismatchItem {
         write!(
             f,
             "  {} {}: ref={} dut={}",
-            match self.group {
-                RegGroup::Pc => "pc",
-                RegGroup::Gpr => "gpr",
-                RegGroup::Fpr => "fpr",
-                RegGroup::Vr => "vr",
-                RegGroup::Csr => "csr",
-                RegGroup::Mem => "mem",
-            },
-            self.name,
-            self.ref_val,
-            self.dut_val
+            self.group, self.name, self.ref_val, self.dut_val
         )
     }
 }
@@ -56,7 +71,10 @@ impl FromStr for DifftestRef {
         match s_lower.as_str() {
             "remu" => Ok(DifftestRef::Remu),
             "spike" => Ok(DifftestRef::Spike),
-            _ => Err(format!("unknown difftest ref: '{}', supported: remu, spike", s)),
+            _ => Err(format!(
+                "unknown difftest ref: '{}', supported: remu, spike",
+                s
+            )),
         }
     }
 }

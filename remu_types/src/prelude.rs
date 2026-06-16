@@ -3,9 +3,9 @@
 //! Rule: a symbol goes here iff it is imported by 2+ downstream crates,
 //! or is the main entry-point type of this crate.
 
-pub use crate::difftest::DifftestMismatchItem;
+pub use crate::difftest::{DifftestGroup, DifftestMismatchItem, DifftestRegGroup};
 pub use crate::exit_code::ExitCode;
 pub use crate::platform::Platform;
 pub use crate::trace_flags::{TraceFlags, TraceKind};
-pub use crate::{AllUsize, DifftestRef, RegGroup, TracerDyn};
+pub use crate::{AllUsize, DifftestRef, TracerDyn};
 pub use remu_isa::Xlen;

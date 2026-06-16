@@ -2,7 +2,7 @@ use std::collections::HashMap;
 
 use remu_state::reg::riscv::RiscvReg;
 use remu_state::{State, StateCmd, StateError};
-use remu_types::{DifftestMismatchItem, RegGroup, TracerDyn};
+use remu_types::{DifftestGroup, DifftestMismatchItem, DifftestRegGroup, TracerDyn};
 
 use remu_simulator::{
     SimulatorCore, SimulatorDut, SimulatorInnerError, SimulatorOption, SimulatorPolicy,
@@ -79,10 +79,7 @@ impl<P: SimulatorPolicy, const IS_DUT: bool> ExecuteContext<P> for SimulatorRemu
 
 impl<P: SimulatorPolicy, const IS_DUT: bool> SimulatorRemu<P, IS_DUT> {
     #[inline(always)]
-    fn execute_inst(
-        &mut self,
-        decoded: &crate::riscv::DecodedInst,
-    ) -> Result<(), StateError> {
+    fn execute_inst(&mut self, decoded: &crate::riscv::DecodedInst) -> Result<(), StateError> {
         crate::riscv::execute(self, decoded)
     }
 }
@@ -179,7 +176,7 @@ impl<P: SimulatorPolicy, const IS_DUT: bool> SimulatorCore<P> for SimulatorRemu<
             <P::ISA as remu_isa::isa::RvIsa>::PcState::diff(&r.pc, &d.pc)
         {
             out.push(DifftestMismatchItem {
-                group: RegGroup::Pc,
+                group: DifftestGroup::Reg(DifftestRegGroup::Pc),
                 name,
                 ref_val,
                 dut_val,
@@ -189,7 +186,7 @@ impl<P: SimulatorPolicy, const IS_DUT: bool> SimulatorCore<P> for SimulatorRemu<
             <P::ISA as remu_isa::isa::RvIsa>::GprState::diff(&r.gpr, &d.gpr)
         {
             out.push(DifftestMismatchItem {
-                group: RegGroup::Gpr,
+                group: DifftestGroup::Reg(DifftestRegGroup::Gpr),
                 name,
                 ref_val,
                 dut_val,
@@ -199,7 +196,7 @@ impl<P: SimulatorPolicy, const IS_DUT: bool> SimulatorCore<P> for SimulatorRemu<
             <P::ISA as remu_isa::isa::RvIsa>::FprState::diff(&r.fpr, &d.fpr)
         {
             out.push(DifftestMismatchItem {
-                group: RegGroup::Fpr,
+                group: DifftestGroup::Reg(DifftestRegGroup::Fpr),
                 name,
                 ref_val,
                 dut_val,
@@ -211,7 +208,7 @@ impl<P: SimulatorPolicy, const IS_DUT: bool> SimulatorCore<P> for SimulatorRemu<
             )
         {
             out.push(DifftestMismatchItem {
-                group: RegGroup::Vr,
+                group: DifftestGroup::Reg(DifftestRegGroup::Vr),
                 name,
                 ref_val,
                 dut_val,

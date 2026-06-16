@@ -65,7 +65,7 @@ impl<C: PlatformConfig> Harness<C> {
             for (addr, dut_data) in &mem_writes {
                 if let Some(ref_bytes) = self.ref_model.mem_compare(*addr, dut_data.as_ref()) {
                     diff.push(DifftestMismatchItem {
-                        group: RegGroup::Mem,
+                        group: DifftestGroup::Mem,
                         name: format!("0x{:08x}:{}", addr, dut_data.len()),
                         ref_val: AllUsize::Bytes(ref_bytes),
                         dut_val: AllUsize::Bytes(dut_data.clone()),
