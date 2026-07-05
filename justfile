@@ -19,19 +19,20 @@ build-app APP target="riscv32i":
     cd "{{ justfile_directory() }}"
     eval "$(cargo run -p xtask -- print build-app "{{ APP }}" "{{ target }}")"
 
-run-app APP target="riscv32i" *remu_cli_args:
+[arg("dev", long="dev", value="1")]
+run-app APP target="riscv32i" dev='' *remu_cli_args:
     #!/usr/bin/env bash
     set -euo pipefail
     cd "{{ justfile_directory() }}"
+    {{ if dev != '' { "export DEV=1;" } else { "" } }}
     eval "$(cargo run -p xtask -- print run-app "{{ APP }}" "{{ target }}" -- {{ remu_cli_args }})"
 
 clean-app:
     @rm -rf "{{ justfile_directory() }}/target/app" "{{ justfile_directory() }}/target/app_zve32x"
 
-
 look:
     @cargo asm --release -p remu_cli run_steps
-    
+
 step-sizes:
     @cargo build --profile bench -p remu_cli
     @nm -S -C "{{ justfile_directory() }}/target/release/remu_cli" 2>&1 | grep run_steps | gawk 'BEGIN { OFS="\t"; print "size_hex\tsize_bytes\tvariant" } { size_hex=$2; size_dec=strtonum("0x"$2); rest=$0; sub(/^[^ \t]+[ \t]+[^ \t]+[ \t][ \t]*/, "", rest); idx=index(rest, "Debugger<"); end=index(rest, ">>::"); if (idx && end) variant=substr(rest, idx+9, end-idx-9); else variant=rest; gsub(/remu_types::isa::extension_enum::/, "", variant); gsub(/remu_state::policy::/, "", variant); print size_hex, size_dec, variant }' > "{{ justfile_directory() }}/.step-sizes.tsv"

@@ -653,7 +653,7 @@ dependencies = [
 [[package]]
 name = "capstone"
 version = "0.14.0"
-source = "git+https://github.com/CodeWenjiu/capstone-rs?branch=capstone-v6-fix#c75db0422c14817b652e933183a57096f4599ed1"
+source = "git+ssh://git@github.com/capstone-rust/capstone-rs.git?branch=capstone-v6#8d7f9efc5eb33eb38e33b98569a00598dc8ff408"
 dependencies = [
  "capstone-sys",
  "static_assertions",
@@ -662,7 +662,7 @@ dependencies = [
 [[package]]
 name = "capstone-sys"
 version = "0.18.0"
-source = "git+https://github.com/CodeWenjiu/capstone-rs?branch=capstone-v6-fix#c75db0422c14817b652e933183a57096f4599ed1"
+source = "git+ssh://git@github.com/capstone-rust/capstone-rs.git?branch=capstone-v6#8d7f9efc5eb33eb38e33b98569a00598dc8ff408"
 dependencies = [
  "cc",
 ]

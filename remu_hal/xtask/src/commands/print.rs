@@ -5,10 +5,10 @@ use crate::cli::{BuildAppArgs, PrintCmd, RunAppArgs, RunRemuArgs};
 use crate::disasm::infer_isa_from_elf_path;
 use crate::paths::Paths;
 use crate::target::{
-    CARGO_TARGET_RUSTFLAGS_RV32I_ENV, CARGO_TARGET_RUSTFLAGS_RV32IM_ENV, EXISA0_ENV, REMU_ISA_ENV,
-    WJ_CUS0_ISA_SUFFIX, ZVE32_TARGET_RUSTFLAGS, artifact_dir_name, cargo_target_dir_subdir,
-    merge_cargo_target_rustflags, remu_cli_cargo_release_suffix, resolve_for_hal_dir,
-    resolve_for_workspace_root,
+    artifact_dir_name, cargo_target_dir_subdir, merge_cargo_target_rustflags,
+    remu_cli_cargo_release_suffix, resolve_for_hal_dir, resolve_for_workspace_root,
+    CARGO_TARGET_RUSTFLAGS_RV32IM_ENV, CARGO_TARGET_RUSTFLAGS_RV32I_ENV, EXISA0_ENV, REMU_ISA_ENV,
+    WJ_CUS0_ISA_SUFFIX, ZVE32_TARGET_RUSTFLAGS,
 };
 use crate::util::shell_escape;
 
@@ -168,15 +168,6 @@ fn print_run_remu(args: RunRemuArgs) -> ExitCode {
         "cargo run -p remu_cli{rel} --manifest-path {manifest_s} -- --elf {elf_s} --isa {isa_s}"
     );
 
-    if std::env::var("BATCH").is_ok() {
-        print!(" --batch --startup continue");
-    }
-    if let Ok(v) = std::env::var("PLATFORM") {
-        print!(" --platform {}", shell_escape(&v));
-    }
-    if let Ok(v) = std::env::var("DIFFTEST") {
-        print!(" --difftest {}", shell_escape(&v));
-    }
     for arg in args.remu_cli_args {
         print!(" {}", shell_escape(&arg));
     }
