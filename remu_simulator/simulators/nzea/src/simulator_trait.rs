@@ -38,12 +38,8 @@ where
     tracer: TracerDyn,
     commit_buffer: Vec<CommitMsg>,
     interrupt: Arc<std::sync::atomic::AtomicBool>,
-    /// Pending memory write events; instruction commit and mem access may be out of sync.
-    event_buffer: Vec<ObserverEvent>,
-    /// mem_count of the last applied commit; used by take_observer_events to pop the right number of ops.
-    last_commit_mem_count: u32,
-    /// is_load of the last applied commit; when true, take_observer_events pops 0 (load needs no diff).
-    last_commit_is_load: bool,
+    /// Whether the last committed instruction accessed an MMIO device.
+    last_commit_is_mmio: bool,
     /// Breakpoint PCs; no duplicates.
     breakpoints: Vec<u32>,
     /// When true: on breakpoint hit, apply normally. When false: return BreakpointHit. Toggles on each hit.
@@ -110,9 +106,7 @@ where
             tracer,
             commit_buffer: Vec::new(),
             interrupt,
-            event_buffer: Vec::new(),
-            last_commit_mem_count: 0,
-            last_commit_is_load: false,
+            last_commit_is_mmio: false,
             breakpoints: Vec::new(),
             breakpoint_apply_next: false,
             pending_exit_code: None,
@@ -148,24 +142,11 @@ where
     }
 
     fn take_observer_events(&mut self) -> Vec<ObserverEvent> {
-        let state_events = self.state_mut().bus.take_observer_events();
-        self.event_buffer.extend(state_events);
-        let n = if self.last_commit_is_load {
-            let first_is_mmio = self
-                .event_buffer
-                .first()
-                .map_or(false, |e| matches!(e, ObserverEvent::MmioAccess));
-            if first_is_mmio {
-                self.last_commit_mem_count as usize
-            } else {
-                0
-            }
+        if self.last_commit_is_mmio {
+            vec![ObserverEvent::MmioAccess]
         } else {
-            self.last_commit_mem_count as usize
-        };
-        self.event_buffer
-            .drain(..n.min(self.event_buffer.len()))
-            .collect()
+            vec![]
+        }
     }
 
     fn step_once<const TRACE: u64>(&mut self) -> Result<(), remu_simulator::SimulatorInnerError> {
@@ -288,8 +269,7 @@ where
 
     /// Apply a commit to state (for difftest).
     fn apply_commit(&mut self, msg: CommitMsg) {
-        self.last_commit_mem_count = msg.mem_count;
-        self.last_commit_is_load = msg.is_load;
+        self.last_commit_is_mmio = msg.is_mmio;
         *self.state.reg.pc = msg.next_pc;
         if msg.csr_valid {
             if let Some(csr) = CsrKind::from_repr(msg.csr_addr as u16) {

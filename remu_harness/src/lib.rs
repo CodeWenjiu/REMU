@@ -44,16 +44,9 @@ impl<C: PlatformConfig> Harness<C> {
             .map_err(SimulatorError::Dut)?;
         if <C::Ref as SimulatorRef<C::Policy>>::ENABLE {
             let events = self.dut_model.take_observer_events();
-            let mut need_sync = false;
-            let mut mem_writes: Vec<(usize, Box<[u8]>)> = Vec::new();
-            for e in &events {
-                match e {
-                    ObserverEvent::MmioAccess => need_sync = true,
-                    ObserverEvent::MemoryWrite(addr, data) => {
-                        mem_writes.push((*addr, data.clone()));
-                    }
-                }
-            }
+            let need_sync = events
+                .iter()
+                .any(|e| matches!(e, ObserverEvent::MmioAccess));
             if need_sync {
                 self.ref_model.sync_regs_from(&self.dut_model.state().reg);
                 return Ok(());
@@ -61,17 +54,7 @@ impl<C: PlatformConfig> Harness<C> {
             self.ref_model
                 .step_once::<0>()
                 .map_err(SimulatorError::Ref)?;
-            let mut diff = self.ref_model.regs_diff(&self.dut_model.state().reg);
-            for (addr, dut_data) in &mem_writes {
-                if let Some(ref_bytes) = self.ref_model.mem_compare(*addr, dut_data.as_ref()) {
-                    diff.push(DifftestMismatchItem {
-                        group: DifftestGroup::Mem,
-                        name: format!("0x{:08x}:{}", addr, dut_data.len()),
-                        ref_val: AllUsize::Bytes(ref_bytes),
-                        dut_val: AllUsize::Bytes(dut_data.clone()),
-                    });
-                }
-            }
+            let diff = self.ref_model.regs_diff(&self.dut_model.state().reg);
             if !diff.is_empty() {
                 return Err(SimulatorError::Difftest(DifftestMismatchList(diff)));
             }

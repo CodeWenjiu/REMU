@@ -8,16 +8,13 @@ use remu_state::bus::BusError;
 #[derive(Clone, Copy, Debug)]
 pub(crate) struct CommitMsg {
     pub(crate) next_pc: u32,
-    /// True if CSR is written this commit.
     pub(crate) csr_valid: bool,
     pub(crate) csr_addr: u32,
     pub(crate) csr_data: u32,
     pub(crate) gpr_addr: u32,
     pub(crate) gpr_data: u32,
-    /// Number of memory accesses for this commit (0, 1, or more for vector loads/stores).
-    pub(crate) mem_count: u32,
-    /// True if the mem op is a load, false if store (meaningless when mem_count=0).
-    pub(crate) is_load: bool,
+    /// True if the memory access targets an MMIO device.
+    pub(crate) is_mmio: bool,
 }
 
 pub(crate) trait NzeaDpi {
@@ -31,8 +28,7 @@ pub(crate) trait NzeaDpi {
         csr_data: u32,
         gpr_addr: u32,
         gpr_data: u32,
-        mem_count: u32,
-        is_load: bool,
+        is_mmio: bool,
     );
     fn push_commit(&mut self, msg: CommitMsg);
 }
@@ -60,8 +56,7 @@ where
         csr_data: u32,
         gpr_addr: u32,
         gpr_data: u32,
-        mem_count: u32,
-        is_load: bool,
+        is_mmio: bool,
     ) {
         self.push_commit(CommitMsg {
             next_pc,
@@ -70,8 +65,7 @@ where
             csr_data,
             gpr_addr,
             gpr_data,
-            mem_count,
-            is_load,
+            is_mmio,
         });
     }
     fn push_commit(&mut self, msg: CommitMsg) {
@@ -140,29 +134,19 @@ pub extern "C" fn commit_trace(
     csr_data: i32,
     gpr_addr: i32,
     gpr_data: i32,
-    mem_count: i32,
-    is_load: i32,
+    is_mmio: i32,
 ) {
     let next_pc_u = next_pc as u32;
     let csr_addr_u = csr_addr as u32;
     let csr_data_u = csr_data as u32;
     let gpr_addr_u = gpr_addr as u32;
     let gpr_data_u = gpr_data as u32;
-    let mem_count_u = mem_count as u32;
-    let is_load_b = is_load != 0;
+    let is_mmio_b = is_mmio != 0;
     unsafe {
         (*nzea()).dpi_commit_trace(
-            next_pc_u,
-            csr_valid,
-            csr_addr_u,
-            csr_data_u,
-            gpr_addr_u,
-            gpr_data_u,
-            mem_count_u,
-            is_load_b,
+            next_pc_u, csr_valid, csr_addr_u, csr_data_u, gpr_addr_u, gpr_data_u, is_mmio_b,
         );
     }
 }
 #[used]
-static _KEEP_COMMIT_TRACE: unsafe extern "C" fn(i32, bool, i32, i32, i32, i32, i32, i32) =
-    commit_trace;
+static _KEEP_COMMIT_TRACE: unsafe extern "C" fn(i32, bool, i32, i32, i32, i32, i32) = commit_trace;
