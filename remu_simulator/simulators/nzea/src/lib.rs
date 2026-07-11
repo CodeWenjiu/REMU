@@ -5,5 +5,6 @@ remu_macro::mod_flat!(
     nzea_target,
     runtime,
     simulator_trait,
-    supported_isa
+    supported_isa,
+    watchdog,
 );

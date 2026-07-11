@@ -100,8 +100,6 @@
             export RUSTC_WRAPPER=sccache
             export SCCACHE_DIR="$PWD/.sccache"
             mkdir -p .direnv/bin
-            export CARGO_TARGET_X86_64_UNKNOWN_LINUX_GNU_RUSTFLAGS="-C link-arg=-fuse-ld=mold"
-            export CARGO_TARGET_AARCH64_UNKNOWN_LINUX_GNU_RUSTFLAGS="-C link-arg=-fuse-ld=mold"
             export LD_LIBRARY_PATH=${pkgs.lib.makeLibraryPath guiRuntime}:$LD_LIBRARY_PATH
             export LD_LIBRARY_PATH=${pkgs.zlib.out}/lib:$LD_LIBRARY_PATH
             export LIBRARY_PATH=${pkgs.zlib.out}/lib

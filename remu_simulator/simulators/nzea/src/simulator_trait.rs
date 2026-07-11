@@ -15,6 +15,7 @@ use remu_simulator::{
 
 use remu_state::bus::ObserverEvent;
 
+use crate::Watchdog;
 use crate::dpi::{self, CommitMsg, NzeaDpi};
 use crate::nzea_ffi::NzeaIsa;
 use crate::runtime::{ensure_nzea_loaded, get_nzea_fns};
@@ -40,6 +41,8 @@ where
     interrupt: Arc<std::sync::atomic::AtomicBool>,
     /// Whether the last committed instruction accessed an MMIO device.
     last_commit_is_mmio: bool,
+    /// Optional deadlock watchdog; fed every 1024 cycles with the current cycle count.
+    watchdog: Option<Watchdog>,
     /// Breakpoint PCs; no duplicates.
     breakpoints: Vec<u32>,
     /// When true: on breakpoint hit, apply normally. When false: return BreakpointHit. Toggles on each hit.
@@ -68,7 +71,7 @@ where
             .unwrap_or_else(|e| panic!("invalid --sim-opt for nzea: {e}"));
         let nzea_opt = backend_args.scope("nzea");
         nzea_opt
-            .assert_known_keys(&["target"])
+            .assert_known_keys(&["target", "watchdog"])
             .unwrap_or_else(|e| panic!("invalid --sim-opt for nzea: {e}"));
         let target = nzea_opt
             .get("target")
@@ -77,6 +80,7 @@ where
                     .unwrap_or_else(|e| panic!("invalid --sim-opt nzea.target: {e}"))
             })
             .unwrap_or_default();
+        let watchdog_spec = nzea_opt.get("watchdog");
 
         let model_key = format!("{}:{}", target.as_str(), <P::ISA as NzeaIsa>::NZEA_ISA_STR);
         let model_c = CString::new(model_key.as_str()).expect("nzea model key contains null");
@@ -98,6 +102,7 @@ where
         );
 
         let state = State::new(opt.state.clone(), tracer.clone(), IS_DUT);
+        let watchdog = Watchdog::from_spec(watchdog_spec, Arc::clone(&interrupt));
         Self {
             state,
             sim_ptr,
@@ -107,6 +112,7 @@ where
             commit_buffer: Vec::new(),
             interrupt,
             last_commit_is_mmio: false,
+            watchdog,
             breakpoints: Vec::new(),
             breakpoint_apply_next: false,
             pending_exit_code: None,
@@ -163,9 +169,14 @@ where
             }
             self.cycle::<TRACE>();
             cycle_count += 1;
-            if cycle_count % 1024 == 0 && self.interrupt.load(Ordering::Relaxed) {
-                self.interrupt.store(false, Ordering::Relaxed);
-                return Err(remu_simulator::SimulatorInnerError::Interrupted);
+            if cycle_count % 1024 == 0 {
+                if let Some(ref wd) = self.watchdog {
+                    wd.feed(self.cycle_count);
+                }
+                if self.interrupt.load(Ordering::Relaxed) {
+                    self.interrupt.store(false, Ordering::Relaxed);
+                    return Err(remu_simulator::SimulatorInnerError::Interrupted);
+                }
             }
         }
         if let Some(ec) = self.pending_exit_code.take() {

@@ -9,7 +9,6 @@ codegen-backend = "llvm"
 
 [target.'cfg(target_os = "linux")']
 rustflags = [
-    "-C", "link-arg=-fuse-ld=mold",
     "-Zshare-generics=y",
 ]
 
