@@ -3,9 +3,9 @@
 //! shared interrupt flag, causing `step_once` to return `Interrupted`.
 //!
 //! Format (parsed from `--sim-opt nzea.watchdog=SPEC`):
-//!   `5s`      → 3 misses × 5s interval (default misses=3)
-//!   `3x10s`   → 3 misses × 10s interval
-//!   `off`     → disabled
+//!   `5`     → 3 misses × 5s interval (default misses=3)
+//!   `3x10`  → 3 misses × 10s interval
+//!   `off`   → disabled
 //!
 //! Harness feeds the watchdog every 1024 sim cycles by writing the current cycle count.
 
@@ -13,6 +13,11 @@ use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use std::thread;
 use std::time::Duration;
+
+use winnow::Parser;
+use winnow::ascii::float;
+use winnow::combinator::{opt, terminated};
+use winnow::token::take_while;
 
 pub(crate) struct Watchdog {
     /// Current sim cycle count; harness updates this every 1024 cycles.
@@ -23,13 +28,22 @@ pub(crate) struct Watchdog {
 
 impl Watchdog {
     /// Parse `spec` and spawn a watchdog thread if enabled.
-    /// Returns `None` when spec is `"off"` or empty.
-    pub(crate) fn from_spec(spec: Option<&str>, interrupt: Arc<AtomicBool>) -> Option<Self> {
-        let spec = spec?.trim();
+    /// Returns `Ok(None)` when spec is None, empty, or "off".
+    /// Returns an error for invalid specs.
+    pub(crate) fn from_spec(
+        spec: Option<&str>,
+        interrupt: Arc<AtomicBool>,
+    ) -> Result<Option<Self>, String> {
+        let spec = spec.map(str::trim).unwrap_or("");
         if spec.is_empty() || spec.eq_ignore_ascii_case("off") {
-            return None;
+            return Ok(None);
         }
-        let (misses, interval) = parse_spec(spec)?;
+        let (misses, interval) = if spec.eq_ignore_ascii_case("test") {
+            (1, Duration::ZERO)
+        } else {
+            parse_spec(spec)
+                .ok_or_else(|| format!("invalid --sim-opt watchdog={spec:?}: expected a number (e.g. 5), NxM (e.g. 3x10), test, or off"))?
+        };
 
         let cycle = Arc::new(AtomicU64::new(0));
         let cycle_clone = Arc::clone(&cycle);
@@ -52,12 +66,12 @@ impl Watchdog {
                     }
                 }
             })
-            .ok()?;
+            .map_err(|e| format!("failed to spawn watchdog thread: {e}"))?;
 
-        Some(Self {
+        Ok(Some(Self {
             cycle,
             _handle: Some(handle),
-        })
+        }))
     }
 
     /// Feed the watchdog: write the current sim cycle count (called every 1024 cycles).
@@ -67,24 +81,23 @@ impl Watchdog {
     }
 }
 
-/// Parse `"3x10s"`, `"5s"` into (misses, interval).
+/// Parse `"3x10"`, `"5"` into (misses, interval).
 fn parse_spec(s: &str) -> Option<(u32, Duration)> {
-    let s = s.trim();
-    let (misses_str, dur_str) = if let Some((left, right)) = s.split_once('x') {
-        (left.trim(), right.trim())
-    } else {
-        ("3", s)
-    };
-    let misses: u32 = misses_str.parse().ok()?;
-    if misses == 0 {
-        return None;
+    parse_spec_impl.parse(s.trim()).ok()
+}
+
+fn parse_spec_impl(input: &mut &str) -> winnow::Result<(u32, Duration)> {
+    let misses: u32 = opt(terminated(
+        take_while(1.., |c: char| c.is_ascii_digit()),
+        'x',
+    ))
+    .map(|s: Option<&str>| s.unwrap_or("3").parse().unwrap())
+    .parse_next(input)?;
+    let secs: f64 = float.parse_next(input)?;
+    if secs <= 0.0 || misses == 0 {
+        return Err(winnow::error::ContextError::new());
     }
-    let secs: f64 = dur_str.strip_suffix('s')?.parse().ok()?;
-    if secs <= 0.0 {
-        return None;
-    }
-    let interval = Duration::from_secs_f64(secs);
-    Some((misses, interval))
+    Ok((misses, Duration::from_secs_f64(secs)))
 }
 
 #[cfg(test)]
@@ -93,21 +106,21 @@ mod tests {
 
     #[test]
     fn parse_default_misses() {
-        let (m, d) = parse_spec("5s").unwrap();
+        let (m, d) = parse_spec("5").unwrap();
         assert_eq!(m, 3);
         assert_eq!(d, Duration::from_secs(5));
     }
 
     #[test]
     fn parse_explicit() {
-        let (m, d) = parse_spec("2x10s").unwrap();
+        let (m, d) = parse_spec("2x10").unwrap();
         assert_eq!(m, 2);
         assert_eq!(d, Duration::from_secs(10));
     }
 
     #[test]
     fn parse_fractional() {
-        let (m, d) = parse_spec("3x0.5s").unwrap();
+        let (m, d) = parse_spec("3x0.5").unwrap();
         assert_eq!(m, 3);
         assert_eq!(d, Duration::from_millis(500));
     }

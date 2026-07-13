@@ -15,16 +15,13 @@ impl BackendArgKv {
     }
 }
 
-fn is_valid_key_segment(seg: &str) -> bool {
-    !seg.is_empty()
-        && seg
-            .chars()
-            .all(|c| c.is_ascii_alphanumeric() || c == '_' || c == '-')
+fn is_valid_key_char(c: char) -> bool {
+    c.is_ascii_alphanumeric() || c == '_' || c == '-'
 }
 
 fn parse_backend_arg_kv(raw: &str) -> Result<BackendArgKv, String> {
     let (key_raw, value_raw) = raw.split_once('=').ok_or_else(|| {
-        format!("invalid --sim-opt {raw:?}: expected KEY=VALUE (e.g. nzea.target=tile)")
+        format!("invalid --sim-opt {raw:?}: expected KEY=VALUE (e.g. watchdog=5)")
     })?;
 
     let key = key_raw.trim();
@@ -35,19 +32,9 @@ fn parse_backend_arg_kv(raw: &str) -> Result<BackendArgKv, String> {
     if value.is_empty() {
         return Err(format!("invalid --sim-opt {raw:?}: VALUE cannot be empty"));
     }
-    if !key.contains('.') {
+    if !key.chars().all(is_valid_key_char) {
         return Err(format!(
-            "invalid --sim-opt key {key:?}: key must be namespaced (e.g. nzea.target)"
-        ));
-    }
-    if key.starts_with('.') || key.ends_with('.') || key.contains("..") {
-        return Err(format!(
-            "invalid --sim-opt key {key:?}: malformed namespace path"
-        ));
-    }
-    if key.split('.').any(|seg| !is_valid_key_segment(seg)) {
-        return Err(format!(
-            "invalid --sim-opt key {key:?}: use only [A-Za-z0-9_-] in each segment"
+            "invalid --sim-opt key {key:?}: use only [A-Za-z0-9_-]"
         ));
     }
     Ok(BackendArgKv::new(key.to_string(), value.to_string()))
@@ -77,69 +64,23 @@ impl BackendArgs {
         self.map.is_empty()
     }
 
-    pub fn namespaces(&self) -> BTreeSet<String> {
-        self.map
-            .keys()
-            .filter_map(|k| k.split('.').next())
-            .map(str::to_string)
-            .collect()
-    }
-
-    pub fn assert_only_namespaces(&self, allowed: &[&str]) -> Result<(), String> {
-        let allowed: BTreeSet<&str> = allowed.iter().copied().collect();
-        let unknown: Vec<String> = self
-            .namespaces()
-            .into_iter()
-            .filter(|ns| !allowed.contains(ns.as_str()))
-            .collect();
-        if unknown.is_empty() {
-            Ok(())
-        } else {
-            Err(format!(
-                "unsupported --sim-opt namespace(s): {}",
-                unknown.join(", ")
-            ))
-        }
-    }
-
-    pub fn scope<'a>(&'a self, ns: &'a str) -> BackendScope<'a> {
-        BackendScope { ns, map: &self.map }
-    }
-}
-
-pub struct BackendScope<'a> {
-    ns: &'a str,
-    map: &'a BTreeMap<String, String>,
-}
-
-impl<'a> BackendScope<'a> {
-    pub fn get(&self, key: &str) -> Option<&'a str> {
-        let full = format!("{}.{}", self.ns, key);
-        self.map.get(&full).map(String::as_str)
-    }
-
-    pub fn keys(&self) -> Vec<String> {
-        let prefix = format!("{}.", self.ns);
-        self.map
-            .keys()
-            .filter_map(|k| k.strip_prefix(&prefix))
-            .map(str::to_string)
-            .collect()
+    pub fn get(&self, key: &str) -> Option<&str> {
+        self.map.get(key).map(String::as_str)
     }
 
     pub fn assert_known_keys(&self, known: &[&str]) -> Result<(), String> {
         let known: BTreeSet<&str> = known.iter().copied().collect();
         let unknown: Vec<String> = self
+            .map
             .keys()
-            .into_iter()
             .filter(|k| !known.contains(k.as_str()))
+            .cloned()
             .collect();
         if unknown.is_empty() {
             Ok(())
         } else {
             Err(format!(
-                "unsupported --sim-opt key(s) under {}: {}",
-                self.ns,
+                "unsupported --sim-opt key(s): {}",
                 unknown.join(", ")
             ))
         }
@@ -152,9 +93,9 @@ pub struct SimulatorOption {
     #[command(flatten)]
     pub state: StateOption,
 
-    /// Backend-specific simulator option in KEY=VALUE form (namespaced, e.g. nzea.target=tile).
-    /// Repeat this flag to set multiple options.
-    #[arg(long = "sim-opt", value_name = "KEY=VALUE", value_parser = parse_backend_arg_kv)]
+    /// Backend-specific simulator option in KEY=VALUE form (e.g. watchdog=5).
+    /// Repeat this flag to set multiple options, or pass multiple KEY=VALUE pairs space-separated.
+    #[arg(long = "sim-opt", value_name = "KEY=VALUE", value_parser = parse_backend_arg_kv, num_args = 1..)]
     pub sim_opt: Vec<BackendArgKv>,
 }
 
@@ -169,39 +110,43 @@ mod tests {
     use super::{BackendArgKv, BackendArgs, parse_backend_arg_kv};
 
     #[test]
-    fn parse_valid_backend_arg() {
-        let kv = parse_backend_arg_kv("nzea.target=tile").unwrap();
+    fn parse_bare_key() {
+        let kv = parse_backend_arg_kv("watchdog=5").unwrap();
         assert_eq!(
             kv,
             BackendArgKv {
-                key: "nzea.target".to_string(),
-                value: "tile".to_string()
+                key: "watchdog".to_string(),
+                value: "5".to_string()
             }
         );
     }
 
     #[test]
-    fn parse_requires_namespace() {
-        let err = parse_backend_arg_kv("target=tile").unwrap_err();
-        assert!(err.contains("namespaced"));
+    fn rejects_dotted_key() {
+        assert!(parse_backend_arg_kv("nzea.target=tile").is_err());
     }
 
     #[test]
     fn duplicate_key_rejected() {
-        let kv0 = parse_backend_arg_kv("nzea.target=core").unwrap();
-        let kv1 = parse_backend_arg_kv("nzea.target=tile").unwrap();
+        let kv0 = parse_backend_arg_kv("target=core").unwrap();
+        let kv1 = parse_backend_arg_kv("target=tile").unwrap();
         let err = BackendArgs::try_from_kv(&[kv0, kv1]).unwrap_err();
         assert!(err.contains("duplicate"));
     }
 
     #[test]
-    fn scope_lookup_works() {
-        let kv0 = parse_backend_arg_kv("nzea.target=tile").unwrap();
-        let kv1 = parse_backend_arg_kv("nzea.trace=1").unwrap();
-        let args = BackendArgs::try_from_kv(&[kv0, kv1]).unwrap();
-        let nzea = args.scope("nzea");
-        assert_eq!(nzea.get("target"), Some("tile"));
-        assert_eq!(nzea.get("trace"), Some("1"));
-        assert_eq!(nzea.get("missing"), None);
+    fn get_and_assert() {
+        let kv = parse_backend_arg_kv("watchdog=5").unwrap();
+        let args = BackendArgs::try_from_kv(&[kv]).unwrap();
+        assert_eq!(args.get("watchdog"), Some("5"));
+        assert_eq!(args.get("missing"), None);
+        assert!(args.assert_known_keys(&["watchdog"]).is_ok());
+    }
+
+    #[test]
+    fn assert_unknown_key_fails() {
+        let kv = parse_backend_arg_kv("watchdog=5").unwrap();
+        let args = BackendArgs::try_from_kv(&[kv]).unwrap();
+        assert!(args.assert_known_keys(&["target"]).is_err());
     }
 }

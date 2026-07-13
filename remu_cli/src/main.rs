@@ -182,7 +182,13 @@ impl DebuggerRunner for APPRunner {
 fn main() -> Result<()> {
     let _guard = remu_logger::set_logger("target/logs", "remu.log")?;
 
-    let option = DebuggerOption::parse();
+    let cli = CliOption::parse();
+    if cli.skill {
+        print_skill();
+        return Ok(());
+    }
+
+    let option = cli.debugger;
 
     let interrupt = Arc::new(AtomicBool::new(false));
     let interrupt_clone = Arc::clone(&interrupt);
@@ -194,4 +200,21 @@ fn main() -> Result<()> {
     boot(option, APPRunner, interrupt);
 
     Ok(())
+}
+
+#[derive(clap::Parser)]
+#[command(name = "remu_cli", author, version, about)]
+struct CliOption {
+    /// Print the AI agent skill document and exit.
+    #[arg(long)]
+    pub skill: bool,
+
+    #[command(flatten)]
+    pub debugger: DebuggerOption,
+}
+
+fn print_skill() {
+    let skill = include_str!("skill.md");
+    let version = env!("CARGO_PKG_VERSION");
+    print!("{}", skill.replace("{{version}}", version));
 }

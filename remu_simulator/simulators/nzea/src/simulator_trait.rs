@@ -67,20 +67,16 @@ where
             .backend_args()
             .unwrap_or_else(|e| panic!("invalid --sim-opt: {e}"));
         backend_args
-            .assert_only_namespaces(&["nzea"])
-            .unwrap_or_else(|e| panic!("invalid --sim-opt for nzea: {e}"));
-        let nzea_opt = backend_args.scope("nzea");
-        nzea_opt
             .assert_known_keys(&["target", "watchdog"])
             .unwrap_or_else(|e| panic!("invalid --sim-opt for nzea: {e}"));
-        let target = nzea_opt
+        let target = backend_args
             .get("target")
             .map(|s| {
                 s.parse::<crate::NzeaTarget>()
                     .unwrap_or_else(|e| panic!("invalid --sim-opt nzea.target: {e}"))
             })
             .unwrap_or_default();
-        let watchdog_spec = nzea_opt.get("watchdog");
+        let watchdog_spec = backend_args.get("watchdog");
 
         let model_key = format!("{}:{}", target.as_str(), <P::ISA as NzeaIsa>::NZEA_ISA_STR);
         let model_c = CString::new(model_key.as_str()).expect("nzea model key contains null");
@@ -102,7 +98,8 @@ where
         );
 
         let state = State::new(opt.state.clone(), tracer.clone(), IS_DUT);
-        let watchdog = Watchdog::from_spec(watchdog_spec, Arc::clone(&interrupt));
+        let watchdog = Watchdog::from_spec(watchdog_spec, Arc::clone(&interrupt))
+            .unwrap_or_else(|e| panic!("invalid --sim-opt for nzea: {e}"));
         Self {
             state,
             sim_ptr,
