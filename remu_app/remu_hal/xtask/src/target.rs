@@ -195,6 +195,7 @@ fn resolve_json_path(workspace_root: &Path, key: &str) -> String {
         return key.to_string();
     }
     workspace_root
+        .join("remu_app")
         .join("remu_hal")
         .join(key)
         .to_string_lossy()

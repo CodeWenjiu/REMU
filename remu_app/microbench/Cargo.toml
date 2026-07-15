@@ -1,0 +1,13 @@
+[package]
+name = "remu_app_microbench"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+remu_hal = { path = "../remu_hal" }
+miniz_oxide = { version = "0.8", default-features = false, features = ["with-alloc"] }
+
+[target.'cfg(target_arch = "riscv32")'.dependencies]
+
+[lints]
+workspace = true

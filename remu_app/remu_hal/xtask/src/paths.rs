@@ -21,7 +21,9 @@ impl Paths {
             .to_path_buf();
         let workspace_root = hal_dir
             .parent()
-            .expect("remu_hal lives under workspace root")
+            .expect("remu_hal lives under remu_app")
+            .parent()
+            .expect("remu_app lives under workspace root")
             .to_path_buf();
         Self {
             hal_dir,

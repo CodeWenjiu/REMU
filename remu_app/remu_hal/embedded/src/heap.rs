@@ -1,6 +1,4 @@
-//! Global heap allocator for remu_hal.
-//!
-//! Call [`init`] at the start of `main` before using any heap-allocated types (Vec, Box, etc.).
+//! Global heap allocator via embedded-alloc.
 
 use core::alloc::Layout;
 use embedded_alloc::LlffHeap as Heap;

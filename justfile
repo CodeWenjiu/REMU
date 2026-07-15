@@ -20,12 +20,17 @@ build-app APP target="riscv32i":
     eval "$(cargo run -p xtask -- print build-app "{{ APP }}" "{{ target }}")"
 
 [arg("dev", long="dev", value="1")]
-run-app APP target="riscv32i" dev='' *remu_cli_args:
+[arg("platform", long="platform")]
+run-app APP target="riscv32i" platform="remu" dev='' *remu_cli_args:
     #!/usr/bin/env bash
     set -euo pipefail
     cd "{{ justfile_directory() }}"
-    {{ if dev != '' { "export DEV=1;" } else { "" } }}
-    eval "$(cargo run -p xtask -- print run-app "{{ APP }}" "{{ target }}" -- {{ remu_cli_args }})"
+    if [ "{{ platform }}" = "host" ]; then
+        cargo run -p "remu_app_{{ APP }}"
+    else
+        {{ if dev != '' { "export DEV=1;" } else { "" } }}
+        eval "$(cargo run -p xtask -- print run-app "{{ APP }}" "{{ target }}" -- {{ remu_cli_args }})"
+    fi
 
 clean-app:
     @rm -rf "{{ justfile_directory() }}/target/app" "{{ justfile_directory() }}/target/app_zve32x"

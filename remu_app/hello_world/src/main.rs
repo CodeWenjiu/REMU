@@ -1,11 +1,10 @@
-#![no_std]
-#![no_main]
+#![cfg_attr(target_arch = "riscv32", no_std, no_main)]
 
-use remu_hal::{entry, FmtWrite, Uart16550, exit_success};
+use remu_hal::{FmtWrite, Uart16550, exit_success};
 
-#[entry]
+#[cfg_attr(target_arch = "riscv32", remu_hal::entry)]
 fn main() -> ! {
-    unsafe { remu_hal::pre_main_init() };
+    remu_hal::init();
     let mut uart = Uart16550::default_base();
     let _ = writeln!(uart, "Hello World");
     let _ = writeln!(uart, "Answer: {}", 42);

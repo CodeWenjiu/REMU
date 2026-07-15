@@ -1,14 +1,9 @@
 //! Program exit via SiFive test finisher.
-//!
-//! When running on remu, writing to this device signals program termination.
 
 use crate::addresses::SIFIVE_TEST_FINISHER_BASE;
 
-/// Magic value for success exit (remu reports ExitCode::Good).
-pub(crate) const EXIT_SUCCESS: u32 = 0x5555;
-
-/// Magic value for failure exit (remu reports ExitCode::Bad).
-pub(crate) const EXIT_FAILURE: u32 = 0x3333;
+const EXIT_SUCCESS: u32 = 0x5555;
+const EXIT_FAILURE: u32 = 0x3333;
 
 /// Notify remu to exit successfully. Does not return.
 #[inline(never)]

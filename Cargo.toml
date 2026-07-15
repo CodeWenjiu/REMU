@@ -20,10 +20,12 @@ members = [
 
     "remu_state",
 
-    "remu_hal",
-    "remu_hal/xtask",
+    "remu_app/remu_hal",
+    "remu_app/remu_hal/embedded",
+    "remu_app/remu_hal/xtask",
     "remu_app/hello_world",
     "remu_app/collection",
+    "remu_app/microbench",
     "remu_app/mnist", "remu_app/mnist/mnist_generator",
 ]
 

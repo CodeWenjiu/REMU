@@ -3431,6 +3431,14 @@ dependencies = [
 ]
 
 [[package]]
+name = "remu_app_microbench"
+version = "0.1.0"
+dependencies = [
+ "miniz_oxide",
+ "remu_hal",
+]
+
+[[package]]
 name = "remu_app_mnist"
 version = "0.1.0"
 dependencies = [
@@ -3521,6 +3529,15 @@ dependencies = [
 
 [[package]]
 name = "remu_hal"
+version = "0.1.0"
+dependencies = [
+ "embedded-io",
+ "remu_hal_embedded",
+ "remu_macro",
+]
+
+[[package]]
+name = "remu_hal_embedded"
 version = "0.1.0"
 dependencies = [
  "critical-section",

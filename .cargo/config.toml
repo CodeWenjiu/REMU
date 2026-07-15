@@ -17,10 +17,10 @@ linker = "rust-lld"
 rustflags = ["-C", "link-arg=-Tmemory.x", "-C", "link-arg=-Tlink.x"]
 
 [target.riscv32i-unknown-none-elf]
-runner = "remu_hal/scripts/remu-cargo-runner.sh"
+runner = "remu_app/remu_hal/scripts/remu-cargo-runner.sh"
 
 [target.riscv32im-unknown-none-elf]
-runner = "remu_hal/scripts/remu-cargo-runner.sh"
+runner = "remu_app/remu_hal/scripts/remu-cargo-runner.sh"
 
 [target.riscv32imac-unknown-none-elf]
-runner = "remu_hal/scripts/remu-cargo-runner.sh"
+runner = "remu_app/remu_hal/scripts/remu-cargo-runner.sh"

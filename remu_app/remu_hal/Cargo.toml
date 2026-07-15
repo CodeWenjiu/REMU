@@ -1,0 +1,14 @@
+[package]
+name = "remu_hal"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+remu_macro = { path = "../../remu_macro" }
+embedded-io = "0.7.1"
+
+[target.'cfg(any(target_arch = "riscv32", target_arch = "riscv64"))'.dependencies]
+remu_hal_embedded = { path = "./embedded" }
+
+[lints]
+workspace = true

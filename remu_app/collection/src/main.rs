@@ -1,18 +1,13 @@
-//! Tests heap allocator and collection types (Vec, String, Box, etc.)
+#![cfg_attr(target_arch = "riscv32", no_std, no_main)]
 
-#![no_std]
-#![no_main]
+use remu_hal::{Box, FmtWrite, String, Uart16550, Vec, exit_success};
 
-use remu_hal::{entry, init, FmtWrite, Uart16550, Vec, String, Box, exit_success};
-
-#[entry]
+#[cfg_attr(target_arch = "riscv32", remu_hal::entry)]
 fn main() -> ! {
-    unsafe { init() };
-
+    remu_hal::init();
     let mut uart = Uart16550::default_base();
     let _ = writeln!(uart, "collection test");
 
-    // Vec
     let mut v: Vec<u32> = Vec::new();
     v.push(1);
     v.push(2);
@@ -21,11 +16,9 @@ fn main() -> ! {
     v.extend([4, 5]);
     let _ = writeln!(uart, "Vec len: {}", v.len());
 
-    // String
     let s: String = String::from("hello");
     let _ = writeln!(uart, "String: {}", s);
 
-    // Box
     let b: Box<u32> = Box::new(42);
     let _ = writeln!(uart, "Box: {}", *b);
 
