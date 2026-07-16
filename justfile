@@ -27,7 +27,18 @@ run-app APP target="riscv32i" platform="remu" dev='' app_args='' *remu_cli_args:
     set -euo pipefail
     cd "{{ justfile_directory() }}"
     if [ "{{ platform }}" = "host" ]; then
-        cargo run -p "remu_app_{{ APP }}" -- {{ app_args }}
+        cargo run --release -p "remu_app_{{ APP }}" -- {{ app_args }}
+    elif [ "{{ platform }}" = "qemu" ]; then
+        ELF="target/app/{{ target }}-unknown-none-elf/release/remu_app_{{ APP }}"
+        TMP=""
+        QEMU_OPTS="-M virt -m 256M -nographic -bios none -kernel $ELF"
+        if [ -n "{{ app_args }}" ]; then
+            TMP=$(mktemp)
+            printf '%s\0' "{{ app_args }}" > "$TMP"
+            QEMU_OPTS="$QEMU_OPTS -device loader,addr=0x87FFF000,file=$TMP"
+        fi
+        qemu-system-riscv32 $QEMU_OPTS
+        [ -z "$TMP" ] || rm -f "$TMP"
     else
         {{ if dev != '' { "export DEV=1;" } else { "" } }}
         if [ -n "{{ app_args }}" ]; then

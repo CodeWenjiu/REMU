@@ -9,7 +9,7 @@ pub(crate) struct Lzip;
 impl Bench for Lzip {
     fn ref_time_usec(size: Size) -> u64 {
         match size {
-            Size::Ref => 131969,
+            Size::Ref => 23311,
             Size::Huge => 3670802,
             _ => 0,
         }

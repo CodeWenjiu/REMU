@@ -9,7 +9,7 @@ pub(crate) struct Md5;
 impl Bench for Md5 {
     fn ref_time_usec(size: Size) -> u64 {
         match size {
-            Size::Ref => 299334,
+            Size::Ref => 30350,
             Size::Huge => 1976871,
             _ => 0,
         }

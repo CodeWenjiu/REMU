@@ -9,7 +9,7 @@ pub(crate) struct Sieve;
 impl Bench for Sieve {
     fn ref_time_usec(size: Size) -> u64 {
         match size {
-            Size::Ref => 139909,
+            Size::Ref => 29867,
             Size::Huge => 1224475,
             _ => 0,
         }

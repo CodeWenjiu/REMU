@@ -9,7 +9,7 @@ pub(crate) struct Dinic;
 impl Bench for Dinic {
     fn ref_time_usec(size: Size) -> u64 {
         match size {
-            Size::Ref => 1873,
+            Size::Ref => 1267,
             Size::Huge => 5081,
             _ => 0,
         }

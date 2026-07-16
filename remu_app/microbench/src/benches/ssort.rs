@@ -9,7 +9,7 @@ pub(crate) struct Ssort;
 impl Bench for Ssort {
     fn ref_time_usec(size: Size) -> u64 {
         match size {
-            Size::Ref => 24196,
+            Size::Ref => 5138,
             Size::Huge => 1392463,
             _ => 0,
         }

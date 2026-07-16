@@ -8,7 +8,7 @@ pub(crate) struct Queen;
 impl Bench for Queen {
     fn ref_time_usec(size: Size) -> u64 {
         match size {
-            Size::Ref => 5798,
+            Size::Ref => 4929,
             Size::Huge => 1308621,
             _ => 0,
         }

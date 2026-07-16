@@ -9,7 +9,7 @@ pub(crate) struct Bf;
 impl Bench for Bf {
     fn ref_time_usec(size: Size) -> u64 {
         match size {
-            Size::Ref => 64609,
+            Size::Ref => 15931,
             Size::Huge => 3578112,
             _ => 0,
         }

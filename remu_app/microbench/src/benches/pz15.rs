@@ -292,7 +292,7 @@ pub(crate) struct Pz15;
 impl Bench for Pz15 {
     fn ref_time_usec(size: Size) -> u64 {
         match size {
-            Size::Ref => 18756,
+            Size::Ref => 4171,
             Size::Huge => 483671,
             _ => 0,
         }

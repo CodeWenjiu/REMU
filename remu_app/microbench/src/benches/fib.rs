@@ -9,7 +9,7 @@ pub(crate) struct Fib;
 impl Bench for Fib {
     fn ref_time_usec(size: Size) -> u64 {
         match size {
-            Size::Ref => 396037,
+            Size::Ref => 22278,
             Size::Huge => 14362797,
             _ => 0,
         }

@@ -69,10 +69,9 @@
           libclang
           cmake
           verilator
+          qemu
           ccache
           sccache
-
-          mold
 
           gnumake
           gcc
