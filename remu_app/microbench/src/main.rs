@@ -5,30 +5,89 @@ extern crate alloc;
 mod bench;
 mod benches;
 
-use bench::Bench;
+use bench::{Bench, Size};
 use benches::*;
+
+fn get_size() -> Size {
+    #[cfg(not(any(target_arch = "riscv32", target_arch = "riscv64")))]
+    {
+        let arg = std::env::args().nth(1).unwrap_or_default();
+        Size::from_arg(&arg)
+    }
+    #[cfg(any(target_arch = "riscv32", target_arch = "riscv64"))]
+    {
+        Size::from_arg(remu_hal::app_args())
+    }
+}
 
 #[cfg_attr(target_arch = "riscv32", remu_hal::entry)]
 fn main() -> ! {
     remu_hal::init();
-    remu_hal::println!("=== microbench ===");
+    let size = get_size();
+    remu_hal::println!("=== microbench [{}] ===", size.name());
 
-    run::<Queen>("queen");
-    run::<Qsort>("qsort");
-    run::<Sieve>("sieve");
-    run::<Bf>("bf");
-    run::<Fib>("fib");
-    run::<Md5>("md5");
-    run::<Dinic>("dinic");
-    run::<Ssort>("ssort");
-    run::<Pz15>("15pz");
-    run::<Lzip>("lzip");
+    let mut total_score = 0u64;
+    let mut n_scored = 0u64;
+    let t0 = bench::now_usec();
+
+    run::<Queen>("queen", size, &mut total_score, &mut n_scored);
+    run::<Qsort>("qsort", size, &mut total_score, &mut n_scored);
+    run::<Sieve>("sieve", size, &mut total_score, &mut n_scored);
+    run::<Bf>("bf", size, &mut total_score, &mut n_scored);
+    run::<Fib>("fib", size, &mut total_score, &mut n_scored);
+    run::<Md5>("md5", size, &mut total_score, &mut n_scored);
+    run::<Dinic>("dinic", size, &mut total_score, &mut n_scored);
+    run::<Ssort>("ssort", size, &mut total_score, &mut n_scored);
+    run::<Pz15>("15pz", size, &mut total_score, &mut n_scored);
+    run::<Lzip>("lzip", size, &mut total_score, &mut n_scored);
+
+    let total_time = bench::now_usec() - t0;
+    if n_scored > 0 {
+        let avg = total_score / n_scored;
+        remu_hal::println!("Score: {} (vs {} on Core Ultra 5 125H)", avg, 100000u64);
+    }
+    remu_hal::println!(
+        "Total time: {}.{:03} ms",
+        total_time / 1000,
+        total_time % 1000
+    );
 
     remu_hal::exit_success()
 }
 
-fn run<B: Bench>(name: &str) {
+fn run<B: Bench>(name: &str, size: Size, total_score: &mut u64, n_scored: &mut u64) {
     let mut out = remu_hal::Uart16550::default_base();
-    let passed = B::run(&mut out);
-    remu_hal::println!("{}: {}", name, if passed { "PASS" } else { "FAIL" });
+
+    let t0 = bench::now_usec();
+    let passed = B::run(&mut out, size);
+    let usec = bench::now_usec() - t0;
+
+    let ref_time = B::ref_time_usec(size);
+    let sc = if ref_time > 0 {
+        bench::score(ref_time, usec)
+    } else {
+        0
+    };
+
+    let status = if passed { "PASS" } else { "FAIL" };
+    if sc > 0 {
+        remu_hal::println!(
+            "{}: {} {:>5}.{:03} ms [{}]",
+            name,
+            status,
+            usec / 1000,
+            usec % 1000,
+            sc
+        );
+        *total_score += sc;
+        *n_scored += 1;
+    } else {
+        remu_hal::println!(
+            "{}: {} {:>5}.{:03} ms",
+            name,
+            status,
+            usec / 1000,
+            usec % 1000
+        );
+    }
 }

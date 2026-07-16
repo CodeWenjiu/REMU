@@ -22,6 +22,5 @@ fn main() -> ! {
     let b: Box<u32> = Box::new(42);
     let _ = writeln!(uart, "Box: {}", *b);
 
-    let _ = remu_hal::Write::flush(&mut uart);
     exit_success()
 }

@@ -24,6 +24,10 @@ pub struct BusOption {
 
     #[arg(long = "elf", alias = "bin", value_name = "PATH", value_parser = file_exists, value_hint = ValueHint::FilePath)]
     pub elf: Option<PathBuf>,
+
+    /// Application arguments written to 0x87FF_F000 before boot.
+    #[arg(long = "app-args", value_name = "ARGS")]
+    pub app_args: Option<String>,
 }
 
 fn file_exists(s: &str) -> Result<PathBuf, String> {

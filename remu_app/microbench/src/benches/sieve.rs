@@ -1,41 +1,44 @@
-//! Eratosthenes sieve. Size: 100 (test). Checksum: 0x00000019.
+//! Eratosthenes sieve.
 
-use crate::bench::Bench;
+use crate::bench::{Bench, Size};
+use alloc::vec::Vec;
 use core::fmt::Write;
-
-const SIZE: usize = 100;
-const PRIME_WORDS: usize = SIZE / 32 + 128;
-const CHECKSUM: u32 = 0x00000019;
-
-static mut PRIMES: [u32; PRIME_WORDS] = [0u32; PRIME_WORDS];
 
 pub(crate) struct Sieve;
 
 impl Bench for Sieve {
-    fn run<W: Write>(_w: &mut W) -> bool {
-        let primes = unsafe { &mut *(&raw mut PRIMES) };
+    fn ref_time_usec(size: Size) -> u64 {
+        match size {
+            Size::Ref => 139909,
+            Size::Huge => 1224475,
+            _ => 0,
+        }
+    }
+    fn run<W: Write>(w: &mut W, size: Size) -> bool {
+        let (n, checksum) = match size {
+            Size::Test => (100, 0x00000019),
+            Size::Train => (200000, 0x00004640),
+            Size::Ref => (10000000, 0x000a2403),
+            Size::Huge => (80000000, 0x00473fc6),
+        };
+        let words = n / 32 + 128;
+        let mut primes: Vec<u32> = alloc::vec![0u32; words];
 
-        let get = |n: usize, p: &[u32]| (p[n >> 5] >> (n & 31)) & 1;
-        let clear = |n: usize, p: &mut [u32]| {
-            p[n >> 5] &= !(1u32 << (n & 31));
+        let get = |i: usize, p: &[u32]| (p[i >> 5] >> (i & 31)) & 1;
+        let clear = |i: usize, p: &mut [u32]| {
+            p[i >> 5] &= !(1u32 << (i & 31));
         };
 
-        for i in 0..=SIZE / 32 {
-            primes[i] = 0xffffffff;
-        }
-
-        for i in 1..=SIZE {
-            if get(i, primes) == 0 {
-                return false;
-            }
+        for w in primes.iter_mut() {
+            *w = 0xffffffff;
         }
 
         let mut i = 2;
-        while i * i <= SIZE {
-            if get(i, primes) != 0 {
+        while i * i <= n {
+            if get(i, &primes) != 0 {
                 let mut j = i + i;
-                while j <= SIZE {
-                    clear(j, primes);
+                while j <= n {
+                    clear(j, &mut primes);
                     j += i;
                 }
             }
@@ -43,12 +46,15 @@ impl Bench for Sieve {
         }
 
         let mut ans = 0u32;
-        for i in 2..=SIZE {
-            if get(i, primes) != 0 {
+        for i in 2..=n {
+            if get(i, &primes) != 0 {
                 ans += 1;
             }
         }
 
-        ans == CHECKSUM
+        if ans != checksum {
+            let _ = writeln!(w, "sieve ans={} expected={}", ans, checksum);
+        }
+        ans == checksum
     }
 }

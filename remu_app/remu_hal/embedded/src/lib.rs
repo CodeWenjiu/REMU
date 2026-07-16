@@ -12,7 +12,7 @@
 extern crate alloc;
 extern crate panic_halt;
 
-remu_macro::mod_flat!(addresses, cpu, heap, time, trap, uart, exit);
+remu_macro::mod_flat!(addresses, app_args, cpu, heap, time, trap, uart, exit);
 
 pub use alloc::{boxed::Box, string::String, vec::Vec};
 pub use core::fmt::Write as FmtWrite;

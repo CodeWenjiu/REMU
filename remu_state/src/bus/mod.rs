@@ -44,6 +44,23 @@ impl<I: RvIsa, O: BusObserver> Bus<I, O> {
         let mut memory = Memory::new(entries.into_boxed_slice());
         memory.try_load_elf(&opt.elf, &tracer);
 
+        // Write app args to known address (top of RAM - 4 KiB)
+        if let Some(ref args) = opt.app_args {
+            const APP_ARGS_BASE: usize = 0x87FF_F000;
+            const APP_ARGS_MAX: usize = 4096;
+            let bytes = args.as_bytes();
+            let len = bytes.len().min(APP_ARGS_MAX - 1);
+            let ram = memory.entries_mut().iter_mut().find(|e| {
+                APP_ARGS_BASE >= e.range.start && APP_ARGS_BASE + APP_ARGS_MAX <= e.range.end
+            });
+            if let Some(ram) = ram {
+                let buf = &bytes[..len];
+                ram.write_bytes(APP_ARGS_BASE, buf);
+                // null terminator
+                ram.write_bytes(APP_ARGS_BASE + len, &[0]);
+            }
+        }
+
         let device: Vec<(usize, Box<dyn DeviceAccess>)> = if is_dut {
             opt.devices
                 .iter()

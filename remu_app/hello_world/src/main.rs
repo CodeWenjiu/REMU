@@ -8,6 +8,6 @@ fn main() -> ! {
     let mut uart = Uart16550::default_base();
     let _ = writeln!(uart, "Hello World");
     let _ = writeln!(uart, "Answer: {}", 42);
-    let _ = remu_hal::Write::flush(&mut uart);
+
     exit_success()
 }

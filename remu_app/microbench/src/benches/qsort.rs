@@ -1,33 +1,41 @@
-//! Quick sort. Size: 100 (test). Checksum: 0x08467105.
-//! Larger sizes need heap; use test variant for no_std microbench.
+//! Quick sort.
 
-use crate::bench::Bench;
+use crate::bench::{Bench, Size};
+use alloc::vec::Vec;
 use core::fmt::Write;
-
-const SIZE: usize = 100;
-const CHECKSUM: u32 = 0x08467105;
 
 pub(crate) struct Qsort;
 
 impl Bench for Qsort {
-    fn run<W: Write>(w: &mut W) -> bool {
-        let mut data = [0i32; SIZE];
+    fn ref_time_usec(size: Size) -> u64 {
+        match size {
+            Size::Ref => 47951,
+            Size::Huge => 2254171,
+            _ => 0,
+        }
+    }
+    fn run<W: Write>(w: &mut W, size: Size) -> bool {
+        let (n, checksum) = match size {
+            Size::Test => (100, 0x08467105),
+            Size::Train => (30000, 0xa3e99fe4),
+            Size::Ref => (100000, 0xed8cff89),
+            Size::Huge => (4000000, 0xe6178735),
+        };
+        let mut data: Vec<i32> = alloc::vec![0i32; n];
         let mut seed = 1u32;
-        for i in 0..SIZE {
+        for i in 0..n {
             let a = rand(&mut seed) as i32;
             let b = rand(&mut seed) as i32;
             data[i] = (a << 16) | b;
         }
         qsort(&mut data);
         let result =
-            crate::bench::checksum(
-                data.as_ptr() as *const u8,
-                unsafe { data.as_ptr().add(SIZE) } as *const u8,
-            );
-        if result != CHECKSUM {
-            let _ = writeln!(w, "qsort cs=0x{:08x} expected=0x{:08x}", result, CHECKSUM);
+            crate::bench::checksum(data.as_ptr() as *const u8, unsafe { data.as_ptr().add(n) }
+                as *const u8);
+        if result != checksum {
+            let _ = writeln!(w, "qsort cs=0x{:08x} expected=0x{:08x}", result, checksum);
         }
-        result == CHECKSUM
+        result == checksum
     }
 }
 
