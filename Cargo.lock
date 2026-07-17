@@ -3548,6 +3548,7 @@ dependencies = [
  "remu_macro",
  "riscv",
  "riscv-rt",
+ "xtask",
 ]
 
 [[package]]
@@ -5729,6 +5730,7 @@ dependencies = [
  "remu_isa",
  "remu_macro",
  "remu_types",
+ "strum 0.28.0",
  "winnow 1.0.3",
 ]
 

@@ -39,12 +39,12 @@ pub use core::fmt::Write as FmtWrite;
 pub use embedded_io::Write;
 
 #[cfg(any(target_arch = "riscv32", target_arch = "riscv64"))]
-pub use remu_hal_embedded::{Uart16550, entry};
+pub use remu_hal_embedded::{MTIME_TICK_HZ, Uart16550, entry, read_mtime};
 #[cfg(any(target_arch = "riscv32", target_arch = "riscv64"))]
 pub use riscv_backend::*;
 
 #[cfg(not(any(target_arch = "riscv32", target_arch = "riscv64")))]
-pub use host::Stdout as Uart16550;
+pub use host::{MTIME_TICK_HZ, Stdout as Uart16550, read_mtime};
 
 // ── Safe init (wraps unsafe embedded init) ──
 #[cfg(any(target_arch = "riscv32", target_arch = "riscv64"))]

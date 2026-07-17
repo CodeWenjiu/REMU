@@ -1,10 +1,10 @@
 //! INT8 MNIST with embedded FC weights and scales (CPU inference).
 
-use remu_hal::{println, read_mtime, Vec};
+use remu_hal::{Vec, println, read_mtime};
 
 use super::{
-    normalize_and_quantize_input, parse_image_binary, DETAILED_BENCHMARK_ITERATIONS,
-    EMBEDDED_TEST_IMAGES, MnistInference, Q16_SHIFT,
+    DETAILED_BENCHMARK_ITERATIONS, EMBEDDED_TEST_IMAGES, MnistInference, Q16_SHIFT,
+    normalize_and_quantize_input, parse_image_binary,
 };
 
 /// Loads `binarys/*.bin` at build time and runs the MLP on the CPU.
@@ -227,7 +227,10 @@ impl MnistInference for WeightedInference {
         }
         let end = read_mtime();
         let scale_ticks = end.wrapping_sub(start) / DETAILED_BENCHMARK_ITERATIONS as u64;
-        println!("int32_to_int8_with_scaling: {} mtime ticks/call", scale_ticks);
+        println!(
+            "int32_to_int8_with_scaling: {} mtime ticks/call",
+            scale_ticks
+        );
         total_ticks_sum += scale_ticks;
 
         let mut fc1_activations = Self::int32_to_int8_with_scaling(&fc1_output);

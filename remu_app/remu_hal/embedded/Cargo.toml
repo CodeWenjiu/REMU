@@ -3,6 +3,9 @@ name = "remu_hal_embedded"
 version = "0.1.0"
 edition = "2024"
 
+[build-dependencies]
+xtask = { path = "../xtask" }
+
 [dependencies]
 remu_macro = { path = "../../../remu_macro" }
 embedded-hal = "1.0.0"
@@ -15,3 +18,6 @@ embedded-alloc = { version = "0.7.0", default-features = false, features = ["llf
 
 [lints]
 workspace = true
+
+[features]
+htif = []

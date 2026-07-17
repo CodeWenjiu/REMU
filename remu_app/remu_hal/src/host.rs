@@ -24,3 +24,12 @@ impl fmt::Write for Stdout {
 /// No-op heap init on host (global allocator already set up by std).
 #[inline]
 pub fn init() {}
+
+/// MTIME tick frequency (host returns 0 — not applicable).
+pub const MTIME_TICK_HZ: u64 = 0;
+
+/// Read CLINT mtime (host returns 0 — not applicable).
+#[inline]
+pub fn read_mtime() -> u64 {
+    0
+}

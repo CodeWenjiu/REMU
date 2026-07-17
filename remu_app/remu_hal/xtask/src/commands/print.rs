@@ -4,6 +4,7 @@ use std::process::ExitCode;
 use crate::cli::{BuildAppArgs, PrintCmd, RunAppArgs, RunRemuArgs};
 use crate::disasm::infer_isa_from_elf_path;
 use crate::paths::Paths;
+use crate::platform::PlatformConfig;
 use crate::target::{
     artifact_dir_name, cargo_target_dir_subdir, merge_cargo_target_rustflags,
     remu_cli_cargo_release_suffix, resolve_for_hal_dir, resolve_for_workspace_root,
@@ -44,6 +45,17 @@ fn print_run_app(args: RunAppArgs) -> ExitCode {
     };
 
     let mut exports: Vec<String> = Vec::new();
+
+    // Platform-specific linker flags (from PlatformConfig trait).
+    let pf = args.platform.rustflags();
+    if !pf.is_empty() {
+        let env_key = format!(
+            "CARGO_TARGET_{}_RUSTFLAGS",
+            resolved.triple_or_json.to_uppercase().replace('-', "_")
+        );
+        exports.push(format!("{}={}", env_key, shell_escape(&pf.join(" "))));
+    }
+
     if let Some(env_k) = resolved.zve_cargo_rustflags_env {
         let rf_v = shell_escape(&merge_cargo_target_rustflags(env_k, ZVE32_TARGET_RUSTFLAGS));
         exports.push(format!("{env_k}={rf_v}"));
@@ -116,6 +128,19 @@ fn print_build_app(args: BuildAppArgs) -> ExitCode {
     } else {
         ""
     };
+
+    let rustflags_parts: Vec<String> = args.platform.rustflags();
+    if !rustflags_parts.is_empty() {
+        let env_key = format!(
+            "CARGO_TARGET_{}_RUSTFLAGS",
+            resolved.triple_or_json.to_uppercase().replace('-', "_")
+        );
+        env_parts.push(format!(
+            "{}={}",
+            env_key,
+            shell_escape(&rustflags_parts.join(" "))
+        ));
+    }
 
     let hal_s = shell_escape(hal_abs.to_str().expect("utf-8"));
     let manifest_s = shell_escape(manifest.to_str().expect("utf-8"));

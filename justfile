@@ -39,6 +39,11 @@ run-app APP target="riscv32i" platform="remu" dev='' app_args='' *remu_cli_args:
         fi
         qemu-system-riscv32 $QEMU_OPTS
         [ -z "$TMP" ] || rm -f "$TMP"
+    elif [ "{{ platform }}" = "spike" ]; then
+        eval "$(cargo run -p xtask -- print build-app "{{ APP }}" "{{ target }}" --platform spike)"
+        ELF="target/app/{{ target }}-unknown-none-elf/release/remu_app_{{ APP }}"
+        SPIKE_ISA="$(echo {{ target }} | sed 's/^riscv/RV/' | tr '[:lower:]' '[:upper:]')"
+        spike --isa "$SPIKE_ISA" -m0x80000000:0x08000000 "$ELF"
     else
         {{ if dev != '' { "export DEV=1;" } else { "" } }}
         if [ -n "{{ app_args }}" ]; then
@@ -46,7 +51,7 @@ run-app APP target="riscv32i" platform="remu" dev='' app_args='' *remu_cli_args:
         else
             APP_FLAG=""
         fi
-        eval "$(cargo run -p xtask -- print run-app "{{ APP }}" "{{ target }}" -- {{ remu_cli_args }} $APP_FLAG)"
+        eval "$(cargo run -p xtask -- print run-app "{{ APP }}" "{{ target }}" --platform {{ platform }} -- {{ remu_cli_args }} $APP_FLAG)"
     fi
 
 clean-app:

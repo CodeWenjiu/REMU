@@ -68,19 +68,21 @@ pub trait MnistInference {
             let _ = self.infer(&image_data);
         }
 
-        remu_hal::println!(
-            "Running benchmark (CLINT mtime @ {} Hz)...",
-            remu_hal::MTIME_TICK_HZ
-        );
+        remu_hal::println!("Running benchmark...");
 
+        #[cfg(target_arch = "riscv32")]
         let start_ticks = remu_hal::read_mtime();
         for _ in 0..BENCHMARK_ITERATIONS {
             let _ = self.infer(&image_data);
         }
+        #[cfg(target_arch = "riscv32")]
         let end_ticks = remu_hal::read_mtime();
+        #[cfg(target_arch = "riscv32")]
         let total_ticks = end_ticks.wrapping_sub(start_ticks);
 
+        #[cfg(target_arch = "riscv32")]
         let ticks_per_inference = total_ticks / BENCHMARK_ITERATIONS as u64;
+        #[cfg(target_arch = "riscv32")]
         let inferences_per_second = if total_ticks > 0 {
             (BENCHMARK_ITERATIONS as u128 * remu_hal::MTIME_TICK_HZ as u128 / total_ticks as u128)
                 as u64
@@ -89,36 +91,44 @@ pub trait MnistInference {
         };
 
         remu_hal::println!("=== BENCHMARK RESULTS ===");
-        remu_hal::println!("Total mtime ticks: {}", total_ticks);
-        remu_hal::println!("Iterations completed: {}", BENCHMARK_ITERATIONS);
-        remu_hal::println!("Ticks per inference: {}", ticks_per_inference);
-        remu_hal::println!(
-            "Inferences per second (from mtime, {} Hz): {}",
-            remu_hal::MTIME_TICK_HZ,
-            inferences_per_second
-        );
-
-        remu_hal::println!("Performance classification:");
-        if ticks_per_inference < 10_000 {
-            remu_hal::println!("Excellent performance");
-        } else if ticks_per_inference < 50_000 {
-            remu_hal::println!("Good performance");
-        } else if ticks_per_inference < 200_000 {
-            remu_hal::println!("Moderate performance");
-        } else {
-            remu_hal::println!("Needs optimization");
+        #[cfg(target_arch = "riscv32")]
+        {
+            remu_hal::println!("Total mtime ticks: {}", total_ticks);
+            remu_hal::println!("Iterations completed: {}", BENCHMARK_ITERATIONS);
+            remu_hal::println!("Ticks per inference: {}", ticks_per_inference);
+            remu_hal::println!(
+                "Inferences per second (from mtime, {} Hz): {}",
+                remu_hal::MTIME_TICK_HZ,
+                inferences_per_second
+            );
         }
 
-        let total_mac_operations =
-            BENCHMARK_ITERATIONS as u64 * ((784 * 256) + (256 * 128) + (128 * 10)) as u64;
-        let macs_per_tick = if total_ticks > 0 {
-            total_mac_operations as f64 / total_ticks as f64
-        } else {
-            0.0
-        };
-        remu_hal::println!("Total MAC operations: {}", total_mac_operations);
-        remu_hal::println!("MACs per mtime tick: {:.4}", macs_per_tick);
-        remu_hal::println!("Note: Higher MACs/tick indicates better throughput at fixed mtime rate");
+        remu_hal::println!("Performance classification:");
+        #[cfg(target_arch = "riscv32")]
+        {
+            if ticks_per_inference < 10_000 {
+                remu_hal::println!("Excellent performance");
+            } else if ticks_per_inference < 50_000 {
+                remu_hal::println!("Good performance");
+            } else if ticks_per_inference < 200_000 {
+                remu_hal::println!("Moderate performance");
+            } else {
+                remu_hal::println!("Needs optimization");
+            }
+
+            let total_mac_operations =
+                BENCHMARK_ITERATIONS as u64 * ((784 * 256) + (256 * 128) + (128 * 10)) as u64;
+            let macs_per_tick = if total_ticks > 0 {
+                total_mac_operations as f64 / total_ticks as f64
+            } else {
+                0.0
+            };
+            remu_hal::println!("Total MAC operations: {}", total_mac_operations);
+            remu_hal::println!("MACs per mtime tick: {:.4}", macs_per_tick);
+            remu_hal::println!(
+                "Note: Higher MACs/tick indicates better throughput at fixed mtime rate"
+            );
+        }
         if BENCHMARK_ITERATIONS > 0 {
             remu_hal::println!("Benchmark completed successfully");
         }

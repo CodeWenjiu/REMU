@@ -1,23 +1,24 @@
-#![no_std]
-#![no_main]
+#![cfg_attr(target_arch = "riscv32", no_std, no_main)]
 
 #[macro_use]
 extern crate alloc;
 
 remu_macro::mod_pub!(inference);
-use remu_hal::{entry, FmtWrite, Uart16550, exit_success};
+#[cfg(target_arch = "riscv32")]
+use remu_hal::entry;
+use remu_hal::{FmtWrite, Uart16550, exit_success};
 
-use crate::inference::{MnistInference};
+use crate::inference::MnistInference;
 
 /// Switch backend: [`crate::inference::WeightedInference`] (CPU + weights) or [`crate::inference::Cus0Inference`].
 type Engine = crate::inference::Cus0Inference;
 
 static BENCHMARK_MODE: bool = false;
 
-#[entry]
+#[cfg_attr(target_arch = "riscv32", entry)]
 fn main() -> ! {
     // `init()` 内含 `pre_main_init()`，并初始化全局堆；分配前必须调用。
-    unsafe { remu_hal::init() };
+    remu_hal::init();
     let mut uart = Uart16550::default_base();
 
     let infer = Engine::new();

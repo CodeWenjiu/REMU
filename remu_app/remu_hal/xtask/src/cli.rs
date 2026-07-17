@@ -2,6 +2,8 @@ use std::path::PathBuf;
 
 use clap::{Parser, Subcommand};
 
+use crate::platform::Platform;
+
 #[derive(Debug, Parser)]
 #[command(
     name = "xtask",
@@ -36,13 +38,19 @@ pub enum PrintCmd {
 pub struct BuildAppArgs {
     pub app: String,
     pub target: String,
+    /// Target platform (remu, qemu, spike, host). Affects linker flags and features.
+    #[arg(long = "platform", default_value = "remu")]
+    pub platform: Platform,
 }
 
 #[derive(Debug, clap::Args)]
 pub struct RunAppArgs {
     pub app: String,
     pub target: String,
-    /// Extra args forwarded to remu_cli (pass after `--`, e.g. -- --platform nzea --sim-opt nzea.target=tile).
+    /// Target platform.
+    #[arg(long = "platform", default_value = "remu")]
+    pub platform: Platform,
+    /// Extra args forwarded to remu_cli.
     #[arg(last = true)]
     pub remu_cli_args: Vec<String>,
 }

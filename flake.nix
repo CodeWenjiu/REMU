@@ -70,6 +70,7 @@
           cmake
           verilator
           qemu
+          spike
           ccache
           sccache
 

@@ -4,6 +4,10 @@ version = "0.1.0"
 edition = "2021"
 publish = false
 
+[lib]
+name = "xtask"
+path = "src/lib.rs"
+
 [[bin]]
 name = "xtask"
 path = "src/main.rs"
@@ -14,6 +18,7 @@ remu_macro = { path = "../../../remu_macro" }
 remu_types = { path = "../../../remu_types" }
 
 clap = { workspace = true, features = ["derive", "std"] }
+strum = { version = "0.28.0", features = ["derive"] }
 winnow.workspace = true
 
 [lints]

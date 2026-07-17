@@ -3,4 +3,7 @@
 fn main() {
     let manifest = std::env::var("CARGO_MANIFEST_DIR").unwrap();
     println!("cargo:rustc-link-search={manifest}");
+    for p in xtask::Platform::names() {
+        println!("cargo::rustc-check-cfg=cfg(platform_{p})");
+    }
 }
