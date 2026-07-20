@@ -31,11 +31,13 @@ pub struct DebuggerOption {
     #[arg(long, value_name = "REF")]
     pub difftest: Option<DifftestRef>,
 
-    /// Batch Mode
+    /// Batch mode: run --startup commands (or stdin until EOF), then quit.
+    /// No implicit `continue`; use `continue` or `step N` in --startup to execute the program.
     #[arg(long)]
     pub batch: bool,
 
-    /// Startup sequence: run this command expression after the debugger is created (tokens joined with spaces; e.g. --startup '{' state reg pc write 0x1000 '}')
+    /// Startup sequence: commands run at startup (tokens joined with spaces; e.g. --startup '{' state reg pc write 0x1000 '}').
+    /// In `--batch` mode, executes the sequence then `quit`s; otherwise runs the sequence then drops into REPL.
     #[arg(long = "startup", value_name = "TOKEN", num_args = 1..)]
     pub startup: Vec<String>,
 }

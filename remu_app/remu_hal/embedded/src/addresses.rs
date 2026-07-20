@@ -4,4 +4,5 @@
 pub(crate) const UART16550_BASE: usize = 0x1000_0000;
 
 /// SiFive test finisher base address (default: sifive_test_finisher@0x0010_0000).
+#[cfg(not(platform_spike))]
 pub(crate) const SIFIVE_TEST_FINISHER_BASE: usize = 0x0010_0000;

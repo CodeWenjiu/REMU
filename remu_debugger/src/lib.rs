@@ -25,14 +25,15 @@ impl<C: PlatformConfig> Debugger<C> {
     }
 
     pub fn run_startup(&mut self, opt: &DebuggerOption) -> Result<(), DebuggerError> {
-        let startup_tokens = opt.startup.as_slice();
-        let expr = crate::compound_command::startup_to_expr(startup_tokens);
-        let startup = if opt.batch {
-            expr.with_continue_prepended().with_quit_appended()
+        let startup = crate::compound_command::startup_to_expr(&opt.startup);
+        if opt.batch {
+            // Sequence: { startup } and { quit }
+            let expr = startup.with_quit_appended();
+            self.execute_command_expr(&expr).map(drop)
         } else {
-            expr
-        };
-        self.execute_command_expr(&startup).map(drop)
+            // Non-batch: run startup, then drop to REPL.
+            self.execute_command_expr(&startup).map(drop)
+        }
     }
 
     pub fn execute_line(&mut self, buffer: String) -> Result<RunOutcome, DebuggerError> {

@@ -5,8 +5,8 @@
 //!
 //! Returns an empty string if no arguments were passed.
 
-/// Address where the simulator writes application arguments before boot.
-const APP_ARGS_BASE: usize = 0x87FF_F000;
+/// Address where application arguments reside before `main`.
+pub(crate) const APP_ARGS_BASE: usize = 0x87FF_F000;
 const APP_ARGS_MAX: usize = 4096;
 
 /// Return the application argument string, or an empty string if none.

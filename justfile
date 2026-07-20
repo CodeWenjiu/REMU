@@ -26,19 +26,13 @@ run-app APP target="riscv32i" platform="remu" dev='' app_args='' *remu_cli_args:
     #!/usr/bin/env bash
     set -euo pipefail
     cd "{{ justfile_directory() }}"
+    export REMU_APP_ARGS="{{ app_args }}"
     if [ "{{ platform }}" = "host" ]; then
         cargo run --release -p "remu_app_{{ APP }}" -- {{ app_args }}
     elif [ "{{ platform }}" = "qemu" ]; then
+        eval "$(cargo run -p xtask -- print build-app "{{ APP }}" "{{ target }}" --platform qemu)"
         ELF="target/app/{{ target }}-unknown-none-elf/release/remu_app_{{ APP }}"
-        TMP=""
-        QEMU_OPTS="-M virt -m 256M -nographic -bios none -kernel $ELF"
-        if [ -n "{{ app_args }}" ]; then
-            TMP=$(mktemp)
-            printf '%s\0' "{{ app_args }}" > "$TMP"
-            QEMU_OPTS="$QEMU_OPTS -device loader,addr=0x87FFF000,file=$TMP"
-        fi
-        qemu-system-riscv32 $QEMU_OPTS
-        [ -z "$TMP" ] || rm -f "$TMP"
+        qemu-system-riscv32 -M virt -m 256M -nographic -bios none -kernel "$ELF"
     elif [ "{{ platform }}" = "spike" ]; then
         eval "$(cargo run -p xtask -- print build-app "{{ APP }}" "{{ target }}" --platform spike)"
         ELF="target/app/{{ target }}-unknown-none-elf/release/remu_app_{{ APP }}"
@@ -46,12 +40,7 @@ run-app APP target="riscv32i" platform="remu" dev='' app_args='' *remu_cli_args:
         spike --isa "$SPIKE_ISA" -m0x80000000:0x08000000 "$ELF"
     else
         {{ if dev != '' { "export DEV=1;" } else { "" } }}
-        if [ -n "{{ app_args }}" ]; then
-            APP_FLAG="--app-args {{ app_args }}"
-        else
-            APP_FLAG=""
-        fi
-        eval "$(cargo run -p xtask -- print run-app "{{ APP }}" "{{ target }}" --platform {{ platform }} -- {{ remu_cli_args }} $APP_FLAG)"
+        eval "$(cargo run -p xtask -- print run-app "{{ APP }}" "{{ target }}" --platform {{ platform }} -- {{ remu_cli_args }})"
     fi
 
 clean-app:

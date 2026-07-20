@@ -1,5 +1,6 @@
 //! Program exit — platform selected at compile time via `--cfg platform_<name>`.
 
+#[cfg(not(platform_spike))]
 use crate::addresses::SIFIVE_TEST_FINISHER_BASE;
 
 const EXIT_SUCCESS: u32 = 0x5555;

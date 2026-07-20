@@ -50,24 +50,14 @@ impl fmt::Display for CommandExpr {
 }
 
 impl CommandExpr {
-    /// Returns `{ continue } and { self }`, so the expression runs `continue` then this expression.
-    pub fn with_continue_prepended(&self) -> Self {
-        let continue_block = vec!["continue".to_string()];
-        let tail = if self.first.is_empty() && self.tail.is_empty() {
-            Vec::new()
-        } else {
-            std::iter::once((Op::And, self.first.clone()))
-                .chain(self.tail.clone())
-                .collect()
-        };
-        CommandExpr {
-            first: continue_block,
-            tail,
-        }
-    }
-
     /// Returns `{ self } and { quit }`, so the expression runs this expression then `quit`.
     pub fn with_quit_appended(&self) -> Self {
+        if self.first.is_empty() && self.tail.is_empty() {
+            return CommandExpr {
+                first: vec!["quit".to_string()],
+                tail: Vec::new(),
+            };
+        }
         let mut tail = self.tail.clone();
         tail.push((Op::And, vec!["quit".to_string()]));
         CommandExpr {
