@@ -1,5 +1,7 @@
 use std::sync::Arc;
 
+use anyhow::Result;
+
 use remu_harness::PlatformConfig;
 
 pub trait DebuggerRunner {
@@ -7,5 +9,5 @@ pub trait DebuggerRunner {
         self,
         option: crate::DebuggerOption,
         interrupt: Arc<std::sync::atomic::AtomicBool>,
-    );
+    ) -> Result<()>;
 }

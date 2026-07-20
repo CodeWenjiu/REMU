@@ -49,24 +49,6 @@ impl fmt::Display for CommandExpr {
     }
 }
 
-impl CommandExpr {
-    /// Returns `{ self } and { quit }`, so the expression runs this expression then `quit`.
-    pub fn with_quit_appended(&self) -> Self {
-        if self.first.is_empty() && self.tail.is_empty() {
-            return CommandExpr {
-                first: vec!["quit".to_string()],
-                tail: Vec::new(),
-            };
-        }
-        let mut tail = self.tail.clone();
-        tail.push((Op::And, vec!["quit".to_string()]));
-        CommandExpr {
-            first: self.first.clone(),
-            tail,
-        }
-    }
-}
-
 #[derive(Debug, Error, Diagnostic)]
 pub enum ParseError {
     #[error("parse error: {0}")]
@@ -263,6 +245,9 @@ impl FromStr for CommandExpr {
     type Err = ParseError;
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
-        parse_expression_quiet(s)
+        parse_expression_quiet(s).map_err(|e| {
+            let _ = eprintln!("{}", e);
+            ParseError::WinnowHandled
+        })
     }
 }

@@ -153,7 +153,7 @@ fn build_nzea_so(target: &NzeaTarget, isa_str: &str) -> Result<(), String> {
     let justfile = nzea.join("justfile");
     if !justfile.exists() {
         spinner.fail(format!("justfile not found at {}", justfile.display()));
-        return Err(format!("justfile not found at {}", justfile.display()));
+        return Err("build failed".into());
     }
 
     let mut dump = Command::new("direnv");

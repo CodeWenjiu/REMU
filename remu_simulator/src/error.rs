@@ -16,13 +16,33 @@ impl fmt::Display for DifftestMismatchList {
     }
 }
 
+#[derive(Debug, Error, Clone)]
+pub enum RefErrorKind {
+    #[error("spike difftest not initialized")]
+    NotInitialized,
+    #[error("(get_spike_fns().step) error: {0}")]
+    StepFailed(i32),
+    #[error("(get_spike_fns().get_)*_ptr returned null")]
+    NullPtr,
+    #[error("(get_spike_fns().write_mem) failed: addr={addr:#x}")]
+    WriteMemFailed { addr: u64 },
+}
+
+#[derive(Debug, Error, Clone)]
+pub enum BreakpointErrorKind {
+    #[error("breakpoint address must be 4-byte aligned")]
+    NotAligned,
+    #[error("breakpoint at 0x{0:08x} not found")]
+    NotFound(u32),
+}
+
 #[derive(Debug, Error)]
 pub enum SimulatorInnerError {
     #[error("State access error {0}")]
     StateAccessError(#[from] StateError),
 
     #[error("Reference simulator error: {0}")]
-    RefError(String),
+    RefError(RefErrorKind),
 
     #[error("program exit: {0}")]
     ProgramExit(ExitCode),
@@ -31,7 +51,7 @@ pub enum SimulatorInnerError {
     Interrupted,
 
     #[error("breakpoint: {0}")]
-    BreakpointError(String),
+    BreakpointError(BreakpointErrorKind),
 
     /// DUT hit a breakpoint (ebreak at this PC). Execution stopped.
     #[error("breakpoint hit at 0x{0:08x}")]

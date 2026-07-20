@@ -12,7 +12,8 @@ use remu_state::{State, StateCmd};
 use remu_types::{DifftestGroup, DifftestMismatchItem, DifftestRegGroup, TracerDyn};
 
 use remu_simulator::{
-    SimulatorCore, SimulatorInnerError, SimulatorOption, SimulatorPolicy, SimulatorRef,
+    RefErrorKind, SimulatorCore, SimulatorInnerError, SimulatorOption, SimulatorPolicy,
+    SimulatorRef,
 };
 
 use crate::ffi::{DifftestMemLayout, DifftestRegs, SpikeDifftestCtx};
@@ -141,9 +142,7 @@ impl<P: SimulatorPolicy> SimulatorCore<P> for SimulatorSpike<P> {
     fn step_once<const TRACE: u64>(&mut self) -> Result<(), SimulatorInnerError> {
         let _ = TRACE;
         let Some(ctx) = self.ctx else {
-            return Err(SimulatorInnerError::RefError(
-                "spike difftest not initialized (no memory regions or init failed)".to_string(),
-            ));
+            return Err(SimulatorInnerError::RefError(RefErrorKind::NotInitialized));
         };
 
         let fns = get_spike_fns();
@@ -151,12 +150,8 @@ impl<P: SimulatorPolicy> SimulatorCore<P> for SimulatorSpike<P> {
 
         match ret {
             0 => Ok(()),
-            1 => Err(SimulatorInnerError::RefError(
-                "program exited (ecall exit)".to_string(),
-            )),
-            _ => Err(SimulatorInnerError::RefError(format!(
-                "(get_spike_fns().step) error: {ret}"
-            ))),
+            1 => Err(SimulatorInnerError::RefError(RefErrorKind::NotInitialized)),
+            _ => Err(SimulatorInnerError::RefError(RefErrorKind::StepFailed(ret))),
         }
     }
 
@@ -307,9 +302,7 @@ impl<P: SimulatorPolicy> SimulatorCore<P> for SimulatorSpike<P> {
 
     fn state_exec(&mut self, subcmd: &StateCmd) -> Result<(), SimulatorInnerError> {
         let Some(ctx) = self.ctx else {
-            return Err(SimulatorInnerError::RefError(
-                "spike difftest not initialized".to_string(),
-            ));
+            return Err(SimulatorInnerError::RefError(RefErrorKind::NotInitialized));
         };
 
         match subcmd {
@@ -354,9 +347,7 @@ fn state_exec_reg(
     let pc_ptr = unsafe { (get_spike_fns().get_pc_ptr)(ctx) };
     let gpr_ptr = unsafe { (get_spike_fns().get_gpr_ptr)(ctx) };
     if pc_ptr.is_null() || gpr_ptr.is_null() {
-        return Err(SimulatorInnerError::RefError(
-            "(get_spike_fns().get_)*_ptr returned null".to_string(),
-        ));
+        return Err(SimulatorInnerError::RefError(RefErrorKind::NullPtr));
     }
     let pc = unsafe { *pc_ptr };
 
@@ -537,10 +528,9 @@ fn state_exec_bus(
                 if unsafe { (get_spike_fns().write_mem)(ctx, *addr, bytes.as_ptr(), bytes.len()) }
                     != 0
                 {
-                    return Err(SimulatorInnerError::RefError(format!(
-                        "(get_spike_fns().write_mem) failed: addr={:#x}",
-                        addr
-                    )));
+                    return Err(SimulatorInnerError::RefError(
+                        RefErrorKind::WriteMemFailed { addr: *addr as u64 },
+                    ));
                 }
             }
             WriteCommand::U16 { addr, value } => {
@@ -548,10 +538,9 @@ fn state_exec_bus(
                 if unsafe { (get_spike_fns().write_mem)(ctx, *addr, bytes.as_ptr(), bytes.len()) }
                     != 0
                 {
-                    return Err(SimulatorInnerError::RefError(format!(
-                        "(get_spike_fns().write_mem) failed: addr={:#x}",
-                        addr
-                    )));
+                    return Err(SimulatorInnerError::RefError(
+                        RefErrorKind::WriteMemFailed { addr: *addr as u64 },
+                    ));
                 }
             }
             WriteCommand::U32 { addr, value } => {
@@ -559,10 +548,9 @@ fn state_exec_bus(
                 if unsafe { (get_spike_fns().write_mem)(ctx, *addr, bytes.as_ptr(), bytes.len()) }
                     != 0
                 {
-                    return Err(SimulatorInnerError::RefError(format!(
-                        "(get_spike_fns().write_mem) failed: addr={:#x}",
-                        addr
-                    )));
+                    return Err(SimulatorInnerError::RefError(
+                        RefErrorKind::WriteMemFailed { addr: *addr as u64 },
+                    ));
                 }
             }
             WriteCommand::U64 { addr, value } => {
@@ -570,10 +558,9 @@ fn state_exec_bus(
                 if unsafe { (get_spike_fns().write_mem)(ctx, *addr, bytes.as_ptr(), bytes.len()) }
                     != 0
                 {
-                    return Err(SimulatorInnerError::RefError(format!(
-                        "(get_spike_fns().write_mem) failed: addr={:#x}",
-                        addr
-                    )));
+                    return Err(SimulatorInnerError::RefError(
+                        RefErrorKind::WriteMemFailed { addr: *addr as u64 },
+                    ));
                 }
             }
             WriteCommand::U128 { addr, value } => {
@@ -581,10 +568,9 @@ fn state_exec_bus(
                 if unsafe { (get_spike_fns().write_mem)(ctx, *addr, bytes.as_ptr(), bytes.len()) }
                     != 0
                 {
-                    return Err(SimulatorInnerError::RefError(format!(
-                        "(get_spike_fns().write_mem) failed: addr={:#x}",
-                        addr
-                    )));
+                    return Err(SimulatorInnerError::RefError(
+                        RefErrorKind::WriteMemFailed { addr: *addr as u64 },
+                    ));
                 }
             }
         },
@@ -597,10 +583,9 @@ fn state_exec_bus(
                 if unsafe { (get_spike_fns().write_mem)(ctx, addr, chunk.as_ptr(), chunk.len()) }
                     != 0
                 {
-                    return Err(SimulatorInnerError::RefError(format!(
-                        "(get_spike_fns().write_mem) failed: addr={:#x}",
-                        addr
-                    )));
+                    return Err(SimulatorInnerError::RefError(
+                        RefErrorKind::WriteMemFailed { addr: addr as u64 },
+                    ));
                 }
                 addr = addr.saturating_add(chunk.len());
             }

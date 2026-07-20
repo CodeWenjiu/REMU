@@ -14,6 +14,7 @@ remu_types = { path = "../remu_types" }
 clap = { workspace = true, features = [ "derive", "color" ] }
 
 thiserror.workspace = true
+anyhow.workspace = true
 miette = { workspace = true, features = ["fancy"] }
 
 tracing.workspace = true

@@ -9,8 +9,8 @@ use remu_state::{State, StateCmd};
 use remu_types::{ExitCode, TraceFlags, TraceKind, TracerDyn};
 
 use remu_simulator::{
-    SimulatorCore, SimulatorDut, SimulatorInnerError, SimulatorOption, SimulatorPolicy,
-    StatContext, StatEntry, from_state_error,
+    BreakpointErrorKind, SimulatorCore, SimulatorDut, SimulatorInnerError, SimulatorOption,
+    SimulatorPolicy, StatContext, StatEntry, from_state_error,
 };
 
 use remu_state::bus::ObserverEvent;
@@ -316,7 +316,7 @@ where
     fn set_breakpoint(&mut self, addr: u32) -> Result<(), SimulatorInnerError> {
         if addr % 4 != 0 {
             return Err(SimulatorInnerError::BreakpointError(
-                "breakpoint address must be 4-byte aligned".into(),
+                BreakpointErrorKind::NotAligned,
             ));
         }
         if !self.breakpoints.contains(&addr) {
@@ -330,9 +330,9 @@ where
             self.breakpoints.remove(pos);
             Ok(())
         } else {
-            Err(SimulatorInnerError::BreakpointError(format!(
-                "breakpoint at 0x{addr:08x} not found"
-            )))
+            Err(SimulatorInnerError::BreakpointError(
+                BreakpointErrorKind::NotFound(addr),
+            ))
         }
     }
 

@@ -93,6 +93,16 @@ Do not add verbose comments on business logic. Comments are only warranted on co
 
 The CLI defines a concrete `Tracer` trait implementation (the "frontend" — how data is displayed). The simulator and harness layers only see a `TracerDyn` ( `Rc<RefCell<dyn Tracer>>` ) and call it when they have information to output. The frontend decides display format; the backend decides what and when to emit.
 
+### Error handling: detect-and-consume (MUST follow)
+
+When an error is detected deep in the call stack and the correct response is to print diagnostic information to the user, the detailed error data MUST be **consumed at the point of printing** and not propagated upward in full.
+
+- **Detection layer** (harness / simulator): Print the detailed diagnostic (e.g., difftest mismatch register dump), then return a bare, data-free error variant upward.
+- **Intermediate layers**: Pass the error up without re-printing.
+- **Entry layer** (CLI / `main`): Add context to stderr (e.g., `"startup execution error: ..."`) but when converting to `anyhow::Error`, carry only the fact of failure (e.g., `"startup failed"`).
+
+This prevents error details from being printed twice — once by the layer that detected the error and again by the layer that reports the failure. The principle is: **where an error is printed, it is consumed** (哪里处理哪里消耗).
+
 ## Build, Test, and Development Commands
 
 **All commands MUST run inside the Nix dev shell** (`nix develop` or via `direnv allow`). The flake provides required toolchains (Rust nightly, mold, verilator, clang, cmake, etc.) and library paths (zlib, openssl) that the linker needs. Never run `cargo` directly outside the shell.

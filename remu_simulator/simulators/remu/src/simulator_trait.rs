@@ -5,8 +5,8 @@ use remu_state::{State, StateCmd, StateError};
 use remu_types::{DifftestGroup, DifftestMismatchItem, DifftestRegGroup, TracerDyn};
 
 use remu_simulator::{
-    SimulatorCore, SimulatorDut, SimulatorInnerError, SimulatorOption, SimulatorPolicy,
-    SimulatorRef, from_state_error,
+    BreakpointErrorKind, SimulatorCore, SimulatorDut, SimulatorInnerError, SimulatorOption,
+    SimulatorPolicy, SimulatorRef, from_state_error,
 };
 
 use crate::icache::Icache;
@@ -245,7 +245,7 @@ impl<P: SimulatorPolicy> SimulatorDut for SimulatorRemu<P, true> {
     fn set_breakpoint(&mut self, addr: u32) -> Result<(), SimulatorInnerError> {
         if addr % 4 != 0 {
             return Err(SimulatorInnerError::BreakpointError(
-                "breakpoint address must be 4-byte aligned".into(),
+                BreakpointErrorKind::NotAligned,
             ));
         }
         if self.breakpoints.contains_key(&addr) {
@@ -277,9 +277,9 @@ impl<P: SimulatorPolicy> SimulatorDut for SimulatorRemu<P, true> {
             self.icache.invalidate(addr);
             Ok(())
         } else {
-            Err(SimulatorInnerError::BreakpointError(format!(
-                "breakpoint at 0x{addr:x} not found"
-            )))
+            Err(SimulatorInnerError::BreakpointError(
+                BreakpointErrorKind::NotFound(addr),
+            ))
         }
     }
 

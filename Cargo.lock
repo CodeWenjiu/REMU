@@ -3459,6 +3459,7 @@ dependencies = [
 name = "remu_boot"
 version = "0.1.0"
 dependencies = [
+ "anyhow",
  "remu_debugger",
  "remu_harness",
  "remu_isa",
@@ -3499,6 +3500,7 @@ dependencies = [
 name = "remu_debugger"
 version = "0.1.0"
 dependencies = [
+ "anyhow",
  "clap",
  "miette",
  "petgraph",

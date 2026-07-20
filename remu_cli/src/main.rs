@@ -13,7 +13,8 @@ use std::sync::atomic::{AtomicBool, Ordering};
 
 use remu_boot::boot;
 use remu_debugger::{
-    DebuggerError, DebuggerOption, DebuggerRunner, ErrorStyle, ExitCode, PlatformConfig, RunOutcome,
+    DebuggerError, DebuggerOption, DebuggerRunner, ErrorStyle, ExitCode, PlatformConfig,
+    RunOutcome, StartupDecision,
 };
 use remu_types::{Platform, TracerDyn};
 use std::error::Error;
@@ -31,7 +32,6 @@ fn get_editor(platform: Platform) -> Reedline {
 
     let completer = Box::new(RemuCompleter::new(graph.clone(), root));
     let highlighter = Box::new(RemuHighlighter::new(graph, root));
-    // Use the interactive menu to select options from the completer
     let completion_menu = Box::new(
         ColumnarMenu::default()
             .with_name("completion_menu")
@@ -39,7 +39,6 @@ fn get_editor(platform: Platform) -> Reedline {
             .with_column_width(None)
             .with_column_padding(0),
     );
-    // Set up the required keybindings
     let mut keybindings = default_emacs_keybindings();
     keybindings.add_binding(
         KeyModifiers::NONE,
@@ -95,21 +94,21 @@ impl DebuggerRunner for APPRunner {
         self,
         option: DebuggerOption,
         interrupt: Arc<AtomicBool>,
-    ) {
+    ) -> anyhow::Result<()> {
         let tracer: TracerDyn = Rc::new(RefCell::new(CLITracer::new(option.isa.clone())));
 
         let mut debugger = remu_debugger::Debugger::<C>::new(option.clone(), tracer, interrupt);
 
-        if let Err(e) = debugger.run_startup(&option) {
-            match e {
-                DebuggerError::ExitRequested => {
-                    println!("{}", "Quiting...".cyan());
-                    std::process::exit(0);
-                }
-                _ => {
-                    eprintln!("startup execution error: {}", e);
-                }
+        // Run startup commands; the decision is made inside run_startup based on --batch.
+        match debugger.run_startup(&option) {
+            StartupDecision::ExitOk => {
+                println!("{}", "Quiting...".cyan());
+                return Ok(());
             }
+            StartupDecision::ExitErr => {
+                return Err(anyhow::anyhow!("startup failed"));
+            }
+            StartupDecision::EnterRepl => {}
         }
 
         let mut line_editor = get_editor(option.platform);
@@ -176,6 +175,7 @@ impl DebuggerRunner for APPRunner {
                 _ => {}
             }
         }
+        Ok(())
     }
 }
 
@@ -197,7 +197,7 @@ fn main() -> Result<()> {
     })
     .expect("setting Ctrl+C handler");
 
-    boot(option, APPRunner, interrupt);
+    boot(option, APPRunner, interrupt)?;
 
     Ok(())
 }
@@ -205,7 +205,6 @@ fn main() -> Result<()> {
 #[derive(clap::Parser)]
 #[command(name = "remu_cli", author, version, about)]
 struct CliOption {
-    /// Print the AI agent skill document and exit.
     #[arg(long)]
     pub skill: bool,
 

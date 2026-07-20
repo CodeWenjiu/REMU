@@ -153,7 +153,7 @@ fn build_spike_so() -> Result<(), String> {
             .map_err(|e| format!("spike configure: {e}"))?;
         if !status.success() {
             spinner.fail("spike configure failed");
-            return Err("spike configure failed".into());
+            return Err("build failed".into());
         }
     }
 
@@ -171,7 +171,7 @@ fn build_spike_so() -> Result<(), String> {
         .map_err(|e| format!("spike make: {e}"))?;
     if !make_status.success() {
         spinner.fail("spike make failed");
-        return Err("spike make failed".into());
+        return Err("build failed".into());
     }
 
     // --- verify static libs ---
@@ -179,7 +179,7 @@ fn build_spike_so() -> Result<(), String> {
         let lib_path = build_dir.join(format!("lib{lib}.a"));
         if !lib_path.exists() {
             spinner.fail(format!("missing lib{lib}.a"));
-            return Err(format!("missing lib{lib}.a"));
+            return Err("build failed".into());
         }
     }
 
@@ -276,8 +276,8 @@ pub(crate) fn ensure_spike_loaded() -> Result<&'static SpikeFns, String> {
             };
 
             if !fresh {
-                if let Err(e) = build_spike_so() {
-                    return Err(format!("spike .so build failed: {e}"));
+                if let Err(_) = build_spike_so() {
+                    return Err("spike .so build failed".to_string());
                 }
             }
 

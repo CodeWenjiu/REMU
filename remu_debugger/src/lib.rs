@@ -9,6 +9,16 @@ remu_macro::mod_flat!(error, compound_command);
 pub use remu_harness::ErrorStyle;
 use remu_harness::Harness;
 
+/// What the CLI should do after running startup commands.
+pub enum StartupDecision {
+    /// Enter the interactive REPL (non-batch mode).
+    EnterRepl,
+    /// Exit successfully (batch mode, startup ran without error).
+    ExitOk,
+    /// Exit with failure (batch mode, startup command failed; detail already printed).
+    ExitErr,
+}
+
 pub struct Debugger<C: PlatformConfig> {
     harness: Harness<C>,
 }
@@ -24,15 +34,23 @@ impl<C: PlatformConfig> Debugger<C> {
         }
     }
 
-    pub fn run_startup(&mut self, opt: &DebuggerOption) -> Result<(), DebuggerError> {
+    /// Run startup commands. The returned [`StartupDecision`] tells the caller
+    /// whether to enter the REPL or exit (and with which exit code).
+    /// Error detail is consumed (printed) inside this method; callers only see
+    /// the decision.
+    pub fn run_startup(&mut self, opt: &DebuggerOption) -> StartupDecision {
         let startup = crate::compound_command::startup_to_expr(&opt.startup);
-        if opt.batch {
-            // Sequence: { startup } and { quit }
-            let expr = startup.with_quit_appended();
-            self.execute_command_expr(&expr).map(drop)
-        } else {
-            // Non-batch: run startup, then drop to REPL.
-            self.execute_command_expr(&startup).map(drop)
+        let result = self.execute_command_expr(&startup);
+        if !opt.batch {
+            return StartupDecision::EnterRepl;
+        }
+        match result {
+            Err(DebuggerError::ExitRequested) => StartupDecision::ExitOk,
+            Err(e) => {
+                eprintln!("startup execution error: {}", e);
+                StartupDecision::ExitErr
+            }
+            Ok(_) => StartupDecision::ExitOk,
         }
     }
 

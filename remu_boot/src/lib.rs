@@ -55,7 +55,7 @@ pub fn boot<R: DebuggerRunner>(
     option: DebuggerOption,
     runner: R,
     interrupt: Arc<std::sync::atomic::AtomicBool>,
-) {
+) -> anyhow::Result<()> {
     if option.platform == Platform::Nzea {
         let kind = NzeaIsaKind::from_isa_spec_or_panic(&option.isa);
         match option.difftest {
