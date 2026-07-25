@@ -1,4 +1,4 @@
-pub fn infer_isa_from_elf_path(elf_path: &str) -> String {
+pub(crate) fn infer_isa_from_elf_path(elf_path: &str) -> String {
     const SUFFIX: &str = "-unknown-none-elf";
     elf_path
         .split('/')

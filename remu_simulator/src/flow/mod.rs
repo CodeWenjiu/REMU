@@ -1,1 +1,4 @@
-remu_macro::mod_flat!(option, generic);
+remu_macro::mod_prv!(option, generic);
+
+pub use generic::SimulatorPolicy;
+pub use option::SimulatorOption;

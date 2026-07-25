@@ -1,10 +1,11 @@
+#![allow(dead_code)]
 //! Custom opcode **CUS0** (`0b0001011` / `0x0B`, RV custom-0) + simulated MNIST accelerator.
 //!
 //! - **NN_LOAD_ACT** — buffer one input activation (`rs1` / `rs2` GPR values).
 //! - **NN_START** — run embedded MLP forward on the buffer.
 //! - **NN_LOAD** — read one logit; **`rs1`** = GPR holding output index, **`rd`** = destination.
 
-remu_macro::mod_flat!(mnist_infer);
+remu_macro::mod_prv!(mnist_infer);
 
 use core::hint::unreachable_unchecked;
 
@@ -13,7 +14,9 @@ use remu_isa::isa::reg::RegAccess;
 
 use crate::riscv::{DecodedInst, Inst, funct3, funct7, imm_i, rd, rs1, rs2};
 
+#[allow(dead_code)]
 pub(crate) const OPCODE: u32 = 0b000_1011;
+#[allow(dead_code)]
 pub(crate) const INSTRUCTION_MIX: u32 = 60;
 
 /// `NN_START`: only `opcode` + `funct3`, all other bits cleared.

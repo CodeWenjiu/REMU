@@ -7,7 +7,9 @@ use remu_isa::isa::RvIsa;
 
 use crate::riscv::{funct3, opcode::UNKNOWN, rd, rs1, rs2, DecodedInst, Inst};
 
+#[allow(dead_code)]
 pub(crate) const OPCODE: u32 = 0b000_0111; // LOAD-FP (0x07)
+#[allow(dead_code)]
 pub(crate) const INSTRUCTION_MIX: u32 = 10;
 
 mod func3 {

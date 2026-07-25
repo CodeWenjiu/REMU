@@ -7,7 +7,9 @@ use crate::riscv::{funct3, opcode::UNKNOWN, rd, rs1, DecodedInst, Inst};
 
 use super::OP_V::mask_bit;
 
+#[allow(dead_code)]
 pub(crate) const OPCODE: u32 = 0b010_0111; // STORE-FP (0x27)
+#[allow(dead_code)]
 pub(crate) const INSTRUCTION_MIX: u32 = 10;
 
 /// Whole-register store: (inst & MASK) == MATCH (Spike encoding)

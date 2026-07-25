@@ -6,7 +6,7 @@ mod bench;
 mod benches;
 
 use bench::{Bench, Size};
-use benches::*;
+use benches::{bf, dinic, fib, lzip, md5, pz15, qsort, queen, sieve, ssort};
 
 fn get_size() -> Size {
     #[cfg(not(any(target_arch = "riscv32", target_arch = "riscv64")))]
@@ -30,16 +30,16 @@ fn main() -> ! {
     let mut n_scored = 0u64;
     let t0 = bench::now_usec();
 
-    run::<Queen>("queen", size, &mut total_score, &mut n_scored);
-    run::<Qsort>("qsort", size, &mut total_score, &mut n_scored);
-    run::<Sieve>("sieve", size, &mut total_score, &mut n_scored);
-    run::<Bf>("bf", size, &mut total_score, &mut n_scored);
-    run::<Fib>("fib", size, &mut total_score, &mut n_scored);
-    run::<Md5>("md5", size, &mut total_score, &mut n_scored);
-    run::<Dinic>("dinic", size, &mut total_score, &mut n_scored);
-    run::<Ssort>("ssort", size, &mut total_score, &mut n_scored);
-    run::<Pz15>("15pz", size, &mut total_score, &mut n_scored);
-    run::<Lzip>("lzip", size, &mut total_score, &mut n_scored);
+    run::<queen::Queen>("queen", size, &mut total_score, &mut n_scored);
+    run::<qsort::Qsort>("qsort", size, &mut total_score, &mut n_scored);
+    run::<sieve::Sieve>("sieve", size, &mut total_score, &mut n_scored);
+    run::<bf::Bf>("bf", size, &mut total_score, &mut n_scored);
+    run::<fib::Fib>("fib", size, &mut total_score, &mut n_scored);
+    run::<md5::Md5>("md5", size, &mut total_score, &mut n_scored);
+    run::<dinic::Dinic>("dinic", size, &mut total_score, &mut n_scored);
+    run::<ssort::Ssort>("ssort", size, &mut total_score, &mut n_scored);
+    run::<pz15::Pz15>("15pz", size, &mut total_score, &mut n_scored);
+    run::<lzip::Lzip>("lzip", size, &mut total_score, &mut n_scored);
 
     let total_time = bench::now_usec() - t0;
     if n_scored > 0 {

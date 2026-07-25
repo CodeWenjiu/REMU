@@ -1,23 +1,22 @@
 //! MNIST inference backends: [`MnistInference`] implemented by
 //! [`WeightedInference`] (embedded INT8 weights) and [`Cus0Inference`] (CUS0 custom ISA only).
 
-remu_macro::mod_flat!(cus0, cus0_asm, weighted);
+remu_macro::mod_prv!(cus0, cus0_asm, weighted);
 
 use remu_hal::Vec;
 
-pub use cus0::Cus0Inference;
-pub use weighted::WeightedInference;
+pub(crate) use cus0::Cus0Inference;
 
 include!(concat!(env!("OUT_DIR"), "/embedded_images.rs"));
 
-pub const Q16_SHIFT: u32 = 16;
+pub(crate) const Q16_SHIFT: u32 = 16;
 
 pub(crate) const BENCHMARK_ITERATIONS: usize = 10;
 pub(crate) const WARMUP_ITERATIONS: usize = 1;
 pub(crate) const DETAILED_BENCHMARK_ITERATIONS: usize = 100;
 
 /// Shared MNIST entry: run [`MnistInference::infer`] on embedded test images.
-pub trait MnistInference {
+pub(crate) trait MnistInference {
     /// Classify a 784-byte raw image (UINT8 pixels).
     fn infer(&self, input_image: &[u8]) -> usize;
 

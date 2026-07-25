@@ -1,4 +1,4 @@
-remu_macro::mod_flat!(entry, dcache, elf);
+remu_macro::mod_prv!(entry, dcache, elf);
 
 use core::ops::Range;
 

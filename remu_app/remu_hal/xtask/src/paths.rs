@@ -1,19 +1,19 @@
 use std::path::{Path, PathBuf};
 
 #[derive(Debug, Clone)]
-pub struct Paths {
+pub(crate) struct Paths {
     pub hal_dir: PathBuf,
     pub workspace_root: PathBuf,
 }
 
 impl Paths {
-    pub fn from_env() -> Self {
+    pub(crate) fn from_env() -> Self {
         let manifest_dir = std::env::var("CARGO_MANIFEST_DIR")
             .expect("CARGO_MANIFEST_DIR must be set (invoke via cargo)");
         Self::from_manifest(&manifest_dir)
     }
 
-    pub fn from_manifest(manifest_dir: impl AsRef<Path>) -> Self {
+    pub(crate) fn from_manifest(manifest_dir: impl AsRef<Path>) -> Self {
         let manifest_dir = manifest_dir.as_ref();
         let hal_dir = manifest_dir
             .parent()
@@ -31,11 +31,11 @@ impl Paths {
         }
     }
 
-    pub fn hal_canonical(&self) -> PathBuf {
+    pub(crate) fn hal_canonical(&self) -> PathBuf {
         self.hal_dir.canonicalize().expect("remu_hal path")
     }
 
-    pub fn workspace_canonical(&self) -> PathBuf {
+    pub(crate) fn workspace_canonical(&self) -> PathBuf {
         self.workspace_root.canonicalize().expect("workspace root")
     }
 }

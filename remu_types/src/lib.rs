@@ -1,5 +1,10 @@
 remu_macro::mod_pub!(prelude);
-remu_macro::mod_flat!(difftest, exit_code, platform, trace_flags);
+remu_macro::mod_prv!(difftest, exit_code, platform, trace_flags);
+
+pub use difftest::{DifftestGroup, DifftestMismatchItem, DifftestRef, DifftestRegGroup};
+pub use exit_code::ExitCode;
+pub use platform::Platform;
+pub use trace_flags::{TraceFlags, TraceKind};
 
 // Re-export from remu_isa (backward compat; new code should use remu_isa directly)
 pub use remu_isa::{AllUsize, Xlen, isa};

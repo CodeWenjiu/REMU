@@ -11,31 +11,31 @@ use crate::platform::Platform;
     version,
     propagate_version = true
 )]
-pub struct Cli {
+pub(crate) struct Cli {
     #[command(subcommand)]
     pub command: Command,
 }
 
 #[derive(Debug, Subcommand)]
-pub enum Command {
+pub(crate) enum Command {
     Print(PrintCli),
 }
 
 #[derive(Debug, clap::Args)]
-pub struct PrintCli {
+pub(crate) struct PrintCli {
     #[command(subcommand)]
     pub cmd: PrintCmd,
 }
 
 #[derive(Debug, Subcommand)]
-pub enum PrintCmd {
+pub(crate) enum PrintCmd {
     RunApp(RunAppArgs),
     BuildApp(BuildAppArgs),
     RunRemu(RunRemuArgs),
 }
 
 #[derive(Debug, clap::Args)]
-pub struct BuildAppArgs {
+pub(crate) struct BuildAppArgs {
     pub app: String,
     pub target: String,
     /// Target platform (remu, qemu, spike, host). Affects linker flags and features.
@@ -44,7 +44,7 @@ pub struct BuildAppArgs {
 }
 
 #[derive(Debug, clap::Args)]
-pub struct RunAppArgs {
+pub(crate) struct RunAppArgs {
     pub app: String,
     pub target: String,
     /// Target platform.
@@ -56,7 +56,7 @@ pub struct RunAppArgs {
 }
 
 #[derive(Debug, clap::Args)]
-pub struct RunRemuArgs {
+pub(crate) struct RunRemuArgs {
     pub elf_path: PathBuf,
     /// Extra args forwarded to remu_cli (already tokenized by caller).
     #[arg(last = true)]

@@ -13,7 +13,7 @@ use crate::target::{
 };
 use crate::util::shell_escape;
 
-pub fn run(cmd: PrintCmd) -> ExitCode {
+pub(crate) fn run(cmd: PrintCmd) -> ExitCode {
     match cmd {
         PrintCmd::RunApp(a) => print_run_app(a),
         PrintCmd::BuildApp(a) => print_build_app(a),

@@ -4,8 +4,12 @@ use remu_isa::isa::RvIsa;
 use remu_isa::isa::extension_v::VExtensionConfig;
 use remu_state::{StateError, StatePolicy};
 
-remu_macro::mod_pub!(opcode);
-remu_macro::mod_flat!(bytes);
+remu_macro::mod_pub!(crate, opcode);
+remu_macro::mod_prv!(bytes);
+
+pub(crate) use bytes::{
+    csr, funct3, funct7, imm_b, imm_i, imm_j, imm_s, imm_u, opcode, rd, rs1, rs2,
+};
 
 use crate::riscv::opcode::{
     AUIPC, BRANCH, CUS0, JAL, JALR, LOAD, LOAD_FP, LUI, MISC_MEM, OP, OP_IMM, OP_V, STORE,
@@ -35,7 +39,7 @@ pub(crate) enum Inst {
 }
 
 #[derive(Clone, Copy, Default)]
-pub struct DecodedInst {
+pub(crate) struct DecodedInst {
     pub(crate) rs1: u8,
     pub(crate) rs2: u8,
     pub(crate) rd: u8,
@@ -44,7 +48,7 @@ pub struct DecodedInst {
 }
 
 #[inline(always)]
-pub fn decode<P: StatePolicy>(inst: u32) -> DecodedInst {
+pub(crate) fn decode<P: StatePolicy>(inst: u32) -> DecodedInst {
     let op = opcode(inst);
     match op {
         LUI::OPCODE => LUI::decode::<P>(inst),
@@ -114,8 +118,9 @@ pub(crate) fn execute<P: StatePolicy, C: crate::ExecuteContext<P>>(
         Inst::Unknown => UNKNOWN::execute(ctx, decoded),
     }
 }
+#[allow(dead_code)]
 
-pub const RV32_INSTRUCTION_MIX: &[(u32, u32)] = &[
+pub(crate) const RV32_INSTRUCTION_MIX: &[(u32, u32)] = &[
     (AUIPC::OPCODE, AUIPC::INSTRUCTION_MIX),
     (BRANCH::OPCODE, BRANCH::INSTRUCTION_MIX),
     (JAL::OPCODE, JAL::INSTRUCTION_MIX),

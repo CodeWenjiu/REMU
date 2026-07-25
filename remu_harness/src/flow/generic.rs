@@ -1,7 +1,7 @@
-use remu_state::{StateFastProfile, StateMmioProfile};
 use remu_isa::isa::RvIsa;
+use remu_state::{StateFastProfile, StateMmioProfile};
 
-use crate::SimulatorPolicy;
+use remu_simulator::SimulatorPolicy;
 
 pub trait HarnessPolicy: SimulatorPolicy {}
 

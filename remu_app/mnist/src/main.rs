@@ -1,9 +1,11 @@
+#![allow(unreachable_pub)]
+#![allow(dead_code)]
 #![cfg_attr(target_arch = "riscv32", no_std, no_main)]
 
 #[macro_use]
 extern crate alloc;
 
-remu_macro::mod_pub!(inference);
+remu_macro::mod_pub!(crate, inference);
 #[cfg(target_arch = "riscv32")]
 use remu_hal::entry;
 use remu_hal::{FmtWrite, Uart16550, exit_success};

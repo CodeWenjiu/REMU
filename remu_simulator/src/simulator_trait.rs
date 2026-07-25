@@ -6,10 +6,10 @@ use remu_state::reg::riscv::RiscvReg;
 use remu_state::{State, StateCmd, StatePolicy};
 use remu_types::{DifftestMismatchItem, TraceKind, TracerDyn};
 
+use crate::SimulatorInnerError;
 use crate::SimulatorOption;
-use crate::error::SimulatorInnerError;
 use crate::SimulatorPolicy;
-use crate::stat::{StatContext, StatEntry};
+use crate::{StatContext, StatEntry};
 
 pub trait SimulatorCore<P: StatePolicy> {
     fn new(opt: SimulatorOption, tracer: TracerDyn, interrupt: Arc<AtomicBool>) -> Self;

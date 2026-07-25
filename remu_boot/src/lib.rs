@@ -1,6 +1,6 @@
 //! Debugger entry: wires [`DebuggerOption`] to the correct simulator + ISA generic.
 
-remu_macro::mod_flat!(config);
+remu_macro::mod_prv!(config);
 
 use std::sync::Arc;
 

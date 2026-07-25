@@ -1,7 +1,11 @@
 use std::process::ExitCode;
 
-remu_macro::mod_flat!(isa_shorthand, cli, paths, target, disasm, util, platform);
-remu_macro::mod_pub!(commands);
+remu_macro::mod_prv!(isa_shorthand, cli, paths, target, disasm, util, platform);
+remu_macro::mod_pub!(crate, commands);
+
+use cli::{Cli, Command};
+
+pub use platform::{Platform, PlatformConfig};
 
 pub fn run() -> ExitCode {
     use clap::Parser;

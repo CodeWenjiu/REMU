@@ -11,9 +11,9 @@ use std::sync::atomic::AtomicBool;
 
 use remu_types::TracerDyn;
 
-use crate::SimulatorPolicy;
 use crate::SimulatorOption;
-use crate::simulator_trait::{SimulatorDut, SimulatorRef};
+use crate::SimulatorPolicy;
+use crate::{SimulatorDut, SimulatorRef};
 
 pub trait PlatformConfig {
     type Policy: SimulatorPolicy;

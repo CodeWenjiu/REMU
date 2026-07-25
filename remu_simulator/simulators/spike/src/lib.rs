@@ -1,1 +1,3 @@
-remu_macro::mod_flat!(ffi, runtime, simulator);
+remu_macro::mod_prv!(ffi, runtime, simulator);
+
+pub use simulator::SimulatorSpike;

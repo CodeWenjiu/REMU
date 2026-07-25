@@ -28,14 +28,14 @@ fn mtime_ticks_from_elapsed_nanos(nanos: u128) -> u64 {
     (nanos / 100) as u64
 }
 
-pub struct Clint {
+pub(super) struct Clint {
     base_instant: Instant,
     msip: u32,
     mtimecmp: u64,
 }
 
 impl Clint {
-    pub fn new() -> Self {
+    pub(super) fn new() -> Self {
         Self {
             base_instant: Instant::now(),
             msip: 0,

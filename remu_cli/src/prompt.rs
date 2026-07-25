@@ -3,13 +3,13 @@ use remu_types::Platform;
 use std::borrow::Cow;
 
 #[derive(Clone)]
-pub struct RemuPrompt {
+pub(crate) struct RemuPrompt {
     inner: DefaultPrompt,
     multiline_prefix_len: usize,
 }
 
 impl RemuPrompt {
-    pub fn new(inner: DefaultPrompt, multiline_prefix_len: usize) -> Self {
+    pub(crate) fn new(inner: DefaultPrompt, multiline_prefix_len: usize) -> Self {
         Self {
             inner,
             multiline_prefix_len,
@@ -64,7 +64,7 @@ impl Prompt for RemuPrompt {
     }
 }
 
-pub fn get_prompt(platform: Platform) -> RemuPrompt {
+pub(crate) fn get_prompt(platform: Platform) -> RemuPrompt {
     let prompt_left = format!("{} ", platform.as_str());
     let prefix_len = prompt_left.len() + 2;
     let inner = DefaultPrompt::new(

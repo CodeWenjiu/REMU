@@ -1,4 +1,5 @@
 //! INT8 MNIST with embedded FC weights and scales (CPU inference).
+#![allow(dead_code)]
 
 use remu_hal::{Vec, println, read_mtime};
 
@@ -8,7 +9,7 @@ use super::{
 };
 
 /// Loads `binarys/*.bin` at build time and runs the MLP on the CPU.
-pub struct WeightedInference {
+pub(crate) struct WeightedInference {
     fc1_weights: [[i8; 784]; 256],
     fc2_weights: [[i8; 256]; 128],
     fc3_weights: [[i8; 128]; 10],
@@ -42,7 +43,7 @@ macro_rules! scale_to_q16 {
 }
 
 impl WeightedInference {
-    pub fn new() -> Self {
+    pub(crate) fn new() -> Self {
         const FC1_WEIGHT_DATA: &[u8] = include_bytes!("../../binarys/fc1_weight.bin");
         const FC2_WEIGHT_DATA: &[u8] = include_bytes!("../../binarys/fc2_weight.bin");
         const FC3_WEIGHT_DATA: &[u8] = include_bytes!("../../binarys/fc3_weight.bin");

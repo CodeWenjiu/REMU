@@ -14,7 +14,9 @@ pub(crate) fn trap_illegal_instruction<P: StatePolicy>(state: &mut State<P>) {
     *state.reg.pc = state.reg.csr.mtvec_base().into();
 }
 
+#[allow(dead_code)]
 pub(crate) const OPCODE: u32 = 0b111_1111;
+#[allow(dead_code)]
 pub(crate) const INSTRUCTION_MIX: u32 = 2;
 
 #[inline(always)]

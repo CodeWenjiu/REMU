@@ -15,10 +15,10 @@ use remu_simulator::{
 
 use remu_state::bus::ObserverEvent;
 
+use crate::NzeaIsa;
 use crate::Watchdog;
-use crate::dpi::{self, CommitMsg, NzeaDpi};
-use crate::nzea_ffi::NzeaIsa;
-use crate::runtime::{ensure_nzea_loaded, get_nzea_fns};
+use crate::{CommitMsg, NzeaDpi, clear_nzea, set_nzea};
+use crate::{ensure_nzea_loaded, get_nzea_fns};
 use remu_isa::isa::reg::{Csr as CsrKind, RegAccess};
 
 /// True after the first time wavetrace is enabled in this process; then we do not open trace.fst again,
@@ -35,7 +35,7 @@ where
     /// C string for model key (`core|tile` + ISA); kept alive for FFI calls.
     model_c: CString,
     /// Function table loaded from libnzea.so
-    fns: &'static crate::nzea_ffi::NzeaFns,
+    fns: &'static crate::NzeaFns,
     tracer: TracerDyn,
     commit_buffer: Vec<CommitMsg>,
     interrupt: Arc<std::sync::atomic::AtomicBool>,
@@ -119,7 +119,7 @@ where
 
     fn init(&mut self) {
         unsafe {
-            dpi::set_nzea(self as *mut Self as *mut dyn NzeaDpi);
+            set_nzea(self as *mut Self as *mut dyn NzeaDpi);
         }
         let model_ptr = self.model_c.as_ptr();
         unsafe {
@@ -157,7 +157,7 @@ where
         // a local in Harness::new; it is then moved into the Harness struct and the old address
         // becomes invalid. In step_once, self is the final location, so we must set it again.
         unsafe {
-            dpi::set_nzea(self as *mut Self as *mut dyn NzeaDpi);
+            set_nzea(self as *mut Self as *mut dyn NzeaDpi);
         }
         let mut cycle_count: u64 = 0;
         while self.commit_buffer.is_empty() {
@@ -301,7 +301,7 @@ where
     fn drop(&mut self) {
         unsafe {
             (self.fns.destroy)(self.sim_ptr, self.model_c.as_ptr());
-            dpi::clear_nzea();
+            clear_nzea();
         }
     }
 }

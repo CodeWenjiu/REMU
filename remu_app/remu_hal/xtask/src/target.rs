@@ -1,35 +1,36 @@
+#![allow(dead_code)]
 use std::path::Path;
-use std::str::FromStr;
 
+use std::str::FromStr;
 use remu_isa::isa::IsaSpec;
 
 use crate::isa_shorthand::{self, NamedExtension, ParsedAppShorthand};
 
-pub const ZVE32_SHORT: &str = "riscv32im_zve32x_zvl128b";
-pub const ZVE32_REMU_ISA: &str = "riscv32im_zve32x_zvl128b";
-pub const ZVE32_TARGET_RUSTFLAGS: &str = "-C target-feature=+zve32x,+zvl128b";
-pub const ZVE32_CARGO_TRIPLE: &str = "riscv32im-unknown-none-elf";
-pub const CARGO_TARGET_RUSTFLAGS_RV32I_ENV: &str =
+pub(crate) const ZVE32_SHORT: &str = "riscv32im_zve32x_zvl128b";
+pub(crate) const ZVE32_REMU_ISA: &str = "riscv32im_zve32x_zvl128b";
+pub(crate) const ZVE32_TARGET_RUSTFLAGS: &str = "-C target-feature=+zve32x,+zvl128b";
+pub(crate) const ZVE32_CARGO_TRIPLE: &str = "riscv32im-unknown-none-elf";
+pub(crate) const CARGO_TARGET_RUSTFLAGS_RV32I_ENV: &str =
     "CARGO_TARGET_RISCV32I_UNKNOWN_NONE_ELF_RUSTFLAGS";
-pub const CARGO_TARGET_RUSTFLAGS_RV32IM_ENV: &str =
+pub(crate) const CARGO_TARGET_RUSTFLAGS_RV32IM_ENV: &str =
     "CARGO_TARGET_RISCV32IM_UNKNOWN_NONE_ELF_RUSTFLAGS";
-pub const CARGO_TARGET_DIR_SUBDIR_APP: &str = "app";
-pub const CARGO_TARGET_DIR_SUBDIR_ZVE: &str = "app_zve32x";
-pub const REMU_ISA_ENV: &str = "REMU_ISA";
+pub(crate) const CARGO_TARGET_DIR_SUBDIR_APP: &str = "app";
+pub(crate) const CARGO_TARGET_DIR_SUBDIR_ZVE: &str = "app_zve32x";
+pub(crate) const REMU_ISA_ENV: &str = "REMU_ISA";
 /// When set (value ignored), `print run-remu` appends `WJ_CUS0_ISA_SUFFIX` (`_wjCus0`) to `--isa`.
-pub const EXISA0_ENV: &str = "EXISA0";
-pub const WJ_CUS0_ISA_SUFFIX: &str = "_wjCus0";
+pub(crate) const EXISA0_ENV: &str = "EXISA0";
+pub(crate) const WJ_CUS0_ISA_SUFFIX: &str = "_wjCus0";
 /// When set (value ignored), `print run-remu` omits `--release` for **host** `cargo run -p remu_cli` only.
 /// Embedded `remu_app_*` builds always use `--release` (see `print run-app` / `print build-app`).
-pub const DEV_ENV: &str = "DEV";
+pub(crate) const DEV_ENV: &str = "DEV";
 
 #[inline]
-pub fn dev_mode_from_env() -> bool {
+pub(crate) fn dev_mode_from_env() -> bool {
     std::env::var(DEV_ENV).is_ok()
 }
 
 /// Host `remu_cli` only: `""` or `" --release"` for `cargo run -p remu_cli …`.
-pub fn remu_cli_cargo_release_suffix() -> &'static str {
+pub(crate) fn remu_cli_cargo_release_suffix() -> &'static str {
     if dev_mode_from_env() {
         ""
     } else {
@@ -38,7 +39,7 @@ pub fn remu_cli_cargo_release_suffix() -> &'static str {
 }
 
 #[derive(Debug, Clone)]
-pub struct CargoTarget {
+pub(crate) struct CargoTarget {
     pub triple_or_json: String,
     pub needs_json_target_spec: bool,
     pub zve: bool,
@@ -102,7 +103,7 @@ impl CargoTarget {
     }
 }
 
-pub fn merge_cargo_target_rustflags(env_key: &str, fragment: &str) -> String {
+pub(crate) fn merge_cargo_target_rustflags(env_key: &str, fragment: &str) -> String {
     match std::env::var(env_key) {
         Ok(s) if !s.trim().is_empty() => format!("{s} {fragment}"),
         _ => fragment.to_string(),
@@ -111,11 +112,11 @@ pub fn merge_cargo_target_rustflags(env_key: &str, fragment: &str) -> String {
 
 /// Prefer [`merge_cargo_target_rustflags`].
 #[inline]
-pub fn merge_cargo_target_rv32im_rustflags(fragment: &str) -> String {
+pub(crate) fn merge_cargo_target_rv32im_rustflags(fragment: &str) -> String {
     merge_cargo_target_rustflags(CARGO_TARGET_RUSTFLAGS_RV32IM_ENV, fragment)
 }
 
-pub fn cargo_target_dir_subdir(zve: bool) -> &'static str {
+pub(crate) fn cargo_target_dir_subdir(zve: bool) -> &'static str {
     if zve {
         CARGO_TARGET_DIR_SUBDIR_ZVE
     } else {
@@ -123,7 +124,7 @@ pub fn cargo_target_dir_subdir(zve: bool) -> &'static str {
     }
 }
 
-pub fn resolve_for_workspace_root(workspace_root: &Path, key: &str) -> Result<CargoTarget, String> {
+pub(crate) fn resolve_for_workspace_root(workspace_root: &Path, key: &str) -> Result<CargoTarget, String> {
     if key.ends_with(".json") {
         let s = resolve_json_path(workspace_root, key);
         return Ok(CargoTarget {
@@ -155,7 +156,7 @@ pub fn resolve_for_workspace_root(workspace_root: &Path, key: &str) -> Result<Ca
     })
 }
 
-pub fn resolve_for_hal_dir(key: &str) -> Result<CargoTarget, String> {
+pub(crate) fn resolve_for_hal_dir(key: &str) -> Result<CargoTarget, String> {
     if key.ends_with(".json") {
         return Ok(CargoTarget {
             triple_or_json: key.to_string(),
@@ -202,7 +203,7 @@ fn resolve_json_path(workspace_root: &Path, key: &str) -> String {
         .into_owned()
 }
 
-pub fn expand_builtin(target: &str) -> String {
+pub(crate) fn expand_builtin(target: &str) -> String {
     if target.contains('-') {
         target.to_string()
     } else {
@@ -210,7 +211,7 @@ pub fn expand_builtin(target: &str) -> String {
     }
 }
 
-pub fn artifact_dir_name(cargo_target: &str) -> String {
+pub(crate) fn artifact_dir_name(cargo_target: &str) -> String {
     Path::new(cargo_target)
         .file_stem()
         .and_then(|s| s.to_str())

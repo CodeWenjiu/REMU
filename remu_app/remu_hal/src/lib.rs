@@ -24,24 +24,22 @@
 extern crate alloc;
 
 // ── Platform-specific backend ──
-#[cfg(any(target_arch = "riscv32", target_arch = "riscv64"))]
-mod riscv_backend {
-    pub use remu_hal_embedded::*;
-}
 #[cfg(not(any(target_arch = "riscv32", target_arch = "riscv64")))]
 mod host;
 
 // ── Re-exports (all platforms) ──
-remu_macro::mod_flat!(print);
+remu_macro::mod_prv!(print);
 pub use alloc::{boxed::Box, string::String, vec::Vec};
 pub use core::fmt::Write as FmtWrite;
+pub use print::write_fmt;
+
 #[cfg(any(target_arch = "riscv32", target_arch = "riscv64"))]
 pub use embedded_io::Write;
 
 #[cfg(any(target_arch = "riscv32", target_arch = "riscv64"))]
-pub use remu_hal_embedded::{MTIME_TICK_HZ, Uart16550, entry, read_mtime};
-#[cfg(any(target_arch = "riscv32", target_arch = "riscv64"))]
-pub use riscv_backend::*;
+pub use remu_hal_embedded::{
+    MTIME_TICK_HZ, Uart16550, app_args, entry, exit_failure, exit_success, read_mtime,
+};
 
 #[cfg(not(any(target_arch = "riscv32", target_arch = "riscv64")))]
 pub use host::{MTIME_TICK_HZ, Stdout as Uart16550, read_mtime};
@@ -55,8 +53,6 @@ pub fn init() {
 pub use host::init;
 
 // ── Exit (both platforms) ──
-#[cfg(any(target_arch = "riscv32", target_arch = "riscv64"))]
-pub use remu_hal_embedded::{exit_failure, exit_success};
 #[cfg(not(any(target_arch = "riscv32", target_arch = "riscv64")))]
 pub fn exit_success() -> ! {
     std::process::exit(0);

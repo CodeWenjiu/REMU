@@ -1,4 +1,4 @@
-remu_macro::mod_flat!(uart_simple, uart16550, sifive_test_finisher, clint);
+remu_macro::mod_prv!(uart_simple, uart16550, sifive_test_finisher, clint);
 
 use std::backtrace::Backtrace;
 use std::str::FromStr;

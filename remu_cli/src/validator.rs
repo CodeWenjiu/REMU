@@ -14,14 +14,15 @@ use reedline::{ValidationResult, Validator};
 /// implement a custom prompt and return `" ".repeat(prefix_len)` or similar
 /// from `render_prompt_multiline_indicator()`.
 #[derive(Debug, Clone)]
-pub struct RemuValidator {
+pub(crate) struct RemuValidator {
     /// Intended continuation prefix width (in characters). Stored for configuration symmetry.
     /// See note above.
-    pub prefix_len: usize,
+    #[allow(dead_code)]
+    pub(crate) prefix_len: usize,
 }
 
 impl RemuValidator {
-    pub fn new(prefix_len: usize) -> Self {
+    pub(crate) fn new(prefix_len: usize) -> Self {
         Self { prefix_len }
     }
 

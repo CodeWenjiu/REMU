@@ -1,1 +1,3 @@
-remu_macro::mod_flat!(print);
+remu_macro::mod_prv!(print);
+
+pub(crate) use print::run;

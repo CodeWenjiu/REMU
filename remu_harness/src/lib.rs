@@ -1,9 +1,27 @@
-remu_macro::mod_pub_flat!(prelude);
-remu_macro::mod_pub_flat!(flow);
-remu_macro::mod_flat!(error, func, run_state, isa_dispatch);
+remu_macro::mod_pub!(prelude);
+remu_macro::mod_pub!(crate, flow);
+remu_macro::mod_prv!(error, func, run_state, isa_dispatch);
+
+pub use error::{ErrorStyle, HarnessError};
+pub use flow::{HarnessOption, HarnessPolicy};
+pub use isa_dispatch::RemuIsaKind;
+pub use remu_simulator::{
+    FuncCmd, PlatformConfig, SimulatorCore, SimulatorDut, SimulatorOption, SimulatorRef, StatCmd,
+};
+pub use remu_simulator_nzea::SimulatorNzea;
+pub use remu_simulator_remu::SimulatorRemu;
+pub use remu_simulator_spike::SimulatorSpike;
+pub use remu_state::StateCmd;
+pub use run_state::{RunOutcome, RunState};
 
 use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, Ordering};
+
+use remu_simulator::{
+    DifftestMismatchList, SimulatorError, SimulatorInnerError, StatContext, StatEntry, TraceCmd,
+};
+use remu_state::bus::ObserverEvent;
+use remu_types::{TraceKind, TracerDyn};
 
 pub struct Harness<C: PlatformConfig> {
     dut_model: <C as PlatformConfig>::Dut,

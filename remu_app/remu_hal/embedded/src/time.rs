@@ -1,7 +1,7 @@
 //! CLINT `mtime` — wall-clock style tick counter.
 
-pub const CLINT_BASE: usize = 0x0200_0000;
-pub const MTIME_LO_OFF: usize = 0xBFF8;
+pub(crate) const CLINT_BASE: usize = 0x0200_0000;
+pub(crate) const MTIME_LO_OFF: usize = 0xBFF8;
 pub const MTIME_TICK_HZ: u64 = 10_000_000;
 
 /// Read 64-bit CLINT `mtime` (RV32-safe: high/low/high until consistent).

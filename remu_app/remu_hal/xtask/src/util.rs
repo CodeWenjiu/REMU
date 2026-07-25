@@ -1,5 +1,5 @@
 #[must_use]
-pub fn shell_escape(s: &str) -> String {
+pub(crate) fn shell_escape(s: &str) -> String {
     if s.is_empty() {
         return "''".into();
     }

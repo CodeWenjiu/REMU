@@ -3,7 +3,9 @@ use remu_isa::isa::reg::RegAccess;
 
 use crate::riscv::{funct3, imm_s, rs1, rs2, DecodedInst, Inst};
 
+#[allow(dead_code)]
 pub(crate) const OPCODE: u32 = 0b010_0011;
+#[allow(dead_code)]
 pub(crate) const INSTRUCTION_MIX: u32 = 110;
 
 mod func3 {

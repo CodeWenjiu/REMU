@@ -9,13 +9,13 @@ use winnow::token::take_while;
 /// - Keywords (and, or, {, }) are yellow when structurally valid
 /// - Commands are green when valid in the graph
 /// - Everything invalid is red
-pub struct RemuHighlighter {
+pub(crate) struct RemuHighlighter {
     graph: Graph<String, ()>,
     root: NodeIndex,
 }
 
 impl RemuHighlighter {
-    pub fn new(graph: Graph<String, ()>, root: NodeIndex) -> Self {
+    pub(crate) fn new(graph: Graph<String, ()>, root: NodeIndex) -> Self {
         Self { graph, root }
     }
 

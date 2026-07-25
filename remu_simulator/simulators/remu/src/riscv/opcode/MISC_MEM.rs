@@ -1,6 +1,8 @@
 use crate::riscv::{DecodedInst, Inst, funct3};
 
+#[allow(dead_code)]
 pub(crate) const OPCODE: u32 = 0b000_1111;
+#[allow(dead_code)]
 pub(crate) const INSTRUCTION_MIX: u32 = 10;
 
 const FENCE_I_FUNCT3: u32 = 0b001;

@@ -13,9 +13,6 @@ pub use remu_simulator_spike::SimulatorSpike;
 pub use remu_state::prelude::*;
 pub use remu_types::prelude::*;
 
-pub use crate::HarnessOption;
-pub use crate::HarnessPolicy;
-pub use crate::error::ErrorStyle;
-pub use crate::error::HarnessError;
-pub use crate::isa_dispatch::RemuIsaKind;
-pub use crate::run_state::{RunOutcome, RunState};
+pub use crate::{
+    ErrorStyle, HarnessError, HarnessOption, HarnessPolicy, RemuIsaKind, RunOutcome, RunState,
+};

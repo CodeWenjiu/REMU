@@ -20,7 +20,13 @@ use remu_types::{Platform, TracerDyn};
 use std::error::Error;
 use std::{cell::RefCell, rc::Rc};
 
-remu_macro::mod_flat!(compeleter, highlighter, validator, prompt, tracer);
+remu_macro::mod_prv!(compeleter, highlighter, validator, prompt, tracer);
+
+use compeleter::RemuCompleter;
+use highlighter::RemuHighlighter;
+use prompt::get_prompt;
+use tracer::CLITracer;
+use validator::RemuValidator;
 
 fn get_editor(platform: Platform) -> Reedline {
     let history = Box::new(

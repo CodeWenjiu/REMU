@@ -2,12 +2,23 @@ use std::sync::Arc;
 
 use clap::Parser;
 
-remu_macro::mod_pub_flat!(prelude);
-remu_macro::mod_pub_flat!(flow);
-remu_macro::mod_flat!(error, compound_command);
+remu_macro::mod_pub!(prelude);
+remu_macro::mod_pub!(crate, flow);
+remu_macro::mod_prv!(error, compound_command);
+
+pub use compound_command::{
+    CommandExpr, Op, ParseError, parse_expression, parse_expression_quiet, startup_to_expr,
+};
+pub use error::DebuggerError;
+pub use flow::command::{BreakpointCmd, Command, DebuggerCommand, get_command_graph};
+pub use flow::generic::DebuggerRunner;
+pub use flow::option::DebuggerOption;
 
 pub use remu_harness::ErrorStyle;
 use remu_harness::Harness;
+pub use remu_harness::{PlatformConfig, RunOutcome};
+pub use remu_types::ExitCode;
+use remu_types::TracerDyn;
 
 /// What the CLI should do after running startup commands.
 pub enum StartupDecision {

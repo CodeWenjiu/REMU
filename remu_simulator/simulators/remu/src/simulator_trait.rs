@@ -20,7 +20,7 @@ const EBREAK_INST: u32 = 0x0010_0073;
 
 /// Breakpoint state machine: IDLE = stop on ebreak, Active = execute original instruction.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
-pub enum BreakpointState {
+pub(crate) enum BreakpointState {
     /// Default. When ebreak is hit, execution stops (breakpoint hit).
     #[default]
     Idle,

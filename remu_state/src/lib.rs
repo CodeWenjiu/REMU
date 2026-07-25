@@ -5,8 +5,13 @@ use std::marker::PhantomData;
 use crate::{bus::Bus, reg::riscv::RiscvReg};
 
 remu_macro::mod_pub!(reg, bus);
-remu_macro::mod_pub_flat!(prelude, flow);
-remu_macro::mod_flat!(error);
+remu_macro::mod_pub!(prelude, flow);
+remu_macro::mod_prv!(error);
+
+pub use error::StateError;
+pub use flow::{
+    StateCmd, StateFastProfile, StateMmioProfile, StateOption, StatePolicy, StateProfile,
+};
 
 pub struct State<P: StatePolicy> {
     pub bus: Bus<P::ISA, P::Observer>,

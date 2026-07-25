@@ -4,7 +4,9 @@ use crate::riscv::{
     rd, rs1, rs2,
 };
 
+#[allow(dead_code)]
 pub(crate) const OPCODE: u32 = 0b101_0111; // OP-V
+#[allow(dead_code)]
 pub(crate) const INSTRUCTION_MIX: u32 = 5;
 
 mod func3 {

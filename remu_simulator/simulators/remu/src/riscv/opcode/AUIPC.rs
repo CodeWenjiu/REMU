@@ -2,7 +2,9 @@ use remu_isa::isa::reg::RegAccess;
 
 use crate::riscv::{imm_u, rd, DecodedInst, Inst};
 
+#[allow(dead_code)]
 pub(crate) const OPCODE: u32 = 0b001_0111;
+#[allow(dead_code)]
 pub(crate) const INSTRUCTION_MIX: u32 = 20;
 
 #[inline(always)]

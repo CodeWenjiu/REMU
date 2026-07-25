@@ -6,7 +6,7 @@
 ///
 /// Must run on the boot hart before any vector instruction.
 #[inline]
-pub unsafe fn pre_main_init() {
+pub(crate) unsafe fn pre_main_init() {
     #[cfg(target_feature = "zve32x")]
     {
         use riscv::register::mstatus::{VS, set_vs};

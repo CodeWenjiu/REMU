@@ -12,7 +12,7 @@ use tabled::{
     settings::{Color, Style, object::Columns},
 };
 
-pub struct CLITracer {
+pub(crate) struct CLITracer {
     guesser: ByteGuesser,
 }
 
@@ -21,7 +21,7 @@ fn fmt_range_begin_end(r: &Range<usize>) -> String {
 }
 
 #[derive(Tabled)]
-pub struct MemMapTable {
+pub(crate) struct MemMapTable {
     name: String,
     #[tabled(display = "fmt_range_begin_end")]
     range: Range<usize>,
@@ -54,7 +54,7 @@ fn display_data_masked(value: &u32, row: &MemTable) -> String {
 }
 
 #[derive(Tabled)]
-pub struct MemTable {
+pub(crate) struct MemTable {
     #[tabled(display = "display_address")]
     address: u32,
     #[tabled(display("display_data_masked", self))]
@@ -72,7 +72,7 @@ fn fmt_hex(v: &u32) -> String {
 }
 
 #[derive(Tabled)]
-pub struct RegTable {
+pub(crate) struct RegTable {
     #[tabled()]
     register: Gpr,
     #[tabled(display = "fmt_hex")]
@@ -80,14 +80,14 @@ pub struct RegTable {
 }
 
 #[derive(Tabled)]
-pub struct FprTable {
+pub(crate) struct FprTable {
     register: String,
     #[tabled(display = "fmt_hex")]
     data: u32,
 }
 
 #[derive(Tabled)]
-pub struct VrTable {
+pub(crate) struct VrTable {
     register: String,
     data: String,
 }
@@ -377,7 +377,7 @@ impl CLITracer {
 }
 
 impl CLITracer {
-    pub fn new(isa: IsaSpec) -> Self {
+    pub(crate) fn new(isa: IsaSpec) -> Self {
         CLITracer {
             guesser: ByteGuesser::new(isa),
         }

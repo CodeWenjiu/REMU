@@ -1,6 +1,9 @@
-remu_macro::mod_flat!(gpr, fpr, vr);
+remu_macro::mod_prv!(gpr, fpr, vr);
 remu_macro::mod_pub!(csr);
 pub use csr::*;
+pub use gpr::Gpr;
+pub use fpr::Fpr;
+pub use vr::VrState;
 
 use core::ops::{Deref, DerefMut, Index};
 

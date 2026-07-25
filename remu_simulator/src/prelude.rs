@@ -2,10 +2,10 @@
 
 pub use crate::SimulatorOption;
 pub use crate::SimulatorPolicy;
-pub use crate::error::{
+pub use crate::{
     BreakpointErrorKind, DifftestMismatchList, RefErrorKind, SimulatorError, SimulatorInnerError,
     from_state_error,
 };
-pub use crate::func::{FuncCmd, TraceCmd};
-pub use crate::simulator_trait::{SimulatorCore, SimulatorDut, SimulatorRef};
-pub use crate::stat::{StatCmd, StatContext, StatEntry};
+pub use crate::{FuncCmd, TraceCmd};
+pub use crate::{SimulatorCore, SimulatorDut, SimulatorRef};
+pub use crate::{StatCmd, StatContext, StatEntry};

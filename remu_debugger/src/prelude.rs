@@ -2,8 +2,8 @@
 
 pub use remu_harness::prelude::*;
 
-pub use crate::DebuggerOption;
-pub use crate::DebuggerRunner;
-pub use crate::compound_command::{CommandExpr, Op, ParseError};
-pub use crate::error::DebuggerError;
-pub use crate::{DebuggerCommand, get_command_graph};
+pub use crate::{
+    BreakpointCmd, Command, DebuggerCommand, DebuggerError, DebuggerOption, DebuggerRunner,
+    get_command_graph,
+};
+pub use crate::{CommandExpr, Op, ParseError};

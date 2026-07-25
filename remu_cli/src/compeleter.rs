@@ -2,13 +2,13 @@ use petgraph::graph::{Graph, NodeIndex};
 use reedline::{Completer, Span, Suggestion};
 
 #[derive(Clone)]
-pub struct RemuCompleter {
+pub(crate) struct RemuCompleter {
     graph: Graph<String, ()>,
     root: NodeIndex,
 }
 
 impl RemuCompleter {
-    pub fn new(graph: Graph<String, ()>, root: NodeIndex) -> Self {
+    pub(crate) fn new(graph: Graph<String, ()>, root: NodeIndex) -> Self {
         Self { graph, root }
     }
 

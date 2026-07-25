@@ -21,14 +21,14 @@ const LSR_TEMT: u8 = 1 << 6;
 /// LCR bit: Divisor Latch Access.
 const LCR_DLAB: u8 = 1 << 7;
 
-pub struct Uart16550 {
+pub(super) struct Uart16550 {
     lcr: u8,
     ier: u8,
     mcr: u8,
 }
 
 impl Uart16550 {
-    pub fn new() -> Self {
+    pub(super) fn new() -> Self {
         Self {
             lcr: 0,
             ier: 0,

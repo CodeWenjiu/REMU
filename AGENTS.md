@@ -20,41 +20,60 @@ Note: `remu` is intended to be used inside the parent `chip-dev` checkout with s
 
 ### Module Declaration Constitution (MUST follow)
 
-Every crate MUST declare its modules exclusively through `remu_macro` macros. **Manual `mod` / `pub mod` / `pub use` for module plumbing is forbidden** — the macros are the single source of truth for how modules are wired into the crate.
+Every crate MUST declare its modules through `remu_macro` macros. **Bare `mod` / `pub mod` for file-based module plumbing is forbidden** — the macros are the single source of truth for how modules are wired into the crate.
 
-| Directory shape | Macro | Generated code | When |
-|---|---|---|---|
-| `src/X.rs` (same-dir file) | `remu_macro::mod_flat!(X);` | `mod X; pub use X::*;` | Single or multiple `.rs` files directly in `src/` |
-| `src/X/mod.rs` (sub-dir) | `remu_macro::mod_pub!(X);` | `pub mod X;` | Module is a directory with its own nested structure |
-| `src/X.rs` (file, but needs path access) | `remu_macro::mod_pub_flat!(X);` | `pub mod X; pub use X::*;` | Single file that must be both publicly accessible by path AND flattened (e.g., `prelude.rs`) |
+#### The two macros
+
+| Macro | Usage | Expands to |
+|-------|-------|------------|
+| `mod_prv!(X, Y);` | Crate-private modules | `mod X; mod Y;` |
+| `mod_pub!(X, Y);` | Public sub-modules | `pub mod X; pub mod Y;` |
+| `mod_pub!(crate, X, Y);` | Crate-visible modules | `pub(crate) mod X; pub(crate) mod Y;` |
+| `mod_pub!(super, X, Y);` | Parent-visible modules | `pub(super) mod X; pub(super) mod Y;` |
 
 ```rust
-// ✅ CORRECT — same-directory files use mod_flat!
-remu_macro::mod_flat!(error, func, option, generic, run_state);
-
-// ✅ CORRECT — sub-directories use mod_pub!
+// ✅ CORRECT
+remu_macro::mod_prv!(error, compound_command);
 remu_macro::mod_pub!(reg, bus);
+remu_macro::mod_pub!(crate, flow);
+remu_macro::mod_pub!(super, helpers);
 
-// ❌ WRONG — manual mod, mod_pub! for flat files, bare pub mod all violate the rules above
+// Explicit re-exports (AFTER macros):
+pub use wordlen::{Xlen, MachineWord};
+pub use flow::command::{Command, DebuggerCommand};
+
+// ❌ WRONG
+mod internal;            // bare mod without macro
+pub use internal::*;     // wildcard re-export
 ```
 
-**Rationale**: `mod_flat!` communicates "this file's public API is part of the crate's flat namespace"; `mod_pub!` communicates "this is a sub-module with its own hierarchy". When every crate follows this convention, readers instantly know where to find code without guessing whether a module was manually wired or macro-generated.
+**Rationale**: The macro communicates intent ("private implementation" vs "public API"). Visibility is controlled at the module level with Rust's native `pub` / `pub(crate)` / `pub(super)` keywords. Explicit `pub use` lines make the crate's public API auditable — every exported symbol is visible in lib.rs.
 
 > See `.agents/skills/module-setup/` for step-by-step workflows and common mistakes.
 
-**Single-call-per-type rule**: Each macro (`mod_flat!`, `mod_pub!`, or `mod_pub_flat!`) MUST appear at most once per file. Merge all same-directory files into one `mod_flat!` call, and all sub-directory modules into one `mod_pub!` call. Different macro types may coexist (e.g., one `mod_flat!` + one `mod_pub_flat!` is fine).
+#### Visibility principle (MUST follow)
 
-**Inline modules are exempt**: `mod func3 { ... }`, `mod tests { ... }`, and similar inline module blocks that do NOT reference external files are not subject to these rules — only file-based module declarations are.
+1. **Module is the minimum unit of visibility control.** Prefer `mod_pub!(crate, X)` over individually re-exporting symbols from `X`. If most of a module's `pub` items are re-exported at the parent level, the module itself should be visible at that level.
 
-**`as` alias exception**: When a module needs a public alias (`pub use LongName as Short;`), keep the `pub use` line after `mod_pub!` — this is the one case where a manual `pub use` is necessary because `mod_pub!` cannot express aliases.
+2. **Minimize symbol scope.** Use the most restrictive visibility possible:
+   - `pub` only for true public API (used by external crates)
+   - `pub(crate)` for crate-internal sharing
+   - `pub(super)` for parent-module-only sharing
+   - Default (private) otherwise
 
-**Selective re-exports**: Control visibility *inside* the module — mark items `pub` only if they belong in the crate's public API, `pub(crate)` if they're shared within the crate but should not be re-exported, and private otherwise. Then `mod_flat!` naturally exports exactly the right set. Do NOT add manual `pub use` lines after `mod_flat!` (they are redundant).
+3. **No wildcard re-exports.** `pub use X::*;` is forbidden — it defeats the purpose of explicit visibility control and causes unnecessary recompilation cascades.
 
-**`#[macro_export]` macro rules**: A macro annotated with `#[macro_export]` MUST be defined and consumed in the same Rust source file. Never `use` a `#[macro_export]` macro across modules within the same crate — this triggers Rust future-compatibility errors and defeats the purpose of the module convention. External crates import normally via `use crate_name::macro_name;`.
+**Single-call-per-type rule**: Each macro MUST appear at most once per file. Merge all same-type modules into one call.
 
-**`prelude` module convention**: Crates define `src/prelude.rs` and declare it with `remu_macro::mod_pub_flat!(prelude);`. This makes prelude both path-accessible (`remu_xxx::prelude::*`) and flattened at the crate root. No separate `pub use crate::prelude::*;` line is needed.
+**Inline modules are exempt**: `mod tests { ... }` and similar inline blocks are not subject to these rules.
 
-**Exception — `remu_macro` bootstrap**: `remu_macro/src/lib.rs` uses bare `mod module; mod pattern;` because `mod_flat!` / `mod_pub!` are defined *inside* those modules. This is the **only** crate allowed to use bare `mod`, and the reason must be documented with a comment.
+**`as` alias exception**: Manual `pub use LongName as Short;` is allowed after macros for aliasing.
+
+**`#[macro_export]` macro rules**: A macro annotated with `#[macro_export]` MUST be defined and consumed in the same Rust source file. External crates import normally via `use crate_name::macro_name;`.
+
+**`prelude` module convention**: Declare with `mod_pub!(prelude);`. Use explicit `pub use crate::module::Item;` inside (never `pub use *;`). External crates import via `use remu_xxx::prelude::*;`.
+
+**Exception — `remu_macro` bootstrap**: Uses bare `mod module; mod pattern;` because the macros are defined inside those modules. This is the only crate allowed to use bare `mod`.
 
 ### Data-Flow File Conventions (SHOULD follow)
 
@@ -62,13 +81,13 @@ When a crate needs to define its own runtime initialization, compile-time generi
 
 ```
 src/flow/
-  mod.rs         → remu_macro::mod_flat!(command, option, generic);
+  mod.rs         → remu_macro::mod_prv!(command, option, generic);
   command.rs     → Runtime operation commands
   option.rs      → Runtime initialization config
   generic.rs     → Compile-time generic type configuration
 ```
 
-The parent `lib.rs` declares it with `remu_macro::mod_pub_flat!(flow);` so items are both path-accessible and flat.
+The parent `lib.rs` declares it with `remu_macro::mod_pub!(crate, flow);`.
 
 Rules:
 - Create only the files needed. Skip `generic.rs` or `command.rs` if not applicable.

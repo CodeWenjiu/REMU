@@ -2,10 +2,10 @@ use std::io::{self, Write};
 
 use crate::bus::{BusError, device::DeviceAccess};
 
-pub struct SimpleUart;
+pub(super) struct SimpleUart;
 
 impl SimpleUart {
-    pub fn new() -> Self {
+    pub(super) fn new() -> Self {
         Self
     }
 }

@@ -1,21 +1,21 @@
 use std::str::FromStr;
 
 #[derive(Clone, Copy, Debug, Default, Eq, PartialEq)]
-pub enum NzeaTarget {
+pub(crate) enum NzeaTarget {
     #[default]
     Core,
     Tile,
 }
 
 impl NzeaTarget {
-    pub const fn as_str(self) -> &'static str {
+    pub(crate) const fn as_str(self) -> &'static str {
         match self {
             Self::Core => "core",
             Self::Tile => "tile",
         }
     }
 
-    pub const fn top_module(self) -> &'static str {
+    pub(crate) const fn top_module(self) -> &'static str {
         match self {
             Self::Core => "NzeaCore",
             Self::Tile => "NzeaTile",

@@ -3436,6 +3436,7 @@ version = "0.1.0"
 dependencies = [
  "miniz_oxide",
  "remu_hal",
+ "remu_macro",
 ]
 
 [[package]]

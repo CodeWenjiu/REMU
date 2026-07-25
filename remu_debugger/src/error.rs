@@ -1,8 +1,9 @@
 use miette::Diagnostic;
-use remu_harness::{ExitCode, HarnessError};
+use remu_harness::HarnessError;
+use remu_types::ExitCode;
 use thiserror::Error;
 
-use crate::compound_command::ParseError;
+use crate::ParseError;
 
 #[derive(Error, Debug, Diagnostic)]
 pub enum DebuggerError {

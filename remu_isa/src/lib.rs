@@ -1,5 +1,6 @@
 remu_macro::mod_pub!(isa);
-remu_macro::mod_flat!(wordlen);
+remu_macro::mod_prv!(wordlen);
+pub use wordlen::{Xlen, MachineWord};
 
 use std::fmt::Display;
 

@@ -1,13 +1,16 @@
-remu_macro::mod_pub!(device, memory);
-remu_macro::mod_pub_flat!(flow);
-remu_macro::mod_flat!(error, parse, access, observer);
+remu_macro::mod_pub!(crate, device, memory);
+remu_macro::mod_pub!(crate, flow);
+remu_macro::mod_prv!(error, parse, access, observer);
 
 use std::{marker::PhantomData, ops::Range};
 
+pub use error::BusError;
+pub use flow::{BusCmd, BusOption, ReadArgs, ReadCommand, WriteCommand};
 pub use memory::{
     AccessKind, MemFault, MemRegionSpec, Memory, MemoryEntry, try_load_elf_into_memory,
 };
-pub use observer::ObserverEvent;
+pub use observer::{BusObserver, DifftestObserver, FastObserver, ObserverEvent};
+pub(crate) use parse::parse_usize_allow_hex_underscore;
 use remu_isa::AllUsize;
 use remu_isa::isa::RvIsa;
 use remu_types::DynDiagError;

@@ -7,7 +7,7 @@ use super::{cus0_asm, normalize_and_quantize_input, MnistInference};
 
 /// Zero-sized backend: issues [`cus0_asm::emit_pipeline`] after input normalization, then argmax
 /// over the 10 `NN_LOAD` GPR words (interpreted as `i32` bit patterns).
-pub struct Cus0Inference;
+pub(crate) struct Cus0Inference;
 
 fn argmax_logits(bits: &[u32; 10]) -> usize {
     bits.iter()
@@ -18,7 +18,7 @@ fn argmax_logits(bits: &[u32; 10]) -> usize {
 }
 
 impl Cus0Inference {
-    pub fn new() -> Self {
+    pub(crate) fn new() -> Self {
         println!("MNIST backend: CUS0 (NN_LOAD_ACT / NN_START / NN_LOAD).");
         Self
     }

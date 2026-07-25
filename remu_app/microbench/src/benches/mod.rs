@@ -1,21 +1,3 @@
-mod bf;
-mod dinic;
-mod fib;
-mod lzip;
-mod md5;
-mod pz15;
-mod qsort;
-mod queen;
-mod sieve;
-mod ssort;
-
-pub(crate) use bf::Bf;
-pub(crate) use dinic::Dinic;
-pub(crate) use fib::Fib;
-pub(crate) use lzip::Lzip;
-pub(crate) use md5::Md5;
-pub(crate) use pz15::Pz15;
-pub(crate) use qsort::Qsort;
-pub(crate) use queen::Queen;
-pub(crate) use sieve::Sieve;
-pub(crate) use ssort::Ssort;
+remu_macro::mod_pub!(
+    crate, bf, dinic, fib, lzip, md5, pz15, qsort, queen, sieve, ssort
+);

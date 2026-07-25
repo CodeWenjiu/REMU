@@ -2,10 +2,10 @@ use remu_types::ExitCode;
 
 use crate::bus::{BusError, device::DeviceAccess};
 
-pub struct SifiveTestFinisher;
+pub(super) struct SifiveTestFinisher;
 
 impl SifiveTestFinisher {
-    pub fn new() -> Self {
+    pub(super) fn new() -> Self {
         Self
     }
 }
