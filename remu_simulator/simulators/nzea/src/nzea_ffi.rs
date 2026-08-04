@@ -1,11 +1,15 @@
 //! FFI bindings: function pointers loaded from libnzea.so at runtime.
 //! Each (platform, isa) combination loads its own .so.
 
-use std::ffi::c_void;
+use std::ffi::{c_char, c_void};
 
 use libloading::Library;
 
 use remu_isa::isa::extension_enum::{RV32I, RV32I_wjCus0, RV32IM, RV32IM_wjCus0};
+
+/// Callback invoked by `nzea_iter_stats` for each stat_* counter.
+pub(crate) type NzeaStatCallback =
+    unsafe extern "C" fn(name: *const c_char, value: u32, userdata: *mut c_void);
 
 // ---------------------------------------------------------------------------
 // Function pointer table
@@ -20,6 +24,11 @@ pub(crate) struct NzeaFns {
     pub eval: unsafe extern "C" fn(sim: *mut c_void, model: *const i8),
     pub trace_open: unsafe extern "C" fn(sim: *mut c_void, model: *const i8, filename: *const i8),
     pub trace_dump: unsafe extern "C" fn(sim: *mut c_void),
+    pub iter_stats: unsafe extern "C" fn(
+        sim: *mut c_void,
+        cb: Option<NzeaStatCallback>,
+        userdata: *mut c_void,
+    ) -> i32,
 }
 
 impl NzeaFns {
@@ -41,6 +50,7 @@ impl NzeaFns {
                 eval: std::mem::transmute(load!(lib, "nzea_eval")),
                 trace_open: std::mem::transmute(load!(lib, "nzea_trace_open")),
                 trace_dump: std::mem::transmute(load!(lib, "nzea_trace_dump")),
+                iter_stats: std::mem::transmute(load!(lib, "nzea_iter_stats")),
             }
         })
     }

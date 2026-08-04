@@ -6,7 +6,7 @@ use remu_isa::isa::{
     IsaSpec,
     reg::{Fpr, Gpr},
 };
-use remu_types::{DynDiagError, Tracer};
+use remu_types::{DynDiagError, StatKind, Tracer};
 use tabled::{
     Table, Tabled,
     settings::{Color, Style, object::Columns},
@@ -345,7 +345,7 @@ impl Tracer for CLITracer {
         println!("{table}");
     }
 
-    fn stat_print(&self, entries: &[(String, String)]) {
+    fn stat_print(&self, entries: &[(String, String, StatKind)]) {
         if entries.is_empty() {
             println!("{}", "no statistics".yellow());
             return;
@@ -355,18 +355,36 @@ impl Tracer for CLITracer {
             name: String,
             value: String,
         }
-        let rows: Vec<StatRow> = entries
+        let print_section = |title: &str, section: &[(String, String)]| {
+            if section.is_empty() {
+                return;
+            }
+            println!("{}", title.cyan().bold());
+            let rows: Vec<StatRow> = section
+                .iter()
+                .map(|(name, value)| StatRow {
+                    name: name.clone(),
+                    value: value.clone(),
+                })
+                .collect();
+            let mut table = Table::new(rows);
+            table.with(Style::rounded());
+            table.modify(Columns::one(0), Color::FG_YELLOW);
+            table.modify(Columns::one(1), Color::FG_CYAN);
+            println!("{table}");
+        };
+        let raw: Vec<(String, String)> = entries
             .iter()
-            .map(|(name, value)| StatRow {
-                name: name.clone(),
-                value: value.clone(),
-            })
+            .filter(|(_, _, k)| *k == StatKind::Raw)
+            .map(|(n, v, _)| (n.clone(), v.clone()))
             .collect();
-        let mut table = Table::new(rows);
-        table.with(Style::rounded());
-        table.modify(Columns::one(0), Color::FG_YELLOW);
-        table.modify(Columns::one(1), Color::FG_CYAN);
-        println!("{table}");
+        let derived: Vec<(String, String)> = entries
+            .iter()
+            .filter(|(_, _, k)| *k == StatKind::Derived)
+            .map(|(n, v, _)| (n.clone(), v.clone()))
+            .collect();
+        print_section("raw counters", &raw);
+        print_section("derived", &derived);
     }
 }
 

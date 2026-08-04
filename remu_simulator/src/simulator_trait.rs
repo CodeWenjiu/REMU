@@ -9,7 +9,8 @@ use remu_types::{DifftestMismatchItem, TraceKind, TracerDyn};
 use crate::SimulatorInnerError;
 use crate::SimulatorOption;
 use crate::SimulatorPolicy;
-use crate::{StatContext, StatEntry};
+use crate::StatEntry;
+use crate::StatFilter;
 
 pub trait SimulatorCore<P: StatePolicy> {
     fn new(opt: SimulatorOption, tracer: TracerDyn, interrupt: Arc<AtomicBool>) -> Self;
@@ -92,9 +93,11 @@ pub trait SimulatorDut: SimulatorCore<<Self as SimulatorDut>::Policy> {
         // Default: no breakpoints to print.
     }
 
-    /// Platform-specific statistics (e.g. cycle count, IPC). Receives ctx for derived stats.
+    /// Platform-specific statistics (e.g. inst/cycle count, IPC). Each platform
+    /// owns its own counters (nzea: RTL VPI signals; remu: none). Filtering is
+    /// applied by the platform implementation.
     #[inline(always)]
-    fn platform_stats(&self, _ctx: &StatContext) -> Vec<StatEntry> {
+    fn platform_stats(&self, _filter: &StatFilter) -> Vec<StatEntry> {
         vec![]
     }
 }

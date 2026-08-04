@@ -8,4 +8,4 @@ pub use crate::{
 };
 pub use crate::{FuncCmd, TraceCmd};
 pub use crate::{SimulatorCore, SimulatorDut, SimulatorRef};
-pub use crate::{StatCmd, StatContext, StatEntry};
+pub use crate::{StatCmd, StatEntry, StatFilter};

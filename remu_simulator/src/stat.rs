@@ -1,44 +1,72 @@
 //! Unified statistics interface: common stats (e.g. inst count) + platform-specific (e.g. cycle count, IPC).
 
 use clap::Subcommand;
+use remu_types::StatKind;
 
-/// Context passed to platform_stats so platforms can compute derived stats (e.g. IPC).
+/// Which statistics the caller wants to see. Filtering is applied by the
+/// platform implementation (it owns the raw signals and derived rules).
 #[derive(Debug, Clone)]
-pub struct StatContext {
-    /// Instruction count from Harness.
-    pub inst_count: u64,
+pub enum StatFilter {
+    /// Everything: all raw counters plus all derived entries.
+    All,
+    /// Raw counters only.
+    Raw,
+    /// A derived group: the group's dependency counters plus its derived
+    /// entries (group names come from the platform's derive-rule table,
+    /// e.g. "ipc", "bp").
+    Group(String),
 }
 
 #[derive(Debug, Clone)]
 pub enum StatEntry {
-    /// Instruction count (all platforms; maintained by Harness).
-    InstCount(u64),
-    /// Clock cycle count (nzea etc.; not available on remu).
-    CycleCount(u64),
-    /// Instructions per cycle (derived; nzea etc.).
-    Ipc(f64),
+    /// Raw statistic: a platform counter (e.g. nzea RTL VPI signal), displayed
+    /// with its platform-given name.
+    Named { name: String, value: String },
+    /// Derived statistic: computed from raw counters (e.g. IPC, mispredict rate).
+    Derived { name: String, value: String },
 }
 
 impl StatEntry {
-    pub fn name(&self) -> &'static str {
+    pub fn name(&self) -> String {
         match self {
-            Self::InstCount(_) => "inst_count",
-            Self::CycleCount(_) => "cycle_count",
-            Self::Ipc(_) => "ipc",
+            Self::Named { name, .. } | Self::Derived { name, .. } => name.clone(),
         }
     }
 
     pub fn format(&self) -> String {
         match self {
-            Self::InstCount(v) => format!("{}", v),
-            Self::CycleCount(v) => format!("{}", v),
-            Self::Ipc(v) => format!("{:.4}", v),
+            Self::Named { value, .. } | Self::Derived { value, .. } => value.clone(),
+        }
+    }
+
+    /// Whether this entry is a raw counter or a derived value.
+    pub fn kind(&self) -> StatKind {
+        match self {
+            Self::Named { .. } => StatKind::Raw,
+            Self::Derived { .. } => StatKind::Derived,
         }
     }
 }
 
 #[derive(Debug, Subcommand)]
 pub enum StatCmd {
-    /// Print all statistics
+    /// Print all statistics (raw counters + derived entries)
     Print,
+    /// Print raw counters only
+    Raw,
+    /// Print IPC statistics (inst/cycle counters + derived IPC)
+    Ipc,
+    /// Print branch-predictor statistics (branch/mispred counters + derived rate)
+    Bp,
+}
+
+impl StatCmd {
+    /// The derive-rule group this subcommand focuses on, if any.
+    pub fn group(&self) -> Option<&'static str> {
+        match self {
+            Self::Ipc => Some("ipc"),
+            Self::Bp => Some("bp"),
+            Self::Print | Self::Raw => None,
+        }
+    }
 }

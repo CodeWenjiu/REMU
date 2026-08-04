@@ -10,4 +10,4 @@ pub use flow::{SimulatorOption, SimulatorPolicy};
 pub use func::{FuncCmd, TraceCmd};
 pub use platform_config::PlatformConfig;
 pub use simulator_trait::{SimulatorCore, SimulatorDut, SimulatorRef};
-pub use stat::{StatCmd, StatContext, StatEntry};
+pub use stat::{StatCmd, StatEntry, StatFilter};

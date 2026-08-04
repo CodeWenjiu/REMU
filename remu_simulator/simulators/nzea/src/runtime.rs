@@ -22,8 +22,8 @@ use libloading::Library;
 use nanospinner::Spinner;
 use sha2::{Digest, Sha256};
 
-use crate::NzeaTarget;
 use crate::nzea_ffi::NzeaFns;
+use crate::NzeaTarget;
 
 // ---------------------------------------------------------------------------
 // Paths
@@ -208,7 +208,7 @@ fn build_nzea_so(target: &NzeaTarget, isa_str: &str) -> Result<(), String> {
     let makeflags = format!("CC=\"{ccache_cc}\" CXX=\"{ccache_cxx}\"");
     let prefix = format!("VTop_{t}_{isa_str}");
     let cmd = format!(
-        "cd '{}' && verilator --cc --build --trace-fst -MAKEFLAGS '{makeflags}' -CFLAGS -fPIC --Mdir {} --top-module {top_module} --prefix {prefix} {files_arg}",
+        "cd '{}' && verilator --cc --build --vpi --trace-fst -MAKEFLAGS '{makeflags}' -CFLAGS -fPIC --Mdir {} --top-module {top_module} --prefix {prefix} {files_arg}",
         so_d.display(),
         v_build.display()
     );
@@ -261,6 +261,8 @@ fn build_nzea_so(target: &NzeaTarget, isa_str: &str) -> Result<(), String> {
     cmd.arg(v_build.join("libverilated.a"));
     cmd.arg("-Wl,--no-whole-archive");
     cmd.arg("-lz");
+    // verilated_fst_c (FST writer) references LZ4_* symbols.
+    cmd.arg("-llz4");
 
     run_silent(&mut cmd, &format!("link {t}:{isa_str}"))?;
     fs::rename(&so_tmp, &so).map_err(|e| format!("rename: {e}"))?;

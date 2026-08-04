@@ -10,7 +10,7 @@ use remu_types::{ExitCode, TraceFlags, TraceKind, TracerDyn};
 
 use remu_simulator::{
     BreakpointErrorKind, SimulatorCore, SimulatorDut, SimulatorInnerError, SimulatorOption,
-    SimulatorPolicy, StatContext, StatEntry, from_state_error,
+    SimulatorPolicy, StatEntry, StatFilter, from_state_error,
 };
 
 use remu_state::bus::ObserverEvent;
@@ -24,6 +24,28 @@ use remu_isa::isa::reg::{Csr as CsrKind, RegAccess};
 /// True after the first time wavetrace is enabled in this process; then we do not open trace.fst again,
 /// so a later run with wavetrace off does not overwrite the file.
 static WAVETRACE_FILE_OPENED: AtomicBool = AtomicBool::new(false);
+
+/// Collects nzea RTL stat_* counters streamed from `nzea_iter_stats` via callback.
+#[derive(Default)]
+pub(crate) struct StatCollector {
+    /// Raw signal name → value (for derived-rule lookups and display).
+    pub raw: std::collections::HashMap<String, u64>,
+}
+
+/// C callback: record one stat_* counter into the [`StatCollector`] behind `userdata`.
+/// # Safety
+/// `userdata` must point to a live `StatCollector` for the duration of the enumeration.
+pub(crate) unsafe extern "C" fn collect_stat_cb(
+    name: *const std::ffi::c_char,
+    value: u32,
+    userdata: *mut std::ffi::c_void,
+) {
+    let collector = unsafe { &mut *(userdata as *mut StatCollector) };
+    let name = unsafe { std::ffi::CStr::from_ptr(name) }
+        .to_string_lossy()
+        .into_owned();
+    collector.raw.insert(name, value as u64);
+}
 
 pub struct SimulatorNzea<P, const IS_DUT: bool>
 where
@@ -340,12 +362,65 @@ where
         self.tracer.borrow().breakpoint_print(&self.breakpoints);
     }
 
-    fn platform_stats(&self, ctx: &StatContext) -> Vec<StatEntry> {
-        let mut v = vec![StatEntry::CycleCount(self.cycle_count)];
-        if self.cycle_count > 0 {
-            v.push(StatEntry::Ipc(
-                ctx.inst_count as f64 / self.cycle_count as f64,
-            ));
+    fn platform_stats(&self, filter: &StatFilter) -> Vec<StatEntry> {
+        // nzea RTL stat_* counters via VPI callback enumeration (dynamic — nzea
+        // adds new counters without remu changes). Signals exist only in
+        // sim=true RTL; on FPGA builds nzea_iter_stats returns -1 and no
+        // entries are added.
+        let mut collector = crate::StatCollector::default();
+        let _n = unsafe {
+            (self.fns.iter_stats)(
+                self.sim_ptr,
+                Some(crate::collect_stat_cb),
+                &mut collector as *mut _ as *mut std::ffi::c_void,
+            )
+        };
+        // Which raw signals to show: all of them (All/Raw), or only those a
+        // group's derive rules depend on (Group).
+        let group_rules: Vec<&crate::stat_derive::StatDeriveRule> = match filter {
+            StatFilter::Group(name) => crate::stat_derive::NZEA_DERIVE_RULES
+                .iter()
+                .filter(|r| r.group == name)
+                .collect(),
+            _ => vec![],
+        };
+        let show_all_raw = !matches!(filter, StatFilter::Group(_));
+        let group_deps: std::collections::HashSet<&str> = group_rules
+            .iter()
+            .flat_map(|r| r.deps.iter().copied())
+            .collect();
+        // Raw counters: one Named entry per selected signal, keeping the
+        // platform-given signal name.
+        let mut v = Vec::new();
+        for (name, value) in &collector.raw {
+            if show_all_raw || group_deps.contains(name.as_str()) {
+                v.push(StatEntry::Named {
+                    name: name.clone(),
+                    value: value.to_string(),
+                });
+            }
+        }
+        // Derived entries: table-driven semantics (see stat_derive.rs).
+        for rule in crate::stat_derive::NZEA_DERIVE_RULES {
+            let in_group = match filter {
+                StatFilter::All => true,
+                StatFilter::Raw => false,
+                StatFilter::Group(name) => rule.group == name,
+            };
+            if !in_group {
+                continue;
+            }
+            let deps: Option<Vec<u64>> = rule
+                .deps
+                .iter()
+                .map(|d| collector.raw.get(*d).copied())
+                .collect();
+            if let Some(deps) = deps {
+                v.push(StatEntry::Derived {
+                    name: rule.name.to_string(),
+                    value: (rule.derive)(&deps),
+                });
+            }
         }
         v
     }

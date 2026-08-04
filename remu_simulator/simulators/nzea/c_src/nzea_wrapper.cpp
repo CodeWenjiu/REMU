@@ -2,10 +2,14 @@
 // Built per (target, isa) combination; define NZEA_MODEL_TYPE and NZEA_MODEL_KEY before compiling.
 #include "verilated.h"
 #include "verilated_fst_c.h"
+#include "verilated_vpi.h"
 
 #include <cstddef>
+#include <cstdint>
+#include <cstdio>
 #include <cstring>
 #include <map>
+#include <string>
 
 #ifndef NZEA_MODEL_TYPE
 #error "Define NZEA_MODEL_TYPE to the Verilator class (e.g. -DNZEA_MODEL_TYPE=VTop_core_riscv32i)"
@@ -129,6 +133,69 @@ void nzea_trace_close(void* sim) {
     it->second.tfp->close();
     delete it->second.tfp;
     s_trace_map.erase(it);
+}
+
+// ---------------------------------------------------------------------------
+// VPI signal query
+// ---------------------------------------------------------------------------
+
+// Callback invoked for each stat_* counter: leaf name (NUL-terminated) + value.
+typedef void (*nzea_stat_callback)(const char* name, uint32_t value, void* userdata);
+
+// Recursively walk module hierarchy, invoking cb for every reg whose leaf name
+// starts with "stat_". Returns the number of signals visited in this scope.
+// Handles from vpi_scan are managed by Verilator — never vpi_free_object them.
+static int collect_stat_signals(vpiHandle scope, nzea_stat_callback cb, void* userdata) {
+    int count = 0;
+    vpiHandle regs = vpi_iterate(vpiReg, scope);
+    if (regs) {
+        for (vpiHandle reg = vpi_scan(regs); reg; reg = vpi_scan(regs)) {
+            const char* nm = vpi_get_str(vpiName, reg);
+            if (!nm || std::strncmp(nm, "stat_", 5) != 0) {
+                continue;
+            }
+            uint32_t value = 0;
+            const char* full = vpi_get_str(vpiFullName, reg);
+            vpiHandle h =
+                full ? vpi_handle_by_name(const_cast<char*>(full), nullptr) : nullptr;
+            if (h) {
+                s_vpi_value val;
+                val.format = vpiIntVal;
+                vpi_get_value(h, &val);  // Verilator quirk: first read returns 0
+                vpi_get_value(h, &val);
+                value = static_cast<uint32_t>(val.value.integer);
+            }
+            cb(nm, value, userdata);
+            count++;
+        }
+    }
+    vpiHandle mods = vpi_iterate(vpiModule, scope);
+    if (mods) {
+        for (vpiHandle sub = vpi_scan(mods); sub; sub = vpi_scan(mods)) {
+            count += collect_stat_signals(sub, cb, userdata);
+        }
+    }
+    return count;
+}
+
+// Enumerate all stat_* counters, invoking cb for each. Returns the number
+// found, or -1 on error (VPI unavailable / bad args). No capacity or name
+// length limits: names are NUL-terminated, count is streamed via the callback.
+// Caller must be paused (after continue/step) so values are stable.
+int nzea_iter_stats(void* sim, nzea_stat_callback cb, void* userdata) {
+    if (!sim || !cb) {
+        return -1;
+    }
+    vpiHandle tops = vpi_iterate(vpiModule, nullptr);
+    if (!tops) {
+        std::fprintf(stderr, "nzea_iter_stats: VPI unavailable (is --vpi enabled?)\n");
+        return -1;
+    }
+    int count = 0;
+    for (vpiHandle top = vpi_scan(tops); top; top = vpi_scan(tops)) {
+        count += collect_stat_signals(top, cb, userdata);
+    }
+    return count;
 }
 
 } // extern "C"

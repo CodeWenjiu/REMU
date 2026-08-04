@@ -18,10 +18,10 @@ use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, Ordering};
 
 use remu_simulator::{
-    DifftestMismatchList, SimulatorError, SimulatorInnerError, StatContext, StatEntry, TraceCmd,
+    DifftestMismatchList, SimulatorError, SimulatorInnerError, StatFilter, TraceCmd,
 };
 use remu_state::bus::ObserverEvent;
-use remu_types::{TraceKind, TracerDyn};
+use remu_types::{StatKind, TraceKind, TracerDyn};
 
 pub struct Harness<C: PlatformConfig> {
     dut_model: <C as PlatformConfig>::Dut,
@@ -29,7 +29,6 @@ pub struct Harness<C: PlatformConfig> {
     func: func::Func,
     interrupt: Arc<AtomicBool>,
     run_state: RunState,
-    total_instructions: u64,
     tracer: TracerDyn,
 }
 
@@ -45,7 +44,6 @@ impl<C: PlatformConfig> Harness<C> {
             func: func::Func::new(),
             interrupt,
             run_state: RunState::Idle,
-            total_instructions: 0,
             tracer,
         }
     }
@@ -126,26 +124,22 @@ impl<C: PlatformConfig> Harness<C> {
         self.dut_model.print_breakpoints();
     }
 
-    pub fn collect_stats(&self) -> Vec<StatEntry> {
-        let mut entries = vec![StatEntry::InstCount(self.total_instructions)];
-        let ctx = StatContext {
-            inst_count: self.total_instructions,
-        };
-        entries.extend(self.dut_model.platform_stats(&ctx));
-        entries
-    }
-
     pub fn stat_exec(&mut self, subcmd: &StatCmd) {
-        match subcmd {
-            StatCmd::Print => {
-                let entries: Vec<(String, String)> = self
-                    .collect_stats()
-                    .into_iter()
-                    .map(|e| (e.name().to_string(), e.format()))
-                    .collect();
-                self.tracer.borrow().stat_print(&entries);
-            }
-        }
+        let filter = match subcmd.group() {
+            Some(group) => StatFilter::Group(group.to_string()),
+            None => match subcmd {
+                StatCmd::Print => StatFilter::All,
+                StatCmd::Raw => StatFilter::Raw,
+                _ => unreachable!(),
+            },
+        };
+        let entries: Vec<(String, String, StatKind)> = self
+            .dut_model
+            .platform_stats(&filter)
+            .into_iter()
+            .map(|e| (e.name().to_string(), e.format(), e.kind()))
+            .collect();
+        self.tracer.borrow().stat_print(&entries);
     }
 
     pub fn run_steps(&mut self, max_steps: Option<usize>) -> Result<RunOutcome, HarnessError> {
@@ -185,7 +179,6 @@ impl<C: PlatformConfig> Harness<C> {
                 match self.step_once::<TRACE>() {
                     Ok(()) => {
                         steps += 1;
-                        self.total_instructions += 1;
                     }
                     Err(SimulatorError::Dut(SimulatorInnerError::ProgramExit(exit_code))) => {
                         self.run_state = RunState::Exit;
