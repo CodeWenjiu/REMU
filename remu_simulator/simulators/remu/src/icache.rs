@@ -1,9 +1,8 @@
 use crate::riscv::DecodedInst;
 
-/// Sentinel for empty slot. No valid fetch PC equals this (e.g. top of 32-bit space).
-pub(crate) const INVALID_ADDR: u32 = u32::MAX;
-
-/// I-cache entry: fetch address and decoded instruction. Empty slot = addr == INVALID_ADDR.
+/// I-cache entry: fetch address and decoded instruction. `None` = empty slot.
+/// `addr: u32` has a niche at `u32::MAX`, so `Option<CacheEntry>` is the same
+/// size as `CacheEntry` (zero overhead) and the empty slot costs nothing.
 #[derive(Clone, Copy)]
 pub(crate) struct CacheEntry {
     pub(crate) addr: u32,
@@ -11,9 +10,8 @@ pub(crate) struct CacheEntry {
 }
 
 /// Instruction cache. `SIZE` must be a power of 2 so that index `(pc as usize) & (SIZE - 1)` is in bounds.
-/// No Option: invalid slot is represented by CacheEntry { addr: INVALID_ADDR, .. }.
 pub(crate) struct Icache<const SIZE: usize> {
-    data: Box<[CacheEntry; SIZE]>,
+    data: Box<[Option<CacheEntry>; SIZE]>,
 }
 
 impl<const SIZE: usize> Icache<SIZE> {
@@ -24,10 +22,7 @@ impl<const SIZE: usize> Icache<SIZE> {
             "Icache SIZE must be a power of 2"
         );
         Self {
-            data: Box::new([CacheEntry {
-                addr: INVALID_ADDR,
-                decoded: DecodedInst::default(),
-            }; SIZE]),
+            data: Box::new([None; SIZE]),
         }
     }
 
@@ -36,9 +31,10 @@ impl<const SIZE: usize> Icache<SIZE> {
         (pc as usize) & (SIZE - 1)
     }
 
-    /// Returns the entry for `pc`. Caller checks entry.addr == pc for hit.
+    /// Returns the entry slot for `pc`. Caller checks for hit (Some + addr == pc).
+    /// `index()` masks with `SIZE - 1` (SIZE is a power of 2), so the index is always in bounds.
     #[inline(always)]
-    pub(crate) fn get_entry_mut(&mut self, pc: u32) -> &mut CacheEntry {
+    pub(crate) fn get_entry_mut(&mut self, pc: u32) -> &mut Option<CacheEntry> {
         let i = Self::index(pc);
         unsafe { self.data.get_unchecked_mut(i) }
     }
@@ -46,14 +42,14 @@ impl<const SIZE: usize> Icache<SIZE> {
     /// Invalidates the cache line for `pc`. Next fetch at this PC will refill from bus.
     #[inline(always)]
     pub(crate) fn invalidate(&mut self, pc: u32) {
-        self.get_entry_mut(pc).addr = INVALID_ADDR;
+        *self.get_entry_mut(pc) = None;
     }
 
     /// Clears all entries (e.g. after fence.i). Next fetch will refill.
     #[inline(never)]
     pub(crate) fn flush(&mut self) {
         for entry in self.data.iter_mut() {
-            entry.addr = INVALID_ADDR;
+            *entry = None;
         }
     }
 }

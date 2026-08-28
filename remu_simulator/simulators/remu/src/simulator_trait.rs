@@ -116,23 +116,25 @@ impl<P: SimulatorPolicy, const IS_DUT: bool> SimulatorCore<P> for SimulatorRemu<
     fn step_once<const TRACE: u64>(&mut self) -> Result<(), SimulatorInnerError> {
         use remu_types::TraceFlags;
         let pc = *self.state.reg.pc;
-        let entry = self.icache.get_entry_mut(pc);
-        if entry.addr == pc {
-            let decoded = entry.decoded;
-            self.execute_inst(&decoded).map_err(from_state_error)?;
-            if TraceFlags::instruction(TRACE) && IS_DUT {
-                let inst = if let Some(&orig) = self.breakpoints.get(&pc) {
-                    orig
-                } else {
-                    self.state
-                        .bus
-                        .read_32(pc as usize)
-                        .map_err(|e| from_state_error(StateError::from(e)))
-                        .unwrap()
-                };
-                self.tracer.borrow().disasm(pc as u64, inst);
+        let slot = self.icache.get_entry_mut(pc);
+        if let Some(entry) = slot {
+            if entry.addr == pc {
+                let decoded = entry.decoded;
+                self.execute_inst(&decoded).map_err(from_state_error)?;
+                if TraceFlags::instruction(TRACE) && IS_DUT {
+                    let inst = if let Some(&orig) = self.breakpoints.get(&pc) {
+                        orig
+                    } else {
+                        self.state
+                            .bus
+                            .read_32(pc as usize)
+                            .map_err(|e| from_state_error(StateError::from(e)))
+                            .unwrap()
+                    };
+                    self.tracer.borrow().disasm(pc as u64, inst);
+                }
+                return Ok(());
             }
-            return Ok(());
         }
         let inst = self
             .state
@@ -148,8 +150,10 @@ impl<P: SimulatorPolicy, const IS_DUT: bool> SimulatorCore<P> for SimulatorRemu<
             self.tracer.borrow().disasm(pc as u64, trace_inst);
         }
         let d = decode::<P>(inst);
-        entry.addr = pc;
-        entry.decoded = d;
+        *slot = Some(crate::icache::CacheEntry {
+            addr: pc,
+            decoded: d,
+        });
         self.execute_inst(&d).map_err(from_state_error)?;
         Ok(())
     }
