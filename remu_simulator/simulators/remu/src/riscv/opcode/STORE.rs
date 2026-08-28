@@ -1,7 +1,7 @@
-use remu_state::StateError;
 use remu_isa::isa::reg::RegAccess;
+use remu_state::StateError;
 
-use crate::riscv::{funct3, imm_s, rs1, rs2, DecodedInst, Inst};
+use crate::riscv::{DecodedInst, Inst, funct3, imm_s, rs1, rs2};
 
 #[allow(dead_code)]
 pub(crate) const OPCODE: u32 = 0b010_0011;
@@ -45,25 +45,42 @@ pub(crate) fn execute<P: remu_state::StatePolicy, C: crate::ExecuteContext<P>>(
     decoded: &DecodedInst,
 ) -> Result<(), remu_state::StateError> {
     let state = ctx.state_mut();
-    let Inst::Store(store) = decoded.inst else { unreachable!() };
+    let Inst::Store(store) = decoded.inst else {
+        unreachable!()
+    };
     let rs1_val = state.reg.gpr.raw_read(decoded.rs1.into());
     let addr = rs1_val.wrapping_add(decoded.imm);
     match store {
-        StoreInst::Sb => state
-            .bus
-            .write_8(addr as usize, state.reg.gpr.raw_read(decoded.rs2.into()) as u8)
-            .map_err(StateError::from)?,
-        StoreInst::Sh => state
-            .bus
-            .write_16(
-                addr as usize,
-                state.reg.gpr.raw_read(decoded.rs2.into()) as u16,
-            )
-            .map_err(StateError::from)?,
-        StoreInst::Sw => state
-            .bus
-            .write_32(addr as usize, state.reg.gpr.raw_read(decoded.rs2.into()))
-            .map_err(StateError::from)?,
+        StoreInst::Sb => {
+            let v = state.reg.gpr.raw_read(decoded.rs2.into()) as u8;
+            match state.bus.write_8_fast(addr as usize, v) {
+                Some(()) => {}
+                None => state
+                    .bus
+                    .write_8_slow_err(addr as usize, v)
+                    .map_err(StateError::from)?,
+            }
+        }
+        StoreInst::Sh => {
+            let v = state.reg.gpr.raw_read(decoded.rs2.into()) as u16;
+            match state.bus.write_16_fast(addr as usize, v) {
+                Some(()) => {}
+                None => state
+                    .bus
+                    .write_16_slow_err(addr as usize, v)
+                    .map_err(StateError::from)?,
+            }
+        }
+        StoreInst::Sw => {
+            let v = state.reg.gpr.raw_read(decoded.rs2.into());
+            match state.bus.write_32_fast(addr as usize, v) {
+                Some(()) => {}
+                None => state
+                    .bus
+                    .write_32_slow_err(addr as usize, v)
+                    .map_err(StateError::from)?,
+            }
+        }
     }
     *state.reg.pc = state.reg.pc.wrapping_add(4);
     Ok(())

@@ -3,6 +3,24 @@ use remu_isa::isa::RvIsa;
 use crate::bus::{Bus, BusError, BusObserver};
 
 impl<I: RvIsa, O: BusObserver> Bus<I, O> {
+    /// Fast path: only the RAM dcache hit. Returns `Some(v)` on hit, `None` on
+    /// miss with **no refill side-effect** (see `Memory::read_8_hit`). Inlined
+    /// into the hot path so a hit costs no function call and no error
+    /// construction. On `None`, callers must fall back to `read_8_slow_err`,
+    /// which does the full (single) refill and error path.
+    #[inline(always)]
+    pub fn read_8_fast(&mut self, addr: usize) -> Option<u8> {
+        self.memory.read_8_hit(addr)
+    }
+
+    /// Slow path: full lookup (memory miss -> device -> unmapped) that constructs
+    /// a detailed `BusError` (incl. backtrace). Out-of-line so the large error
+    /// path does not bloat / de-inline the hot path.
+    #[inline(never)]
+    pub fn read_8_slow_err(&mut self, addr: usize) -> Result<u8, BusError> {
+        self.read_8_impl::<true>(addr)
+    }
+
     #[inline(always)]
     pub(crate) fn read_8_impl<const NOTIFY_OBSERVER: bool>(
         &mut self,
@@ -26,6 +44,18 @@ impl<I: RvIsa, O: BusObserver> Bus<I, O> {
     #[inline(always)]
     pub fn read_8(&mut self, addr: usize) -> Result<u8, BusError> {
         self.read_8_impl::<true>(addr)
+    }
+
+    /// Fast path: only the RAM dcache hit. See `read_8_fast`.
+    #[inline(always)]
+    pub fn read_16_fast(&mut self, addr: usize) -> Option<u16> {
+        self.memory.read_16_hit(addr)
+    }
+
+    /// Slow path: full lookup with detailed error. See `read_8_slow_err`.
+    #[inline(never)]
+    pub fn read_16_slow_err(&mut self, addr: usize) -> Result<u16, BusError> {
+        self.read_16_impl::<true>(addr)
     }
 
     #[inline(always)]
@@ -53,6 +83,23 @@ impl<I: RvIsa, O: BusObserver> Bus<I, O> {
         self.read_16_impl::<true>(addr)
     }
 
+    /// Fast path: only the RAM dcache hit. Returns `Some(v)` on hit, `None` on
+    /// miss with **no refill side-effect**. Inlined into the hot path so a hit
+    /// costs no function call and no error construction. On `None`, callers must
+    /// fall back to `read_32_slow_err` for the full (single refill) error path.
+    #[inline(always)]
+    pub fn read_32_fast(&mut self, addr: usize) -> Option<u32> {
+        self.memory.read_32_hit(addr)
+    }
+
+    /// Slow path: full lookup (memory miss -> device -> unmapped) that constructs
+    /// a detailed `BusError` (incl. backtrace). Out-of-line so the large error
+    /// path does not bloat / de-inline the hot path.
+    #[inline(never)]
+    pub fn read_32_slow_err(&mut self, addr: usize) -> Result<u32, BusError> {
+        self.read_32_impl::<true>(addr)
+    }
+
     #[inline(always)]
     pub(crate) fn read_32_impl<const NOTIFY_OBSERVER: bool>(
         &mut self,
@@ -78,6 +125,18 @@ impl<I: RvIsa, O: BusObserver> Bus<I, O> {
         self.read_32_impl::<true>(addr)
     }
 
+    /// Fast path: only the RAM dcache hit. See `read_32_fast`.
+    #[inline(always)]
+    pub fn read_64_fast(&mut self, addr: usize) -> Option<u64> {
+        self.memory.read_64_hit(addr)
+    }
+
+    /// Slow path: full lookup with detailed error. See `read_32_slow_err`.
+    #[inline(never)]
+    pub fn read_64_slow_err(&mut self, addr: usize) -> Result<u64, BusError> {
+        self.read_64_impl::<true>(addr)
+    }
+
     #[inline(always)]
     pub(crate) fn read_64_impl<const NOTIFY_OBSERVER: bool>(
         &mut self,
@@ -101,6 +160,18 @@ impl<I: RvIsa, O: BusObserver> Bus<I, O> {
     #[inline(always)]
     pub fn read_64(&mut self, addr: usize) -> Result<u64, BusError> {
         self.read_64_impl::<true>(addr)
+    }
+
+    /// Fast path: only the RAM dcache hit. See `read_32_fast`.
+    #[inline(always)]
+    pub fn read_128_fast(&mut self, addr: usize) -> Option<u128> {
+        self.memory.read_128_hit(addr)
+    }
+
+    /// Slow path: full lookup with detailed error. See `read_32_slow_err`.
+    #[inline(never)]
+    pub fn read_128_slow_err(&mut self, addr: usize) -> Result<u128, BusError> {
+        self.read_128_impl::<true>(addr)
     }
 
     #[inline(always)]
@@ -137,6 +208,25 @@ impl<I: RvIsa, O: BusObserver> Bus<I, O> {
         Err(BusError::unmapped(addr))
     }
 
+    /// Fast path: write to RAM dcache hit directly. On hit returns `Some(())`;
+    /// `None` means miss (MMIO / unmapped) with **no refill side-effect** (see
+    /// `Memory::write_8_hit`). Memory-write observer notification is kept (it is
+    /// compile-time eliminated for observers with `ENABLED == false`).
+    #[inline(always)]
+    pub fn write_8_fast(&mut self, addr: usize, value: u8) -> Option<()> {
+        let hit = self.memory.write_8_hit(addr, value);
+        if hit.is_some() && O::ENABLED {
+            self.observer.on_mem_write_8(addr, value);
+        }
+        hit
+    }
+
+    /// Slow path: full lookup with detailed error. See `read_32_slow_err`.
+    #[inline(never)]
+    pub fn write_8_slow_err(&mut self, addr: usize, value: u8) -> Result<(), BusError> {
+        self.write_8_impl::<true>(addr, value)
+    }
+
     #[inline(always)]
     pub(crate) fn write_8_impl<const NOTIFY_OBSERVER: bool>(
         &mut self,
@@ -169,6 +259,22 @@ impl<I: RvIsa, O: BusObserver> Bus<I, O> {
         self.write_8_impl::<true>(addr, value)
     }
 
+    /// Fast path: write to RAM (dcache hit). See `write_8_fast`.
+    #[inline(always)]
+    pub fn write_16_fast(&mut self, addr: usize, value: u16) -> Option<()> {
+        let hit = self.memory.write_16_hit(addr, value);
+        if hit.is_some() && O::ENABLED {
+            self.observer.on_mem_write_16(addr, value);
+        }
+        hit
+    }
+
+    /// Slow path: full lookup with detailed error.
+    #[inline(never)]
+    pub fn write_16_slow_err(&mut self, addr: usize, value: u16) -> Result<(), BusError> {
+        self.write_16_impl::<true>(addr, value)
+    }
+
     #[inline(always)]
     pub(crate) fn write_16_impl<const NOTIFY_OBSERVER: bool>(
         &mut self,
@@ -199,6 +305,22 @@ impl<I: RvIsa, O: BusObserver> Bus<I, O> {
     #[inline(always)]
     pub fn write_16(&mut self, addr: usize, value: u16) -> Result<(), BusError> {
         self.write_16_impl::<true>(addr, value)
+    }
+
+    /// Fast path: write to RAM (dcache hit). See `write_8_fast`.
+    #[inline(always)]
+    pub fn write_32_fast(&mut self, addr: usize, value: u32) -> Option<()> {
+        let hit = self.memory.write_32_hit(addr, value);
+        if hit.is_some() && O::ENABLED {
+            self.observer.on_mem_write_32(addr, value);
+        }
+        hit
+    }
+
+    /// Slow path: full lookup with detailed error.
+    #[inline(never)]
+    pub fn write_32_slow_err(&mut self, addr: usize, value: u32) -> Result<(), BusError> {
+        self.write_32_impl::<true>(addr, value)
     }
 
     #[inline(always)]
@@ -253,6 +375,22 @@ impl<I: RvIsa, O: BusObserver> Bus<I, O> {
         self.write_32(addr, merged)
     }
 
+    /// Fast path: write to RAM (dcache hit). See `write_8_fast`.
+    #[inline(always)]
+    pub fn write_64_fast(&mut self, addr: usize, value: u64) -> Option<()> {
+        let hit = self.memory.write_64_hit(addr, value);
+        if hit.is_some() && O::ENABLED {
+            self.observer.on_mem_write_64(addr, value);
+        }
+        hit
+    }
+
+    /// Slow path: full lookup with detailed error.
+    #[inline(never)]
+    pub fn write_64_slow_err(&mut self, addr: usize, value: u64) -> Result<(), BusError> {
+        self.write_64_impl::<true>(addr, value)
+    }
+
     #[inline(always)]
     pub(crate) fn write_64_impl<const NOTIFY_OBSERVER: bool>(
         &mut self,
@@ -283,6 +421,22 @@ impl<I: RvIsa, O: BusObserver> Bus<I, O> {
     #[inline(always)]
     pub fn write_64(&mut self, addr: usize, value: u64) -> Result<(), BusError> {
         self.write_64_impl::<true>(addr, value)
+    }
+
+    /// Fast path: write to RAM (dcache hit). See `write_8_fast`.
+    #[inline(always)]
+    pub fn write_128_fast(&mut self, addr: usize, value: u128) -> Option<()> {
+        let hit = self.memory.write_128_hit(addr, value);
+        if hit.is_some() && O::ENABLED {
+            self.observer.on_mem_write_128(addr, value);
+        }
+        hit
+    }
+
+    /// Slow path: full lookup with detailed error.
+    #[inline(never)]
+    pub fn write_128_slow_err(&mut self, addr: usize, value: u128) -> Result<(), BusError> {
+        self.write_128_impl::<true>(addr, value)
     }
 
     #[inline(always)]

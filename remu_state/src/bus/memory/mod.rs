@@ -85,6 +85,20 @@ impl Memory {
         addr.wrapping_add(entry.addend) as *mut u8
     }
 
+    /// Pure dcache hit check: returns the value only if the page is cached,
+    /// otherwise `None` with **no refill side-effect**. The caller decides whether
+    /// to fall back to the full (refill) path. Used to split hot-path hits from
+    /// cold-path refills.
+    #[inline(always)]
+    pub(crate) fn read_8_hit(&mut self, addr: usize) -> Option<u8> {
+        let entry = self.dcache.get_entry_mut(addr);
+        if entry.tag == (addr >> PAGE_SHIFT) {
+            Some(unsafe { *(self.dcache_ptr(addr) as *const u8) })
+        } else {
+            None
+        }
+    }
+
     #[inline(always)]
     pub(crate) fn read_8(&mut self, addr: usize) -> Option<u8> {
         let entry = self.dcache.get_entry_mut(addr);
@@ -98,6 +112,17 @@ impl Memory {
     fn read_8_slow(&mut self, addr: usize) -> Option<u8> {
         let addend = self.refill_dcache(addr)?;
         Some(unsafe { *(addr.wrapping_add(addend) as *const u8) })
+    }
+
+    /// Pure dcache hit check, no refill side-effect. See `read_8_hit`.
+    #[inline(always)]
+    pub(crate) fn read_16_hit(&mut self, addr: usize) -> Option<u16> {
+        let entry = self.dcache.get_entry_mut(addr);
+        if entry.tag == (addr >> PAGE_SHIFT) {
+            Some(unsafe { (self.dcache_ptr(addr) as *const u16).read_unaligned() }.to_le())
+        } else {
+            None
+        }
     }
 
     #[inline(always)]
@@ -115,6 +140,17 @@ impl Memory {
         Some(unsafe { (addr.wrapping_add(addend) as *const u16).read_unaligned() }.to_le())
     }
 
+    /// Pure dcache hit check, no refill side-effect. See `read_8_hit`.
+    #[inline(always)]
+    pub(crate) fn read_32_hit(&mut self, addr: usize) -> Option<u32> {
+        let entry = self.dcache.get_entry_mut(addr);
+        if entry.tag == (addr >> PAGE_SHIFT) {
+            Some(unsafe { (self.dcache_ptr(addr) as *const u32).read_unaligned() }.to_le())
+        } else {
+            None
+        }
+    }
+
     #[inline(always)]
     pub(crate) fn read_32(&mut self, addr: usize) -> Option<u32> {
         let entry = self.dcache.get_entry_mut(addr);
@@ -130,6 +166,17 @@ impl Memory {
         Some(unsafe { (addr.wrapping_add(addend) as *const u32).read_unaligned() }.to_le())
     }
 
+    /// Pure dcache hit check, no refill side-effect. See `read_8_hit`.
+    #[inline(always)]
+    pub(crate) fn read_64_hit(&mut self, addr: usize) -> Option<u64> {
+        let entry = self.dcache.get_entry_mut(addr);
+        if entry.tag == (addr >> PAGE_SHIFT) {
+            Some(unsafe { (self.dcache_ptr(addr) as *const u64).read_unaligned() }.to_le())
+        } else {
+            None
+        }
+    }
+
     #[inline(always)]
     pub(crate) fn read_64(&mut self, addr: usize) -> Option<u64> {
         let entry = self.dcache.get_entry_mut(addr);
@@ -143,6 +190,17 @@ impl Memory {
     fn read_64_slow(&mut self, addr: usize) -> Option<u64> {
         let addend = self.refill_dcache(addr)?;
         Some(unsafe { (addr.wrapping_add(addend) as *const u64).read_unaligned() }.to_le())
+    }
+
+    /// Pure dcache hit check, no refill side-effect. See `read_8_hit`.
+    #[inline(always)]
+    pub(crate) fn read_128_hit(&mut self, addr: usize) -> Option<u128> {
+        let entry = self.dcache.get_entry_mut(addr);
+        if entry.tag == (addr >> PAGE_SHIFT) {
+            Some(unsafe { (self.dcache_ptr(addr) as *const u128).read_unaligned() }.to_le())
+        } else {
+            None
+        }
     }
 
     #[inline(always)]
@@ -171,6 +229,20 @@ impl Memory {
         Some(())
     }
 
+    /// Pure dcache hit write: writes only if the page is cached, otherwise
+    /// `None` with **no refill side-effect**. The caller decides whether to fall
+    /// back to the full (refill) path.
+    #[inline(always)]
+    pub(crate) fn write_8_hit(&mut self, addr: usize, value: u8) -> Option<()> {
+        let entry = self.dcache.get_entry_mut(addr);
+        if entry.tag == (addr >> PAGE_SHIFT) {
+            unsafe { *(self.dcache_ptr(addr) as *mut u8) = value };
+            Some(())
+        } else {
+            None
+        }
+    }
+
     #[inline(always)]
     pub(crate) fn write_8(&mut self, addr: usize, value: u8) -> Option<()> {
         let entry = self.dcache.get_entry_mut(addr);
@@ -186,6 +258,18 @@ impl Memory {
         let addend = self.refill_dcache(addr)?;
         unsafe { *(addr.wrapping_add(addend) as *mut u8) = value };
         Some(())
+    }
+
+    /// Pure dcache hit write, no refill side-effect. See `write_8_hit`.
+    #[inline(always)]
+    pub(crate) fn write_16_hit(&mut self, addr: usize, value: u16) -> Option<()> {
+        let entry = self.dcache.get_entry_mut(addr);
+        if entry.tag == (addr >> PAGE_SHIFT) {
+            unsafe { (self.dcache_ptr(addr) as *mut u16).write_unaligned(value.to_le()) };
+            Some(())
+        } else {
+            None
+        }
     }
 
     #[inline(always)]
@@ -205,6 +289,18 @@ impl Memory {
         Some(())
     }
 
+    /// Pure dcache hit write, no refill side-effect. See `write_8_hit`.
+    #[inline(always)]
+    pub(crate) fn write_32_hit(&mut self, addr: usize, value: u32) -> Option<()> {
+        let entry = self.dcache.get_entry_mut(addr);
+        if entry.tag == (addr >> PAGE_SHIFT) {
+            unsafe { (self.dcache_ptr(addr) as *mut u32).write_unaligned(value.to_le()) };
+            Some(())
+        } else {
+            None
+        }
+    }
+
     #[inline(always)]
     pub(crate) fn write_32(&mut self, addr: usize, value: u32) -> Option<()> {
         let entry = self.dcache.get_entry_mut(addr);
@@ -222,6 +318,18 @@ impl Memory {
         Some(())
     }
 
+    /// Pure dcache hit write, no refill side-effect. See `write_8_hit`.
+    #[inline(always)]
+    pub(crate) fn write_64_hit(&mut self, addr: usize, value: u64) -> Option<()> {
+        let entry = self.dcache.get_entry_mut(addr);
+        if entry.tag == (addr >> PAGE_SHIFT) {
+            unsafe { (self.dcache_ptr(addr) as *mut u64).write_unaligned(value.to_le()) };
+            Some(())
+        } else {
+            None
+        }
+    }
+
     #[inline(always)]
     pub(crate) fn write_64(&mut self, addr: usize, value: u64) -> Option<()> {
         let entry = self.dcache.get_entry_mut(addr);
@@ -237,6 +345,18 @@ impl Memory {
         let addend = self.refill_dcache(addr)?;
         unsafe { (addr.wrapping_add(addend) as *mut u64).write_unaligned(value.to_le()) };
         Some(())
+    }
+
+    /// Pure dcache hit write, no refill side-effect. See `write_8_hit`.
+    #[inline(always)]
+    pub(crate) fn write_128_hit(&mut self, addr: usize, value: u128) -> Option<()> {
+        let entry = self.dcache.get_entry_mut(addr);
+        if entry.tag == (addr >> PAGE_SHIFT) {
+            unsafe { (self.dcache_ptr(addr) as *mut u128).write_unaligned(value.to_le()) };
+            Some(())
+        } else {
+            None
+        }
     }
 
     #[inline(always)]
