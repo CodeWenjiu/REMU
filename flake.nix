@@ -74,6 +74,11 @@
           ccache
           sccache
 
+          # Performance profiling toolchain
+          perf
+          hyperfine
+          valgrind
+
           gnumake
           gcc
           autoconf
