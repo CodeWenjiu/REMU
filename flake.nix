@@ -102,8 +102,8 @@
             export SCCACHE_DIR="$PWD/.sccache"
             mkdir -p .direnv/bin
             export LD_LIBRARY_PATH=${pkgs.lib.makeLibraryPath guiRuntime}:$LD_LIBRARY_PATH
-            export LD_LIBRARY_PATH=${pkgs.zlib.out}/lib:${pkgs.lz4.out}/lib:$LD_LIBRARY_PATH
-            export LIBRARY_PATH=${pkgs.zlib.out}/lib:${pkgs.lz4.out}/lib
+            export LD_LIBRARY_PATH=${pkgs.zlib.out}/lib:${pkgs.lz4.lib}/lib:$LD_LIBRARY_PATH
+            export LIBRARY_PATH=${pkgs.zlib.out}/lib:${pkgs.lz4.lib}/lib
             export OPENSSL_NO_VENDOR=1
             export OPENSSL_DIR=${pkgs.openssl.dev}
             export OPENSSL_LIB_DIR=${pkgs.openssl.out}/lib

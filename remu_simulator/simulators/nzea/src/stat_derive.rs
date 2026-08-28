@@ -44,7 +44,95 @@ pub(crate) const NZEA_DERIVE_RULES: &[StatDeriveRule] = &[
             } else {
                 0.0
             };
-            format!("{mispred}/{branch} = {pct:.2}%")
+            format!("{pct:.2}%")
+        },
+    },
+    // ── 方向 vs 目标误预测分解 ──
+    StatDeriveRule {
+        group: "bp",
+        name: "dir_mispred_rate",
+        deps: &["stat_bp_branch", "stat_bp_dir_mispred"],
+        derive: |v| {
+            let (branch, dir) = (v[0], v[1]);
+            let pct = if branch > 0 {
+                dir as f64 / branch as f64 * 100.0
+            } else {
+                0.0
+            };
+            format!("{pct:.2}%")
+        },
+    },
+    StatDeriveRule {
+        group: "bp",
+        name: "tgt_mispred_rate",
+        deps: &["stat_bp_branch", "stat_bp_mispred", "stat_bp_dir_mispred"],
+        derive: |v| {
+            let (branch, mispred, dir) = (v[0], v[1], v[2]);
+            let tgt = mispred.saturating_sub(dir);
+            let pct = if branch > 0 {
+                tgt as f64 / branch as f64 * 100.0
+            } else {
+                0.0
+            };
+            format!("{pct:.2}%")
+        },
+    },
+    // ── 预测利用率与负载特性 ──
+    StatDeriveRule {
+        group: "bp",
+        name: "pred_taken_rate",
+        deps: &["stat_bp_branch", "stat_bp_pred_taken"],
+        derive: |v| {
+            let (branch, pred) = (v[0], v[1]);
+            let pct = if branch > 0 {
+                pred as f64 / branch as f64 * 100.0
+            } else {
+                0.0
+            };
+            format!("{pct:.2}%")
+        },
+    },
+    StatDeriveRule {
+        group: "bp",
+        name: "taken_rate",
+        deps: &["stat_bp_branch", "stat_bp_actual_taken"],
+        derive: |v| {
+            let (branch, taken) = (v[0], v[1]);
+            let pct = if branch > 0 {
+                taken as f64 / branch as f64 * 100.0
+            } else {
+                0.0
+            };
+            format!("{pct:.2}%")
+        },
+    },
+    // ── RAS（ret 预测）健康度 ──
+    StatDeriveRule {
+        group: "bp",
+        name: "ret_mispred_rate",
+        deps: &["stat_bp_ret", "stat_bp_ret_mispred"],
+        derive: |v| {
+            let (ret, ret_mispred) = (v[0], v[1]);
+            let pct = if ret > 0 {
+                ret_mispred as f64 / ret as f64 * 100.0
+            } else {
+                0.0
+            };
+            format!("{pct:.2}%")
+        },
+    },
+    StatDeriveRule {
+        group: "bp",
+        name: "ret_rate",
+        deps: &["stat_bp_branch", "stat_bp_ret"],
+        derive: |v| {
+            let (branch, ret) = (v[0], v[1]);
+            let pct = if branch > 0 {
+                ret as f64 / branch as f64 * 100.0
+            } else {
+                0.0
+            };
+            format!("{pct:.2}%")
         },
     },
 ];
