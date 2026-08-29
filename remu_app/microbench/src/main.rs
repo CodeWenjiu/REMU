@@ -8,7 +8,7 @@ mod benches;
 use bench::{Bench, Size};
 use benches::{bf, dinic, fib, lzip, md5, pz15, qsort, queen, sieve, ssort};
 
-fn get_size() -> Size {
+fn get_size() -> Option<Size> {
     #[cfg(not(any(target_arch = "riscv32", target_arch = "riscv64")))]
     {
         let arg = std::env::args().nth(1).unwrap_or_default();
@@ -23,7 +23,16 @@ fn get_size() -> Size {
 #[cfg_attr(target_arch = "riscv32", remu_hal::entry)]
 fn main() -> ! {
     remu_hal::init();
-    let size = get_size();
+    let size = match get_size() {
+        Some(s) => s,
+        None => {
+            remu_hal::println!(
+                "warning: unknown size argument, defaulting to test (accepted: {})",
+                Size::accepted_args()
+            );
+            Size::Test
+        }
+    };
     remu_hal::println!("=== microbench [{}] ===", size.name());
 
     let mut total_score = 0u64;

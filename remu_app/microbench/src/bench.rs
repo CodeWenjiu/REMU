@@ -14,13 +14,20 @@ pub(crate) enum Size {
 }
 
 impl Size {
-    pub(crate) fn from_arg(arg: &str) -> Self {
+    /// Parse a size from a CLI argument. Returns `None` for unknown input.
+    pub(crate) fn from_arg(arg: &str) -> Option<Self> {
         match arg {
-            "train" => Size::Train,
-            "ref" => Size::Ref,
-            "huge" => Size::Huge,
-            _ => Size::Test,
+            "test" => Some(Size::Test),
+            "train" => Some(Size::Train),
+            "ref" => Some(Size::Ref),
+            "huge" => Some(Size::Huge),
+            _ => None,
         }
+    }
+
+    /// All accepted CLI argument names, space-separated (for error messages).
+    pub(crate) fn accepted_args() -> &'static str {
+        "test, train, ref, huge"
     }
 
     pub(crate) fn name(&self) -> &str {
