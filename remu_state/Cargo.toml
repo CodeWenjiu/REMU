@@ -16,7 +16,7 @@ clap = { workspace = true, features = [ "derive", "color" ] }
 object = { version = "0.39.1", default-features = false, features = ["read_core", "elf"] }
 
 winit = "0.30.13"
-pixels = "0.17.2"
+softbuffer = "0.4.8"
 
 [lints]
 workspace = true

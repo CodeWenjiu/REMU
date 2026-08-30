@@ -1,10 +1,19 @@
 //! Display device: a framebuffer (a fixed memory region) rendered to a window
-//! via `pixels`/`winit` on a background thread.
+//! via `softbuffer`/`winit` on a background thread.
 //!
 //! The framebuffer lives in `Bus::Memory` (software writes pixels directly);
 //! this device only owns a raw pointer to that region and a render thread that
-//! periodically blits it to the window. Keeping the pointer (instead of a copy)
-//! matches a real display controller reading a memory-mapped framebuffer.
+//! blits it to the window. Keeping the pointer (instead of a copy) matches a
+//! real display controller reading a memory-mapped framebuffer.
+//!
+//! Rendering is **event-driven**: the guest draws a frame, then writes the MMIO
+//! control register; that write wakes the render thread (via `EventLoopProxy`)
+//! which blits the completed frame at a frame boundary. No polling, so the blit
+//! rate tracks the guest's frame rate exactly (no dropped frames / flicker).
+//!
+//! Pixel format is **0RGB** (a `u32` with bytes `[B,G,R,0]`), matching
+//! softbuffer's buffer layout, so a frame is a plain `u32` slice copy with no
+//! per-pixel conversion.
 
 use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, Ordering};
@@ -16,7 +25,7 @@ use crate::bus::{BusError, device::DeviceAccess};
 /// Hard-coded framebuffer size (kept simple; resolution is fixed for now).
 pub(super) const FB_WIDTH: usize = 800;
 pub(super) const FB_HEIGHT: usize = 600;
-/// 4 bytes per pixel (RGBA).
+/// Bytes per pixel: 4 (0RGB as a `u32`).
 pub(super) const FB_BYTES_PER_PIXEL: usize = 4;
 /// Raw pixel data size; rounded up to a page multiple below.
 pub(super) const FB_RAW_SIZE: usize = FB_WIDTH * FB_HEIGHT * FB_BYTES_PER_PIXEL;
@@ -28,12 +37,19 @@ pub(super) const FB_SIZE: usize = (FB_RAW_SIZE + FB_PAGE - 1) / FB_PAGE * FB_PAG
 /// Base address of the framebuffer memory region (declared via `extra_mem_regions`).
 pub(super) const FB_BASE: usize = 0x8900_0000;
 
+/// User event sent from the simulator thread to the render thread whenever the
+/// guest finishes drawing a frame (via the MMIO control register).
+#[derive(Debug, Clone, Copy)]
+pub(super) struct FrameDone;
+
 pub(super) struct Display {
     /// Non-owning pointer into the framebuffer region of `Bus::Memory`.
     /// Stored as `usize` so it is `Send` and can cross the thread boundary.
     fb: Option<usize>,
     /// Signal for the render thread to stop (dropped when Bus is destroyed).
     stop: Option<Arc<AtomicBool>>,
+    /// Proxy used to wake the render thread when a frame is complete.
+    proxy: Option<winit::event_loop::EventLoopProxy<FrameDone>>,
     /// Handle to the render thread.
     render_thread: Option<thread::JoinHandle<()>>,
 }
@@ -43,6 +59,7 @@ impl Display {
         Self {
             fb: None,
             stop: None,
+            proxy: None,
             render_thread: None,
         }
     }
@@ -54,9 +71,18 @@ impl Display {
         let fb_addr = self.fb.unwrap();
         let stop = Arc::new(AtomicBool::new(false));
         let stop_clone = Arc::clone(&stop);
+        // The render thread creates the event loop and returns its proxy so the
+        // simulator thread can wake it on frame-done.
+        let (tx, rx) = std::sync::mpsc::channel();
         let handle = thread::spawn(move || {
-            let _ = render_loop(fb_addr, stop_clone);
+            let _ = render_loop(fb_addr, stop_clone, tx);
         });
+        // Block until the render thread hands back its proxy (it is created
+        // inside `render_loop` before the event loop starts). If the thread
+        // failed to build the loop, `rx.recv()` errors and we keep proxy None.
+        if let Ok(proxy) = rx.recv() {
+            self.proxy = Some(proxy);
+        }
         self.stop = Some(stop);
         self.render_thread = Some(handle);
     }
@@ -73,23 +99,36 @@ impl Drop for Display {
     }
 }
 
-/// Runs the winit event loop, reading the framebuffer (`fb_addr` as `*const u8`)
-/// into the window. Uses `Arc<Window>` so `Pixels<'static>` is possible, which
-/// satisfies winit's `ApplicationHandler: 'static` requirement.
-fn render_loop(fb_addr: usize, stop: Arc<AtomicBool>) -> Result<(), Box<dyn std::error::Error>> {
-    use pixels::{Pixels, SurfaceTexture};
+/// Runs the winit event loop, reading the framebuffer (`fb_addr` as `*const u32`,
+/// 0RGB pixels) into the window via softbuffer.
+fn render_loop(
+    fb_addr: usize,
+    stop: Arc<AtomicBool>,
+    proxy_tx: std::sync::mpsc::Sender<winit::event_loop::EventLoopProxy<FrameDone>>,
+) -> Result<(), Box<dyn std::error::Error>> {
+    use std::num::NonZeroU32;
+    use std::rc::Rc;
+
+    use softbuffer::{Context, Surface};
     use winit::application::ApplicationHandler;
     use winit::event::WindowEvent;
-    use winit::event_loop::{ActiveEventLoop, ControlFlow, EventLoop};
+    use winit::event_loop::{ActiveEventLoop, ControlFlow, EventLoop, OwnedDisplayHandle};
     use winit::platform::wayland::EventLoopBuilderExtWayland as _;
     use winit::window::{Window, WindowId};
 
-    let fb_ptr = fb_addr as *const u8;
+    let fb_ptr = fb_addr as *const u32;
+
+    enum AppState {
+        Initial,
+        Running {
+            surface: Surface<OwnedDisplayHandle, Rc<Window>>,
+        },
+    }
 
     struct App {
-        window: Option<Arc<Window>>,
-        pixels: Option<Pixels<'static>>,
-        fb: *const u8,
+        context: Context<OwnedDisplayHandle>,
+        state: AppState,
+        fb: *const u32,
         stop: Arc<AtomicBool>,
     }
     // The raw framebuffer pointer is only read while the Bus/Memory outlives it
@@ -97,71 +136,102 @@ fn render_loop(fb_addr: usize, stop: Arc<AtomicBool>) -> Result<(), Box<dyn std:
     // dereferenced after Memory is gone.
     unsafe impl Send for App {}
 
-    impl ApplicationHandler for App {
-        fn resumed(&mut self, el: &ActiveEventLoop) {
-            if self.window.is_none() {
+    impl ApplicationHandler<FrameDone> for App {
+        fn resumed(&mut self, event_loop: &ActiveEventLoop) {
+            if matches!(self.state, AppState::Initial) {
                 let attrs = Window::default_attributes()
                     .with_title("remu display")
                     .with_inner_size(winit::dpi::LogicalSize::new(
                         FB_WIDTH as f64,
                         FB_HEIGHT as f64,
                     ));
-                let window = Arc::new(el.create_window(attrs).expect("create window"));
-                let texture =
-                    SurfaceTexture::new(FB_WIDTH as u32, FB_HEIGHT as u32, window.clone());
-                let pixels =
-                    Pixels::new(FB_WIDTH as u32, FB_HEIGHT as u32, texture).expect("create pixels");
-                self.window = Some(window);
-                self.pixels = Some(pixels);
+                let window = Rc::new(event_loop.create_window(attrs).expect("create window"));
+                let mut surface =
+                    Surface::new(&self.context, window.clone()).expect("create surface");
+                let _ = surface.resize(
+                    NonZeroU32::new(FB_WIDTH as u32).unwrap(),
+                    NonZeroU32::new(FB_HEIGHT as u32).unwrap(),
+                );
+                self.state = AppState::Running { surface };
             }
         }
 
-        fn window_event(&mut self, _el: &ActiveEventLoop, _id: WindowId, event: WindowEvent) {
+        fn window_event(
+            &mut self,
+            _event_loop: &ActiveEventLoop,
+            _id: WindowId,
+            event: WindowEvent,
+        ) {
+            let AppState::Running { surface } = &mut self.state else {
+                return;
+            };
             match event {
                 WindowEvent::CloseRequested => {
                     self.stop.store(true, Ordering::Relaxed);
                 }
                 WindowEvent::RedrawRequested => {
-                    // Don't touch the framebuffer once stop is set: the main thread
-                    // may be tearing down `Memory` (freeing the region) right after.
-                    if !self.stop.load(Ordering::Relaxed) {
-                        if let Some(pixels) = &mut self.pixels {
-                            // The framebuffer is RGBA; pixels.frame_mut() is also RGBA,
-                            // so we can copy it verbatim. Copy only the raw pixel data
-                            // (FB_RAW_SIZE), NOT the page-aligned region size (FB_SIZE).
-                            let frame = pixels.frame_mut();
-                            unsafe {
-                                std::ptr::copy_nonoverlapping(
-                                    self.fb,
-                                    frame.as_mut_ptr(),
-                                    FB_RAW_SIZE,
-                                );
-                            }
-                            let _ = pixels.render();
-                        }
-                    }
-                    if let Some(w) = &self.window {
-                        w.request_redraw();
-                    }
+                    // Split borrows: `surface` borrows state mutably, `stop`/`fb`
+                    // are independent fields read here for the blit.
+                    let stop = &self.stop;
+                    let fb = self.fb;
+                    blit(fb, stop, surface);
                 }
                 _ => {}
             }
         }
 
-        fn about_to_wait(&mut self, el: &ActiveEventLoop) {
+        fn user_event(&mut self, _event_loop: &ActiveEventLoop, _event: FrameDone) {
+            // A frame is complete: request a redraw so the updated framebuffer
+            // is blitted. (The actual blit happens in RedrawRequested.)
+            let AppState::Running { surface } = &self.state else {
+                return;
+            };
+            surface.window().request_redraw();
+        }
+
+        fn about_to_wait(&mut self, event_loop: &ActiveEventLoop) {
             if self.stop.load(Ordering::Relaxed) {
-                el.exit();
+                event_loop.exit();
+            } else {
+                // Fully sleep; the simulator thread wakes us with a FrameDone
+                // event when the guest finishes a frame. No polling.
+                event_loop.set_control_flow(ControlFlow::Wait);
             }
         }
     }
 
-    let event_loop = EventLoop::builder()
+    /// Blit the framebuffer to the window. `fb` is the raw framebuffer pointer,
+    /// `stop` the teardown flag. Takes refs/values so it doesn't need `&mut self`.
+    fn blit(
+        fb: *const u32,
+        stop: &Arc<AtomicBool>,
+        surface: &mut Surface<OwnedDisplayHandle, Rc<Window>>,
+    ) {
+        // Don't touch the framebuffer once stop is set: the main thread
+        // may be tearing down `Memory` (freeing the region) right after.
+        if stop.load(Ordering::Relaxed) {
+            return;
+        }
+        if let Ok(mut buffer) = surface.buffer_mut() {
+            // Both the framebuffer and the softbuffer are 0RGB `u32`
+            // arrays, so a plain slice copy is a zero-conversion blit.
+            let src = unsafe { std::slice::from_raw_parts(fb, FB_WIDTH * FB_HEIGHT) };
+            buffer.copy_from_slice(src);
+            let _ = buffer.present();
+        }
+    }
+
+    let event_loop = EventLoop::<FrameDone>::with_user_event()
         .with_any_thread(true) // allow creating the loop on a background thread
         .build()?;
-    event_loop.set_control_flow(ControlFlow::Poll);
+    event_loop.set_control_flow(ControlFlow::Wait);
+    // Hand the proxy back to the Display struct so the simulator thread can
+    // wake us. This must happen before the loop runs.
+    let _ = proxy_tx.send(event_loop.create_proxy());
+    let context = Context::new(event_loop.owned_display_handle())?;
     let mut app = App {
-        window: None,
-        pixels: None,
+        context,
+        state: AppState::Initial,
         fb: fb_ptr,
         stop,
     };
@@ -198,8 +268,13 @@ impl DeviceAccess for Display {
         })
     }
 
-    fn write_8(&mut self, _offset: usize, _value: u8) -> Result<(), BusError> {
-        // No writable control registers yet.
+    fn write_8(&mut self, offset: usize, _value: u8) -> Result<(), BusError> {
+        // Writing to the control register signals a completed frame: wake the
+        // render thread so it blits the new frame.
+        let _ = offset;
+        if let Some(proxy) = &self.proxy {
+            let _ = proxy.send_event(FrameDone);
+        }
         Ok(())
     }
 
@@ -218,6 +293,10 @@ impl DeviceAccess for Display {
     }
 
     fn write_32(&mut self, _offset: usize, _value: u32) -> Result<(), BusError> {
+        // Frame-done control: wake the render thread to blit the new frame.
+        if let Some(proxy) = &self.proxy {
+            let _ = proxy.send_event(FrameDone);
+        }
         Ok(())
     }
 }
