@@ -11,10 +11,30 @@ pub struct BusOption {
     #[arg(long = "mem-base", value_name = "FILE", value_hint = ValueHint::FilePath)]
     pub mem_base: Option<PathBuf>,
 
+    /// Addon memory config files (one `NAME@START:END` per line each), appended
+    /// to the base set. Repeatable.
+    #[arg(
+        long = "mem-addon",
+        value_name = "FILE",
+        value_hint = ValueHint::FilePath,
+        action = clap::ArgAction::Append
+    )]
+    pub mem_addon: Vec<PathBuf>,
+
     /// Base device config file (one `KIND@START` per line). If omitted, a
     /// built-in default (uart16550, sifive_test_finisher, clint) is used.
     #[arg(long = "dev-base", value_name = "FILE", value_hint = ValueHint::FilePath)]
     pub dev_base: Option<PathBuf>,
+
+    /// Addon device config files (one `KIND@START` per line each), appended to
+    /// the base set. Repeatable.
+    #[arg(
+        long = "dev-addon",
+        value_name = "FILE",
+        value_hint = ValueHint::FilePath,
+        action = clap::ArgAction::Append
+    )]
+    pub dev_addon: Vec<PathBuf>,
 
     /// Extra memory regions appended to the base set.
     #[arg(
@@ -41,26 +61,32 @@ pub struct BusOption {
 }
 
 impl BusOption {
-    /// Resolve the full memory region list: base (file or built-in default)
-    /// followed by the `--mem` extras.
+    /// Resolve the full memory region list: base (file or built-in default),
+    /// then addon files, then the `--mem` extras.
     pub fn resolve_mem_regions(&self) -> Vec<MemRegionSpec> {
-        let mut base = match &self.mem_base {
+        let mut regions = match &self.mem_base {
             Some(path) => read_specs::<MemRegionSpec>(path),
             None => default_mem_regions(),
         };
-        base.extend(self.mem.iter().cloned());
-        base
+        for path in &self.mem_addon {
+            regions.extend(read_specs::<MemRegionSpec>(path));
+        }
+        regions.extend(self.mem.iter().cloned());
+        regions
     }
 
-    /// Resolve the full device list: base (file or built-in default) followed by
-    /// the `--dev` extras.
+    /// Resolve the full device list: base (file or built-in default), then
+    /// addon files, then the `--dev` extras.
     pub fn resolve_devices(&self) -> Vec<DeviceConfig> {
-        let mut base = match &self.dev_base {
+        let mut devices = match &self.dev_base {
             Some(path) => read_specs::<DeviceConfig>(path),
             None => default_devices(),
         };
-        base.extend(self.devices.iter().cloned());
-        base
+        for path in &self.dev_addon {
+            devices.extend(read_specs::<DeviceConfig>(path));
+        }
+        devices.extend(self.devices.iter().cloned());
+        devices
     }
 }
 
