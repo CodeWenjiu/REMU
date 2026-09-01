@@ -44,6 +44,19 @@ pub use remu_hal_embedded::{
 #[cfg(not(any(target_arch = "riscv32", target_arch = "riscv64")))]
 pub use host::{MTIME_TICK_HZ, Stdout as Uart16550, read_mtime};
 
+// ── Display device (both platforms; host returns no-op stubs) ──
+#[cfg(any(target_arch = "riscv32", target_arch = "riscv64"))]
+pub use remu_hal_embedded::{
+    DisplaySize, FB_BASE, FB_HEIGHT, FB_WIDTH, MouseState, frame_done, read_disp_h, read_disp_size,
+    read_disp_w, read_mouse, read_mouse_buttons, read_mouse_x, read_mouse_y,
+};
+
+#[cfg(not(any(target_arch = "riscv32", target_arch = "riscv64")))]
+pub use host::{
+    DisplaySize, FB_BASE, FB_HEIGHT, FB_WIDTH, MouseState, frame_done, read_disp_h, read_disp_size,
+    read_disp_w, read_mouse, read_mouse_buttons, read_mouse_x, read_mouse_y,
+};
+
 // ── Safe init (wraps unsafe embedded init) ──
 #[cfg(any(target_arch = "riscv32", target_arch = "riscv64"))]
 pub fn init() {
