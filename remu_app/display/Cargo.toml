@@ -1,0 +1,10 @@
+[package]
+name = "remu_app_display"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+remu_hal = { path = "../remu_hal" }
+
+[lints]
+workspace = true

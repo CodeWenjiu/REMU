@@ -3516,7 +3516,7 @@ dependencies = [
 ]
 
 [[package]]
-name = "remu_app_display_test"
+name = "remu_app_display"
 version = "0.1.0"
 dependencies = [
  "remu_hal",
@@ -3553,6 +3553,13 @@ dependencies = [
  "eframe",
  "env_logger",
  "wgpu",
+]
+
+[[package]]
+name = "remu_app_shader"
+version = "0.1.0"
+dependencies = [
+ "remu_hal",
 ]
 
 [[package]]
