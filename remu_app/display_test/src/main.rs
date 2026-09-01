@@ -20,8 +20,8 @@
 //!   - holding a mouse button speeds the animation up 3×
 
 use remu_hal::{
-    FB_BASE, FB_WIDTH, FmtWrite, MTIME_TICK_HZ, Uart16550, frame_done, read_disp_size, read_mouse,
-    read_mtime,
+    FB_WIDTH, FmtWrite, MTIME_TICK_HZ, Uart16550, fb_base, frame_done, put_pixel, read_disp_size,
+    read_mouse, read_mtime,
 };
 
 /// Render at 1/3 resolution, upscale 3× (cheap enough for a good frame rate).
@@ -67,16 +67,6 @@ fn wave(a: i32) -> i32 {
     (cos_fixed(a) + SCALE) / 2
 }
 
-/// Write a single 0RGB pixel into the framebuffer (bounds-checked to capacity).
-#[inline(always)]
-fn put_pixel(fb: *mut u32, x: usize, y: usize, v: u32) {
-    if x < FB_WIDTH && y < FB_WIDTH {
-        unsafe {
-            *fb.add(y * FB_WIDTH + x) = v;
-        }
-    }
-}
-
 /// Shade one internal pixel at `(x, y)` of an `iw × ih` render. `t` is the time
 /// in turns; `mx_t`/`my_t` are the mouse position mapped into turn offsets;
 /// `fast` triples the animation speed. Returns a 0RGB u32.
@@ -117,7 +107,7 @@ fn main() -> ! {
         init_cos(&mut *core::ptr::addr_of_mut!(COS));
     }
 
-    let fb = FB_BASE as *mut u32;
+    let fb = fb_base() as *mut u32;
     let _ = writeln!(uart, "display_test: plasma shader (0RGB)");
 
     let t0 = read_mtime();

@@ -15,8 +15,8 @@ tracing.workspace = true
 clap = { workspace = true, features = [ "derive", "color" ] }
 object = { version = "0.39.1", default-features = false, features = ["read_core", "elf"] }
 
-winit = "0.30.13"
-softbuffer = "0.4.8"
+winit.workspace = true
+softbuffer.workspace = true
 
 [lints]
 workspace = true

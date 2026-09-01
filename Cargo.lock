@@ -3636,6 +3636,8 @@ dependencies = [
  "embedded-io",
  "remu_hal_embedded",
  "remu_macro",
+ "softbuffer",
+ "winit",
 ]
 
 [[package]]

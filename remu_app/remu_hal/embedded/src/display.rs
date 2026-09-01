@@ -14,6 +14,12 @@ pub const FB_BASE: usize = 0x8900_0000;
 pub const FB_WIDTH: usize = 2048;
 pub const FB_HEIGHT: usize = 2048;
 
+/// Runtime framebuffer base address (portable across embedded/host).
+#[inline]
+pub fn fb_base() -> usize {
+    FB_BASE
+}
+
 /// Control register offset: writing here signals "frame finished".
 const REG_CTRL: usize = 4;
 /// Mouse X position register (framebuffer pixels).
@@ -45,6 +51,18 @@ pub struct MouseState {
     pub y: usize,
     /// Button bitmask (bit 0=left, 1=right, 2=middle).
     pub buttons: u32,
+}
+
+/// Write a single 0RGB pixel into the framebuffer (bounds-checked to capacity).
+///
+/// `v` is a 0RGB u32: 0x00RRGGBB (XRGB, byte order `0x00RRGGBB`).
+#[inline]
+pub fn put_pixel(fb: *mut u32, x: usize, y: usize, v: u32) {
+    if x < FB_WIDTH && y < FB_HEIGHT {
+        unsafe {
+            *fb.add(y * FB_WIDTH + x) = v;
+        }
+    }
 }
 
 /// Signal to the display device that the current frame is complete.

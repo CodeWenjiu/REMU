@@ -67,3 +67,6 @@ target-lexicon = "0.13.5"
 rand = "0.10.1"
 nanospinner = "0.1"
 libloading = "0.9"
+
+winit = "0.30.13"
+softbuffer = "0.4.8"
