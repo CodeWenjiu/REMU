@@ -15,8 +15,8 @@
 //! 计算量极小（纯整数，无浮点），适合任何平台。
 
 use remu_hal::{
-    FB_HEIGHT, FB_WIDTH, FmtWrite, MTIME_TICK_HZ, Uart16550, fb_base, frame_done, put_pixel,
-    read_disp_size, read_mouse, read_mtime,
+    FB_HEIGHT, FB_WIDTH, FmtWrite, MTIME_TICK_HZ, Uart16550, display_alive, exit_success, fb_base,
+    frame_done, put_pixel, read_disp_size, read_mouse, read_mtime,
 };
 
 /// 画布网格数（video.c 的 N）。
@@ -167,6 +167,12 @@ fn main() -> ! {
             let _ = writeln!(uart, "{}: FPS = {}", upt, fps);
             fps_last = upt;
             fps = 0;
+        }
+
+        // ── 窗口关闭感知：窗口没了就优雅退出，避免空转。──
+        if !display_alive() {
+            let _ = writeln!(uart, "display: window closed, exiting");
+            exit_success();
         }
     }
 }

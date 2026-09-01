@@ -9,8 +9,8 @@
 //! 分辨率自动跟随窗口大小（`read_disp_size`），并上采样 `UP` 倍。
 
 use remu_hal::{
-    FB_WIDTH, FmtWrite, MTIME_TICK_HZ, Uart16550, fb_base, frame_done, put_pixel, read_disp_size,
-    read_mtime,
+    FB_WIDTH, FmtWrite, MTIME_TICK_HZ, Uart16550, display_alive, exit_success, fb_base, frame_done,
+    put_pixel, read_disp_size, read_mtime,
 };
 
 /// 渲染分辨率降低因子（上采样倍数）。越小越清晰但越慢。
@@ -197,5 +197,11 @@ fn main() -> ! {
         }
 
         frame_done();
+
+        // ── 窗口关闭感知：窗口没了就优雅退出，避免空转。──
+        if !display_alive() {
+            let _ = writeln!(uart, "shader: window closed, exiting");
+            exit_success();
+        }
     }
 }

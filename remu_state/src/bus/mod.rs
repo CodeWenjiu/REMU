@@ -2,7 +2,7 @@ remu_macro::mod_pub!(crate, device, memory);
 remu_macro::mod_pub!(crate, flow);
 remu_macro::mod_prv!(error, parse, access, observer);
 
-use std::{marker::PhantomData, ops::Range};
+use std::{marker::PhantomData, ops::Range, sync::Arc};
 
 pub use error::BusError;
 pub use flow::{BusCmd, BusOption, ReadArgs, ReadCommand, WriteCommand};
@@ -15,7 +15,7 @@ use remu_isa::AllUsize;
 use remu_isa::isa::RvIsa;
 use remu_types::DynDiagError;
 
-use crate::bus::device::{DeviceAccess, instantiate_device};
+use crate::bus::device::{DeviceAccess, DeviceContext, DeviceKind, WindowHost, instantiate_device};
 
 /// Validate that no memory region overlaps another memory region or a device
 /// MMIO range. Called before building `Memory`; panics with a clear message on
@@ -54,6 +54,9 @@ fn validate_layout(specs: &[MemRegionSpec], devices: &[(usize, Box<dyn DeviceAcc
 pub struct Bus<I: RvIsa, O: BusObserver> {
     memory: Memory,
     device: Box<[(usize, Box<dyn DeviceAccess>)]>,
+    /// Shared window host (if any device needs it). Owned by this Bus; devices
+    /// hold clones. Dropped with the Bus, tearing down the window thread.
+    window: Option<Arc<WindowHost>>,
     tracer: remu_types::TracerDyn,
     observer: O,
     _marker: PhantomData<I>,
@@ -64,22 +67,43 @@ impl<I: RvIsa, O: BusObserver> Bus<I, O> {
         let prefix = if is_dut { "[DUT]" } else { "[REF]" };
 
         // 1. Instantiate devices first (they may declare extra memory regions).
-        let mut devices: Vec<(usize, Box<dyn DeviceAccess>)> = if is_dut {
+        //    Resolve the device configs once so we can build a dependency context
+        //    (e.g. the shared window host) before injecting it into each device.
+        let dev_configs: Vec<(usize, DeviceKind)> = if is_dut {
             opt.resolve_devices()
                 .iter()
-                .map(|config| {
-                    tracing::info!(
-                        "{} new device {} config initialized at 0x{:08x}",
-                        prefix,
-                        config.kind.as_str(),
-                        config.start
-                    );
-                    (config.start, instantiate_device(config.kind))
-                })
+                .map(|config| (config.start, config.kind))
                 .collect()
         } else {
             Vec::new()
         };
+
+        // Build the dependency context: if any device needs the window host,
+        // create it (owned by this Bus). Only the DUT bus has devices, so only
+        // it can have a window.
+        let kinds: Vec<DeviceKind> = dev_configs.iter().map(|(_, k)| *k).collect();
+        let window = if DeviceContext::needs_window(&kinds) {
+            Some(WindowHost::new())
+        } else {
+            None
+        };
+        let mut ctx = DeviceContext::default();
+        if let Some(w) = &window {
+            ctx.set_window(Arc::clone(w));
+        }
+
+        let mut devices: Vec<(usize, Box<dyn DeviceAccess>)> = dev_configs
+            .into_iter()
+            .map(|(start, kind)| {
+                tracing::info!(
+                    "{} new device {} config initialized at 0x{:08x}",
+                    prefix,
+                    kind.as_str(),
+                    start
+                );
+                (start, instantiate_device(kind, &ctx))
+            })
+            .collect();
 
         // 2. Collect memory regions: base + user extras + device-declared extras.
         let mut specs: Vec<MemRegionSpec> = opt.resolve_mem_regions();
@@ -145,6 +169,7 @@ impl<I: RvIsa, O: BusObserver> Bus<I, O> {
         Self {
             memory,
             device: devices.into_boxed_slice(),
+            window,
             tracer,
             observer: O::new(),
             _marker: PhantomData,
@@ -271,5 +296,16 @@ impl<I: RvIsa, O: BusObserver> Bus<I, O> {
             }
         }
         Ok(())
+    }
+}
+
+impl<I: RvIsa, O: BusObserver> Drop for Bus<I, O> {
+    fn drop(&mut self) {
+        // Tear down the window host when the bus is dropped: signal the render
+        // thread to stop and join it, so the window closes with the bus. This
+        // also exercises the `window` field (its lifetime is owned here).
+        if let Some(w) = &self.window {
+            w.request_shutdown();
+        }
     }
 }

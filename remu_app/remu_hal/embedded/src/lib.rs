@@ -21,8 +21,9 @@ pub use alloc::{boxed::Box, string::String, vec::Vec};
 pub use app_args::app_args;
 pub use core::fmt::Write as FmtWrite;
 pub use display::{
-    DisplaySize, FB_BASE, FB_HEIGHT, FB_WIDTH, MouseState, fb_base, frame_done, put_pixel,
-    read_disp_h, read_disp_size, read_disp_w, read_mouse, read_mouse_buttons, read_mouse_x,
+    DisplaySize, FB_BASE, FB_HEIGHT, FB_WIDTH, KeyState, MouseState, display_alive, fb_base,
+    frame_done, put_pixel, read_disp_h, read_disp_size, read_disp_w, read_key, read_key_code,
+    read_key_down, read_key_text, read_key_valid, read_mouse, read_mouse_buttons, read_mouse_x,
     read_mouse_y,
 };
 pub use embedded_io::Write;

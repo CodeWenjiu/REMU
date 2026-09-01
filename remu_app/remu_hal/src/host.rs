@@ -112,11 +112,25 @@ pub struct MouseState {
     pub buttons: u32,
 }
 
-/// Shared window state: resolution + mouse. Written by the render thread,
-/// read by the app via the accessors below.
+/// Key state (keycode + press/release + text char).
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub struct KeyState {
+    /// Physical key code (winit `PhysicalKey::Code` value).
+    pub code: u32,
+    /// Whether the last event was a press (true) or release (false).
+    pub down: bool,
+    /// Last text character (if printable), else 0.
+    pub text: u32,
+    /// Set once a key event has occurred.
+    pub valid: bool,
+}
+
+/// Shared window state: resolution + mouse + keyboard. Written by the render
+/// thread, read by the app via the accessors below.
 struct Shared {
     disp: Mutex<DisplaySize>,
     mouse: Mutex<MouseState>,
+    keyboard: Mutex<KeyState>,
 }
 
 impl Shared {
@@ -127,6 +141,7 @@ impl Shared {
                 height: FB_HEIGHT,
             }),
             mouse: Mutex::new(MouseState::default()),
+            keyboard: Mutex::new(KeyState::default()),
         }
     }
 }
@@ -149,6 +164,14 @@ fn backend() -> &'static Backend {
             if let Err(e) = render_loop(shared) {
                 eprintln!("display backend error: {e}");
             }
+            // Fallback: once the render thread exits, the window is gone — mark
+            // it closed so `display_alive` reflects it (aligns with remu_state's
+            // `WindowHost::alive`, which is also set false on thread exit). This
+            // covers exits that aren't a user `CloseRequested` (e.g. compositor
+            // death, loop error).
+            if let Some(b) = BACKEND.get() {
+                b.closed.store(true, Ordering::Relaxed);
+            }
         });
         Backend {
             shared,
@@ -170,6 +193,12 @@ pub fn frame_done() {
     if let Some(proxy) = PROXY.get() {
         let _ = proxy.send_event(());
     }
+}
+
+/// Whether the display window is currently alive (host: not closed).
+#[inline]
+pub fn display_alive() -> bool {
+    !backend().closed.load(Ordering::Relaxed)
 }
 
 /// Read the current active display resolution (framebuffer pixels).
@@ -212,6 +241,36 @@ pub fn read_mouse_y() -> usize {
 #[inline]
 pub fn read_mouse_buttons() -> u32 {
     read_mouse().buttons
+}
+
+/// Read the keyboard state (keycode + press/release + text).
+#[inline]
+pub fn read_key() -> KeyState {
+    *backend().shared.keyboard.lock().unwrap()
+}
+
+/// Read the last key code (physical position).
+#[inline]
+pub fn read_key_code() -> u32 {
+    read_key().code
+}
+
+/// Read whether the last key event was a press (1) or release (0).
+#[inline]
+pub fn read_key_down() -> u32 {
+    read_key().down as u32
+}
+
+/// Read the last text character (ASCII), or 0 if non-printable.
+#[inline]
+pub fn read_key_text() -> u32 {
+    read_key().text
+}
+
+/// Read whether any key event has occurred yet (1) or not (0).
+#[inline]
+pub fn read_key_valid() -> u32 {
+    read_key().valid as u32
 }
 
 // ── Render backend (softbuffer + winit event loop) ──
@@ -375,6 +434,29 @@ fn render_loop(shared: &'static Shared) -> Result<(), Box<dyn std::error::Error>
                         ElementState::Pressed => m.buttons |= bit,
                         ElementState::Released => m.buttons &= !bit,
                     }
+                }
+                // ── Keyboard input → shared state. ──
+                WindowEvent::KeyboardInput { event, .. } => {
+                    use winit::event::KeyEvent;
+                    use winit::keyboard::PhysicalKey;
+                    let KeyEvent {
+                        physical_key,
+                        state,
+                        text,
+                        ..
+                    } = event;
+                    let code = match physical_key {
+                        PhysicalKey::Code(c) => c as u32,
+                        PhysicalKey::Unidentified(_) => 0,
+                    };
+                    let mut kb = self.shared.keyboard.lock().unwrap();
+                    kb.code = code;
+                    kb.down = matches!(state, ElementState::Pressed);
+                    kb.text = text
+                        .and_then(|t| t.chars().next())
+                        .map(|c| c as u32)
+                        .unwrap_or(0);
+                    kb.valid = true;
                 }
                 _ => {}
             }

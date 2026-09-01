@@ -1,10 +1,52 @@
-remu_macro::mod_prv!(uart_simple, uart16550, sifive_test_finisher, clint, display);
+remu_macro::mod_prv!(
+    uart_simple,
+    uart16550,
+    sifive_test_finisher,
+    clint,
+    display,
+    mouse,
+    keyboard,
+    window
+);
 
 use std::backtrace::Backtrace;
 use std::str::FromStr;
+use std::sync::Arc;
 
 use crate::bus::memory::MemRegionSpec;
 use crate::bus::{BusError, parse_usize_allow_hex_underscore};
+
+pub(crate) use window::WindowHost;
+
+/// Device dependencies container, built by `Bus::new` and injected into every
+/// device via [`DeviceAccess::attach_context`]. Devices pull the dependencies
+/// they need; unrelated devices ignore it. This is the unified mechanism for
+/// cross-device services (currently: the shared window host), so no device is
+/// special-cased in `Bus::new`.
+#[derive(Clone, Default)]
+pub(crate) struct DeviceContext {
+    /// Shared window host (display/mouse/keyboard). None = no window needed.
+    window: Option<Arc<WindowHost>>,
+}
+
+impl DeviceContext {
+    /// The shared window host. Panics if not initialized (a device that
+    /// `needs_window` should only be instantiated when the host exists).
+    pub(crate) fn window(&self) -> &Arc<WindowHost> {
+        self.window
+            .as_ref()
+            .expect("window host not initialized but device needs it")
+    }
+
+    pub(crate) fn set_window(&mut self, w: Arc<WindowHost>) {
+        self.window = Some(w);
+    }
+
+    /// Whether any device in `kinds` needs the window host.
+    pub(crate) fn needs_window(kinds: &[DeviceKind]) -> bool {
+        kinds.iter().any(|k| k.needs_window())
+    }
+}
 
 pub(crate) trait DeviceAccess: Send + Sync {
     fn name(&self) -> &str;
@@ -20,6 +62,10 @@ pub(crate) trait DeviceAccess: Send + Sync {
     /// Attach a memory region pointer to this device (called after `Memory` is
     /// built, for devices whose `extra_mem_regions` were allocated). Default: no-op.
     fn attach_mem_region(&mut self, _base: usize, _ptr: *mut u8, _size: usize) {}
+
+    /// Inject the device dependency context. Called right after construction,
+    /// before `attach_mem_region`. Default: no-op.
+    fn attach_context(&mut self, _ctx: &DeviceContext) {}
 
     fn read_8(&mut self, offset: usize) -> Result<u8, BusError> {
         let _ = offset;
@@ -73,6 +119,8 @@ pub enum DeviceKind {
     Clint,
     SifiveTestFinisher,
     Display,
+    Mouse,
+    Keyboard,
 }
 
 impl DeviceKind {
@@ -84,7 +132,15 @@ impl DeviceKind {
             Self::Clint => "clint",
             Self::SifiveTestFinisher => "sifive_test_finisher",
             Self::Display => "display",
+            Self::Mouse => "mouse",
+            Self::Keyboard => "keyboard",
         }
+    }
+
+    /// Whether this device kind depends on the shared window host.
+    #[inline]
+    pub const fn needs_window(self) -> bool {
+        matches!(self, Self::Display | Self::Mouse | Self::Keyboard)
     }
 }
 
@@ -98,8 +154,10 @@ impl FromStr for DeviceKind {
             "clint" => Ok(Self::Clint),
             "sifive_test_finisher" => Ok(Self::SifiveTestFinisher),
             "display" => Ok(Self::Display),
+            "mouse" => Ok(Self::Mouse),
+            "keyboard" => Ok(Self::Keyboard),
             _ => Err(format!(
-                "unknown device kind {s:?}; expected uart_simple, uart16550, clint, sifive_test_finisher, display"
+                "unknown device kind {s:?}; expected uart_simple, uart16550, clint, sifive_test_finisher, display, mouse, keyboard"
             )),
         }
     }
@@ -131,12 +189,28 @@ impl FromStr for DeviceConfig {
     }
 }
 
-pub(crate) fn instantiate_device(kind: DeviceKind) -> Box<dyn DeviceAccess> {
-    match kind {
+pub(crate) fn instantiate_device(kind: DeviceKind, ctx: &DeviceContext) -> Box<dyn DeviceAccess> {
+    // Construction-time validation: a device that needs the window host must
+    // have it in the context. This fails fast at Bus build time (a programmer
+    // error) instead of panicking later on the first MMIO access.
+    if kind.needs_window() && ctx.window.is_none() {
+        panic!(
+            "device {:?} requires the window host but no window was created; \
+             this is a Bus/DeviceKind.needs_window configuration bug",
+            kind
+        );
+    }
+    let mut dev: Box<dyn DeviceAccess> = match kind {
         DeviceKind::UartSimple => Box::new(uart_simple::SimpleUart::new()),
         DeviceKind::Uart16550 => Box::new(uart16550::Uart16550::new()),
         DeviceKind::SifiveTestFinisher => Box::new(sifive_test_finisher::SifiveTestFinisher::new()),
         DeviceKind::Clint => Box::new(clint::Clint::new()),
         DeviceKind::Display => Box::new(display::Display::new()),
-    }
+        DeviceKind::Mouse => Box::new(mouse::Mouse::new()),
+        DeviceKind::Keyboard => Box::new(keyboard::Keyboard::new()),
+    };
+    // Uniform dependency injection: every device gets the context; only those
+    // that need it pull from it.
+    dev.attach_context(ctx);
+    dev
 }
