@@ -1,0 +1,15 @@
+[package]
+name = "remu_hal_slint"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+remu_macro = { path = "../../remu_macro" }
+remu_hal = { path = "../remu_hal" }
+# Software renderer only: renders into the remu_hal framebuffer on both host
+# and embedded, so there is no winit/femtovg/fontconfig system dependency.
+# `unsafe-single-threaded` + `libm` are needed for no_std (embedded).
+slint.workspace = true
+
+[lints]
+workspace = true

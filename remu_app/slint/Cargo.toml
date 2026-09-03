@@ -1,0 +1,17 @@
+[package]
+name = "remu_app_slint"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+remu_hal = { path = "../remu_hal" }
+remu_hal_slint = { path = "../remu_hal_slint" }
+# Direct slint dep so `slint::include_modules!()` resolves; same features as
+# remu_hal_slint (software renderer, no winit backend).
+slint.workspace = true
+
+[build-dependencies]
+slint-build.workspace = true
+
+[lints]
+workspace = true

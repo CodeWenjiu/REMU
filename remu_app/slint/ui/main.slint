@@ -1,0 +1,60 @@
+// Simple Slint demo for remu: keyboard + mouse interaction.
+import { Button, VerticalBox, HorizontalBox } from "std-widgets.slint";
+
+export component MainWindow inherits Window {
+    title: "remu slint demo";
+
+    in-out property <int> click-count: 0;
+    in-out property <string> last-key: "none";
+    in-out property <string> mouse-pos: "-";
+
+    // Input capture layers: positioned at the window root (not inside a box
+    // layout) with relative sizing, so they don't create layout binding loops.
+    FocusScope {
+        x: 0px;
+        y: 0px;
+        width: 100%;
+        height: 100%;
+        key-pressed(event) => {
+            last-key = event.text;
+            accept
+        }
+    }
+    TouchArea {
+        x: 0px;
+        y: 0px;
+        width: 100%;
+        height: 100%;
+        pointer-event(event) => {
+            mouse-pos = "{event.pos.x}, {event.pos.y}";
+        }
+    }
+
+    VerticalBox {
+        Text {
+            text: "remu Slint demo";
+            font-size: 24px;
+            horizontal-alignment: center;
+        }
+        HorizontalBox {
+            Button {
+                text: "Click me";
+                clicked => {
+                    click-count += 1;
+                }
+            }
+            Text {
+                text: "Clicks: {click-count}";
+                vertical-alignment: center;
+            }
+        }
+        Text {
+            text: "Last key: {last-key}";
+            font-size: 18px;
+        }
+        Text {
+            text: "Mouse: {mouse-pos}";
+            font-size: 18px;
+        }
+    }
+}

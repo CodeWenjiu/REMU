@@ -23,6 +23,7 @@ members = [
     "remu_app/remu_hal",
     "remu_app/remu_hal/embedded",
     "remu_app/remu_hal/xtask",
+    "remu_app/remu_hal_slint",
     "remu_app/hello_world",
     "remu_app/collection",
     "remu_app/display",
@@ -30,6 +31,7 @@ members = [
     "remu_app/microbench",
     "remu_app/mnist", "remu_app/mnist/mnist_generator",
     "remu_app/nes/runes_core", "remu_app/nes/nes",
+    "remu_app/slint",
 ]
 
 [workspace.lints.rust]
@@ -72,3 +74,8 @@ libloading = "0.9"
 
 winit = "0.30.13"
 softbuffer = "0.4.8"
+
+# Slint UI toolkit. Default-features off + software renderer: renders into the
+# remu_hal framebuffer on both host and embedded (no winit/femtovg system deps).
+slint = { version = "1.17", default-features = false, features = ["compat-1-2", "unsafe-single-threaded", "libm", "renderer-software"] }
+slint-build = "1.17"
