@@ -8,7 +8,7 @@ use crate::controller::Controller;
 use crate::mapper::RefMapper;
 use crate::mos6502::CPU;
 use crate::ppu::PPU;
-use crate::utils::{load_prefix, save_prefix, Read, Write};
+use crate::utils::{Read, Write, load_prefix, save_prefix};
 
 pub trait VMem {
     fn read(&self, addr: u16) -> u8;
@@ -51,12 +51,7 @@ impl<'a> CPUBus<'a> {
         save_prefix(self, CPUBUS_IGNORED_SIZE!(), writer)
     }
 
-    pub fn attach(
-        &mut self,
-        cpu: *mut CPU<'a>,
-        ppu: *mut PPU<'a>,
-        apu: *mut APU<'a>,
-    ) {
+    pub fn attach(&mut self, cpu: *mut CPU<'a>, ppu: *mut PPU<'a>, apu: *mut APU<'a>) {
         self.ppu = ppu;
         self.cpu = cpu;
         self.apu = apu;
@@ -129,10 +124,10 @@ pub struct CPUMemory<'a> {
 
 macro_rules! CPUMEM_IGNORED_SIZE {
     () => {
-        size_of::<CPUBus>() +
-            size_of::<&RefMapper>() +
-            size_of::<Option<&dyn Controller>>() +
-            size_of::<Option<&dyn Controller>>()
+        size_of::<CPUBus>()
+            + size_of::<&RefMapper>()
+            + size_of::<Option<&dyn Controller>>()
+            + size_of::<Option<&dyn Controller>>()
     };
 }
 
@@ -152,13 +147,11 @@ impl<'a> CPUMemory<'a> {
     }
 
     pub fn load(&mut self, reader: &mut dyn Read) -> bool {
-        load_prefix(self, CPUMEM_IGNORED_SIZE!(), reader) &&
-            self.bus.load(reader)
+        load_prefix(self, CPUMEM_IGNORED_SIZE!(), reader) && self.bus.load(reader)
     }
 
     pub fn save(&self, writer: &mut dyn Write) -> bool {
-        save_prefix(self, CPUMEM_IGNORED_SIZE!(), writer) &&
-            self.bus.save(writer)
+        save_prefix(self, CPUMEM_IGNORED_SIZE!(), writer) && self.bus.save(writer)
     }
 
     pub fn get_bus(&'a self) -> &'a CPUBus<'a> {
@@ -381,6 +374,13 @@ impl<'a> PPUMemory<'a> {
     #[inline(always)]
     pub fn read_mapper(&self, addr: u16) -> u8 {
         self.mapper.read(addr)
+    }
+
+    /// Read a byte from the CHR region (0x0000..0x2000) via the mapper's
+    /// fast path (avoids the full address-decode match in `read_mapper`).
+    #[inline(always)]
+    pub fn read_chr(&self, addr: u16) -> u8 {
+        self.mapper.read_chr(addr)
     }
 
     #[inline(always)]

@@ -22,6 +22,15 @@ pub trait Mapper: VMem {
     fn tick(&mut self, _bus: &CPUBus) {}
     fn load(&mut self, reader: &mut dyn Read) -> bool;
     fn save(&self, writer: &mut dyn Write) -> bool;
+
+    /// Read a byte from the CHR region (addresses 0x0000..0x2000).
+    ///
+    /// Fast path for the PPU's per-tile fetches: callers know the address is
+    /// in the CHR range, so mappers can index directly instead of dispatching
+    /// through the full `VMem::read` address-decoding match.
+    fn read_chr(&self, addr: u16) -> u8 {
+        self.read(addr)
+    }
 }
 
 pub struct RefMapper<'a> {
@@ -232,6 +241,10 @@ where
         &mut self.cart
     }
 
+    fn read_chr(&self, addr: u16) -> u8 {
+        self.chr_banks[(addr >> 12) as usize & 1][addr as usize & 0xfff]
+    }
+
     fn load(&mut self, reader: &mut dyn Read) -> bool {
         for v in self.prg_banks.iter_mut() {
             let mut offset: usize = 0;
@@ -357,6 +370,10 @@ where
     }
     fn get_cart_mut(&mut self) -> &mut dyn Cartridge {
         &mut self.cart
+    }
+
+    fn read_chr(&self, addr: u16) -> u8 {
+        self.chr_bank[addr as usize]
     }
 
     fn load(&mut self, reader: &mut dyn Read) -> bool {
@@ -618,6 +635,11 @@ where
     }
     fn get_cart_mut(&mut self) -> &mut dyn Cartridge {
         &mut self.cart
+    }
+
+    fn read_chr(&self, addr: u16) -> u8 {
+        let addr = addr as usize;
+        self.chr_banks[addr >> 10][addr & 0x3ff]
     }
 
     fn tick(&mut self, bus: &CPUBus) {

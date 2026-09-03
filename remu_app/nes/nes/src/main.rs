@@ -66,6 +66,10 @@ fn main() -> ! {
     let mut cpu = mos6502::CPU::new(CPUMemory::new(&mapper, Some(&ctl1), None));
     let mut ppu = PPU::new(PPUMemory::new(&mapper), &mut screen);
     let mut apu = APU::new(&mut speaker);
+    // Audio is discarded (SilentSpeaker); tell the APU so it can skip the
+    // audio-only channel timers and mixing, while keeping frame-counter and
+    // DMC IRQ timing exact.
+    apu.silent = true;
     let cpu_ptr = &mut cpu as *mut mos6502::CPU;
     cpu.mem.bus.attach(cpu_ptr, &mut ppu, &mut apu);
     cpu.powerup();
@@ -110,18 +114,11 @@ fn main() -> ! {
         fps = fps.wrapping_add(1);
 
         if now - fps_last >= 1000 {
-            // SAFETY: single-threaded; only this loop reads/resets the counter.
-            let puts = unsafe {
-                let p = screen::PUTS_PER_FRAME;
-                screen::PUTS_PER_FRAME = 0;
-                p
-            };
             let _ = writeln!(
                 uart,
-                "nes: {} fps (pc={:#06x}, puts/s={}, sl={})",
+                "nes: {} fps (pc={:#06x}, sl={})",
                 fps,
                 cpu.get_pc(),
-                puts,
                 ppu.scanline
             );
             fps_last = now;

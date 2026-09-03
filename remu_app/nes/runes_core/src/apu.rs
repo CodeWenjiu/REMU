@@ -3,7 +3,7 @@ use core::mem::size_of;
 use crate::memory::CPUBus;
 use crate::mos6502::CPU_FREQ;
 use crate::utils::Sampler;
-use crate::utils::{load_prefix, save_prefix, Read, Write};
+use crate::utils::{Read, Write, load_prefix, save_prefix};
 
 const AUDIO_LEVEL_MAX: i32 = 32768;
 const LP_FACTOR: i32 = (0.815686 * AUDIO_LEVEL_MAX as f32) as i32;
@@ -39,9 +39,8 @@ impl LPFilter {
 
     fn output(&mut self, input: i16) -> i16 {
         let out = cutoff(
-            self.prev_out as i32 +
-                (input as i32 - self.prev_out as i32) * LP_FACTOR /
-                    AUDIO_LEVEL_MAX,
+            self.prev_out as i32
+                + (input as i32 - self.prev_out as i32) * LP_FACTOR / AUDIO_LEVEL_MAX,
         );
         self.prev_out = out;
         out
@@ -74,9 +73,8 @@ impl HPFilter {
 
     fn output(&mut self, input: i16) -> i16 {
         let out = cutoff(
-            self.prev_out as i32 * self.hp_factor / AUDIO_LEVEL_MAX +
-                input as i32 -
-                self.prev_in as i32,
+            self.prev_out as i32 * self.hp_factor / AUDIO_LEVEL_MAX + input as i32
+                - self.prev_in as i32,
         );
         self.prev_in = input;
         self.prev_out = out;
@@ -92,22 +90,21 @@ const QUARTER_FRAME_FREQ: u32 = 240;
 pub const AUDIO_SAMPLE_FREQ: u32 = 44100;
 
 const TRI_SEQ_TABLE: [u8; 32] = [
-    15, 14, 13, 12, 11, 10, 9, 8, 7, 6, 5, 4, 3, 2, 1, 0, 0, 1, 2, 3, 4, 5, 6,
-    7, 8, 9, 10, 11, 12, 13, 14, 15,
+    15, 14, 13, 12, 11, 10, 9, 8, 7, 6, 5, 4, 3, 2, 1, 0, 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12,
+    13, 14, 15,
 ];
 
 const LEN_TABLE: [u8; 32] = [
-    10, 254, 20, 2, 40, 4, 80, 6, 160, 8, 60, 10, 14, 12, 26, 14, 12, 16, 24,
-    18, 48, 20, 96, 22, 192, 24, 72, 26, 16, 28, 32, 30,
+    10, 254, 20, 2, 40, 4, 80, 6, 160, 8, 60, 10, 14, 12, 26, 14, 12, 16, 24, 18, 48, 20, 96, 22,
+    192, 24, 72, 26, 16, 28, 32, 30,
 ];
 
 const DUTY_TABLE: [u8; 4] = [0b00000010, 0b00000110, 0b00011110, 0b11111001];
 
 const PULSE_TABLE: [u16; 31] = [
-    0x0000, 0x02f8, 0x05df, 0x08b4, 0x0b78, 0x0e2b, 0x10cf, 0x1363, 0x15e9,
-    0x1860, 0x1ac9, 0x1d25, 0x1f75, 0x21b7, 0x23ee, 0x2618, 0x2837, 0x2a4c,
-    0x2c55, 0x2e54, 0x3049, 0x3234, 0x3416, 0x35ee, 0x37be, 0x3985, 0x3b43,
-    0x3cf9, 0x3ea7, 0x404d, 0x41ec,
+    0x0000, 0x02f8, 0x05df, 0x08b4, 0x0b78, 0x0e2b, 0x10cf, 0x1363, 0x15e9, 0x1860, 0x1ac9, 0x1d25,
+    0x1f75, 0x21b7, 0x23ee, 0x2618, 0x2837, 0x2a4c, 0x2c55, 0x2e54, 0x3049, 0x3234, 0x3416, 0x35ee,
+    0x37be, 0x3985, 0x3b43, 0x3cf9, 0x3ea7, 0x404d, 0x41ec,
 ];
 
 const NOISE_PERIOD_TABLE: [u16; 16] = [
@@ -119,29 +116,23 @@ const DMC_TABLE: [u16; 16] = [
 ];
 
 const TND_TABLE: [u16; 203] = [
-    0x0000, 0x01b7, 0x036a, 0x051a, 0x06c6, 0x086f, 0x0a15, 0x0bb7, 0x0d56,
-    0x0ef2, 0x108a, 0x121f, 0x13b1, 0x1540, 0x16cc, 0x1855, 0x19da, 0x1b5d,
-    0x1cdd, 0x1e59, 0x1fd3, 0x214a, 0x22be, 0x2430, 0x259e, 0x270a, 0x2874,
-    0x29da, 0x2b3e, 0x2c9f, 0x2dfe, 0x2f5a, 0x30b4, 0x320b, 0x335f, 0x34b2,
-    0x3601, 0x374f, 0x389a, 0x39e2, 0x3b29, 0x3c6d, 0x3dae, 0x3eee, 0x402b,
-    0x4166, 0x429f, 0x43d6, 0x450a, 0x463d, 0x476d, 0x489c, 0x49c8, 0x4af2,
-    0x4c1b, 0x4d41, 0x4e65, 0x4f87, 0x50a8, 0x51c6, 0x52e3, 0x53fe, 0x5517,
-    0x562e, 0x5743, 0x5856, 0x5968, 0x5a78, 0x5b86, 0x5c93, 0x5d9d, 0x5ea6,
-    0x5fae, 0x60b3, 0x61b7, 0x62ba, 0x63bb, 0x64ba, 0x65b7, 0x66b3, 0x67ae,
-    0x68a7, 0x699e, 0x6a94, 0x6b88, 0x6c7b, 0x6d6d, 0x6e5d, 0x6f4b, 0x7038,
-    0x7124, 0x720e, 0x72f7, 0x73de, 0x74c4, 0x75a9, 0x768c, 0x776e, 0x784f,
-    0x792e, 0x7a0d, 0x7ae9, 0x7bc5, 0x7c9f, 0x7d78, 0x7e50, 0x7f26, 0x7ffc,
-    0x80d0, 0x81a3, 0x8274, 0x8345, 0x8414, 0x84e2, 0x85af, 0x867b, 0x8746,
-    0x880f, 0x88d8, 0x899f, 0x8a65, 0x8b2b, 0x8bef, 0x8cb2, 0x8d74, 0x8e35,
-    0x8ef4, 0x8fb3, 0x9071, 0x912e, 0x91ea, 0x92a4, 0x935e, 0x9417, 0x94cf,
-    0x9586, 0x963c, 0x96f0, 0x97a4, 0x9857, 0x990a, 0x99bb, 0x9a6b, 0x9b1a,
-    0x9bc9, 0x9c76, 0x9d23, 0x9dcf, 0x9e7a, 0x9f24, 0x9fcd, 0xa075, 0xa11c,
-    0xa1c3, 0xa269, 0xa30e, 0xa3b2, 0xa455, 0xa4f7, 0xa599, 0xa63a, 0xa6da,
-    0xa779, 0xa818, 0xa8b5, 0xa952, 0xa9ef, 0xaa8a, 0xab25, 0xabbe, 0xac58,
-    0xacf0, 0xad88, 0xae1f, 0xaeb5, 0xaf4a, 0xafdf, 0xb073, 0xb107, 0xb199,
-    0xb22b, 0xb2bd, 0xb34d, 0xb3dd, 0xb46c, 0xb4fb, 0xb589, 0xb616, 0xb6a3,
-    0xb72f, 0xb7ba, 0xb845, 0xb8cf, 0xb958, 0xb9e1, 0xba69, 0xbaf1, 0xbb78,
-    0xbbfe, 0xbc84, 0xbd09, 0xbd8d, 0xbe11,
+    0x0000, 0x01b7, 0x036a, 0x051a, 0x06c6, 0x086f, 0x0a15, 0x0bb7, 0x0d56, 0x0ef2, 0x108a, 0x121f,
+    0x13b1, 0x1540, 0x16cc, 0x1855, 0x19da, 0x1b5d, 0x1cdd, 0x1e59, 0x1fd3, 0x214a, 0x22be, 0x2430,
+    0x259e, 0x270a, 0x2874, 0x29da, 0x2b3e, 0x2c9f, 0x2dfe, 0x2f5a, 0x30b4, 0x320b, 0x335f, 0x34b2,
+    0x3601, 0x374f, 0x389a, 0x39e2, 0x3b29, 0x3c6d, 0x3dae, 0x3eee, 0x402b, 0x4166, 0x429f, 0x43d6,
+    0x450a, 0x463d, 0x476d, 0x489c, 0x49c8, 0x4af2, 0x4c1b, 0x4d41, 0x4e65, 0x4f87, 0x50a8, 0x51c6,
+    0x52e3, 0x53fe, 0x5517, 0x562e, 0x5743, 0x5856, 0x5968, 0x5a78, 0x5b86, 0x5c93, 0x5d9d, 0x5ea6,
+    0x5fae, 0x60b3, 0x61b7, 0x62ba, 0x63bb, 0x64ba, 0x65b7, 0x66b3, 0x67ae, 0x68a7, 0x699e, 0x6a94,
+    0x6b88, 0x6c7b, 0x6d6d, 0x6e5d, 0x6f4b, 0x7038, 0x7124, 0x720e, 0x72f7, 0x73de, 0x74c4, 0x75a9,
+    0x768c, 0x776e, 0x784f, 0x792e, 0x7a0d, 0x7ae9, 0x7bc5, 0x7c9f, 0x7d78, 0x7e50, 0x7f26, 0x7ffc,
+    0x80d0, 0x81a3, 0x8274, 0x8345, 0x8414, 0x84e2, 0x85af, 0x867b, 0x8746, 0x880f, 0x88d8, 0x899f,
+    0x8a65, 0x8b2b, 0x8bef, 0x8cb2, 0x8d74, 0x8e35, 0x8ef4, 0x8fb3, 0x9071, 0x912e, 0x91ea, 0x92a4,
+    0x935e, 0x9417, 0x94cf, 0x9586, 0x963c, 0x96f0, 0x97a4, 0x9857, 0x990a, 0x99bb, 0x9a6b, 0x9b1a,
+    0x9bc9, 0x9c76, 0x9d23, 0x9dcf, 0x9e7a, 0x9f24, 0x9fcd, 0xa075, 0xa11c, 0xa1c3, 0xa269, 0xa30e,
+    0xa3b2, 0xa455, 0xa4f7, 0xa599, 0xa63a, 0xa6da, 0xa779, 0xa818, 0xa8b5, 0xa952, 0xa9ef, 0xaa8a,
+    0xab25, 0xabbe, 0xac58, 0xacf0, 0xad88, 0xae1f, 0xaeb5, 0xaf4a, 0xafdf, 0xb073, 0xb107, 0xb199,
+    0xb22b, 0xb2bd, 0xb34d, 0xb3dd, 0xb46c, 0xb4fb, 0xb589, 0xb616, 0xb6a3, 0xb72f, 0xb7ba, 0xb845,
+    0xb8cf, 0xb958, 0xb9e1, 0xba69, 0xbaf1, 0xbb78, 0xbbfe, 0xbc84, 0xbd09, 0xbd8d, 0xbe11,
 ];
 
 #[repr(C)]
@@ -405,8 +396,7 @@ impl Triangle {
 
     pub fn write_reg4(&mut self, data: u8) {
         self.set_len(data >> 3);
-        self.timer_period =
-            (self.timer_period & 0x00ff) | ((data as u16 & 7) << 8);
+        self.timer_period = (self.timer_period & 0x00ff) | ((data as u16 & 7) << 8);
         self.timer_lvl = self.timer_period;
         self.cnt_rld = true;
     }
@@ -549,11 +539,7 @@ impl Noise {
         };
         let len = self.len_lvl > 0;
         let shift = self.shift_reg & 1 == 0;
-        if self.enabled && shift && len {
-            env
-        } else {
-            0
-        }
+        if self.enabled && shift && len { env } else { 0 }
     }
 
     fn tick_env(&mut self) {
@@ -708,7 +694,7 @@ impl DMC {
 
     fn shift(&mut self) {
         if self.dmc_cnt == 0 {
-            return
+            return;
         }
         if self.shift_reg & 1 == 1 {
             if self.level < 126 {
@@ -725,7 +711,7 @@ impl DMC {
 
     fn tick_timer(&mut self, bus: &CPUBus) {
         if !self.enabled {
-            return
+            return;
         }
         self.try_refill(bus);
         if self.timer_lvl == 0 {
@@ -786,21 +772,25 @@ pub struct APU<'a> {
     audio_sampler: Sampler,
     /*-- end sub-state --*/
     spkr: &'a mut dyn Speaker,
+    /// When true, audio output is discarded (e.g. a silent speaker): the
+    /// audio-only channel timers and mixing are skipped for speed, while the
+    /// frame counter and DMC IRQ paths are preserved for timing accuracy.
+    pub silent: bool,
 }
 
 macro_rules! APU_IGNORED_SIZE {
     () => {
-        size_of::<Pulse>() +
-            size_of::<Pulse>() +
-            size_of::<Triangle>() +
-            size_of::<Noise>() +
-            size_of::<DMC>() +
-            size_of::<LPFilter>() +
-            size_of::<HPFilter>() +
-            size_of::<HPFilter>() +
-            size_of::<Sampler>() +
-            size_of::<Sampler>() +
-            size_of::<&dyn Speaker>()
+        size_of::<Pulse>()
+            + size_of::<Pulse>()
+            + size_of::<Triangle>()
+            + size_of::<Noise>()
+            + size_of::<DMC>()
+            + size_of::<LPFilter>()
+            + size_of::<HPFilter>()
+            + size_of::<HPFilter>()
+            + size_of::<Sampler>()
+            + size_of::<Sampler>()
+            + size_of::<&dyn Speaker>()
     };
 }
 
@@ -820,6 +810,7 @@ impl<'a> APU<'a> {
             audio_sampler: Sampler::new(CPU_FREQ, AUDIO_SAMPLE_FREQ),
             cycle_even: false,
             spkr,
+            silent: false,
             lp_filter: LPFilter::new(),
             hp_filter1: HPFilter::new(HP_FACTOR1),
             hp_filter2: HPFilter::new(HP_FACTOR2),
@@ -827,31 +818,31 @@ impl<'a> APU<'a> {
     }
 
     pub fn load(&mut self, reader: &mut dyn Read) -> bool {
-        load_prefix(self, APU_IGNORED_SIZE!(), reader) &&
-            self.pulse1.load(reader) &&
-            self.pulse2.load(reader) &&
-            self.triangle.load(reader) &&
-            self.noise.load(reader) &&
-            self.dmc.load(reader) &&
-            self.lp_filter.load(reader) &&
-            self.hp_filter1.load(reader) &&
-            self.hp_filter2.load(reader) &&
-            self.frame_sampler.load(reader) &&
-            self.audio_sampler.load(reader)
+        load_prefix(self, APU_IGNORED_SIZE!(), reader)
+            && self.pulse1.load(reader)
+            && self.pulse2.load(reader)
+            && self.triangle.load(reader)
+            && self.noise.load(reader)
+            && self.dmc.load(reader)
+            && self.lp_filter.load(reader)
+            && self.hp_filter1.load(reader)
+            && self.hp_filter2.load(reader)
+            && self.frame_sampler.load(reader)
+            && self.audio_sampler.load(reader)
     }
 
     pub fn save(&self, writer: &mut dyn Write) -> bool {
-        save_prefix(self, APU_IGNORED_SIZE!(), writer) &&
-            self.pulse1.save(writer) &&
-            self.pulse2.save(writer) &&
-            self.triangle.save(writer) &&
-            self.noise.save(writer) &&
-            self.dmc.save(writer) &&
-            self.lp_filter.save(writer) &&
-            self.hp_filter1.save(writer) &&
-            self.hp_filter2.save(writer) &&
-            self.frame_sampler.save(writer) &&
-            self.audio_sampler.save(writer)
+        save_prefix(self, APU_IGNORED_SIZE!(), writer)
+            && self.pulse1.save(writer)
+            && self.pulse2.save(writer)
+            && self.triangle.save(writer)
+            && self.noise.save(writer)
+            && self.dmc.save(writer)
+            && self.lp_filter.save(writer)
+            && self.hp_filter1.save(writer)
+            && self.hp_filter2.save(writer)
+            && self.frame_sampler.save(writer)
+            && self.audio_sampler.save(writer)
     }
 
     pub fn tick(&mut self, bus: &CPUBus) -> bool {
@@ -859,21 +850,34 @@ impl<'a> APU<'a> {
         if self.frame_sampler.tick() {
             irq = self.tick_frame_counter();
         }
-        if self.audio_sampler.tick() {
-            let sample = self.output();
-            self.spkr.queue(sample);
+        if self.silent {
+            // Muted: audio output is discarded, so skip the per-sample mixing
+            // and the non-DMC channel timers. Frame counter (IRQ) and the DMC
+            // timer (which can raise an IRQ) are kept so CPU timing is exact.
+            self.tick_dmc_timer(bus);
+        } else {
+            if self.audio_sampler.tick() {
+                let sample = self.output();
+                self.spkr.queue(sample);
+            }
+            self.tick_timer(bus);
         }
-        self.tick_timer(bus);
         self.cycle_even = !self.cycle_even;
         irq
     }
 
+    /// Tick only the DMC channel timer (the one that can raise an IRQ). Used
+    /// in silent mode where the audio-only channels are skipped.
+    fn tick_dmc_timer(&mut self, bus: &CPUBus) {
+        if self.cycle_even {
+            self.dmc.tick_timer(bus);
+        }
+    }
+
     pub fn output(&mut self) -> i16 {
-        let pulse_out =
-            PULSE_TABLE[(self.pulse1.output() + self.pulse2.output()) as usize];
-        let tnd_out = TND_TABLE[(self.triangle.output() * 3 +
-            self.noise.output() * 2 +
-            self.dmc.output()) as usize];
+        let pulse_out = PULSE_TABLE[(self.pulse1.output() + self.pulse2.output()) as usize];
+        let tnd_out = TND_TABLE
+            [(self.triangle.output() * 3 + self.noise.output() * 2 + self.dmc.output()) as usize];
         //(pulse_out + tnd_out).wrapping_sub(0x8000) as i16
         self.lp_filter.output(
             self.hp_filter2.output(
@@ -884,12 +888,12 @@ impl<'a> APU<'a> {
     }
 
     pub fn read_status(&mut self) -> u8 {
-        let res = if self.pulse1.get_len() > 0 { 1 } else { 0 } |
-            (if self.pulse2.get_len() > 0 { 1 } else { 0 }) << 1 |
-            (if self.triangle.get_len() > 0 { 1 } else { 0 }) << 2 |
-            (if self.noise.get_len() > 0 { 1 } else { 0 }) << 3 |
-            (if self.dmc.get_len() > 0 { 1 } else { 0 }) << 4 |
-            (if self.frame_int { 1 } else { 0 }) << 6;
+        let res = if self.pulse1.get_len() > 0 { 1 } else { 0 }
+            | (if self.pulse2.get_len() > 0 { 1 } else { 0 }) << 1
+            | (if self.triangle.get_len() > 0 { 1 } else { 0 }) << 2
+            | (if self.noise.get_len() > 0 { 1 } else { 0 }) << 3
+            | (if self.dmc.get_len() > 0 { 1 } else { 0 }) << 4
+            | (if self.frame_int { 1 } else { 0 }) << 6;
         if self.frame_lvl != 3 {
             self.frame_int = false; /* clear interrupt flag */
         }

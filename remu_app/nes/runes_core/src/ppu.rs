@@ -2,11 +2,13 @@ use core::cmp::min;
 use core::mem::{size_of, transmute};
 
 use crate::memory::{CPUBus, PPUMemory, VMem};
-use crate::utils::{load_prefix, save_prefix, Read, Write};
+use crate::utils::{Read, Write, load_prefix, save_prefix};
 
 pub trait Screen {
-    fn put(&mut self, x: u8, y: u8, color: u8);
-    fn render(&mut self);
+    /// Deliver a completed frame as a 256×240 array of NES palette indices
+    /// (0-63). Called once per frame at vblank. Implementations convert indices
+    /// to pixels and present.
+    fn render(&mut self, pixels: &[u8; 256 * 240]);
     fn frame(&mut self);
 }
 
@@ -47,6 +49,11 @@ pub struct PPU<'a> {
     oam: [Sprite; 64],
     oam2: [u8; 8],
     sp_cache: [u16; 256], /* pre-computed sp value */
+    /// Internal frame buffer of NES palette indices (0-63), one per visible
+    /// pixel (256×240). Written by `render_pixel`; handed to `Screen::render`
+    /// once per frame at vblank. Kept separate from the screen so the per-pixel
+    /// path is a plain array store (no trait dispatch).
+    pixel_buf: [u8; 256 * 240],
     vblank: bool,
     pub vblank_lines: bool,
     buffered_read: u8,
@@ -120,9 +127,7 @@ impl<'a> PPU<'a> {
                 self.w = true;
             }
             true => {
-                self.t = (self.t & 0x0c1f) |
-                    ((data & 0xf8) << 2) |
-                    ((data & 0x07) << 12);
+                self.t = (self.t & 0x0c1f) | ((data & 0xf8) << 2) | ((data & 0x07) << 12);
                 self.w = false;
             }
         }
@@ -252,16 +257,16 @@ impl<'a> PPU<'a> {
     fn fetch_attrtable_byte(&mut self) {
         let v = self.v;
         /* the byte representing 4x4 tiles */
-        let b = self.mem.read_nametable(
-            0x03c0 | (v & 0x0c00) | ((v >> 4) & 0x38) | ((v >> 2) & 0x07),
-        );
+        let b = self
+            .mem
+            .read_nametable(0x03c0 | (v & 0x0c00) | ((v >> 4) & 0x38) | ((v >> 2) & 0x07));
         self.bg_attr = (b >> ((v & 2) | ((v & 0x40) >> 4))) & 3;
     }
 
     #[inline(always)]
     fn fetch_low_bgtile_byte(&mut self) {
         /* 0x?000 */
-        self.bg_bit_low = self.mem.read_mapper(
+        self.bg_bit_low = self.mem.read_chr(
             ((self.ppuctl as u16 & 0x10) << 8) |
                                         /* 0x-??0 */
                                         ((self.bg_nt as u16) << 4) |
@@ -273,7 +278,7 @@ impl<'a> PPU<'a> {
     #[inline(always)]
     fn fetch_high_bgtile_byte(&mut self) {
         /* 0x?000 */
-        self.bg_bit_high = self.mem.read_mapper(
+        self.bg_bit_high = self.mem.read_chr(
             ((self.ppuctl as u16 & 0x10) << 8) |
                                         /* 0x-??0 */
                                         ((self.bg_nt as u16) << 4) |
@@ -291,8 +296,7 @@ impl<'a> PPU<'a> {
         let mut bl = self.bg_bit_low;
         let mut bh = self.bg_bit_high;
         for _ in 0..8 {
-            t = (t << 4) |
-                ((self.bg_attr << 2) | (bl & 1) | ((bh & 1) << 1)) as u64;
+            t = (t << 4) | ((self.bg_attr << 2) | (bl & 1) | ((bh & 1) << 1)) as u64;
             bl >>= 1;
             bh >>= 1;
         }
@@ -367,7 +371,7 @@ impl<'a> PPU<'a> {
                 nidx += 1;
                 if nidx == 8 {
                     n = i + 1;
-                    break
+                    break;
                 }
             }
         }
@@ -400,13 +404,13 @@ impl<'a> PPU<'a> {
 
     fn fetch_sprite(&mut self) {
         if self.scanline == 261 {
-            return
+            return;
         }
         /* we use scanline here because s.y is the (actual y) - 1 */
         self.sp_cache = [0xffff; 256];
         for &j in self.oam2.iter() {
             if j == 0xff {
-                break
+                break;
             }
             let s = &self.oam[j as usize];
             let vflip = (s.attr & 0x80) == 0x80;
@@ -427,10 +431,10 @@ impl<'a> PPU<'a> {
             };
             let mut low = self
                 .mem
-                .read_mapper(ptable | ((tidx as u16) << 4) | 0x0 | y as u16);
+                .read_chr(ptable | ((tidx as u16) << 4) | 0x0 | y as u16);
             let mut high = self
                 .mem
-                .read_mapper(ptable | ((tidx as u16) << 4) | 0x8 | y as u16);
+                .read_chr(ptable | ((tidx as u16) << 4) | 0x8 | y as u16);
             if (s.attr & 0x40) == 0x40 {
                 low = PPU::reverse_byte(low);
                 high = PPU::reverse_byte(high);
@@ -438,11 +442,9 @@ impl<'a> PPU<'a> {
             let attr = s.attr & 3;
             let x_max = min(s.x as usize + 8, 256);
             /* pre-compute sprite pixels */
-            for p in (&mut self.sp_cache[s.x as usize..x_max]).iter_mut().rev()
-            {
+            for p in (&mut self.sp_cache[s.x as usize..x_max]).iter_mut().rev() {
                 if *p == 0xffff {
-                    let sp =
-                        ((attr << 2) | ((high & 1) << 1) | (low & 1)) as u16;
+                    let sp = ((attr << 2) | ((high & 1) << 1) | (low & 1)) as u16;
                     if sp & 3 != 0x0 {
                         *p = ((if j == 0 {1} else {0}) << 15) | /* if zero sprite */
                              (((s.attr >> 5) as u16 & 1) << 8) | /* priority flag */
@@ -482,21 +484,19 @@ impl<'a> PPU<'a> {
         }
         debug_assert!(0 < self.cycle && self.cycle < 257);
         debug_assert!(self.scanline < 240);
-        self.scr.put(
-            (self.cycle - 1) as u8,
-            self.scanline as u8,
-            self.mem.read_palette(
-                if (pri == 0 || bg_pidx == 0) && sp_pidx != 0 {
-                    0x0010 | sp
-                } else {
-                    0x0000 |
-                        match bg_pidx {
-                            0 => 0,
-                            _ => bg,
-                        }
-                },
-            ) & 0x3f,
-        );
+        let color = self
+            .mem
+            .read_palette(if (pri == 0 || bg_pidx == 0) && sp_pidx != 0 {
+                0x0010 | sp
+            } else {
+                0x0000
+                    | match bg_pidx {
+                        0 => 0,
+                        _ => bg,
+                    }
+            })
+            & 0x3f;
+        self.pixel_buf[self.scanline as usize * 256 + (self.cycle - 1) as usize] = color;
     }
 
     pub fn new(mem: PPUMemory<'a>, scr: &'a mut dyn Screen) -> Self {
@@ -533,6 +533,7 @@ impl<'a> PPU<'a> {
             }; 64],
             oam2: [0xff; 8],
             sp_cache: [0xffff; 256],
+            pixel_buf: [0; 256 * 240],
             vblank: false,
             vblank_lines: true,
             buffered_read,
@@ -582,7 +583,7 @@ impl<'a> PPU<'a> {
             } else if self.scanline == 261 {
                 self.vblank_lines = false
             }
-            return false
+            return false;
         }
         let rendering = self.get_show_bg() || self.get_show_sp();
         let visible_line = self.scanline < 240;
@@ -594,8 +595,7 @@ impl<'a> PPU<'a> {
                 let visible_cycle = 0 < cycle && cycle < 257; /* 1..256 */
                 let prefetch_cycle = 320 < cycle && cycle < 337;
                 let fetch_cycle = visible_cycle || prefetch_cycle;
-                if (visible_line && fetch_cycle) || (pre_line && prefetch_cycle)
-                {
+                if (visible_line && fetch_cycle) || (pre_line && prefetch_cycle) {
                     match cycle & 0x7 {
                         1 => {
                             self.load_bgtile();
@@ -624,13 +624,13 @@ impl<'a> PPU<'a> {
                     self.reset_cx();
                     self.fetch_sprite();
                     self.cycle = 258;
-                    return false
+                    return false;
                 }
                 /* skip at 338 because of 10-even_odd_timing test indicates an undocumented
                  * behavior of NES */
                 if pre_line && cycle == 338 && self.f {
                     self.cycle = 340;
-                    return false
+                    return false;
                 }
             }
         } else {
@@ -643,21 +643,19 @@ impl<'a> PPU<'a> {
                 }
                 self.early_read = false;
                 self.vblank = true;
-                self.scr.render();
+                self.scr.render(&self.pixel_buf);
                 self.scr.frame();
                 self.cycle = 2;
-                return self.try_nmi()
+                return self.try_nmi();
             }
         }
         if pre_line && cycle == 1 {
             /* clear vblank, sprite zero hit & overflow */
             self.vblank = false;
-            self.ppustatus &= !(PPU::FLAG_VBLANK |
-                PPU::FLAG_SPRITE_ZERO |
-                PPU::FLAG_OVERFLOW);
+            self.ppustatus &= !(PPU::FLAG_VBLANK | PPU::FLAG_SPRITE_ZERO | PPU::FLAG_OVERFLOW);
             self.bg_pixel = 0;
             self.cycle = 2;
-            return false
+            return false;
         }
         self.cycle += 1;
         if self.cycle > 340 {

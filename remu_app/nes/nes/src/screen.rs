@@ -1,12 +1,9 @@
 //! NES `Screen` implementation: renders the PPU's 256×240 output into the
 //! display framebuffer (0RGB), scaled to fit the active window.
 
-use remu_hal::{put_pixel, read_disp_size};
+use remu_hal::{FB_WIDTH, read_disp_size};
 use runes_core::ppu::Screen;
 
-/// Debug counter: number of `put` calls per frame. Single-threaded; the NES
-/// loop both writes (in `put`) and reads (in main) on the same thread.
-pub(crate) static mut PUTS_PER_FRAME: u32 = 0;
 /// Set by `Screen::frame` (vblank) each frame; main clears it after detecting.
 pub(crate) static mut FRAME_DONE: bool = false;
 
@@ -56,6 +53,10 @@ impl NesScreen {
     /// Blit the internal buffer to the framebuffer, scaled to fit the current
     /// active display region and centered. Recomputes scale/offset each frame so
     /// it adapts to window resizes.
+    ///
+    /// Writes the framebuffer directly (bypassing `put_pixel`'s bounds check)
+    /// because `x_off`/`y_off`/`scale` are derived from the live display size
+    /// which is already clamped to `FB_WIDTH`/`FB_HEIGHT`.
     fn blit(&mut self) {
         let disp = read_disp_size();
         let disp_w = disp.width.max(1);
@@ -66,14 +67,40 @@ impl NesScreen {
         let x_off = disp_w.saturating_sub(NES_W * scale) / 2;
         let y_off = disp_h.saturating_sub(NES_H * scale) / 2;
         let fb = self.fb;
-        for y in 0..NES_H {
-            for x in 0..NES_W {
-                let pix = self.buf[y * NES_W + x];
-                let px = x_off + x * scale;
-                let py = y_off + y * scale;
-                for sy in 0..scale {
-                    for sx in 0..scale {
-                        put_pixel(fb, px + sx, py + sy, pix);
+        // SAFETY: all coordinates below are within the framebuffer capacity
+        // (the display size is clamped to FB_WIDTH/FB_HEIGHT) and the
+        // framebuffer outlives this call (owned by the bus).
+        unsafe {
+            // Clear the whole active region to black first so the letterbox
+            // bars around the (centered) picture are black rather than stale
+            // framebuffer contents. Each pixel is a u32 (4 bytes); write_bytes
+            // counts in T (=u32) units, so disp_w elements = disp_w pixels.
+            for y in 0..disp_h {
+                let dst = fb.add(y * FB_WIDTH);
+                core::ptr::write_bytes(dst, 0, disp_w);
+            }
+            if scale == 1 {
+                // Fast path: one contiguous copy per row, no per-pixel loop.
+                for y in 0..NES_H {
+                    let src = self.buf.as_ptr().add(y * NES_W);
+                    let dst = fb.add((y_off + y) * FB_WIDTH + x_off);
+                    core::ptr::copy_nonoverlapping(src, dst, NES_W);
+                }
+            } else {
+                // Scaled path: replicate each source pixel into a scale×scale
+                // block via pointer writes (no bounds check per pixel).
+                for y in 0..NES_H {
+                    let row = self.buf.as_ptr().add(y * NES_W);
+                    for x in 0..NES_W {
+                        let pix = *row.add(x);
+                        let px = x_off + x * scale;
+                        let py = y_off + y * scale;
+                        for sy in 0..scale {
+                            let dst = fb.add((py + sy) * FB_WIDTH + px);
+                            for sx in 0..scale {
+                                *dst.add(sx) = pix;
+                            }
+                        }
                     }
                 }
             }
@@ -82,20 +109,15 @@ impl NesScreen {
 }
 
 impl Screen for NesScreen {
-    #[inline(always)]
-    fn put(&mut self, x: u8, y: u8, color: u8) {
-        // SAFETY: single-threaded; only touched from `put`/main on one thread.
-        unsafe { PUTS_PER_FRAME = PUTS_PER_FRAME.wrapping_add(1) };
-        let x = x as usize;
-        let y = y as usize;
-        if x < NES_W && y < NES_H {
-            self.buf[y * NES_W + x] = PALETTE[(color as usize) & 0x3f];
+    #[inline]
+    fn render(&mut self, pixels: &[u8; 256 * 240]) {
+        // Convert the PPU's palette indices to 0RGB and stash them in the
+        // internal buffer, then blit to the framebuffer. One conversion per
+        // pixel per frame (no per-pixel trait dispatch on the emulation path).
+        let buf = &mut self.buf;
+        for (dst, &idx) in buf.iter_mut().zip(pixels.iter()) {
+            *dst = PALETTE[(idx as usize) & 0x3f];
         }
-    }
-
-    #[inline(always)]
-    fn render(&mut self) {
-        // Called once per frame at vblank: all pixels are in the buffer.
         self.blit();
     }
 
