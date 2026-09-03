@@ -92,12 +92,17 @@ fn main() -> ! {
                 frame_rendered = true;
             }
         }
-        poller.update();
+        // Keyboard state is read live from the device in `KeyboardPoller::poll`
+        // (maintained by the window render thread); nothing to do here.
 
-        // Throttle to ~60 fps.
-        let now = read_mtime().wrapping_sub(t0) * 1000 / MTIME_TICK_HZ as u64;
-        if now < last + FRAME_MS {
-            continue;
+        // Throttle to ~60 fps. Spin until the next frame boundary, so each
+        // 16 ms real-time window contains exactly one emulated frame. (Busy-
+        // waiting rather than `continue` back to the top: `continue` would
+        // immediately re-emulate a frame, over-driving game speed when frames
+        // emulate faster than real time.)
+        let mut now = read_mtime().wrapping_sub(t0) * 1000 / MTIME_TICK_HZ as u64;
+        while now < last + FRAME_MS {
+            now = read_mtime().wrapping_sub(t0) * 1000 / MTIME_TICK_HZ as u64;
         }
         last = now;
 

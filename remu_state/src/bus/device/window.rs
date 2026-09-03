@@ -186,6 +186,29 @@ fn render_loop(host: &Arc<WindowHost>) -> Result<(), Box<dyn std::error::Error>>
         }
     }
 
+    /// Map a winit key event (physical code + text) to a NES joypad button
+    /// bit, or 0. Mirrors the app-side mapping in `input.rs`.
+    fn key_to_button(code: u32, text: u32) -> u8 {
+        match text as u8 as char {
+            'z' | 'Z' => 1 << 0, // A
+            'x' | 'X' => 1 << 1, // B
+            'q' | 'Q' => 1 << 2, // SELECT
+            'w' | 'W' => 1 << 3, // START
+            // Vim-style d-pad (plus physical arrows below).
+            'h' | 'H' => 1 << 6, // LEFT
+            'j' | 'J' => 1 << 5, // DOWN
+            'k' | 'K' => 1 << 4, // UP
+            'l' | 'L' => 1 << 7, // RIGHT
+            _ => match code {
+                82 => 1 << 4, // UP
+                79 => 1 << 5, // DOWN
+                80 => 1 << 6, // LEFT
+                81 => 1 << 7, // RIGHT
+                _ => 0,
+            },
+        }
+    }
+
     impl App {
         /// Update the shared display resolution from the current window size.
         fn update_disp(&self) {
@@ -327,6 +350,18 @@ fn render_loop(host: &Arc<WindowHost>) -> Result<(), Box<dyn std::error::Error>>
                         .map(|c| c as u32)
                         .unwrap_or(0);
                     kb.valid = true;
+                    // Maintain the live joypad button bitmask so apps polling at a
+                    // low frame rate still see held keys (fast press+release that
+                    // fits between two polls is kept because the release clears the
+                    // bit, not the whole event).
+                    let bit = key_to_button(code, kb.text);
+                    if bit != 0 {
+                        if kb.down {
+                            kb.buttons |= bit;
+                        } else {
+                            kb.buttons &= !bit;
+                        }
+                    }
                 }
                 _ => {}
             }

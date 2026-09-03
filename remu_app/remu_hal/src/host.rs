@@ -123,6 +123,8 @@ pub struct KeyState {
     pub text: u32,
     /// Set once a key event has occurred.
     pub valid: bool,
+    /// Live NES joypad button bitmask (render thread maintains).
+    pub buttons: u8,
 }
 
 /// Shared window state: resolution + mouse + keyboard. Written by the render
@@ -273,6 +275,12 @@ pub fn read_key_valid() -> u32 {
     read_key().valid as u32
 }
 
+/// Read the live NES joypad button bitmask.
+#[inline]
+pub fn read_key_buttons() -> u32 {
+    read_key().buttons as u32
+}
+
 // ── Render backend (softbuffer + winit event loop) ──
 
 /// Proxy used to wake the render thread from `frame_done`.
@@ -310,6 +318,29 @@ fn render_loop(shared: &'static Shared) -> Result<(), Box<dyn std::error::Error>
             MouseButton::Right => 2,
             MouseButton::Middle => 4,
             MouseButton::Back | MouseButton::Forward | MouseButton::Other(_) => 0,
+        }
+    }
+
+    /// Map a winit key event (physical code + text) to a NES joypad button
+    /// bit, or 0. Mirrors the embedded window host mapping.
+    fn key_to_button(code: u32, text: u32) -> u8 {
+        match text as u8 as char {
+            'z' | 'Z' => 1 << 0, // A
+            'x' | 'X' => 1 << 1, // B
+            'q' | 'Q' => 1 << 2, // SELECT
+            'w' | 'W' => 1 << 3, // START
+            // Vim-style d-pad (plus physical arrows below).
+            'h' | 'H' => 1 << 6, // LEFT
+            'j' | 'J' => 1 << 5, // DOWN
+            'k' | 'K' => 1 << 4, // UP
+            'l' | 'L' => 1 << 7, // RIGHT
+            _ => match code {
+                82 => 1 << 4, // UP
+                79 => 1 << 5, // DOWN
+                80 => 1 << 6, // LEFT
+                81 => 1 << 7, // RIGHT
+                _ => 0,
+            },
         }
     }
 
@@ -457,6 +488,16 @@ fn render_loop(shared: &'static Shared) -> Result<(), Box<dyn std::error::Error>
                         .map(|c| c as u32)
                         .unwrap_or(0);
                     kb.valid = true;
+                    // Maintain the live joypad button bitmask so apps polling at a
+                    // low frame rate still see held keys.
+                    let bit = key_to_button(code, kb.text);
+                    if bit != 0 {
+                        if kb.down {
+                            kb.buttons |= bit;
+                        } else {
+                            kb.buttons &= !bit;
+                        }
+                    }
                 }
                 _ => {}
             }

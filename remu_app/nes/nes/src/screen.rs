@@ -1,7 +1,7 @@
 //! NES `Screen` implementation: renders the PPU's 256×240 output into the
 //! display framebuffer (0RGB), scaled to fit the active window.
 
-use remu_hal::put_pixel;
+use remu_hal::{put_pixel, read_disp_size};
 use runes_core::ppu::Screen;
 
 /// Debug counter: number of `put` calls per frame. Single-threaded; the NES
@@ -41,31 +41,39 @@ pub(crate) const NES_H: usize = 240;
 /// once at vblank (all 240 lines are in the buffer), then `frame`.
 pub(crate) struct NesScreen {
     fb: *mut u32,
-    scale: usize,
     /// Full 256×240 internal buffer of 0RGB pixels.
     buf: [u32; NES_W * NES_H],
 }
 
 impl NesScreen {
-    pub(crate) fn new(fb: *mut u32, disp_w: usize, disp_h: usize) -> Self {
-        let scale = (disp_w / NES_W).min(disp_h / NES_H).max(1);
+    pub(crate) fn new(fb: *mut u32, _disp_w: usize, _disp_h: usize) -> Self {
         NesScreen {
             fb,
-            scale,
             buf: [0; NES_W * NES_H],
         }
     }
 
-    /// Blit the internal buffer to the framebuffer, scaled by `scale`.
+    /// Blit the internal buffer to the framebuffer, scaled to fit the current
+    /// active display region and centered. Recomputes scale/offset each frame so
+    /// it adapts to window resizes.
     fn blit(&mut self) {
-        let scale = self.scale;
+        let disp = read_disp_size();
+        let disp_w = disp.width.max(1);
+        let disp_h = disp.height.max(1);
+        // Integer scale: largest NES pixel multiple that fits both dimensions.
+        let scale = (disp_w / NES_W).min(disp_h / NES_H).max(1);
+        // Center the scaled image within the active display region.
+        let x_off = disp_w.saturating_sub(NES_W * scale) / 2;
+        let y_off = disp_h.saturating_sub(NES_H * scale) / 2;
         let fb = self.fb;
         for y in 0..NES_H {
             for x in 0..NES_W {
                 let pix = self.buf[y * NES_W + x];
+                let px = x_off + x * scale;
+                let py = y_off + y * scale;
                 for sy in 0..scale {
                     for sx in 0..scale {
-                        put_pixel(fb, x * scale + sx, y * scale + sy, pix);
+                        put_pixel(fb, px + sx, py + sy, pix);
                     }
                 }
             }

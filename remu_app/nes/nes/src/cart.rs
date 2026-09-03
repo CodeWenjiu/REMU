@@ -10,7 +10,7 @@ use runes_core::cartridge::{BankType, Cartridge, MirrorType};
 use runes_core::utils::{Read, Write};
 
 /// The NES ROM embedded into the binary.
-const ROM: &[u8] = include_bytes!("../roms/branch_basics.nes");
+const ROM: &[u8] = include_bytes!("../roms/chase.nes");
 
 /// Static battery-backed SRAM (2 KiB, per iNES convention).
 static mut SRAM: [u8; 0x2000] = [0; 0x2000];

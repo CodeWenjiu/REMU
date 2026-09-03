@@ -40,6 +40,7 @@ const REG_KEY_CODE: usize = 0;
 const REG_KEY_DOWN: usize = 4;
 const REG_KEY_TEXT: usize = 8;
 const REG_KEY_VALID: usize = 12;
+const REG_KEY_BUTTONS: usize = 16;
 
 /// Active display resolution in framebuffer pixels.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
@@ -184,4 +185,11 @@ pub fn read_key_text() -> u32 {
 #[inline]
 pub fn read_key_valid() -> u32 {
     unsafe { read_volatile((KEYBOARD_BASE + REG_KEY_VALID) as *const u32) }
+}
+
+/// Read the live NES joypad button bitmask (bit 0=A, 1=B, 2=SELECT, 3=START,
+/// 4=UP, 5=DOWN, 6=LEFT, 7=RIGHT). Maintained by the window render thread.
+#[inline]
+pub fn read_key_buttons() -> u32 {
+    unsafe { read_volatile((KEYBOARD_BASE + REG_KEY_BUTTONS) as *const u32) }
 }
