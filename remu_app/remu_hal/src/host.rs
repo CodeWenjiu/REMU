@@ -371,7 +371,11 @@ fn render_loop(shared: &'static Shared) -> Result<(), Box<dyn std::error::Error>
                 let attrs = Window::default_attributes()
                     .with_title("remu display")
                     // Start with a modest window; the framebuffer is much larger.
-                    .with_inner_size(winit::dpi::LogicalSize::new(800.0, 600.0));
+                    .with_inner_size(winit::dpi::LogicalSize::new(800.0, 600.0))
+                    // Pin min=max so tiling compositors (e.g. niri) cannot
+                    // stretch the window to the tile size.
+                    .with_min_inner_size(winit::dpi::LogicalSize::new(800.0, 600.0))
+                    .with_max_inner_size(winit::dpi::LogicalSize::new(800.0, 600.0));
                 let window = Rc::new(event_loop.create_window(attrs).expect("create window"));
                 self.window = Some(Rc::clone(&window));
                 self.update_disp();

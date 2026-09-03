@@ -87,20 +87,24 @@ impl NesScreen {
                     core::ptr::copy_nonoverlapping(src, dst, NES_W);
                 }
             } else {
-                // Scaled path: replicate each source pixel into a scale×scale
-                // block via pointer writes (no bounds check per pixel).
+                // Scaled path: expand each source row to `scale`× wide, then
+                // write it `scale` times. Far fewer stores than the per-pixel
+                // scale×scale block loop (one vectorized copy per output row).
+                let mut line: [u32; NES_W * 8] = [0; NES_W * 8];
                 for y in 0..NES_H {
                     let row = self.buf.as_ptr().add(y * NES_W);
-                    for x in 0..NES_W {
-                        let pix = *row.add(x);
-                        let px = x_off + x * scale;
-                        let py = y_off + y * scale;
-                        for sy in 0..scale {
-                            let dst = fb.add((py + sy) * FB_WIDTH + px);
-                            for sx in 0..scale {
-                                *dst.add(sx) = pix;
-                            }
+                    // Expand: source pixel i -> line[i*scale .. (i+1)*scale].
+                    for i in 0..NES_W {
+                        let pix = *row.add(i);
+                        for k in 0..scale {
+                            line[i * scale + k] = pix;
                         }
+                    }
+                    // Write the expanded row `scale` times (vertical scale).
+                    let dst_row = y_off + y * scale;
+                    for sy in 0..scale {
+                        let dst = fb.add((dst_row + sy) * FB_WIDTH + x_off);
+                        core::ptr::copy_nonoverlapping(line.as_ptr(), dst, NES_W * scale);
                     }
                 }
             }
