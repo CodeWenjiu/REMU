@@ -1,0 +1,18 @@
+[package]
+name = "runes_core"
+version = "0.2.5"
+edition = "2024"
+description = "No-std NES emulator core, vendored from Determinant/runes (MIT)."
+repository = "https://github.com/Determinant/runes"
+license = "MIT"
+
+# Vendored from https://github.com/Determinant/runes (v0.2.5, MIT).
+# The core (mos6502, ppu, apu, mapper, memory, cartridge, controller, utils) is
+# pure no_std with zero allocations. bin.rs (SDL demo) and disasm.rs (debugger)
+# from the original are not vendored.
+[lib]
+name = "runes_core"
+path = "src/lib.rs"
+
+[lints]
+workspace = true

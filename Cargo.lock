@@ -3556,6 +3556,14 @@ dependencies = [
 ]
 
 [[package]]
+name = "remu_app_nes"
+version = "0.1.0"
+dependencies = [
+ "remu_hal",
+ "runes_core",
+]
+
+[[package]]
 name = "remu_app_shader"
 version = "0.1.0"
 dependencies = [
@@ -3848,6 +3856,10 @@ name = "riscv-types"
 version = "0.1.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "d3f2ad9f15a07f4a0e1677124f9120ce7e83ab7e1ca7186af0ca9da529b62e80"
+
+[[package]]
+name = "runes_core"
+version = "0.2.5"
 
 [[package]]
 name = "rustc-demangle"
