@@ -6,6 +6,32 @@ use std::sync::{
     atomic::{AtomicBool, Ordering},
 };
 
+use crate::KeyKind;
+
+/// Map a winit logical key to the UI-agnostic [`KeyKind`] used by the keyboard
+/// device. Printable keys (and anything we don't model) map to [`KeyKind::None`].
+impl From<winit::keyboard::Key> for KeyKind {
+    fn from(key: winit::keyboard::Key) -> Self {
+        use winit::keyboard::NamedKey;
+        match key {
+            winit::keyboard::Key::Named(NamedKey::Enter) => KeyKind::Enter,
+            winit::keyboard::Key::Named(NamedKey::Escape) => KeyKind::Escape,
+            winit::keyboard::Key::Named(NamedKey::ArrowUp) => KeyKind::Up,
+            winit::keyboard::Key::Named(NamedKey::ArrowDown) => KeyKind::Down,
+            winit::keyboard::Key::Named(NamedKey::ArrowLeft) => KeyKind::Left,
+            winit::keyboard::Key::Named(NamedKey::ArrowRight) => KeyKind::Right,
+            winit::keyboard::Key::Named(NamedKey::Tab) => KeyKind::Tab,
+            winit::keyboard::Key::Named(NamedKey::Backspace) => KeyKind::Backspace,
+            winit::keyboard::Key::Named(NamedKey::Space) => KeyKind::Space,
+            winit::keyboard::Key::Named(NamedKey::Shift) => KeyKind::Shift,
+            winit::keyboard::Key::Named(NamedKey::Control) => KeyKind::Control,
+            winit::keyboard::Key::Named(NamedKey::Alt) => KeyKind::Alt,
+            winit::keyboard::Key::Named(NamedKey::Meta) => KeyKind::Meta,
+            _ => KeyKind::None,
+        }
+    }
+}
+
 /// Stdout writer, API-compatible with `Uart16550`.
 pub struct Stdout;
 
@@ -121,6 +147,13 @@ pub struct KeyState {
     pub down: bool,
     /// Last text character (if printable), else 0.
     pub text: u32,
+    /// Logical key kind discriminant for non-printable keys (arrows, Enter,
+    /// Escape, ...); [`KeyKind::None`] for printable keys. The discriminant is
+    /// the Slint code point for the key, transferred over MMIO as a u32.
+    pub key_kind: u32,
+    /// Monotonic event sequence number, incremented on every key event. Lets a
+    /// poller distinguish a fresh press of the same key from a stale snapshot.
+    pub seq: u32,
     /// Set once a key event has occurred.
     pub valid: bool,
     /// Live NES joypad button bitmask (render thread maintains).
@@ -267,6 +300,19 @@ pub fn read_key_down() -> u32 {
 #[inline]
 pub fn read_key_text() -> u32 {
     read_key().text
+}
+
+/// Read the logical key kind discriminant of the last key event ([`KeyKind::None`]
+/// for printable keys).
+#[inline]
+pub fn read_key_kind_raw() -> u32 {
+    read_key().key_kind
+}
+
+/// Read the monotonic key event sequence number.
+#[inline]
+pub fn read_key_seq() -> u32 {
+    read_key().seq
 }
 
 /// Read whether any key event has occurred yet (1) or not (0).
@@ -473,7 +519,7 @@ fn render_loop(shared: &'static Shared) -> Result<(), Box<dyn std::error::Error>
                 // ── Keyboard input → shared state. ──
                 WindowEvent::KeyboardInput { event, .. } => {
                     use winit::event::KeyEvent;
-                    use winit::keyboard::{Key, NamedKey, PhysicalKey};
+                    use winit::keyboard::PhysicalKey;
                     let KeyEvent {
                         physical_key,
                         logical_key,
@@ -485,33 +531,24 @@ fn render_loop(shared: &'static Shared) -> Result<(), Box<dyn std::error::Error>
                         PhysicalKey::Code(c) => c as u32,
                         PhysicalKey::Unidentified(_) => 0,
                     };
-                    // `text` is None for non-printable keys (arrows, Escape,
-                    // ...) and `\r` for Enter; but Slint's key bindings expect
-                    // specific unicode code points (`@keys(Return)` matches
-                    // '\n', arrows are in the private-use block). Map the
-                    // logical key first so these are always correct, falling
-                    // back to the raw text for printable keys.
-                    let text_code = {
-                        let mapped = if let Key::Named(named) = logical_key {
-                            match named {
-                                NamedKey::ArrowDown => Some(0xF701),
-                                NamedKey::ArrowUp => Some(0xF700),
-                                NamedKey::ArrowLeft => Some(0xF702),
-                                NamedKey::ArrowRight => Some(0xF703),
-                                // Slint's `Return` key maps to '\n' (0x0A).
-                                NamedKey::Enter => Some('\n' as u32),
-                                NamedKey::Escape => Some(0x1B),
-                                _ => None,
-                            }
-                        } else {
-                            None
-                        };
-                        mapped.or_else(|| text.and_then(|t| t.chars().next()).map(|c| c as u32))
-                    };
+                    // Model non-printable keys with a UI-agnostic `KeyKind`;
+                    // printable keys keep their character in `text`. Consumers
+                    // (e.g. the Slint adapter) map `key_kind` to their own key
+                    // encoding.
+                    let key_kind = KeyKind::from(logical_key);
                     let mut kb = self.shared.keyboard.lock().unwrap();
                     kb.code = code;
                     kb.down = matches!(state, ElementState::Pressed);
-                    kb.text = text_code.unwrap_or(0);
+                    kb.text = text
+                        .and_then(|t| t.chars().next())
+                        .map(|c| c as u32)
+                        .unwrap_or(0);
+                    kb.key_kind = key_kind as u32;
+                    // Only count presses; a release leaves `seq` unchanged so
+                    // the snapshot reader sees exactly one event per tap.
+                    if kb.down {
+                        kb.seq = kb.seq.wrapping_add(1);
+                    }
                     kb.valid = true;
                     // Maintain the live joypad button bitmask so apps polling at a
                     // low frame rate still see held keys.

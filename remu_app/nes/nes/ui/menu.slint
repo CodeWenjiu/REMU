@@ -5,8 +5,8 @@
 // unaffected. When the user quits a game (Escape in-game) we return here to
 // pick another ROM. Close the window to quit the app.
 //
-// Navigation: ↑/↓ move the highlight, Enter/Return launches. A mouse click on
-// a row also launches.
+// Navigation follows the NES joypad Vim-style mapping: k/↑ move up, j/↓ move
+// down, l/→/Enter launch. A mouse click on a row also launches.
 
 import { VerticalBox, HorizontalBox, ListView } from "std-widgets.slint";
 
@@ -22,27 +22,40 @@ export component RomMenu inherits Window {
 
     background: @linear-gradient(160deg, #1a1f2e, #2d1b4e 60%, #1a1f2e);
 
-    // Grab keyboard focus at startup so arrow keys / Enter work without a
-    // prior click (MinimalSoftwareWindow starts with no focused element).
+    // Grab keyboard focus at startup so navigation works without a prior click
+    // (MinimalSoftwareWindow starts with no focused element).
     init => { scope.focus(); }
 
     forward-focus: scope;
 
-    // Root keyboard focus scope for navigation.
+    // Root keyboard focus scope for navigation. Mirrors the NES joypad Vim
+    // mapping (j/k move, l launches); physical arrows are also accepted. Each
+    // key is bound declaratively with `KeyBinding` (Slint has no `match`), so
+    // there's no if/else chain.
     scope := FocusScope {
-        key-pressed(event) => {
-            if event.text == Key.DownArrow {
+        KeyBinding {
+            keys: @keys("j");
+            enabled: root.roms.length > 0;
+            activated => {
                 if root.selected-index + 1 < root.roms.length {
                     root.selected-index += 1;
                 }
-                accept
-            } else if event.text == Key.UpArrow {
+            }
+        }
+        KeyBinding {
+            keys: @keys("k");
+            enabled: root.roms.length > 0;
+            activated => {
                 if root.selected-index > 0 {
                     root.selected-index -= 1;
                 }
-                accept
-            } else {
-                reject
+            }
+        }
+        KeyBinding {
+            keys: @keys("l");
+            enabled: root.roms.length > 0;
+            activated => {
+                root.launch(root.selected-index);
             }
         }
         KeyBinding {
@@ -50,6 +63,24 @@ export component RomMenu inherits Window {
             enabled: root.roms.length > 0;
             activated => {
                 root.launch(root.selected-index);
+            }
+        }
+        KeyBinding {
+            keys: @keys(DownArrow);
+            enabled: root.roms.length > 0;
+            activated => {
+                if root.selected-index + 1 < root.roms.length {
+                    root.selected-index += 1;
+                }
+            }
+        }
+        KeyBinding {
+            keys: @keys(UpArrow);
+            enabled: root.roms.length > 0;
+            activated => {
+                if root.selected-index > 0 {
+                    root.selected-index -= 1;
+                }
             }
         }
     }
@@ -110,7 +141,7 @@ export component RomMenu inherits Window {
         }
 
         Text {
-            text: "\{root.roms.length} games · ↑/↓ select · Enter launch";
+            text: "\{root.roms.length} games · k/j or ↑/↓ select · l or Enter launch";
             font-size: 12px;
             color: #6b7a99;
             horizontal-alignment: center;

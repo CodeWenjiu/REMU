@@ -41,6 +41,10 @@ const REG_KEY_DOWN: usize = 4;
 const REG_KEY_TEXT: usize = 8;
 const REG_KEY_VALID: usize = 12;
 const REG_KEY_BUTTONS: usize = 16;
+// Logical key kind discriminant (matches remu_state's `KeyKind`), u32 code point.
+const REG_KEY_NAMED: usize = 20;
+// Monotonic event sequence number (u32).
+const REG_KEY_SEQ: usize = 24;
 
 /// Active display resolution in framebuffer pixels.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
@@ -71,6 +75,12 @@ pub struct KeyState {
     pub down: bool,
     /// Last text character (if printable), else 0.
     pub text: u32,
+    /// Logical key kind discriminant for non-printable keys (arrows, Enter,
+    /// Escape, ...); 0 for printable keys. The discriminant is the Slint code
+    /// point for the key.
+    pub key_kind: u32,
+    /// Monotonic event sequence number, incremented on every key event.
+    pub seq: u32,
     /// Set once a key event has occurred.
     pub valid: bool,
 }
@@ -159,6 +169,8 @@ pub fn read_key() -> KeyState {
         code: read_key_code(),
         down: read_key_down() != 0,
         text: read_key_text(),
+        key_kind: read_key_kind_raw(),
+        seq: read_key_seq(),
         valid: read_key_valid() != 0,
     }
 }
@@ -179,6 +191,19 @@ pub fn read_key_down() -> u32 {
 #[inline]
 pub fn read_key_text() -> u32 {
     unsafe { read_volatile((KEYBOARD_BASE + REG_KEY_TEXT) as *const u32) }
+}
+
+/// Read the logical key kind discriminant of the last key (0 for printable
+/// keys).
+#[inline]
+pub fn read_key_kind_raw() -> u32 {
+    unsafe { read_volatile((KEYBOARD_BASE + REG_KEY_NAMED) as *const u32) }
+}
+
+/// Read the monotonic key event sequence number.
+#[inline]
+pub fn read_key_seq() -> u32 {
+    unsafe { read_volatile((KEYBOARD_BASE + REG_KEY_SEQ) as *const u32) }
 }
 
 /// Read whether any key event has occurred yet (1) or not (0).

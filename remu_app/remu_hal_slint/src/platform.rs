@@ -11,8 +11,8 @@ use alloc::rc::Rc;
 use alloc::string::ToString;
 
 use remu_hal::{
-    MTIME_TICK_HZ, fb_base, frame_done, put_pixel, read_disp_h, read_disp_w, read_key, read_mouse,
-    read_mtime,
+    KeyKind, MTIME_TICK_HZ, fb_base, frame_done, put_pixel, read_disp_h, read_disp_w, read_key,
+    read_key_kind, read_mouse, read_mtime,
 };
 use slint::platform::{
     Platform, WindowAdapter, WindowEvent,
@@ -35,9 +35,10 @@ pub struct SlintApp {
     last_left: bool,
     /// Last key down state, to detect key press/release edges.
     last_key_down: bool,
-    /// Last key text, to detect new printable keys (host snapshots miss the
-    /// down edge, so we detect presses by text change).
-    last_key_text: u32,
+    /// Sequence number of the last dispatched key event; a new event (even the
+    /// same key pressed again) has a different `seq`, so repeated taps aren't
+    /// lost (host snapshots miss the down edge).
+    last_key_seq: u32,
     /// When set to a text code point, any key event whose text equals this
     /// value is treated as already consumed (a stale snapshot from before the
     /// UI loop resumed) and not dispatched, until a different key is seen.
@@ -69,7 +70,7 @@ impl SlintApp {
             height: h,
             last_left: false,
             last_key_down: false,
-            last_key_text: 0,
+            last_key_seq: 0,
             skip_until_text: None,
         }
     }
@@ -81,13 +82,19 @@ impl SlintApp {
     /// fresh press.
     pub fn resync_key_state(&mut self) {
         let key = read_key();
-        // Treat the current (possibly stale) key as consumed, and keep
-        // consuming it until a different key arrives. `last_key_text` stays a
-        // sentinel so the first *new* key is recognized.
-        self.last_key_text = u32::MAX;
+        // Treat the current (possibly stale) key as consumed: advance the
+        // dispatched sequence to the current event so it won't be re-delivered,
+        // and keep skipping its code point until a different key arrives (in
+        // case the same snapshot is still latched).
+        let key_code = match read_key_kind() {
+            KeyKind::None => key.text,
+            // `KeyKind` discriminants are already the Slint code points.
+            kind => kind as u32,
+        };
+        self.last_key_seq = key.seq;
         self.last_key_down = false;
         self.last_left = false;
-        self.skip_until_text = key.valid.then_some(key.text);
+        self.skip_until_text = key.valid.then_some(key_code);
     }
 
     /// Pump keyboard/mouse input from the remu devices, run timers/animations,
@@ -112,13 +119,23 @@ impl SlintApp {
         // ── Keyboard ──
         // The remu keyboard reports the *latest* event as a snapshot; on the
         // host the winit thread can write a press+release between our polls, so
-        // `down` is almost never observed. Detect new printable keys by text
-        // change: any fresh non-empty text counts as a press (matching how a
-        // real key tap lands). Non-printable keys are delivered on the down
-        // edge when we do catch it.
+        // `down` is almost never observed. We instead detect a fresh key by a
+        // change in its Slint code point: printable keys contribute their
+        // character, non-printable keys (arrows, Enter, Escape, ...) contribute
+        // the code point that is their `KeyKind` discriminant.
         let key = read_key();
+        // Resolve this key event to the code point Slint expects (0 = none).
+        // Non-printable keys are identified by their `KeyKind` (which is
+        // authoritative and framework-agnostic; `KeyKind` discriminants are the
+        // Slint code points); printable keys carry their character in `text`.
+        // Note Enter arrives from winit as '\r' but Slint's `@keys(Return)`
+        // matches '\n', so we must not trust `text` for it.
+        let key_code = match read_key_kind() {
+            KeyKind::None => key.text,
+            kind => kind as u32,
+        };
         if let Some(skip) = self.skip_until_text {
-            if key.valid && key.text == skip {
+            if key.valid && key_code == skip {
                 // Still the stale snapshot (e.g. the Escape that quit a NES
                 // game). Keep consuming it without dispatching; once a
                 // different key arrives we resume normal delivery.
@@ -128,23 +145,27 @@ impl SlintApp {
                 self.skip_until_text = None;
             }
         }
-        if self.skip_until_text.is_none()
-            && key.valid
-            && key.text != 0
-            && key.text != self.last_key_text
-        {
-            self.last_key_text = key.text;
-            // `key.text` is a full unicode code point (Slint key codes live in
-            // the private-use block, e.g. 0xF701 for the down arrow). Build the
-            // string from the code point rather than truncating to u8.
-            if let Some(c) = char::from_u32(key.text) {
-                let text: slint::SharedString = c.to_string().into();
-                let _ = self
-                    .window
-                    .try_dispatch_event(WindowEvent::KeyPressed { text });
+        // Dispatch a fresh key event. `seq` advances on every key event (even a
+        // repeated tap of the same key), which the snapshot's `down` edge can't
+        // tell us on the host. `skip_until_text` still swallows the stale
+        // snapshot left over from a NES game quitting to the menu.
+        if self.skip_until_text.is_none() && key.valid && key.seq != self.last_key_seq {
+            self.last_key_seq = key.seq;
+            if key_code != 0 {
+                if let Some(c) = char::from_u32(key_code) {
+                    let text: slint::SharedString = c.to_string().into();
+                    let _ = self
+                        .window
+                        .try_dispatch_event(WindowEvent::KeyPressed { text });
+                }
+            } else {
+                // Non-printable key we don't model: deliver an empty press.
+                let _ = self.window.try_dispatch_event(WindowEvent::KeyPressed {
+                    text: slint::SharedString::default(),
+                });
             }
         } else if key.valid && key.down && !self.last_key_down {
-            // Non-printable (or repeated) press: deliver a KeyPressed with empty text.
+            // Fallback: a down edge we did catch (rare on host).
             let _ = self.window.try_dispatch_event(WindowEvent::KeyPressed {
                 text: slint::SharedString::default(),
             });

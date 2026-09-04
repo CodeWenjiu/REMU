@@ -33,6 +33,75 @@ pub use alloc::{boxed::Box, string::String, vec::Vec};
 pub use core::fmt::Write as FmtWrite;
 pub use print::write_fmt;
 
+/// Logical key kind, UI-framework-agnostic.
+///
+/// The window host maps a raw key event to a [`KeyKind`] describing *what* was
+/// pressed. The discriminant **is the unicode code point Slint's `Key` enum
+/// expects** (see `slint::platform::Key`), so converting a `KeyKind` to the
+/// code point Slint wants is just `kind as u32` — no mapping table. This is
+/// also the value transferred over MMIO (u32), so embedded and host agree on
+/// the same encoding. Printable keys carry their character in
+/// `KeyState::text` and report [`KeyKind::None`].
+///
+/// The discriminant order must stay in sync with the `KeyKind` in
+/// `remu_state` (producer side).
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+#[repr(u32)]
+pub enum KeyKind {
+    /// Printable key (see `text`) or a key we don't model.
+    #[default]
+    None = 0,
+    /// Slint `Key::Return` = `\n`.
+    Enter = '\n' as u32,
+    /// Slint `Key::Escape`.
+    Escape = 0x1B,
+    /// Slint `Key::UpArrow`.
+    Up = 0xF700,
+    /// Slint `Key::DownArrow`.
+    Down = 0xF701,
+    /// Slint `Key::LeftArrow`.
+    Left = 0xF702,
+    /// Slint `Key::RightArrow`.
+    Right = 0xF703,
+    /// Slint `Key::Tab`.
+    Tab = 0x09,
+    /// Slint `Key::Backspace`.
+    Backspace = 0x08,
+    /// Slint `Key::Space`.
+    Space = 0x20,
+    /// Slint `Key::Shift`.
+    Shift = 0x10,
+    /// Slint `Key::Control`.
+    Control = 0x11,
+    /// Slint `Key::Alt`.
+    Alt = 0x12,
+    /// Slint `Key::Meta`.
+    Meta = 0x17,
+}
+
+/// Map a `KeyKind` discriminant (a code point) back to the enum. Unknown values
+/// map to [`KeyKind::None`].
+#[inline]
+pub fn key_kind_from_u32(v: u32) -> KeyKind {
+    match v {
+        x if x == KeyKind::None as u32 => KeyKind::None,
+        x if x == KeyKind::Enter as u32 => KeyKind::Enter,
+        x if x == KeyKind::Escape as u32 => KeyKind::Escape,
+        x if x == KeyKind::Up as u32 => KeyKind::Up,
+        x if x == KeyKind::Down as u32 => KeyKind::Down,
+        x if x == KeyKind::Left as u32 => KeyKind::Left,
+        x if x == KeyKind::Right as u32 => KeyKind::Right,
+        x if x == KeyKind::Tab as u32 => KeyKind::Tab,
+        x if x == KeyKind::Backspace as u32 => KeyKind::Backspace,
+        x if x == KeyKind::Space as u32 => KeyKind::Space,
+        x if x == KeyKind::Shift as u32 => KeyKind::Shift,
+        x if x == KeyKind::Control as u32 => KeyKind::Control,
+        x if x == KeyKind::Alt as u32 => KeyKind::Alt,
+        x if x == KeyKind::Meta as u32 => KeyKind::Meta,
+        _ => KeyKind::None,
+    }
+}
+
 #[cfg(any(target_arch = "riscv32", target_arch = "riscv64"))]
 pub use embedded_io::Write;
 
@@ -49,17 +118,23 @@ pub use host::{MTIME_TICK_HZ, Stdout as Uart16550, read_mtime};
 pub use remu_hal_embedded::{
     DisplaySize, FB_BASE, FB_HEIGHT, FB_WIDTH, KeyState, MouseState, display_alive, fb_base,
     frame_done, put_pixel, read_disp_h, read_disp_size, read_disp_w, read_key, read_key_buttons,
-    read_key_code, read_key_down, read_key_text, read_key_valid, read_mouse, read_mouse_buttons,
-    read_mouse_x, read_mouse_y,
+    read_key_code, read_key_down, read_key_kind_raw, read_key_seq, read_key_text, read_key_valid,
+    read_mouse, read_mouse_buttons, read_mouse_x, read_mouse_y,
 };
 
 #[cfg(not(any(target_arch = "riscv32", target_arch = "riscv64")))]
 pub use host::{
     DisplaySize, FB_HEIGHT, FB_WIDTH, KeyState, MouseState, display_alive, fb_base, frame_done,
     put_pixel, read_disp_h, read_disp_size, read_disp_w, read_key, read_key_buttons, read_key_code,
-    read_key_down, read_key_text, read_key_valid, read_mouse, read_mouse_buttons, read_mouse_x,
-    read_mouse_y,
+    read_key_down, read_key_kind_raw, read_key_seq, read_key_text, read_key_valid, read_mouse,
+    read_mouse_buttons, read_mouse_x, read_mouse_y,
 };
+
+/// Read the logical key kind of the last key event, mapped to [`KeyKind`].
+#[inline]
+pub fn read_key_kind() -> KeyKind {
+    key_kind_from_u32(read_key_kind_raw())
+}
 
 // ── Safe init (wraps unsafe embedded init) ──
 #[cfg(any(target_arch = "riscv32", target_arch = "riscv64"))]

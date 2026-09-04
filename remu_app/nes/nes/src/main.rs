@@ -20,7 +20,7 @@ use core::cell::Cell;
 
 use remu_hal::{
     Box, FmtWrite, MTIME_TICK_HZ, Uart16550, display_alive, exit_success, fb_base, read_disp_size,
-    read_key_text, read_mtime,
+    read_key_kind, read_mtime,
 };
 use remu_hal_slint::SlintApp;
 use runes_core::apu::{APU, Speaker};
@@ -33,10 +33,6 @@ use slint::ComponentHandle as _;
 
 /// NES runs at ~60.1 fps; we throttle to ~60 fps via mtime.
 const FRAME_MS: u64 = 16;
-
-/// Unicode code point for Escape (Slint/winit logical key mapping), used to
-/// quit a running game back to the launcher menu.
-const KEY_ESCAPE_TEXT: u32 = 0x1B;
 
 /// Silent audio sink: we don't have an audio device yet, so APU samples are
 /// dropped.
@@ -113,15 +109,15 @@ fn run_game(idx: usize, uart: &mut Uart16550) {
 
         // Quit to menu on a fresh Escape press. `read_key_*` is a snapshot of
         // the latest event; on the host the down edge is almost never observed
-        // (press+release land between polls), so detect by text change instead
-        // of requiring `down`. Both host and embedded map Escape's text to
-        // 0x1B.
-        let esc_text = read_key_text();
-        if esc_text == KEY_ESCAPE_TEXT && !esc_was_down {
+        // (press+release land between polls), so detect by key-kind change
+        // instead of requiring `down`. Both host and embedded report Escape via
+        // `KeyKind::Escape`.
+        let esc_pressed = read_key_kind() == remu_hal::KeyKind::Escape;
+        if esc_pressed && !esc_was_down {
             let _ = writeln!(uart, "nes: quit to menu");
             return;
         }
-        esc_was_down = esc_text == KEY_ESCAPE_TEXT;
+        esc_was_down = esc_pressed;
 
         // Throttle to ~60 fps. Spin until the next frame boundary, so each
         // 16 ms real-time window contains exactly one emulated frame. (Busy-
