@@ -335,9 +335,10 @@ fn render_loop(host: &Arc<WindowHost>) -> Result<(), Box<dyn std::error::Error>>
                 // ── Keyboard input → shared state. ──
                 WindowEvent::KeyboardInput { event, .. } => {
                     use winit::event::KeyEvent;
-                    use winit::keyboard::PhysicalKey;
+                    use winit::keyboard::{Key, NamedKey, PhysicalKey};
                     let KeyEvent {
                         physical_key,
+                        logical_key,
                         state,
                         text,
                         ..
@@ -346,13 +347,34 @@ fn render_loop(host: &Arc<WindowHost>) -> Result<(), Box<dyn std::error::Error>>
                         PhysicalKey::Code(c) => c as u32,
                         PhysicalKey::Unidentified(_) => 0,
                     };
+                    // `text` is None for non-printable keys (arrows, Escape,
+                    // ...) and `\r` for Enter; but Slint's key bindings expect
+                    // specific unicode code points (`@keys(Return)` matches
+                    // '\n', arrows are in the private-use block). Map the
+                    // logical key first so these are always correct, falling
+                    // back to the raw text for printable keys (mirrors
+                    // remu_hal::host).
+                    let text_code = {
+                        let mapped = if let Key::Named(named) = logical_key {
+                            match named {
+                                NamedKey::ArrowDown => Some(0xF701),
+                                NamedKey::ArrowUp => Some(0xF700),
+                                NamedKey::ArrowLeft => Some(0xF702),
+                                NamedKey::ArrowRight => Some(0xF703),
+                                // Slint's `Return` key maps to '\n' (0x0A).
+                                NamedKey::Enter => Some('\n' as u32),
+                                NamedKey::Escape => Some(0x1B),
+                                _ => None,
+                            }
+                        } else {
+                            None
+                        };
+                        mapped.or_else(|| text.and_then(|t| t.chars().next()).map(|c| c as u32))
+                    };
                     let mut kb = self.host.keyboard.lock().unwrap();
                     kb.code = code;
                     kb.down = matches!(state, ElementState::Pressed);
-                    kb.text = text
-                        .and_then(|t| t.chars().next())
-                        .map(|c| c as u32)
-                        .unwrap_or(0);
+                    kb.text = text_code.unwrap_or(0);
                     kb.valid = true;
                     // Maintain the live joypad button bitmask so apps polling at a
                     // low frame rate still see held keys (fast press+release that

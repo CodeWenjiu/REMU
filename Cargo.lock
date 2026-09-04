@@ -5065,7 +5065,10 @@ name = "remu_app_nes"
 version = "0.1.0"
 dependencies = [
  "remu_hal",
+ "remu_hal_slint",
  "runes_core",
+ "slint",
+ "slint-build",
 ]
 
 [[package]]

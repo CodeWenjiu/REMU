@@ -1,0 +1,119 @@
+// NES launcher menu: list embedded ROMs and launch the selected one.
+//
+// The menu runs in Slint; the game itself renders directly to the remu
+// framebuffer (NES native rendering) without Slint, so in-game performance is
+// unaffected. When the user quits a game (Escape in-game) we return here to
+// pick another ROM. Close the window to quit the app.
+//
+// Navigation: ↑/↓ move the highlight, Enter/Return launches. A mouse click on
+// a row also launches.
+
+import { VerticalBox, HorizontalBox, ListView } from "std-widgets.slint";
+
+export component RomMenu inherits Window {
+    title: "remu NES";
+    default-font-family: "DejaVu Sans";
+
+    in-out property <[string]> roms: [];
+    in-out property <int> selected-index: 0;
+
+    // Emitted when the user launches a ROM.
+    callback launch(int);
+
+    background: @linear-gradient(160deg, #1a1f2e, #2d1b4e 60%, #1a1f2e);
+
+    // Grab keyboard focus at startup so arrow keys / Enter work without a
+    // prior click (MinimalSoftwareWindow starts with no focused element).
+    init => { scope.focus(); }
+
+    forward-focus: scope;
+
+    // Root keyboard focus scope for navigation.
+    scope := FocusScope {
+        key-pressed(event) => {
+            if event.text == Key.DownArrow {
+                if root.selected-index + 1 < root.roms.length {
+                    root.selected-index += 1;
+                }
+                accept
+            } else if event.text == Key.UpArrow {
+                if root.selected-index > 0 {
+                    root.selected-index -= 1;
+                }
+                accept
+            } else {
+                reject
+            }
+        }
+        KeyBinding {
+            keys: @keys(Return);
+            enabled: root.roms.length > 0;
+            activated => {
+                root.launch(root.selected-index);
+            }
+        }
+    }
+
+    VerticalBox {
+        padding: 24px;
+        spacing: 16px;
+
+        // Header.
+        HorizontalBox {
+            spacing: 12px;
+            Text {
+                text: "remu";
+                font-size: 32px;
+                font-weight: 800;
+                color: #7aa2ff;
+            }
+            Text {
+                text: "NES";
+                font-size: 32px;
+                font-weight: 800;
+                color: #f7768e;
+            }
+        }
+        Text {
+            text: "Pick a game";
+            font-size: 13px;
+            color: #9aa4b8;
+        }
+
+        // ROM list with a highlighted selection (keyboard or click driven).
+        ListView {
+            height: 360px;
+            for rom[idx] in root.roms : Rectangle {
+                height: 48px;
+                width: parent.width;
+                border-radius: 8px;
+                background: idx == root.selected-index ? #7aa2ff44 : #ffffff10;
+                border-width: idx == root.selected-index ? 1px : 0px;
+                border-color: #7aa2ff;
+                touch := TouchArea {
+                    x: 0px; y: 0px;
+                    width: parent.width; height: parent.height;
+                    clicked => {
+                        root.selected-index = idx;
+                        root.launch(idx);
+                    }
+                }
+                Text {
+                    x: 16px;
+                    vertical-alignment: center;
+                    height: parent.height;
+                    text: rom;
+                    font-size: 16px;
+                    color: idx == root.selected-index ? #ffffff : #c8d3f5;
+                }
+            }
+        }
+
+        Text {
+            text: "\{root.roms.length} games · ↑/↓ select · Enter launch";
+            font-size: 12px;
+            color: #6b7a99;
+            horizontal-alignment: center;
+        }
+    }
+}
