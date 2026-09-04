@@ -79,6 +79,9 @@
           hyperfine
           valgrind
 
+          # Wayland virtual-keyboard input simulation (test-only)
+          wtype
+
           gnumake
           gcc
           autoconf

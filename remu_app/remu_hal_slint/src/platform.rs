@@ -33,6 +33,11 @@ pub struct SlintApp {
     height: u32,
     /// Last mouse button state, to detect press/release edges.
     last_left: bool,
+    /// Last key down state, to detect key press/release edges.
+    last_key_down: bool,
+    /// Last key text, to detect new printable keys (host snapshots miss the
+    /// down edge, so we detect presses by text change).
+    last_key_text: u32,
 }
 
 impl SlintApp {
@@ -59,6 +64,8 @@ impl SlintApp {
             width: w,
             height: h,
             last_left: false,
+            last_key_down: false,
+            last_key_text: 0,
         }
     }
 
@@ -81,17 +88,31 @@ impl SlintApp {
         // rest of the framebuffer at its initial content).
         self.window.request_redraw();
 
-        // ── Keyboard: remu reports the last key event (text + press/release). ──
+        // ── Keyboard ──
+        // The remu keyboard reports the *latest* event as a snapshot; on the
+        // host the winit thread can write a press+release between our polls, so
+        // `down` is almost never observed. Detect new printable keys by text
+        // change: any fresh non-empty text counts as a press (matching how a
+        // real key tap lands). Non-printable keys are delivered on the down
+        // edge when we do catch it.
         let key = read_key();
-        if key.valid {
+        if key.valid && key.text != 0 && key.text != self.last_key_text {
+            self.last_key_text = key.text;
             let text: slint::SharedString = (key.text as u8 as char).to_string().into();
-            let event = if key.down {
-                WindowEvent::KeyPressed { text }
-            } else {
-                WindowEvent::KeyReleased { text }
-            };
-            let _ = self.window.try_dispatch_event(event);
+            let _ = self
+                .window
+                .try_dispatch_event(WindowEvent::KeyPressed { text });
+        } else if key.valid && key.down && !self.last_key_down {
+            // Non-printable (or repeated) press: deliver a KeyPressed with empty text.
+            let _ = self.window.try_dispatch_event(WindowEvent::KeyPressed {
+                text: slint::SharedString::default(),
+            });
+        } else if key.valid && !key.down && self.last_key_down {
+            let _ = self.window.try_dispatch_event(WindowEvent::KeyReleased {
+                text: slint::SharedString::default(),
+            });
         }
+        self.last_key_down = key.valid && key.down;
 
         // ── Mouse ──
         let mouse = read_mouse();

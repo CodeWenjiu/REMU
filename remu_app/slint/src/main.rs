@@ -38,7 +38,6 @@ fn main() -> ! {
         remu_hal::read_disp_w().max(1) as u32,
         remu_hal::read_disp_h().max(1) as u32,
     ));
-    let _ = &ui; // keep the UI alive; properties are driven by input events
 
     let t0 = read_mtime();
     let mut last = 0u64;
@@ -47,8 +46,12 @@ fn main() -> ! {
         // Pump input + redraw (Slint renders into the remu framebuffer).
         app.update();
 
+        // Drive the progress bar as a looping animation (0..=100 over ~4s).
+        let ms = read_mtime().wrapping_sub(t0) * 1000 / MTIME_TICK_HZ as u64;
+        ui.set_progress(((ms / 40) % 101) as i32);
+
         // Throttle to ~60 fps.
-        let mut now = read_mtime().wrapping_sub(t0) * 1000 / MTIME_TICK_HZ as u64;
+        let mut now = ms;
         while now < last + FRAME_MS {
             now = read_mtime().wrapping_sub(t0) * 1000 / MTIME_TICK_HZ as u64;
         }

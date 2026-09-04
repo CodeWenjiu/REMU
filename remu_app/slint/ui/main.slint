@@ -1,60 +1,166 @@
-// Simple Slint demo for remu: keyboard + mouse interaction.
-import { Button, VerticalBox, HorizontalBox } from "std-widgets.slint";
+// remu Slint dashboard demo: keyboard + mouse interaction with a polished
+// card-based look (gradient background, rounded cards, subtle animation).
+
+import { VerticalBox, HorizontalBox } from "std-widgets.slint";
+
+component StatCard inherits Rectangle {
+    in property <string> label;
+    in property <string> value;
+    in property <string> unit;
+    in property <brush> accent;
+
+    callback clicked();
+
+    height: 120px;
+    border-radius: 16px;
+    background: #ffffff14;
+    drop-shadow-offset-x: 0px;
+    drop-shadow-offset-y: 4px;
+    drop-shadow-blur: 16px;
+    drop-shadow-color: #00000066;
+
+    // Make the whole card clickable.
+    TouchArea {
+        x: 0px; y: 0px;
+        width: 100%; height: 100%;
+        clicked => { root.clicked(); }
+    }
+
+    // Accent circle on the left.
+    Rectangle {
+        x: 16px;
+        y: 24px;
+        width: 72px;
+        height: 72px;
+        border-radius: 36px;
+        background: root.accent;
+        opacity: 0.9;
+    }
+    Text {
+        x: 108px;
+        y: 18px;
+        width: parent.width - 124px;
+        text: root.label;
+        font-size: 13px;
+        color: #9aa4b8;
+    }
+    Text {
+        x: 108px;
+        y: 42px;
+        width: parent.width - 124px;
+        text: root.value;
+        font-size: 26px;
+        font-weight: 700;
+        color: #ffffff;
+    }
+    Text {
+        x: 108px;
+        y: 78px;
+        width: parent.width - 124px;
+        text: root.unit;
+        font-size: 13px;
+        color: #6b7a99;
+    }
+}
 
 export component MainWindow inherits Window {
-    title: "remu slint demo";
+    title: "remu dashboard";
+    default-font-family: "DejaVu Sans";
 
     in-out property <int> click-count: 0;
-    in-out property <string> last-key: "none";
-    in-out property <string> mouse-pos: "-";
+    in-out property <string> last-key: "—";
+    in-out property <string> mouse-pos: "0, 0";
+    in-out property <int> progress: 0;
 
-    // Input capture layers: positioned at the window root (not inside a box
-    // layout) with relative sizing, so they don't create layout binding loops.
-    FocusScope {
-        x: 0px;
-        y: 0px;
-        width: 100%;
-        height: 100%;
+    // Full-window gradient background.
+    background: @linear-gradient(160deg, #1a1f2e, #2d1b4e 60%, #1a1f2e);
+
+    // Grab keyboard focus at startup so key-pressed fires without needing a
+    // prior click (MinimalSoftwareWindow starts with no focused element).
+    init => { root-focus.focus(); }
+
+    // Input capture layers at the window root. TouchArea exposes the cursor
+    // position via its mouse-x / mouse-y properties; the pointer-event callback
+    // carries the button/kind but no position.
+    root-focus := FocusScope {
+        x: 0px; y: 0px;
+        width: 100%; height: 100%;
         key-pressed(event) => {
             last-key = event.text;
             accept
         }
     }
     TouchArea {
-        x: 0px;
-        y: 0px;
-        width: 100%;
-        height: 100%;
-        pointer-event(event) => {
-            mouse-pos = "{event.pos.x}, {event.pos.y}";
+        x: 0px; y: 0px;
+        width: 100%; height: 100%;
+        pointer-event(_) => {
+            mouse-pos = "\{self.mouse-x / 1px}, \{self.mouse-y / 1px}";
         }
     }
 
     VerticalBox {
-        Text {
-            text: "remu Slint demo";
-            font-size: 24px;
-            horizontal-alignment: center;
-        }
+        padding: 24px;
+        spacing: 16px;
+
+        // Header.
         HorizontalBox {
-            Button {
-                text: "Click me";
-                clicked => {
-                    click-count += 1;
-                }
+            spacing: 12px;
+            Text {
+                text: "remu";
+                font-size: 30px;
+                font-weight: 800;
+                color: #7aa2ff;
             }
             Text {
-                text: "Clicks: {click-count}";
-                vertical-alignment: center;
+                text: "dashboard";
+                font-size: 30px;
+                font-weight: 400;
+                color: #c8d3f5;
+            }
+        }
+
+        // Stat cards.
+        HorizontalBox {
+            spacing: 16px;
+            StatCard {
+                label: "Clicks";
+                value: "\{click-count}";
+                unit: "click on a card";
+                accent: #7aa2ff;
+                clicked => { click-count += 1; }
+            }
+            StatCard {
+                label: "Mouse";
+                value: root.mouse-pos;
+                unit: "move the pointer";
+                accent: #9ece6a;
+            }
+            StatCard {
+                label: "Last key";
+                value: root.last-key;
+                unit: "press any key";
+                accent: #f7768e;
+            }
+        }
+
+        // Progress indicator (animated demo bar).
+        Rectangle {
+            height: 14px;
+            border-radius: 7px;
+            background: #ffffff14;
+            Rectangle {
+                width: parent.width * root.progress / 100;
+                height: parent.height;
+                border-radius: 7px;
+                background: @linear-gradient(90deg, #7aa2ff, #bb9af7);
+                animate width { duration: 300ms; }
             }
         }
         Text {
-            text: "Last key: {last-key}";
-            font-size: 18px;
-        }
-        Text {
-            text: "Mouse: {mouse-pos}";
-            font-size: 18px;
+            text: "progress: \{progress}%  ·  mouse & keyboard demo";
+            font-size: 12px;
+            color: #6b7a99;
+            horizontal-alignment: center;
         }
     }
 }
