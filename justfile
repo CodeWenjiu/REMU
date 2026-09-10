@@ -37,7 +37,9 @@ run-app APP target="riscv32i" platform="remu" dev='' app_args='' *remu_cli_args:
         eval "$(cargo run -p xtask -- print build-app "{{ APP }}" "{{ target }}" --platform spike)"
         ELF="target/app/{{ target }}-unknown-none-elf/release/remu_app_{{ APP }}"
         SPIKE_ISA="$(echo {{ target }} | sed 's/^riscv/RV/' | tr '[:lower:]' '[:upper:]')"
-        spike --isa "$SPIKE_ISA" -m0x80000000:0x08000000 "$ELF"
+        # --real-time-clint: mtime tracks wall clock (like remu's CLINT), so
+        # guest-reported times / microbench scores are comparable across platforms.
+        spike --real-time-clint --isa "$SPIKE_ISA" -m0x80000000:0x08000000 "$ELF"
     else
         {{ if dev != '' { "export DEV=1;" } else { "" } }}
         eval "$(cargo run -p xtask -- print run-app "{{ APP }}" "{{ target }}" --platform {{ platform }} -- {{ remu_cli_args }})"
