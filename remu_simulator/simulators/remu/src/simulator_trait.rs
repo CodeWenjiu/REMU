@@ -10,7 +10,7 @@ use remu_simulator::{
 };
 
 use crate::icache::Icache;
-use crate::riscv::decode;
+use crate::riscv::{DecodedInst, decode};
 use remu_state::StatePolicy;
 
 const ICACHE_SIZE: usize = 1 << 16;
@@ -116,10 +116,19 @@ impl<P: SimulatorPolicy, const IS_DUT: bool> SimulatorCore<P> for SimulatorRemu<
     fn step_once<const TRACE: u64>(&mut self) -> Result<(), SimulatorInnerError> {
         use remu_types::TraceFlags;
         let pc = *self.state.reg.pc;
-        let entry = self.icache.get_entry_mut(pc);
+        // Access the I-cache through a raw pointer so the `decoded` reference
+        // passed to execution can alias the cache line directly. This avoids
+        // materializing a stack copy of `DecodedInst` on every hit, and lets
+        // LLVM keep the `data` base pointer hoisted across the batch loop.
+        // Safety: the I-cache is never moved or dropped while `self` is alive;
+        // `execute_inst` only re-borrows `&mut self` and never writes the
+        // cache line (the cache is separate from `state`, so no aliasing).
+        let data_ptr = unsafe { (*&raw mut self.icache).as_mut_ptr() };
+        let entry_ptr = unsafe { data_ptr.add((pc as usize) & (ICACHE_SIZE - 1)) };
+        let entry = unsafe { &mut *entry_ptr };
         if entry.addr == pc {
-            let decoded = entry.decoded;
-            self.execute_inst(&decoded).map_err(from_state_error)?;
+            let decoded: &DecodedInst = unsafe { &(*entry_ptr).decoded };
+            self.execute_inst(decoded).map_err(from_state_error)?;
             if TraceFlags::instruction(TRACE) && IS_DUT {
                 let inst = if let Some(&orig) = self.breakpoints.get(&pc) {
                     orig

@@ -47,6 +47,14 @@ impl<const SIZE: usize> Icache<SIZE> {
         unsafe { self.data.get_unchecked_mut(i) }
     }
 
+    /// Raw pointer to the backing storage. Lets the hot path alias cache
+    /// lines directly and keep the base pointer across `&mut self` re-borrows
+    /// (the box is never reallocated).
+    #[inline(always)]
+    pub(crate) fn as_mut_ptr(&mut self) -> *mut CacheEntry {
+        self.data.as_mut_ptr()
+    }
+
     /// Invalidates the cache line for `pc`. Next fetch at this PC will refill from bus.
     #[inline(always)]
     pub(crate) fn invalidate(&mut self, pc: u32) {
