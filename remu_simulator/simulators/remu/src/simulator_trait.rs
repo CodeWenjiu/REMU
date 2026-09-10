@@ -91,18 +91,21 @@ impl<P: SimulatorPolicy, const IS_DUT: bool> SimulatorRemu<P, IS_DUT> {
     }
 
     /// Execute one instruction at `pc`, returning the next PC without touching
-    /// `state.reg.pc` (the caller decides when to sync).
+    /// `state.reg.pc` (the caller decides when to sync). `data_ptr` is the
+    /// I-cache backing pointer, taken once by the caller so LLVM can keep it
+    /// in a register across the batch loop.
     #[inline(always)]
-    fn step_once_at<const TRACE: u64>(&mut self, pc: u32) -> Result<u32, SimulatorInnerError> {
+    fn step_once_at<const TRACE: u64>(
+        &mut self,
+        pc: u32,
+        data_ptr: *mut crate::icache::CacheEntry,
+    ) -> Result<u32, SimulatorInnerError> {
         use remu_types::TraceFlags;
-        // Access the I-cache through a raw pointer so the `decoded` reference
-        // passed to execution can alias the cache line directly. This avoids
-        // materializing a stack copy of `DecodedInst` on every hit, and lets
-        // LLVM keep the `data` base pointer hoisted across the batch loop.
+        // The `decoded` reference passed to execution aliases the cache line
+        // directly, avoiding a stack copy of `DecodedInst` on every hit.
         // Safety: the I-cache is never moved or dropped while `self` is alive;
         // `execute_inst` only re-borrows `&mut self` and never writes the
         // cache line (the cache is separate from `state`, so no aliasing).
-        let data_ptr = unsafe { (*&raw mut self.icache).as_mut_ptr() };
         let entry_ptr = unsafe { data_ptr.add((pc as usize) & (ICACHE_SIZE - 1)) };
         let entry = unsafe { &mut *entry_ptr };
         if entry.addr == pc {
@@ -173,7 +176,9 @@ impl<P: SimulatorPolicy, const IS_DUT: bool> SimulatorCore<P> for SimulatorRemu<
     #[inline(always)]
     fn step_once<const TRACE: u64>(&mut self) -> Result<(), SimulatorInnerError> {
         let pc = *self.state.reg.pc;
-        let new_pc = self.step_once_at::<TRACE>(pc)?;
+        // Safety: the I-cache is never moved or dropped while `self` is alive.
+        let data_ptr = unsafe { (*&raw mut self.icache).as_mut_ptr() };
+        let new_pc = self.step_once_at::<TRACE>(pc, data_ptr)?;
         *self.state.reg.pc = new_pc;
         Ok(())
     }
@@ -182,10 +187,12 @@ impl<P: SimulatorPolicy, const IS_DUT: bool> SimulatorCore<P> for SimulatorRemu<
     /// whole batch and sync it once at the end, instead of once per step.
     #[inline(always)]
     fn run_batch<const TRACE: u64>(&mut self, max: usize) -> Result<(), SimulatorInnerError> {
+        // Safety: the I-cache is never moved or dropped while `self` is alive.
+        let data_ptr = unsafe { (*&raw mut self.icache).as_mut_ptr() };
         let mut pc = *self.state.reg.pc;
         let mut i = 0usize;
         while i < max {
-            pc = self.step_once_at::<TRACE>(pc)?;
+            pc = self.step_once_at::<TRACE>(pc, data_ptr)?;
             i += 1;
         }
         *self.state.reg.pc = pc;
