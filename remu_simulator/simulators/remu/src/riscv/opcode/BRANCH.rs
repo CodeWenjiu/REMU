@@ -17,26 +17,16 @@ mod func3 {
     pub(super) const BGEU: u32 = 0b111;
 }
 
-#[derive(Clone, Copy, Debug)]
-pub(crate) enum BranchInst {
-    Beq,
-    Bne,
-    Blt,
-    Bge,
-    Bltu,
-    Bgeu,
-}
-
 #[inline(always)]
 pub(crate) fn decode<P: remu_state::StatePolicy>(inst: u32) -> DecodedInst {
     let f3 = funct3(inst);
     let branch = match f3 {
-        func3::BEQ => BranchInst::Beq,
-        func3::BNE => BranchInst::Bne,
-        func3::BLT => BranchInst::Blt,
-        func3::BGE => BranchInst::Bge,
-        func3::BLTU => BranchInst::Bltu,
-        func3::BGEU => BranchInst::Bgeu,
+        func3::BEQ => Inst::Beq,
+        func3::BNE => Inst::Bne,
+        func3::BLT => Inst::Blt,
+        func3::BGE => Inst::Bge,
+        func3::BLTU => Inst::Bltu,
+        func3::BGEU => Inst::Bgeu,
         _ => return DecodedInst::default(),
     };
     DecodedInst {
@@ -44,33 +34,77 @@ pub(crate) fn decode<P: remu_state::StatePolicy>(inst: u32) -> DecodedInst {
         rs1: rs1(inst),
         rs2: rs2(inst),
         imm: imm_b(inst),
-        inst: Inst::Branch(branch),
+        inst: branch,
     }
 }
 
 #[inline(always)]
-pub(crate) fn execute<P: remu_state::StatePolicy, C: crate::ExecuteContext<P>>(
+fn execute_cond<P: remu_state::StatePolicy, C: crate::ExecuteContext<P>>(
     ctx: &mut C,
     decoded: &DecodedInst,
     pc: u32,
+    take: impl FnOnce(u32, u32) -> bool,
 ) -> Result<u32, remu_state::StateError> {
     let state = ctx.state_mut();
-    let Inst::Branch(b) = decoded.inst else {
-        unreachable!()
-    };
     let rs1_val = state.reg.gpr.raw_read(decoded.rs1.into());
     let rs2_val = state.reg.gpr.raw_read(decoded.rs2.into());
-    let take = match b {
-        BranchInst::Beq => rs1_val == rs2_val,
-        BranchInst::Bne => rs1_val != rs2_val,
-        BranchInst::Blt => (rs1_val.to_signed()) < (rs2_val.to_signed()),
-        BranchInst::Bge => (rs1_val.to_signed()) >= (rs2_val.to_signed()),
-        BranchInst::Bltu => rs1_val < rs2_val,
-        BranchInst::Bgeu => rs1_val >= rs2_val,
-    };
-    Ok(if take {
+    Ok(if take(rs1_val, rs2_val) {
         pc.wrapping_add(decoded.imm)
     } else {
         pc.wrapping_add(4)
     })
+}
+
+#[inline(always)]
+pub(crate) fn execute_beq<P: remu_state::StatePolicy, C: crate::ExecuteContext<P>>(
+    ctx: &mut C,
+    decoded: &DecodedInst,
+    pc: u32,
+) -> Result<u32, remu_state::StateError> {
+    execute_cond(ctx, decoded, pc, |a, b| a == b)
+}
+
+#[inline(always)]
+pub(crate) fn execute_bne<P: remu_state::StatePolicy, C: crate::ExecuteContext<P>>(
+    ctx: &mut C,
+    decoded: &DecodedInst,
+    pc: u32,
+) -> Result<u32, remu_state::StateError> {
+    execute_cond(ctx, decoded, pc, |a, b| a != b)
+}
+
+#[inline(always)]
+pub(crate) fn execute_blt<P: remu_state::StatePolicy, C: crate::ExecuteContext<P>>(
+    ctx: &mut C,
+    decoded: &DecodedInst,
+    pc: u32,
+) -> Result<u32, remu_state::StateError> {
+    execute_cond(ctx, decoded, pc, |a, b| a.to_signed() < b.to_signed())
+}
+
+#[inline(always)]
+pub(crate) fn execute_bge<P: remu_state::StatePolicy, C: crate::ExecuteContext<P>>(
+    ctx: &mut C,
+    decoded: &DecodedInst,
+    pc: u32,
+) -> Result<u32, remu_state::StateError> {
+    execute_cond(ctx, decoded, pc, |a, b| a.to_signed() >= b.to_signed())
+}
+
+#[inline(always)]
+pub(crate) fn execute_bltu<P: remu_state::StatePolicy, C: crate::ExecuteContext<P>>(
+    ctx: &mut C,
+    decoded: &DecodedInst,
+    pc: u32,
+) -> Result<u32, remu_state::StateError> {
+    execute_cond(ctx, decoded, pc, |a, b| a < b)
+}
+
+#[inline(always)]
+pub(crate) fn execute_bgeu<P: remu_state::StatePolicy, C: crate::ExecuteContext<P>>(
+    ctx: &mut C,
+    decoded: &DecodedInst,
+    pc: u32,
+) -> Result<u32, remu_state::StateError> {
+    execute_cond(ctx, decoded, pc, |a, b| a >= b)
 }

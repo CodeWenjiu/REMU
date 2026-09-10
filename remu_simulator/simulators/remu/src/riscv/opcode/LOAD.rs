@@ -16,24 +16,15 @@ mod func3 {
     pub(super) const LHU: u32 = 0b101;
 }
 
-#[derive(Clone, Copy, Debug)]
-pub(crate) enum LoadInst {
-    Lb,
-    Lh,
-    Lw,
-    Lbu,
-    Lhu,
-}
-
 #[inline(always)]
 pub(crate) fn decode<P: remu_state::StatePolicy>(inst: u32) -> DecodedInst {
     let f3 = funct3(inst);
     let load = match f3 {
-        func3::LB => LoadInst::Lb,
-        func3::LH => LoadInst::Lh,
-        func3::LW => LoadInst::Lw,
-        func3::LBU => LoadInst::Lbu,
-        func3::LHU => LoadInst::Lhu,
+        func3::LB => Inst::Lb,
+        func3::LH => Inst::Lh,
+        func3::LW => Inst::Lw,
+        func3::LBU => Inst::Lbu,
+        func3::LHU => Inst::Lhu,
         _ => return DecodedInst::default(),
     };
     DecodedInst {
@@ -41,76 +32,124 @@ pub(crate) fn decode<P: remu_state::StatePolicy>(inst: u32) -> DecodedInst {
         rs1: rs1(inst),
         rs2: 0,
         imm: imm_i(inst),
-        inst: Inst::Load(load),
+        inst: load,
     }
 }
 
 #[inline(always)]
-pub(crate) fn execute<P: remu_state::StatePolicy, C: crate::ExecuteContext<P>>(
+pub(crate) fn execute_lb<P: remu_state::StatePolicy, C: crate::ExecuteContext<P>>(
     ctx: &mut C,
     decoded: &DecodedInst,
     pc: u32,
 ) -> Result<u32, remu_state::StateError> {
     let state = ctx.state_mut();
-    let Inst::Load(load) = decoded.inst else {
-        unreachable!()
+    let addr = state
+        .reg
+        .gpr
+        .raw_read(decoded.rs1.into())
+        .wrapping_add(decoded.imm);
+    let v: u8 = match state.bus.read_8_fast(addr as usize) {
+        Some(v) => v,
+        None => state
+            .bus
+            .read_8_slow_err(addr as usize)
+            .map_err(StateError::from)?,
     };
-    let rs1_val = state.reg.gpr.raw_read(decoded.rs1.into());
-    let addr = rs1_val.wrapping_add(decoded.imm);
-    match load {
-        LoadInst::Lb => {
-            let v: u8 = match state.bus.read_8_fast(addr as usize) {
-                Some(v) => v,
-                None => state
-                    .bus
-                    .read_8_slow_err(addr as usize)
-                    .map_err(StateError::from)?,
-            };
-            state.reg.gpr.raw_write(decoded.rd.into(), (v as i8) as u32);
-        }
-        LoadInst::Lh => {
-            let v: u16 = match state.bus.read_16_fast(addr as usize) {
-                Some(v) => v,
-                None => state
-                    .bus
-                    .read_16_slow_err(addr as usize)
-                    .map_err(StateError::from)?,
-            };
-            state
-                .reg
-                .gpr
-                .raw_write(decoded.rd.into(), (v as i16) as u32);
-        }
-        LoadInst::Lw => {
-            let v: u32 = match state.bus.read_32_fast(addr as usize) {
-                Some(v) => v,
-                None => state
-                    .bus
-                    .read_32_slow_err(addr as usize)
-                    .map_err(StateError::from)?,
-            };
-            state.reg.gpr.raw_write(decoded.rd.into(), v);
-        }
-        LoadInst::Lbu => {
-            let v: u8 = match state.bus.read_8_fast(addr as usize) {
-                Some(v) => v,
-                None => state
-                    .bus
-                    .read_8_slow_err(addr as usize)
-                    .map_err(StateError::from)?,
-            };
-            state.reg.gpr.raw_write(decoded.rd.into(), v as u32);
-        }
-        LoadInst::Lhu => {
-            let v: u16 = match state.bus.read_16_fast(addr as usize) {
-                Some(v) => v,
-                None => state
-                    .bus
-                    .read_16_slow_err(addr as usize)
-                    .map_err(StateError::from)?,
-            };
-            state.reg.gpr.raw_write(decoded.rd.into(), v as u32);
-        }
-    }
+    state.reg.gpr.raw_write(decoded.rd.into(), (v as i8) as u32);
+    Ok(pc.wrapping_add(4))
+}
+
+#[inline(always)]
+pub(crate) fn execute_lh<P: remu_state::StatePolicy, C: crate::ExecuteContext<P>>(
+    ctx: &mut C,
+    decoded: &DecodedInst,
+    pc: u32,
+) -> Result<u32, remu_state::StateError> {
+    let state = ctx.state_mut();
+    let addr = state
+        .reg
+        .gpr
+        .raw_read(decoded.rs1.into())
+        .wrapping_add(decoded.imm);
+    let v: u16 = match state.bus.read_16_fast(addr as usize) {
+        Some(v) => v,
+        None => state
+            .bus
+            .read_16_slow_err(addr as usize)
+            .map_err(StateError::from)?,
+    };
+    state
+        .reg
+        .gpr
+        .raw_write(decoded.rd.into(), (v as i16) as u32);
+    Ok(pc.wrapping_add(4))
+}
+
+#[inline(always)]
+pub(crate) fn execute_lw<P: remu_state::StatePolicy, C: crate::ExecuteContext<P>>(
+    ctx: &mut C,
+    decoded: &DecodedInst,
+    pc: u32,
+) -> Result<u32, remu_state::StateError> {
+    let state = ctx.state_mut();
+    let addr = state
+        .reg
+        .gpr
+        .raw_read(decoded.rs1.into())
+        .wrapping_add(decoded.imm);
+    let v: u32 = match state.bus.read_32_fast(addr as usize) {
+        Some(v) => v,
+        None => state
+            .bus
+            .read_32_slow_err(addr as usize)
+            .map_err(StateError::from)?,
+    };
+    state.reg.gpr.raw_write(decoded.rd.into(), v);
+    Ok(pc.wrapping_add(4))
+}
+
+#[inline(always)]
+pub(crate) fn execute_lbu<P: remu_state::StatePolicy, C: crate::ExecuteContext<P>>(
+    ctx: &mut C,
+    decoded: &DecodedInst,
+    pc: u32,
+) -> Result<u32, remu_state::StateError> {
+    let state = ctx.state_mut();
+    let addr = state
+        .reg
+        .gpr
+        .raw_read(decoded.rs1.into())
+        .wrapping_add(decoded.imm);
+    let v: u8 = match state.bus.read_8_fast(addr as usize) {
+        Some(v) => v,
+        None => state
+            .bus
+            .read_8_slow_err(addr as usize)
+            .map_err(StateError::from)?,
+    };
+    state.reg.gpr.raw_write(decoded.rd.into(), v as u32);
+    Ok(pc.wrapping_add(4))
+}
+
+#[inline(always)]
+pub(crate) fn execute_lhu<P: remu_state::StatePolicy, C: crate::ExecuteContext<P>>(
+    ctx: &mut C,
+    decoded: &DecodedInst,
+    pc: u32,
+) -> Result<u32, remu_state::StateError> {
+    let state = ctx.state_mut();
+    let addr = state
+        .reg
+        .gpr
+        .raw_read(decoded.rs1.into())
+        .wrapping_add(decoded.imm);
+    let v: u16 = match state.bus.read_16_fast(addr as usize) {
+        Some(v) => v,
+        None => state
+            .bus
+            .read_16_slow_err(addr as usize)
+            .map_err(StateError::from)?,
+    };
+    state.reg.gpr.raw_write(decoded.rd.into(), v as u32);
     Ok(pc.wrapping_add(4))
 }
