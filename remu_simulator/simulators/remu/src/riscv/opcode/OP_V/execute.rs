@@ -1,22 +1,22 @@
 use crate::riscv::{
+    DecodedInst, Inst,
     opcode::OP_V::{OpMvvInst, VInst},
     opcode::UNKNOWN,
-    DecodedInst, Inst,
 };
 
 pub(crate) fn execute<P: remu_state::StatePolicy, C: crate::ExecuteContext<P>>(
     ctx: &mut C,
     decoded: &DecodedInst,
-) -> Result<(), remu_state::StateError> {
+    _pc: u32,
+) -> Result<u32, remu_state::StateError> {
     let v = match decoded.inst {
         Inst::V(v) => v,
-        _ => return UNKNOWN::execute::<P, C>(ctx, decoded),
+        _ => return UNKNOWN::execute::<P, C>(ctx, decoded, _pc),
     };
 
     let state = ctx.state_mut();
     if state.reg.csr.mstatus_vs_off() {
-        UNKNOWN::trap_illegal_instruction(state);
-        return Ok(());
+        return Ok(UNKNOWN::trap_illegal_instruction(state, _pc));
     }
 
     // Only `vmv.x.s` / `vfirst.m` read vector state and write GPR; they do not update VS to Dirty.
@@ -35,7 +35,10 @@ pub(crate) fn execute<P: remu_state::StatePolicy, C: crate::ExecuteContext<P>>(
     };
 
     if r.is_ok() && dirties_vs {
-        ctx.state_mut().reg.csr.set_mstatus_vs_dirty();
+        let state = ctx.state_mut();
+        state.reg.csr.set_mstatus_vs_dirty();
+        Ok(*state.reg.pc)
+    } else {
+        r.map(|()| *ctx.state_mut().reg.pc)
     }
-    r
 }

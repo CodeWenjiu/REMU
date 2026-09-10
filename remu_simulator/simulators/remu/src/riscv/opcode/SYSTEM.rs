@@ -2,7 +2,7 @@
 
 use remu_isa::isa::reg::{Csr as CsrKind, RegAccess};
 
-use crate::riscv::{opcode::UNKNOWN, DecodedInst, Inst, csr, funct3, rd, rs1};
+use crate::riscv::{DecodedInst, Inst, csr, funct3, opcode::UNKNOWN, rd, rs1};
 
 #[allow(dead_code)]
 pub(crate) const OPCODE: u32 = 0b111_0011;
@@ -86,50 +86,48 @@ fn do_csr<P: remu_state::StatePolicy>(
     k: CsrKind,
     old_val: u32,
     new_val: u32,
-) -> Result<(), remu_state::StateError> {
+    pc: u32,
+) -> Result<u32, remu_state::StateError> {
     state.reg.csr.write(k, new_val);
     state.reg.gpr.raw_write(decoded.rd.into(), old_val);
-    *state.reg.pc = state.reg.pc.wrapping_add(4);
     if csr_write_dirties_vector_state(k, old_val, new_val) {
         state.reg.csr.set_mstatus_vs_dirty();
     }
-    Ok(())
+    Ok(pc.wrapping_add(4))
 }
 
 #[inline(always)]
 pub(crate) fn execute<P: remu_state::StatePolicy, C: crate::ExecuteContext<P>>(
     ctx: &mut C,
     decoded: &DecodedInst,
-) -> Result<(), remu_state::StateError> {
+    pc: u32,
+) -> Result<u32, remu_state::StateError> {
     let state = ctx.state_mut();
     let Inst::System(sys) = decoded.inst else {
         unreachable!()
     };
     match sys {
-        SystemInst::Ecall => {
-            *state.reg.pc = state.reg.pc.wrapping_add(4);
-            Ok(())
-        }
-        SystemInst::Ebreak => {
-            let pc = *state.reg.pc;
-            ctx.on_ebreak(pc)
-        }
-        SystemInst::Csrrw | SystemInst::Csrrs | SystemInst::Csrrc
-        | SystemInst::Csrrwi | SystemInst::Csrrsi | SystemInst::Csrrci => {
+        SystemInst::Ecall => Ok(pc.wrapping_add(4)),
+        SystemInst::Ebreak => ctx.on_ebreak(pc),
+        SystemInst::Csrrw
+        | SystemInst::Csrrs
+        | SystemInst::Csrrc
+        | SystemInst::Csrrwi
+        | SystemInst::Csrrsi
+        | SystemInst::Csrrci => {
             let csr_imm = (decoded.imm & 0xFFF) as u16;
             let k = match CsrKind::from_repr(csr_imm) {
                 Some(k) => k,
                 None => {
                     return Err(remu_state::StateError::UnimplementedCsr {
-                        pc: *state.reg.pc,
+                        pc,
                         csr_addr: csr_imm,
                         imm_raw: decoded.imm,
                     });
                 }
             };
             if k.illegal_when_vs_off() && state.reg.csr.mstatus_vs_off() {
-                UNKNOWN::trap_illegal_instruction(state);
-                return Ok(());
+                return Ok(UNKNOWN::trap_illegal_instruction(state, pc));
             }
             let old = state.reg.read_csr(k);
             let new_val = match sys {
@@ -141,7 +139,7 @@ pub(crate) fn execute<P: remu_state::StatePolicy, C: crate::ExecuteContext<P>>(
                 SystemInst::Csrrci => old & !(decoded.rs1 as u32),
                 _ => unreachable!(),
             };
-            do_csr(state, decoded, k, old, new_val)
+            do_csr(state, decoded, k, old, new_val, pc)
         }
     }
 }

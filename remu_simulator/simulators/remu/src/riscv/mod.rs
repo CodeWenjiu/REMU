@@ -86,36 +86,37 @@ pub(crate) fn decode<P: StatePolicy>(inst: u32) -> DecodedInst {
 pub(crate) fn execute<P: StatePolicy, C: crate::ExecuteContext<P>>(
     ctx: &mut C,
     decoded: &DecodedInst,
-) -> Result<(), StateError> {
+    pc: u32,
+) -> Result<u32, StateError> {
     match decoded.inst {
-        Inst::Lui => LUI::execute(ctx, decoded),
-        Inst::Auipc => AUIPC::execute(ctx, decoded),
-        Inst::Jal => JAL::execute(ctx, decoded),
-        Inst::Jalr => JALR::execute(ctx, decoded),
-        Inst::Branch(..) => BRANCH::execute(ctx, decoded),
-        Inst::OpImm(..) => OP_IMM::execute(ctx, decoded),
-        Inst::Op(..) => OP::execute(ctx, decoded),
-        Inst::Load(..) => LOAD::execute(ctx, decoded),
-        Inst::LoadFp(..) => LOAD_FP::execute(ctx, decoded),
-        Inst::Store(..) => STORE::execute(ctx, decoded),
-        Inst::StoreFp(..) => STORE_FP::execute(ctx, decoded),
-        Inst::MiscMem(..) => MISC_MEM::execute(ctx, decoded),
-        Inst::System(..) => SYSTEM::execute(ctx, decoded),
+        Inst::Lui => LUI::execute(ctx, decoded, pc),
+        Inst::Auipc => AUIPC::execute(ctx, decoded, pc),
+        Inst::Jal => JAL::execute(ctx, decoded, pc),
+        Inst::Jalr => JALR::execute(ctx, decoded, pc),
+        Inst::Branch(..) => BRANCH::execute(ctx, decoded, pc),
+        Inst::OpImm(..) => OP_IMM::execute(ctx, decoded, pc),
+        Inst::Op(..) => OP::execute(ctx, decoded, pc),
+        Inst::Load(..) => LOAD::execute(ctx, decoded, pc),
+        Inst::LoadFp(..) => LOAD_FP::execute(ctx, decoded, pc),
+        Inst::Store(..) => STORE::execute(ctx, decoded, pc),
+        Inst::StoreFp(..) => STORE_FP::execute(ctx, decoded, pc),
+        Inst::MiscMem(..) => MISC_MEM::execute(ctx, decoded, pc),
+        Inst::System(..) => SYSTEM::execute(ctx, decoded, pc),
         Inst::V(..) => {
             if <<P::ISA as RvIsa>::VConfig as VExtensionConfig>::VLENB > 0 {
-                OP_V::execute(ctx, decoded)
+                OP_V::execute(ctx, decoded, pc)
             } else {
                 unsafe { core::hint::unreachable_unchecked() }
             }
         }
         Inst::Cus0(..) => {
             if <P::ISA as RvIsa>::HAS_WJ_CUS0 {
-                CUS0::execute(ctx, decoded)
+                CUS0::execute(ctx, decoded, pc)
             } else {
-                UNKNOWN::execute(ctx, decoded)
+                UNKNOWN::execute(ctx, decoded, pc)
             }
         }
-        Inst::Unknown => UNKNOWN::execute(ctx, decoded),
+        Inst::Unknown => UNKNOWN::execute(ctx, decoded, pc),
     }
 }
 #[allow(dead_code)]

@@ -49,7 +49,8 @@ pub(crate) fn decode<P: remu_state::StatePolicy>(inst: u32) -> DecodedInst {
 pub(crate) fn execute<P: remu_state::StatePolicy, C: crate::ExecuteContext<P>>(
     ctx: &mut C,
     decoded: &DecodedInst,
-) -> Result<(), remu_state::StateError> {
+    pc: u32,
+) -> Result<u32, remu_state::StateError> {
     let state = ctx.state_mut();
     let Inst::Load(load) = decoded.inst else {
         unreachable!()
@@ -111,6 +112,5 @@ pub(crate) fn execute<P: remu_state::StatePolicy, C: crate::ExecuteContext<P>>(
             state.reg.gpr.raw_write(decoded.rd.into(), v as u32);
         }
     }
-    *state.reg.pc = state.reg.pc.wrapping_add(4);
-    Ok(())
+    Ok(pc.wrapping_add(4))
 }

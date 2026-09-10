@@ -1,11 +1,11 @@
 //! LOAD-FP opcode (0x07): vector loads. vle8.v implemented.
 
-use remu_state::StateError;
+use remu_isa::isa::RvIsa;
 use remu_isa::isa::extension_v::VExtensionConfig;
 use remu_isa::isa::reg::{RegAccess, VectorCsrState, VrState};
-use remu_isa::isa::RvIsa;
+use remu_state::StateError;
 
-use crate::riscv::{funct3, opcode::UNKNOWN, rd, rs1, rs2, DecodedInst, Inst};
+use crate::riscv::{DecodedInst, Inst, funct3, opcode::UNKNOWN, rd, rs1, rs2};
 
 #[allow(dead_code)]
 pub(crate) const OPCODE: u32 = 0b000_0111; // LOAD-FP (0x07)
@@ -121,8 +121,8 @@ pub(crate) fn decode<P: remu_state::StatePolicy>(inst: u32) -> DecodedInst {
             (func3::WIDTH_8, 0, 0) => LoadFpInst::Vle8,
             (func3::WIDTH_8, 0, 3) => LoadFpInst::Vlseg4e8, // nf=3 -> 4 fields
             (func3::WIDTH_32, 0, 0) if lumop(inst) == 0 => LoadFpInst::Vle32, // unit-stride, lumop=0
-            (func3::WIDTH_16, 2, 0) => LoadFpInst::Vlse16,  // mop=2 strided, nf=0; rs2 = stride
-            (func3::WIDTH_32, 2, 0) => LoadFpInst::Vlse32,  // mop=2 strided, nf=0
+            (func3::WIDTH_16, 2, 0) => LoadFpInst::Vlse16, // mop=2 strided, nf=0; rs2 = stride
+            (func3::WIDTH_32, 2, 0) => LoadFpInst::Vlse32, // mop=2 strided, nf=0
             _ => return DecodedInst::default(),
         };
         let vd = vd_unit_stride(inst);
@@ -147,14 +147,16 @@ const MAX_VLENB: usize = 16;
 pub(crate) fn execute<P: remu_state::StatePolicy, C: crate::ExecuteContext<P>>(
     ctx: &mut C,
     decoded: &DecodedInst,
-) -> Result<(), remu_state::StateError> {
-    let Inst::LoadFp(load_fp) = decoded.inst else { unreachable!() };
+    _pc: u32,
+) -> Result<u32, remu_state::StateError> {
+    let Inst::LoadFp(load_fp) = decoded.inst else {
+        unreachable!()
+    };
 
     if <<P::ISA as RvIsa>::VConfig as VExtensionConfig>::VLENB > 0 {
         let state = ctx.state_mut();
         if state.reg.csr.mstatus_vs_off() {
-            UNKNOWN::trap_illegal_instruction(state);
-            return Ok(());
+            return Ok(UNKNOWN::trap_illegal_instruction(state, _pc));
         }
     }
 
@@ -163,24 +165,23 @@ pub(crate) fn execute<P: remu_state::StatePolicy, C: crate::ExecuteContext<P>>(
             if <<P::ISA as RvIsa>::VConfig as VExtensionConfig>::VLENB > 0 {
                 let state = ctx.state_mut();
                 let vl = state.reg.csr.vector.vl();
-                let vlenb =
-                    <<P::ISA as RvIsa>::VConfig as VExtensionConfig>::VLENB as usize;
+                let vlenb = <<P::ISA as RvIsa>::VConfig as VExtensionConfig>::VLENB as usize;
                 let n = vl.min(vlenb as u32) as usize;
                 let vd = decoded.rd as usize;
                 let base = state.reg.gpr.raw_read(decoded.rs1.into());
                 let vm = (decoded.imm & 1) != 0;
                 let v0 = state.reg.vr.raw_read(0).to_vec();
 
-                let mut vd_buf: Vec<Vec<u8>> =
-                    (0..4).map(|r| state.reg.vr.raw_read(vd + r).to_vec()).collect();
+                let mut vd_buf: Vec<Vec<u8>> = (0..4)
+                    .map(|r| state.reg.vr.raw_read(vd + r).to_vec())
+                    .collect();
                 for i in 0..n {
                     let active = vm || ((v0[i / 8] >> (i % 8)) & 1 != 0);
                     if !active {
                         continue;
                     }
                     for f in 0..4 {
-                        let addr =
-                            base.wrapping_add((i * 4 + f) as u32) as usize;
+                        let addr = base.wrapping_add((i * 4 + f) as u32) as usize;
                         let val = state.bus.read_8(addr).map_err(StateError::from)?;
                         vd_buf[f][i] = val;
                     }
@@ -196,8 +197,7 @@ pub(crate) fn execute<P: remu_state::StatePolicy, C: crate::ExecuteContext<P>>(
         LoadFpInst::Vl1re16 => {
             if <<P::ISA as RvIsa>::VConfig as VExtensionConfig>::VLENB > 0 {
                 let state = ctx.state_mut();
-                let vlenb =
-                    <<P::ISA as RvIsa>::VConfig as VExtensionConfig>::VLENB as usize;
+                let vlenb = <<P::ISA as RvIsa>::VConfig as VExtensionConfig>::VLENB as usize;
                 let vd = decoded.rd as usize;
                 let base = state.reg.gpr.raw_read(decoded.rs1.into()) as usize;
                 let mut chunk = vec![0u8; vlenb];
@@ -216,8 +216,7 @@ pub(crate) fn execute<P: remu_state::StatePolicy, C: crate::ExecuteContext<P>>(
         LoadFpInst::Vl2re16 | LoadFpInst::Vl2re32 => {
             if <<P::ISA as RvIsa>::VConfig as VExtensionConfig>::VLENB > 0 {
                 let state = ctx.state_mut();
-                let vlenb =
-                    <<P::ISA as RvIsa>::VConfig as VExtensionConfig>::VLENB as usize;
+                let vlenb = <<P::ISA as RvIsa>::VConfig as VExtensionConfig>::VLENB as usize;
                 let vd = decoded.rd as usize;
                 let base = state.reg.gpr.raw_read(decoded.rs1.into()) as usize;
                 const NREGS: usize = 2;
@@ -241,8 +240,7 @@ pub(crate) fn execute<P: remu_state::StatePolicy, C: crate::ExecuteContext<P>>(
                 let state = ctx.state_mut();
                 let vl = state.reg.csr.vector.vl();
                 let vtype = state.reg.csr.vector.vtype();
-                let vlenb =
-                    <<P::ISA as RvIsa>::VConfig as VExtensionConfig>::VLENB as usize;
+                let vlenb = <<P::ISA as RvIsa>::VConfig as VExtensionConfig>::VLENB as usize;
                 let vlmul = vtype & 0x7;
                 let vsew = (vtype >> 3) & 0x7;
                 let sew_bits: u32 = 8 << (vsew & 0x3);
@@ -291,13 +289,10 @@ pub(crate) fn execute<P: remu_state::StatePolicy, C: crate::ExecuteContext<P>>(
                         if !active {
                             continue;
                         }
-                        let addr = base
-                            .wrapping_add((i as u32).wrapping_mul(stride))
-                            as usize;
+                        let addr = base.wrapping_add((i as u32).wrapping_mul(stride)) as usize;
                         let val = state.bus.read_16(addr).map_err(StateError::from)?;
                         let off = (i * EEW_BYTES) % vlenb;
-                        dst_chunk[off..off + EEW_BYTES]
-                            .copy_from_slice(&val.to_le_bytes());
+                        dst_chunk[off..off + EEW_BYTES].copy_from_slice(&val.to_le_bytes());
                     }
                     state.reg.vr.raw_write(vd + r, &dst_chunk);
                 }
@@ -311,8 +306,7 @@ pub(crate) fn execute<P: remu_state::StatePolicy, C: crate::ExecuteContext<P>>(
                 let state = ctx.state_mut();
                 let vl = state.reg.csr.vector.vl();
                 let vtype = state.reg.csr.vector.vtype();
-                let vlenb =
-                    <<P::ISA as RvIsa>::VConfig as VExtensionConfig>::VLENB as usize;
+                let vlenb = <<P::ISA as RvIsa>::VConfig as VExtensionConfig>::VLENB as usize;
                 let vlmul = vtype & 0x7;
                 let nf = match vlmul {
                     0 => 1,
@@ -343,13 +337,10 @@ pub(crate) fn execute<P: remu_state::StatePolicy, C: crate::ExecuteContext<P>>(
                         if !active {
                             continue;
                         }
-                        let addr = base
-                            .wrapping_add((i as u32).wrapping_mul(stride))
-                            as usize;
+                        let addr = base.wrapping_add((i as u32).wrapping_mul(stride)) as usize;
                         let val = state.bus.read_32(addr).map_err(StateError::from)?;
                         let off = (i * SEW_BYTES) % vlenb;
-                        dst_chunk[off..off + SEW_BYTES]
-                            .copy_from_slice(&val.to_le_bytes());
+                        dst_chunk[off..off + SEW_BYTES].copy_from_slice(&val.to_le_bytes());
                     }
                     state.reg.vr.raw_write(vd + r, &dst_chunk);
                 }
@@ -363,8 +354,7 @@ pub(crate) fn execute<P: remu_state::StatePolicy, C: crate::ExecuteContext<P>>(
                 let state = ctx.state_mut();
                 let vl = state.reg.csr.vector.vl();
                 let vtype = state.reg.csr.vector.vtype();
-                let vlenb =
-                    <<P::ISA as RvIsa>::VConfig as VExtensionConfig>::VLENB as usize;
+                let vlenb = <<P::ISA as RvIsa>::VConfig as VExtensionConfig>::VLENB as usize;
                 let vlmul = vtype & 0x7;
                 let vsew = (vtype >> 3) & 0x7;
                 let sew_bits: u32 = 8 << (vsew & 0x3);
@@ -412,7 +402,8 @@ pub(crate) fn execute<P: remu_state::StatePolicy, C: crate::ExecuteContext<P>>(
                         if !active {
                             continue;
                         }
-                        let addr = base.wrapping_add((i as u32).wrapping_mul(EEW_BYTES as u32)) as usize;
+                        let addr =
+                            base.wrapping_add((i as u32).wrapping_mul(EEW_BYTES as u32)) as usize;
                         let val = state.bus.read_32(addr).map_err(StateError::from)?;
                         let off = (i * EEW_BYTES) % vlenb;
                         dst_chunk[off..off + EEW_BYTES].copy_from_slice(&val.to_le_bytes());
@@ -429,8 +420,7 @@ pub(crate) fn execute<P: remu_state::StatePolicy, C: crate::ExecuteContext<P>>(
                 let state = ctx.state_mut();
                 let vl = state.reg.csr.vector.vl();
                 let vtype = state.reg.csr.vector.vtype();
-                let vlenb =
-                    <<P::ISA as RvIsa>::VConfig as VExtensionConfig>::VLENB as usize;
+                let vlenb = <<P::ISA as RvIsa>::VConfig as VExtensionConfig>::VLENB as usize;
                 let vlmul = vtype & 0x7;
                 let nf = match vlmul {
                     0 => 1,
@@ -454,10 +444,7 @@ pub(crate) fn execute<P: remu_state::StatePolicy, C: crate::ExecuteContext<P>>(
                     for j in 0..count {
                         buf[j] = state
                             .bus
-                            .read_8(
-                                base.wrapping_add(start as u32)
-                                    .wrapping_add(j as u32) as usize,
-                            )
+                            .read_8(base.wrapping_add(start as u32).wrapping_add(j as u32) as usize)
                             .map_err(StateError::from)?;
                     }
                     state.reg.vr.raw_write(vd + reg_i, &buf[..vlenb]);
@@ -472,5 +459,5 @@ pub(crate) fn execute<P: remu_state::StatePolicy, C: crate::ExecuteContext<P>>(
     if <<P::ISA as RvIsa>::VConfig as VExtensionConfig>::VLENB > 0 {
         ctx.state_mut().reg.csr.set_mstatus_vs_dirty();
     }
-    Ok(())
+    Ok(*ctx.state_mut().reg.pc)
 }

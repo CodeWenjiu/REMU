@@ -9,8 +9,8 @@ remu_macro::mod_prv!(mnist_infer);
 
 use core::hint::unreachable_unchecked;
 
-use remu_state::StateError;
 use remu_isa::isa::reg::RegAccess;
+use remu_state::StateError;
 
 use crate::riscv::{DecodedInst, Inst, funct3, funct7, imm_i, rd, rs1, rs2};
 
@@ -102,7 +102,8 @@ pub(crate) fn decode<P: remu_state::StatePolicy>(inst: u32) -> DecodedInst {
 pub(crate) fn execute<P: remu_state::StatePolicy, C: crate::ExecuteContext<P>>(
     ctx: &mut C,
     decoded: &DecodedInst,
-) -> Result<(), StateError> {
+    pc: u32,
+) -> Result<u32, StateError> {
     let state = ctx.state_mut();
     let Inst::Cus0(op) = decoded.inst else {
         unsafe { unreachable_unchecked() }
@@ -128,6 +129,5 @@ pub(crate) fn execute<P: remu_state::StatePolicy, C: crate::ExecuteContext<P>>(
             }
         }
     }
-    *state.reg.pc = state.reg.pc.wrapping_add(4);
-    Ok(())
+    Ok(pc.wrapping_add(4))
 }

@@ -1,7 +1,7 @@
-use remu_isa::isa::reg::RegAccess;
 use remu_isa::Xlen;
+use remu_isa::isa::reg::RegAccess;
 
-use crate::riscv::{funct3, imm_b, rs1, rs2, DecodedInst, Inst};
+use crate::riscv::{DecodedInst, Inst, funct3, imm_b, rs1, rs2};
 
 #[allow(dead_code)]
 pub(crate) const OPCODE: u32 = 0b110_0011;
@@ -52,9 +52,12 @@ pub(crate) fn decode<P: remu_state::StatePolicy>(inst: u32) -> DecodedInst {
 pub(crate) fn execute<P: remu_state::StatePolicy, C: crate::ExecuteContext<P>>(
     ctx: &mut C,
     decoded: &DecodedInst,
-) -> Result<(), remu_state::StateError> {
+    pc: u32,
+) -> Result<u32, remu_state::StateError> {
     let state = ctx.state_mut();
-    let Inst::Branch(b) = decoded.inst else { unreachable!() };
+    let Inst::Branch(b) = decoded.inst else {
+        unreachable!()
+    };
     let rs1_val = state.reg.gpr.raw_read(decoded.rs1.into());
     let rs2_val = state.reg.gpr.raw_read(decoded.rs2.into());
     let take = match b {
@@ -65,10 +68,9 @@ pub(crate) fn execute<P: remu_state::StatePolicy, C: crate::ExecuteContext<P>>(
         BranchInst::Bltu => rs1_val < rs2_val,
         BranchInst::Bgeu => rs1_val >= rs2_val,
     };
-    if take {
-        *state.reg.pc = state.reg.pc.wrapping_add(decoded.imm);
+    Ok(if take {
+        pc.wrapping_add(decoded.imm)
     } else {
-        *state.reg.pc = state.reg.pc.wrapping_add(4);
-    }
-    Ok(())
+        pc.wrapping_add(4)
+    })
 }

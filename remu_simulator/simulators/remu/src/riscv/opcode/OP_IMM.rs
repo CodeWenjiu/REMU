@@ -1,6 +1,6 @@
 use remu_isa::isa::reg::RegAccess;
 
-use crate::riscv::{funct3, funct7, imm_i, rd, rs1, DecodedInst, Inst};
+use crate::riscv::{DecodedInst, Inst, funct3, funct7, imm_i, rd, rs1};
 
 #[allow(dead_code)]
 pub(crate) const OPCODE: u32 = 0b001_0011;
@@ -70,9 +70,12 @@ pub(crate) fn decode<P: remu_state::StatePolicy>(inst: u32) -> DecodedInst {
 pub(crate) fn execute<P: remu_state::StatePolicy, C: crate::ExecuteContext<P>>(
     ctx: &mut C,
     decoded: &DecodedInst,
-) -> Result<(), remu_state::StateError> {
+    pc: u32,
+) -> Result<u32, remu_state::StateError> {
     let state = ctx.state_mut();
-    let Inst::OpImm(op) = decoded.inst else { unreachable!() };
+    let Inst::OpImm(op) = decoded.inst else {
+        unreachable!()
+    };
     let rs1_val = state.reg.gpr.raw_read(decoded.rs1.into());
     let imm_val = decoded.imm;
     let value: u32 = match op {
@@ -85,7 +88,13 @@ pub(crate) fn execute<P: remu_state::StatePolicy, C: crate::ExecuteContext<P>>(
                 0
             }
         }
-        OpImmInst::Sltiu => if rs1_val < imm_val { 1 } else { 0 },
+        OpImmInst::Sltiu => {
+            if rs1_val < imm_val {
+                1
+            } else {
+                0
+            }
+        }
         OpImmInst::Xori => rs1_val ^ imm_val,
         OpImmInst::Srli => rs1_val.wrapping_shr(imm_val & 0x1F),
         OpImmInst::Srai => ((rs1_val as i32).wrapping_shr(imm_val & 0x1F)) as u32,
@@ -93,6 +102,5 @@ pub(crate) fn execute<P: remu_state::StatePolicy, C: crate::ExecuteContext<P>>(
         OpImmInst::Andi => rs1_val & imm_val,
     };
     state.reg.gpr.raw_write(decoded.rd.into(), value);
-    *state.reg.pc = state.reg.pc.wrapping_add(4);
-    Ok(())
+    Ok(pc.wrapping_add(4))
 }

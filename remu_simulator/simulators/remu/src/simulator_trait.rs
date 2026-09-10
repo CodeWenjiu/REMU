@@ -35,7 +35,8 @@ pub(crate) trait ExecuteContext<P: StatePolicy> {
     fn flush_icache(&mut self) {}
 
     /// Called when ebreak is executed. Default: stop (breakpoint hit).
-    fn on_ebreak(&mut self, pc: u32) -> Result<(), StateError> {
+    /// On success returns the new PC (the breakpointed instruction ran).
+    fn on_ebreak(&mut self, pc: u32) -> Result<u32, StateError> {
         Err(StateError::BreakpointHit(pc))
     }
 }
@@ -57,7 +58,7 @@ impl<P: SimulatorPolicy, const IS_DUT: bool> ExecuteContext<P> for SimulatorRemu
     fn flush_icache(&mut self) {
         self.icache.flush();
     }
-    fn on_ebreak(&mut self, pc: u32) -> Result<(), StateError> {
+    fn on_ebreak(&mut self, pc: u32) -> Result<u32, StateError> {
         if !IS_DUT {
             return Err(StateError::BreakpointHit(pc));
         }
@@ -69,18 +70,24 @@ impl<P: SimulatorPolicy, const IS_DUT: bool> ExecuteContext<P> for SimulatorRemu
             BreakpointState::Active => {
                 let orig = self.breakpoints.get(&pc).copied().unwrap();
                 let decoded = decode::<P>(orig);
-                self.execute_inst(&decoded)?;
+                let new_pc = self.execute_inst(&decoded, pc)?;
                 self.breakpoint_state = BreakpointState::Idle;
-                Ok(())
+                Ok(new_pc)
             }
         }
     }
 }
 
 impl<P: SimulatorPolicy, const IS_DUT: bool> SimulatorRemu<P, IS_DUT> {
+    /// Execute `decoded` and return the new PC. `pc` is the instruction's
+    /// address; `state.reg.pc` is only synced at `step_once` exit.
     #[inline(always)]
-    fn execute_inst(&mut self, decoded: &crate::riscv::DecodedInst) -> Result<(), StateError> {
-        crate::riscv::execute(self, decoded)
+    fn execute_inst(
+        &mut self,
+        decoded: &crate::riscv::DecodedInst,
+        pc: u32,
+    ) -> Result<u32, StateError> {
+        crate::riscv::execute(self, decoded, pc)
     }
 }
 
@@ -115,7 +122,7 @@ impl<P: SimulatorPolicy, const IS_DUT: bool> SimulatorCore<P> for SimulatorRemu<
     #[inline(always)]
     fn step_once<const TRACE: u64>(&mut self) -> Result<(), SimulatorInnerError> {
         use remu_types::TraceFlags;
-        let pc = *self.state.reg.pc;
+        let mut pc = *self.state.reg.pc;
         // Access the I-cache through a raw pointer so the `decoded` reference
         // passed to execution can alias the cache line directly. This avoids
         // materializing a stack copy of `DecodedInst` on every hit, and lets
@@ -128,19 +135,23 @@ impl<P: SimulatorPolicy, const IS_DUT: bool> SimulatorCore<P> for SimulatorRemu<
         let entry = unsafe { &mut *entry_ptr };
         if entry.addr == pc {
             let decoded: &DecodedInst = unsafe { &(*entry_ptr).decoded };
-            self.execute_inst(decoded).map_err(from_state_error)?;
+            let old_pc = pc;
+            pc = self
+                .execute_inst(decoded, old_pc)
+                .map_err(from_state_error)?;
             if TraceFlags::instruction(TRACE) && IS_DUT {
-                let inst = if let Some(&orig) = self.breakpoints.get(&pc) {
+                let inst = if let Some(&orig) = self.breakpoints.get(&old_pc) {
                     orig
                 } else {
                     self.state
                         .bus
-                        .read_32(pc as usize)
+                        .read_32(old_pc as usize)
                         .map_err(|e| from_state_error(StateError::from(e)))
                         .unwrap()
                 };
-                self.tracer.borrow().disasm(pc as u64, inst);
+                self.tracer.borrow().disasm(old_pc as u64, inst);
             }
+            *self.state.reg.pc = pc;
             return Ok(());
         }
         let inst = self
@@ -159,7 +170,8 @@ impl<P: SimulatorPolicy, const IS_DUT: bool> SimulatorCore<P> for SimulatorRemu<
         let d = decode::<P>(inst);
         entry.addr = pc;
         entry.decoded = d;
-        self.execute_inst(&d).map_err(from_state_error)?;
+        pc = self.execute_inst(&d, pc).map_err(from_state_error)?;
+        *self.state.reg.pc = pc;
         Ok(())
     }
 

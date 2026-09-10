@@ -1,9 +1,9 @@
-use remu_state::StateError;
+use remu_isa::isa::RvIsa;
 use remu_isa::isa::extension_v::VExtensionConfig;
 use remu_isa::isa::reg::{RegAccess, VectorCsrState, VrState};
-use remu_isa::isa::RvIsa;
+use remu_state::StateError;
 
-use crate::riscv::{funct3, opcode::UNKNOWN, rd, rs1, DecodedInst, Inst};
+use crate::riscv::{DecodedInst, Inst, funct3, opcode::UNKNOWN, rd, rs1};
 
 use super::OP_V::mask_bit;
 
@@ -72,7 +72,7 @@ pub(crate) fn decode<P: remu_state::StatePolicy>(inst: u32) -> DecodedInst {
     if <<P::ISA as RvIsa>::VConfig as VExtensionConfig>::VLENB > 0 {
         if (inst & MASK_VS2R_V) == MATCH_VS2R_V {
             return DecodedInst {
-                rd: rd(inst),   // vs3
+                rd: rd(inst), // vs3
                 rs1: rs1(inst),
                 rs2: 0,
                 imm: 0,
@@ -99,7 +99,9 @@ pub(crate) fn decode<P: remu_state::StatePolicy>(inst: u32) -> DecodedInst {
         let (vs3, rs1_val) = match store_fp {
             StoreFpInst::Vs1r => (rd(inst), rs1(inst)),
             StoreFpInst::Vs2r => (rd(inst), rs1(inst)),
-            StoreFpInst::Vse8 | StoreFpInst::Vse16 | StoreFpInst::Vse32 => (vs3_unit_stride(inst), rs1(inst)),
+            StoreFpInst::Vse8 | StoreFpInst::Vse16 | StoreFpInst::Vse32 => {
+                (vs3_unit_stride(inst), rs1(inst))
+            }
         };
         return DecodedInst {
             rd: vs3,
@@ -116,14 +118,16 @@ pub(crate) fn decode<P: remu_state::StatePolicy>(inst: u32) -> DecodedInst {
 pub(crate) fn execute<P: remu_state::StatePolicy, C: crate::ExecuteContext<P>>(
     ctx: &mut C,
     decoded: &DecodedInst,
-) -> Result<(), remu_state::StateError> {
-    let Inst::StoreFp(store) = decoded.inst else { unreachable!() };
+    _pc: u32,
+) -> Result<u32, remu_state::StateError> {
+    let Inst::StoreFp(store) = decoded.inst else {
+        unreachable!()
+    };
 
     if <<P::ISA as RvIsa>::VConfig as VExtensionConfig>::VLENB > 0 {
         let state = ctx.state_mut();
         if state.reg.csr.mstatus_vs_off() {
-            UNKNOWN::trap_illegal_instruction(state);
-            return Ok(());
+            return Ok(UNKNOWN::trap_illegal_instruction(state, _pc));
         }
     }
 
@@ -131,8 +135,7 @@ pub(crate) fn execute<P: remu_state::StatePolicy, C: crate::ExecuteContext<P>>(
         StoreFpInst::Vs2r => {
             if <<P::ISA as RvIsa>::VConfig as VExtensionConfig>::VLENB > 0 {
                 let state = ctx.state_mut();
-                let vlenb =
-                    <<P::ISA as RvIsa>::VConfig as VExtensionConfig>::VLENB as usize;
+                let vlenb = <<P::ISA as RvIsa>::VConfig as VExtensionConfig>::VLENB as usize;
                 let vs3 = decoded.rd as usize;
                 let base = state.reg.gpr.raw_read(decoded.rs1.into()) as usize;
                 const NREGS: usize = 2;
@@ -154,7 +157,7 @@ pub(crate) fn execute<P: remu_state::StatePolicy, C: crate::ExecuteContext<P>>(
             if <<P::ISA as RvIsa>::VConfig as VExtensionConfig>::VLENB > 0 {
                 // Whole register store ignores vtype and vl, but requires vstart == 0
                 if ctx.state_mut().reg.csr.vector.vstart() != 0 {
-                    return crate::riscv::opcode::UNKNOWN::execute(ctx, decoded);
+                    return crate::riscv::opcode::UNKNOWN::execute(ctx, decoded, _pc);
                 }
 
                 let state = ctx.state_mut();
@@ -308,5 +311,5 @@ pub(crate) fn execute<P: remu_state::StatePolicy, C: crate::ExecuteContext<P>>(
         }
     }
 
-    Ok(())
+    Ok(*ctx.state_mut().reg.pc)
 }
