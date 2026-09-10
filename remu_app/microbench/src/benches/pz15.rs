@@ -206,7 +206,10 @@ impl UpdatableHeap {
                 let w = pl + s.puzzle.lower_bound();
                 if w < s.path_weight {
                     s.path_weight = w;
-                    s.path_length = pl;
+                    // Deliberately keep `path_length` unchanged: AM-Kernels
+                    // reference (Updatable_heap::push) does not update it on
+                    // re-open, and the checksum constants (PZ15_L 0x68b8c) are
+                    // ticked against that exact behavior.
                     (true, s.heap_index)
                 } else {
                     (false, 0)
