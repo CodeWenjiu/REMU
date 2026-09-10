@@ -14,7 +14,7 @@ REGION_ALIAS("REGION_HEAP", RAM);
 REGION_ALIAS("REGION_STACK", RAM);
 
 /* Stack size per hart (single-hart). Must be set before _heap_size. */
-PROVIDE(_hart_stack_size = 8K);
+PROVIDE(_hart_stack_size = 64K);
 
 /* Heap uses all RAM between end of .uninit and (stack_start - stack_size). */
 PROVIDE(_heap_size = (ORIGIN(REGION_STACK) + LENGTH(REGION_STACK) - _hart_stack_size) - __euninit);
