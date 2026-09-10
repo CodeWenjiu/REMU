@@ -35,6 +35,20 @@ pub trait SimulatorCore<P: StatePolicy> {
         Ok(())
     }
 
+    /// Execute up to `max` steps in one batch. Default: loop over `step_once`.
+    /// Simulators may override to hoist per-step boundary work (e.g. the PC
+    /// sync) out of the inner loop. Must behave identically to `max` calls of
+    /// `step_once` (interrupt/exit checks included via each step's errors).
+    #[inline(always)]
+    fn run_batch<const TRACE: u64>(&mut self, max: usize) -> Result<(), SimulatorInnerError> {
+        let mut i = 0;
+        while i < max {
+            self.step_once::<TRACE>()?;
+            i += 1;
+        }
+        Ok(())
+    }
+
     /// Take and clear observer events (MMIO, memory writes) from this step.
     /// Allows simulator to apply internal logic (e.g. nzea may merge/transform for difftest).
     #[inline(always)]

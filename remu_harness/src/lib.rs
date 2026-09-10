@@ -175,20 +175,40 @@ impl<C: PlatformConfig> Harness<C> {
             let to_run = max_steps
                 .map(|limit| (limit - steps).min(batch))
                 .unwrap_or(batch);
-            for _ in 0..to_run {
-                match self.step_once::<TRACE>() {
-                    Ok(()) => {
-                        steps += 1;
+            if <C::Ref as SimulatorRef<C::Policy>>::ENABLE {
+                // Difftest mode: the ref model must follow each DUT step, so
+                // step one at a time.
+                for _ in 0..to_run {
+                    match self.step_once::<TRACE>() {
+                        Ok(()) => {
+                            steps += 1;
+                        }
+                        Err(SimulatorError::Dut(SimulatorInnerError::ProgramExit(exit_code))) => {
+                            self.run_state = RunState::Exit;
+                            return Ok(RunOutcome::ProgramExit(exit_code));
+                        }
+                        Err(SimulatorError::Dut(SimulatorInnerError::Interrupted))
+                        | Err(SimulatorError::Ref(SimulatorInnerError::Interrupted)) => {
+                            return Err(HarnessError::Interrupted);
+                        }
+                        Err(e) => return Err(HarnessError::from(e)),
                     }
-                    Err(SimulatorError::Dut(SimulatorInnerError::ProgramExit(exit_code))) => {
+                }
+            } else {
+                // No ref/difftest: give the simulator a whole batch so it can
+                // hoist per-step boundary work (PC sync) out of its hot loop.
+                match self.dut_model.run_batch::<TRACE>(to_run) {
+                    Ok(()) => {
+                        steps += to_run;
+                    }
+                    Err(SimulatorInnerError::ProgramExit(exit_code)) => {
                         self.run_state = RunState::Exit;
                         return Ok(RunOutcome::ProgramExit(exit_code));
                     }
-                    Err(SimulatorError::Dut(SimulatorInnerError::Interrupted))
-                    | Err(SimulatorError::Ref(SimulatorInnerError::Interrupted)) => {
+                    Err(SimulatorInnerError::Interrupted) => {
                         return Err(HarnessError::Interrupted);
                     }
-                    Err(e) => return Err(HarnessError::from(e)),
+                    Err(e) => return Err(HarnessError::from(SimulatorError::Dut(e))),
                 }
             }
         }
