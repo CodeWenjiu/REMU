@@ -40,6 +40,11 @@ pub(crate) struct NesScreen {
     fb: *mut u32,
     /// Full 256×240 internal buffer of 0RGB pixels.
     buf: [u32; NES_W * NES_H],
+    /// Geometry of the last blit (disp_w, disp_h, scale, x_off, y_off). The
+    /// letterbox (out-of-picture area) is static, so we only clear it when the
+    /// window layout changes; clearing the whole active region every frame was
+    /// a large slice of the per-frame memory traffic on slow hosts.
+    last_geom: Option<(usize, usize, usize, usize, usize)>,
 }
 
 impl NesScreen {
@@ -47,6 +52,7 @@ impl NesScreen {
         NesScreen {
             fb,
             buf: [0; NES_W * NES_H],
+            last_geom: None,
         }
     }
 
@@ -71,13 +77,15 @@ impl NesScreen {
         // (the display size is clamped to FB_WIDTH/FB_HEIGHT) and the
         // framebuffer outlives this call (owned by the bus).
         unsafe {
-            // Clear the whole active region to black first so the letterbox
-            // bars around the (centered) picture are black rather than stale
-            // framebuffer contents. Each pixel is a u32 (4 bytes); write_bytes
-            // counts in T (=u32) units, so disp_w elements = disp_w pixels.
-            for y in 0..disp_h {
-                let dst = fb.add(y * FB_WIDTH);
-                core::ptr::write_bytes(dst, 0, disp_w);
+            let geom = (disp_w, disp_h, scale, x_off, y_off);
+            if self.last_geom != Some(geom) {
+                // Window resized (or first frame): clear the whole active
+                // region so letterbox bars and stale content are black.
+                for y in 0..disp_h {
+                    let dst = fb.add(y * FB_WIDTH);
+                    core::ptr::write_bytes(dst, 0, disp_w);
+                }
+                self.last_geom = Some(geom);
             }
             if scale == 1 {
                 // Fast path: one contiguous copy per row, no per-pixel loop.
