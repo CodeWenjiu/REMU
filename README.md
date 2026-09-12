@@ -2,7 +2,7 @@
 
 **English** | [简体中文](README_zh.md)
 
-**remu** is a **RISC-V** execution and debugging stack written in **Rust**. It pairs an interactive front-end with pluggable CPU simulators, optional **differential testing** against a reference model, and a path to co-simulate **RTL** (e.g. via Verilator).
+**remu** is a **RISC-V** execution and debugging stack written in **Rust**. It pairs an interactive front-end with pluggable CPU simulators, optional **differential testing** against a reference model, and a **cycle-accurate RTL co-simulation** backend (nzea, driven through Verilator).
 
 > **Submodule layout:** this repository is a **git submodule** inside the larger **[chip-dev](https://github.com/CodeWenjiu/chip-dev)** project. Because of **workspace / path dependencies**, it is **not fully self-contained** yet. To **build and run tests locally**, clone **[chip-dev](https://github.com/CodeWenjiu/chip-dev) in full** (including submodules, e.g. `git clone --recursive https://github.com/CodeWenjiu/chip-dev.git`) and work from that tree—not from a standalone checkout of `remu` alone.
 
@@ -16,42 +16,25 @@ This project is **inspired by and draws on ideas from [NEMU](https://github.com/
 
 ## Performance
 
-The interpreter core has been **optimized for steady-state execution** (decode/dispatch, memory access patterns, and hot-path layout). On the same workload, remu reaches roughly **an order of magnitude higher throughput than the author’s earlier C-based NEMU-style implementation**.
+The interpreter core is optimized for steady-state execution: decode/dispatch is a single flattened jump table, the instruction cache aliases decoded state directly, the PC lives in registers across batch runs, and hot-path memory access is a software-TLB (addend) with no error construction on hit.
 
-**Workload:** [Abstract Machine (AM)](https://github.com/NJU-ProjectN/abstract-machine) **microbench**, **`ref` scale**, ISA **`riscv32im`** (RV32 + **M** extension). All scores below use the same binary and host environment.
+The built-in benchmark is `remu_app/microbench` (ported from the [AM microbench](https://github.com/NJU-ProjectN/am-kernels) suite), scored relative to a reference CPU. On the author's laptop (Core Ultra 5 125H):
 
-| Simulator   | microbench-ref score |
-|------------|----------------------:|
-| **remu**   | **5503**              |
-| Spike      | 11183                 |
-| QEMU       | 23468                 |
+| Simulator   | microbench `ref` score | guest wall time |
+|-------------|-----------------------:|-----------------:|
+| **remu**    | **~3800**              | ~4.5 s           |
+| Spike       | ~3700 (with `--real-time-clint`) | ~7 s   |
 
-*Scores are higher-is-better for this benchmark; numbers are a single reference run and will vary by CPU, compiler, and build flags.*
+> The two simulators are within ~10% of each other in raw host cycles. Older READMEs reported a ~2-3× "Spike advantage" — that was an artifact of Spike's default mtime advancing by **instruction count** rather than wall clock, which made its guest-reported times ~3.5× too fast. `just run-app … --platform spike` now passes `--real-time-clint` so guest times are comparable across platforms.
 
-**Reference host** (where the table above was measured; yours will differ):
+Scores vary with CPU frequency scaling (check your `scaling_governor`), compiler, and load; treat them as ballpark. For a frequency-independent comparison use `perf stat -e cycles` over the run.
 
-| | |
-|--|--|
-| **OS** | Linux **x86_64**, **WSL2** (kernel `6.6.87.2-microsoft-standard-WSL2`) |
-| **CPU** | **Intel Core i5-13600KF** (guest view: **10 cores / 20 threads**, 1 socket) |
-| **RAM** | **~32 GiB** |
-
-**Speed vs remu (same benchmark):**
-
-| vs **remu** | Relative |
-|------------|----------|
-| Spike      | ~2.0×    |
-| QEMU       | ~4.3×    |
-| Author’s C NEMU (prior work) | remu ~**10×** faster |
-
-**Reproduce** (inside a full **[chip-dev](https://github.com/CodeWenjiu/chip-dev)** checkout, from the **`am-zig/`** directory):
+**Reproduce** (from this repository):
 
 ```bash
-cd am-zig
-BATCH=true just run <platform> riscv32 im am-microbench ref
+just run-app microbench riscv32im --platform remu --app-args ref -- --platform remu --batch --startup continue
+just run-app microbench riscv32im --platform spike --app-args ref
 ```
-
-Replace **`<platform>`** with `remu`, `spike`, `qemu`, etc. **`BATCH=true`** runs the workload non-interactively (same idea as in remu’s own `run-app` tooling).
 
 ---
 
@@ -59,9 +42,10 @@ Replace **`<platform>`** with `remu`, `spike`, `qemu`, etc. **`BATCH=true`** run
 
 remu **separates the debugger / CLI (front-end) from the execution engine (back-end)**:
 
-- **Multiple simulators** can be plugged in as backends (e.g. the built-in Rust ISA model, Spike, or other adapters you add).
-- **Differential testing (difftest)** is integrated: the DUT and a **reference model** advance in lockstep; register and memory state are compared to catch semantic mismatches early.
-- **Hardware / RTL** can participate through a suitable adapter—for example a **Verilator**-based cycle model—so you can debug HDL against the same front-end and difftest infrastructure as the software simulators.
+- **Multiple simulators** plug in as backends: `remu` (built-in Rust ISA model), `spike` (vendored C++ reference), and `nzea` (Verilator RTL co-simulation).
+- **Differential testing (difftest)** is integrated: the DUT and a **reference model** advance in lockstep; register and memory state are compared to catch semantic mismatches early (`--difftest remu` / `--difftest spike`).
+- **Hardware / RTL** participates through `nzea`: a Verilator-generated cycle model of the custom core, communicating with the front-end over DPI. The same difftest and interactive front-end drives it.
+- `--platform none` runs the front-end without a simulator (e.g. for debugging commands only).
 
 This layout keeps the UI and debugging workflow stable while you swap or combine **fast functional models**, **cycle-accurate RTL**, and **golden references**.
 
@@ -69,14 +53,17 @@ This layout keeps the UI and debugging workflow stable while you swap or combine
 
 ## Supported ISAs
 
-**RV32** only today (`--isa …`, default **`riscv32i`**):
+**RV32** (default `--isa riscv32i`):
 
-| `--isa` example | M | Vector (Zve32x, VLEN 128) |
-|-----------------|---|---------------------------|
-| `riscv32i` / `rv32i` | | |
-| `riscv32im` / `rv32im` | ✓ | |
-| `rv32i_zve32x_zvl128b` | | ✓ |
-| `rv32im_zve32x_zvl128b` | ✓ | ✓ |
+| `--isa` example | M | Vector (Zve32x, VLEN 128) | wjCus0 (custom) |
+|-----------------|---|---------------------------|-----------------|
+| `riscv32i` / `rv32i` | | | |
+| `riscv32im` / `rv32im` | ✓ | | |
+| `rv32i_zve32x_zvl128b` | | ✓ | |
+| `rv32im_zve32x_zvl128b` | ✓ | ✓ | |
+| `riscv32i_wjCus0` / `riscv32im_wjCus0` | (im has ✓) | | ✓ |
+
+The `wjCus0` variants enable a custom coprocessor extension used by the MNIST app. Full matrix details and target-string handling live in [`remu_hal/README-targets.md`](remu_hal/README-targets.md).
 
 ---
 
@@ -85,15 +72,17 @@ This layout keeps the UI and debugging workflow stable while you swap or combine
 | Area | Role |
 |------|------|
 | `remu_cli` / `remu_debugger` | Interactive shell and debugging commands |
-| `remu_simulator` | Simulator abstraction and concrete backends (`remu`, Spike, …) |
-| `remu_state`, `remu_types` | Architectural state, CSRs, ISA typing |
-| `remu_hal`, `remu_app/*` | Embedded HAL (`riscv-rt`, `embedded-hal`, `embedded-io`, …) and runnable `no_std` apps — **[remu_hal/README.md](remu_hal/README.md)** · [中文](remu_hal/README_zh.md) |
+| `remu_simulator` | Simulator abstraction and concrete backends: `simulators/remu`, `simulators/spike`, `simulators/nzea` |
+| `remu_state`, `remu_types`, `remu_isa` | Architectural state, buses/devices, ISA typing |
+| `remu_hal`, `remu_app/*` | Embedded HAL (`riscv-rt`, `embedded-hal`, `embedded-io`, …) and runnable `no_std` apps: `hello_world`, `collection`, `display`/`shader`, `microbench`, `mnist`, `nes`, `slint` — **[remu_hal/README.md](remu_hal/README.md)** · [中文](remu_hal/README_zh.md) |
+
+The `remu_state` bus models memory regions and devices (UART 16550, SiFive test finisher, CLINT, plus interactive `display`/`mouse`/`keyboard` backed by a winit window). Device/memory configs can come from files via `--dev-base` / `--mem-base`.
 
 ---
 
 ## Environment & workflow (Nix, direnv, just)
 
-The **supported developer environment is Nix-managed** via [`flake.nix`](flake.nix): **Rust nightly** (with `rust-src`, `clippy`, `rust-analyzer`, `llvm-tools-preview`), **RISC-V bare-metal targets** (`riscv32i` / `im` / `imac` `unknown-none-elf`), **Verilator**, **clang/libclang**, **mold**, and **`just`**.
+The **supported developer environment is Nix-managed** via [`flake.nix`](flake.nix): **Rust nightly** (with `rust-src`, `clippy`, `rust-analyzer`, `llvm-tools-preview`), **RISC-V bare-metal targets** (`riscv32i` / `im` / `imac` `unknown-none-elf`), **Verilator**, **clang/libclang**, **mold**, **qemu**, and **`just`**.
 
 ### Nix + direnv
 
@@ -127,19 +116,34 @@ just run-app hello_world
 just run-app mnist riscv32im_zve32x_zvl128b
 ```
 
+**`run-app` platform selection:** the `--platform` recipe argument routes to different runners:
+
+| `--platform` | Behavior |
+|--------------|----------|
+| `remu` (default) | Run under `remu_cli` with the built-in simulator |
+| `spike` | Build a Spike-appropriate ELF and run it under the native `spike` binary with `--real-time-clint` |
+| `qemu` | Run under `qemu-system-riscv32` |
+| `host` | Run the app natively on the host (Rust `std`) — no simulator |
+
 **Temporary env vars (`run-app` / embedded `cargo run`):** the app runner (`remu_hal/scripts/remu-cargo-runner.sh`) asks **xtask** to print a `remu_cli` command. Set options for that invocation by exporting variables **on the same line** as `just` (or in your shell) so they are visible when the runner runs:
 
 | Variable | Effect |
 |----------|--------|
-| **`PLATFORM`** | `--platform …` for `remu_cli`: `remu` (default in CLI), `spike`, `nzea`, `none` |
+| **`REMU_APP_ARGS`** | Passed to the embedded app via the app-args bridge (`--app-args`); e.g. `REMU_APP_ARGS=ref` for microbench |
 | **`DIFFTEST`** | Enable difftest with reference model: `spike` or `remu` (omit / unset = **off**) |
 | **`DEV`** | If set (any value), `print run-remu` uses **debug** `remu_cli` (`cargo run -p remu_cli` without `--release`). **Embedded `remu_app_*` stays `--release`** (`run-app` / `build-app` unchanged) |
 | **`BATCH`** | If set (any value), adds `--batch --startup continue` for non-interactive runs |
 
-Example: run **mnist** on **remu** with **Spike** as difftest reference:
+Example: run **microbench** on **remu** at `ref` scale, non-interactively:
 
 ```bash
-PLATFORM=remu DIFFTEST=spike just run-app mnist riscv32im_zve32x_zvl128b
+REMU_APP_ARGS=ref BATCH=true just run-app microbench riscv32im
+```
+
+Example: run **mnist** with **Spike** as difftest reference:
+
+```bash
+DIFFTEST=spike just run-app mnist riscv32im_zve32x_zvl128b
 ```
 
 Other recipes (`look`, `step-sizes`, …) are for profiling / asm inspection—run **`just --list`**.

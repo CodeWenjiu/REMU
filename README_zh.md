@@ -2,7 +2,7 @@
 
 [English](README.md) | **简体中文**
 
-**remu** 是一套用 **Rust** 编写的 **RISC-V** 执行与调试框架。它将交互式前端与可插拔的 CPU 模拟器结合，支持可选的与参考模型 **差分测试（difftest）**，并可通过适配接入 **RTL** 协同仿真（例如基于 **Verilator** 的周期模型）。
+**remu** 是一套用 **Rust** 编写的 **RISC-V** 执行与调试框架。它将交互式前端与可插拔的 CPU 模拟器结合，支持与参考模型 **差分测试（difftest）**，并提供 **周期精确的 RTL 协同仿真** 后端（nzea，基于 Verilator）。
 
 > **子模块说明：** 本仓库是更大项目 **[chip-dev](https://github.com/CodeWenjiu/chip-dev)** 中的 **git submodule**。受 **workspace / 路径依赖** 等限制，目前 **不能作为独立仓库完整跑通**。若要在本地 **构建与测试**，请 **整体拉取 [chip-dev](https://github.com/CodeWenjiu/chip-dev)（含 submodule）**，例如 `git clone --recursive https://github.com/CodeWenjiu/chip-dev.git`，并在该顶层工程下使用；**不要**只单独 clone `remu` 期望一键可用。
 
@@ -16,42 +16,25 @@
 
 ## 性能
 
-解释器核心针对 **稳态执行** 做了优化（译码分发、访存形态、热路径布局等）。在相同负载下，remu 的吞吐约可达作者先前 **用 C 编写的类 NEMU 实现的十倍**。
+解释器核心针对 **稳态执行** 做了深度优化：译码分发是**单一扁平跳转表**；指令缓存让执行直接引用缓存行（省去栈物化）；PC 在批量运行中全程驻留寄存器；热路径访存走软件 TLB（addend 形式），命中路径不构造任何错误。
 
-**负载：** [Abstract Machine (AM)](https://github.com/NJU-ProjectN/abstract-machine) **microbench**，**`ref` 规模**，ISA 为 **`riscv32im`**（RV32 + **M** 扩展）。下表各分数基于 **同一套二进制与主机环境**。
+内置基准是 **`remu_app/microbench`**（移植自 [AM microbench](https://github.com/NJU-ProjectN/am-kernels) 套件），以参考 CPU 的分数为基准。在作者的笔记本（Core Ultra 5 125H）上：
 
-| 模拟器   | microbench-ref 分数 |
-|---------|--------------------:|
-| **remu** | **5503**            |
-| Spike   | 11183               |
-| QEMU    | 23468               |
+| 模拟器   | microbench `ref` 分数 | guest 墙钟 |
+|---------|----------------------:|-----------:|
+| **remu** | **约 3800**            | 约 4.5 s   |
+| Spike    | 约 3700（开启 `--real-time-clint`） | 约 7 s |
 
-*该基准分数越高越好；上表为单次参考测试，实际会随 CPU、编译器与编译选项变化。*
+> 两个模拟器的原始 host cycles 相差约 10%。旧版 README 曾报告 Spike 快 2-3 倍——那是 **Spike 默认 mtime 按指令数推进** 造成的假象（guest 报时比墙钟快约 3.5 倍）。`just run-app … --platform spike` 现在会传 `--real-time-clint`，使 guest 时间跨平台可比。
 
-**参考运行环境**（上表分数在该机上测得；你的机器结果会不同）：
+分数会随 CPU 频率策略（注意 `scaling_governor`）、编译器与负载波动，仅作参考。若要做与频率无关的对比，请用 `perf stat -e cycles` 统计运行周期。
 
-| | |
-|--|--|
-| **操作系统** | Linux **x86_64**，**WSL2**（内核 `6.6.87.2-microsoft-standard-WSL2`） |
-| **CPU** | **Intel Core i5-13600KF**（虚拟机视角：**10 核 / 20 线程**，1 路） |
-| **内存** | **约 32 GiB** |
-
-**相对 remu 的速度（同一基准）：**
-
-| 对比 **remu** | 相对速度 |
-|--------------|----------|
-| Spike        | ~2.0×    |
-| QEMU         | ~4.3×    |
-| 作者先前用 C 写的 NEMU | remu 约 **10×** 更快 |
-
-**复现方式**（在完整拉取的 **[chip-dev](https://github.com/CodeWenjiu/chip-dev)** 仓库中，进入 **`am-zig/`** 目录执行）：
+**复现方式**（本仓库内）：
 
 ```bash
-cd am-zig
-BATCH=true just run <platform> riscv32 im am-microbench ref
+just run-app microbench riscv32im --platform remu --app-args ref -- --platform remu --batch --startup continue
+just run-app microbench riscv32im --platform spike --app-args ref
 ```
-
-将 **`<platform>`** 换成 `remu`、`spike`、`qemu` 等。**`BATCH=true`** 表示非交互跑完（与 remu 侧 `run-app` 里 `BATCH` 的用途一致）。
 
 ---
 
@@ -59,9 +42,10 @@ BATCH=true just run <platform> riscv32 im am-microbench ref
 
 remu 将 **调试器 / CLI（前端）与执行引擎（后端）分离**：
 
-- 可将 **多种模拟器** 作为后端接入（例如内置 Rust ISA 模型、Spike，或自行扩展的适配层）。
-- 内置 **差分测试（difftest）**：DUT 与 **参考模型** 同步推进，对比寄存器与内存状态，尽早发现语义偏差。
-- **硬件 / RTL** 可通过合适适配参与——例如 **Verilator** 周期模型——从而在与软件模拟器相同的前端与 difftest 设施下调试 HDL。
+- **多种模拟器** 可作为后端接入：`remu`（内置 Rust ISA 模型）、`spike`（随仓库提供的 C++ 参考实现）、`nzea`（Verilator RTL 协同仿真）。
+- 内置 **差分测试（difftest）**：DUT 与 **参考模型** 同步推进，对比寄存器与内存状态，尽早发现语义偏差（`--difftest remu` / `--difftest spike`）。
+- **硬件 / RTL** 通过 `nzea` 参与：Verilator 生成的定制核心周期模型，经 DPI 与前端通信，复用同一套 difftest 与交互前端。
+- `--platform none` 可在不带模拟器的情况下运行前端（例如仅调试命令）。
 
 这样在更换或组合 **快速功能级模型**、**周期精确 RTL** 与 **黄金参考模型** 时，交互与调试流程可以保持稳定。
 
@@ -69,14 +53,17 @@ remu 将 **调试器 / CLI（前端）与执行引擎（后端）分离**：
 
 ## 支持的 ISA
 
-目前仅 **RV32**（`--isa …`，默认 **`riscv32i`**）：
+仅 **RV32**（默认 `--isa riscv32i`）：
 
-| `--isa` 示例 | M | 向量（Zve32x，VLEN 128） |
-|-------------|---|-------------------------|
-| `riscv32i` / `rv32i` | | |
-| `riscv32im` / `rv32im` | ✓ | |
-| `rv32i_zve32x_zvl128b` | | ✓ |
-| `rv32im_zve32x_zvl128b` | ✓ | ✓ |
+| `--isa` 示例 | M | 向量（Zve32x，VLEN 128） | wjCus0（自定义） |
+|-------------|---|-------------------------|-----------------|
+| `riscv32i` / `rv32i` | | | |
+| `riscv32im` / `rv32im` | ✓ | | |
+| `rv32i_zve32x_zvl128b` | | ✓ | |
+| `rv32im_zve32x_zvl128b` | ✓ | ✓ | |
+| `riscv32i_wjCus0` / `riscv32im_wjCus0` | （im 版带 ✓） | | ✓ |
+
+`wjCus0` 变体启用 MNIST 应用使用的自定义协处理器扩展。完整矩阵与 target 字符串处理见 [`remu_hal/README-targets.md`](remu_hal/README-targets.md)。
 
 ---
 
@@ -85,15 +72,17 @@ remu 将 **调试器 / CLI（前端）与执行引擎（后端）分离**：
 | 目录 | 作用 |
 |------|------|
 | `remu_cli` / `remu_debugger` | 交互式 shell 与调试命令 |
-| `remu_simulator` | 模拟器抽象与具体后端（`remu`、Spike 等） |
-| `remu_state`, `remu_types` | 体系结构状态、CSR、ISA 类型 |
-| `remu_hal`, `remu_app/*` | 嵌入式 HAL（`riscv-rt`、`embedded-hal`、`embedded-io` 等）与可运行的 `no_std` 应用 — [English](remu_hal/README.md) · **[remu_hal/README_zh.md](remu_hal/README_zh.md)** |
+| `remu_simulator` | 模拟器抽象与具体后端：`simulators/remu`、`simulators/spike`、`simulators/nzea` |
+| `remu_state`, `remu_types`, `remu_isa` | 体系结构状态、总线/设备、ISA 类型 |
+| `remu_hal`, `remu_app/*` | 嵌入式 HAL（`riscv-rt`、`embedded-hal`、`embedded-io` 等）与可运行的 `no_std` 应用：`hello_world`、`collection`、`display`/`shader`、`microbench`、`mnist`、`nes`、`slint` — [English](remu_hal/README.md) · **[remu_hal/README_zh.md](remu_hal/README_zh.md)** |
+
+`remu_state` 的总线模型包含内存区域与设备（UART 16550、SiFive test finisher、CLINT，以及基于 winit 窗口的交互式 `display` / `mouse` / `keyboard`）。设备与内存配置可通过 `--dev-base` / `--mem-base` 从文件加载。
 
 ---
 
 ## 环境与工作流（Nix、direnv、just）
 
-**推荐开发环境由 Nix 提供**（[`flake.nix`](flake.nix)）：**Rust nightly**（含 `rust-src`、`clippy`、`rust-analyzer`、`llvm-tools-preview`）、**RISC-V bare-metal 目标**（`riscv32i` / `im` / `imac-unknown-none-elf`）、**Verilator**、**clang/libclang**、**mold**、**`just`** 等。
+**推荐开发环境由 Nix 提供**（[`flake.nix`](flake.nix)）：**Rust nightly**（含 `rust-src`、`clippy`、`rust-analyzer`、`llvm-tools-preview`）、**RISC-V bare-metal 目标**（`riscv32i` / `im` / `imac-unknown-none-elf`）、**Verilator**、**clang/libclang**、**mold**、**qemu**、**`just`** 等。
 
 ### Nix + direnv
 
@@ -127,19 +116,34 @@ just run-app hello_world
 just run-app mnist riscv32im_zve32x_zvl128b
 ```
 
+**`run-app` 平台选择：** `--platform` 配方参数会路由到不同的运行方式：
+
+| `--platform` | 行为 |
+|--------------|------|
+| `remu`（默认） | 在 `remu_cli` 下用内置模拟器运行 |
+| `spike` | 构建 Spike 适用的 ELF 并用原生 `spike` 二进制运行（带 `--real-time-clint`） |
+| `qemu` | 用 `qemu-system-riscv32` 运行 |
+| `host` | 在宿主机上原生运行应用（Rust `std`），不经过模拟器 |
+
 **临时环境变量（`run-app` / 嵌入式 `cargo run`）：** 应用由 `remu_hal/scripts/remu-cargo-runner.sh` 拉起，其中通过 **xtask** 生成 `remu_cli` 命令。在与 **`just` 同一行**（或当前 shell）设置下列变量，即可传入对应 CLI 选项（需在 runner 执行时可见）：
 
 | 变量 | 作用 |
 |------|------|
-| **`PLATFORM`** | 传给 `remu_cli` 的 `--platform`：`remu`（CLI 默认）、`spike`、`nzea`、`none` |
+| **`REMU_APP_ARGS`** | 通过 app-args 桥把参数传给嵌入式应用（`--app-args`）；例如 microbench 用 `REMU_APP_ARGS=ref` |
 | **`DIFFTEST`** | 打开差分测试并指定参考模型：`spike` 或 `remu`；**不设 / 清空 = 关闭** |
 | **`DEV`** | 若设置（任意值），`print run-remu` 用 **debug** 版宿主 `remu_cli`（`cargo run -p remu_cli` 不加 `--release`）。**嵌入式 `remu_app_*` 仍为 `--release`**（`run-app` / `build-app` 不变） |
 | **`BATCH`** | 只要已设置（任意值），会加上 `--batch --startup continue`，用于非交互跑完 |
 
-示例：在 **remu** 平台上跑 **mnist**，并以 **Spike** 为 difftest 参考：
+示例：在 **remu** 上以 `ref` 规模非交互跑 **microbench**：
 
 ```bash
-PLATFORM=remu DIFFTEST=spike just run-app mnist riscv32im_zve32x_zvl128b
+REMU_APP_ARGS=ref BATCH=true just run-app microbench riscv32im
+```
+
+示例：以 **Spike** 为 difftest 参考跑 **mnist**：
+
+```bash
+DIFFTEST=spike just run-app mnist riscv32im_zve32x_zvl128b
 ```
 
 另有 `look`、`step-sizes` 等用于汇编 / 体量分析，执行 **`just --list`** 查看。
