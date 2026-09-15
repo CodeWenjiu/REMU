@@ -1,5 +1,6 @@
 //! funct3 = 0b100: OP-IVX
 
+use remu_isa::WordOps;
 use remu_isa::isa::reg::RegAccess;
 
 use crate::riscv::{DecodedInst, opcode::OP_V::OpIvxInst};
@@ -20,7 +21,7 @@ pub(crate) fn execute<P: remu_state::StatePolicy, C: crate::ExecuteContext<P>>(
 ) -> Result<(), remu_state::StateError> {
     match op {
         OpIvxInst::Vmerge_vxm => {
-            let scalar = ctx.state_mut().reg.gpr.raw_read(decoded.rs1.into());
+            let scalar = ctx.state_mut().reg.gpr.raw_read(decoded.rs1.into()).to_u32();
             vector_element_loop(
                 ctx,
                 decoded.rd as usize,
@@ -36,7 +37,7 @@ pub(crate) fn execute<P: remu_state::StatePolicy, C: crate::ExecuteContext<P>>(
             )
         }
         OpIvxInst::Vadd_vx => {
-            let scalar = ctx.state_mut().reg.gpr.raw_read(decoded.rs1.into()) as u64;
+            let scalar = ctx.state_mut().reg.gpr.raw_read(decoded.rs1.into()).to_u64();
             vector_element_loop(
                 ctx,
                 decoded.rd as usize,
@@ -52,7 +53,7 @@ pub(crate) fn execute<P: remu_state::StatePolicy, C: crate::ExecuteContext<P>>(
             )
         }
         OpIvxInst::Vand_vx => {
-            let scalar = ctx.state_mut().reg.gpr.raw_read(decoded.rs1.into()) as u64;
+            let scalar = ctx.state_mut().reg.gpr.raw_read(decoded.rs1.into()).to_u64();
             vector_element_loop(
                 ctx,
                 decoded.rd as usize,
@@ -69,7 +70,7 @@ pub(crate) fn execute<P: remu_state::StatePolicy, C: crate::ExecuteContext<P>>(
         }
         OpIvxInst::Vmslt_vx => {
             let vctx = VContext::from_state::<P, C>(ctx);
-            let scalar = ctx.state_mut().reg.gpr.raw_read(decoded.rs1.into());
+            let scalar = ctx.state_mut().reg.gpr.raw_read(decoded.rs1.into()).to_u32();
             vector_mask_cmp::<P, C, _>(
                 ctx,
                 decoded.rd as usize,
@@ -81,7 +82,7 @@ pub(crate) fn execute<P: remu_state::StatePolicy, C: crate::ExecuteContext<P>>(
         }
         OpIvxInst::Vmseq_vx => {
             let vctx = VContext::from_state::<P, C>(ctx);
-            let scalar = ctx.state_mut().reg.gpr.raw_read(decoded.rs1.into());
+            let scalar = ctx.state_mut().reg.gpr.raw_read(decoded.rs1.into()).to_u32();
             vector_mask_cmp::<P, C, _>(
                 ctx,
                 decoded.rd as usize,
@@ -92,7 +93,7 @@ pub(crate) fn execute<P: remu_state::StatePolicy, C: crate::ExecuteContext<P>>(
             )
         }
         OpIvxInst::Vsll_vx => {
-            let rs1 = ctx.state_mut().reg.gpr.raw_read(decoded.rs1.into());
+            let rs1 = ctx.state_mut().reg.gpr.raw_read(decoded.rs1.into()).to_u32();
             vector_element_loop(
                 ctx,
                 decoded.rd as usize,
@@ -108,7 +109,7 @@ pub(crate) fn execute<P: remu_state::StatePolicy, C: crate::ExecuteContext<P>>(
             )
         }
         OpIvxInst::Vsrl_vx => {
-            let rs1 = ctx.state_mut().reg.gpr.raw_read(decoded.rs1.into());
+            let rs1 = ctx.state_mut().reg.gpr.raw_read(decoded.rs1.into()).to_u32();
             vector_element_loop(
                 ctx,
                 decoded.rd as usize,

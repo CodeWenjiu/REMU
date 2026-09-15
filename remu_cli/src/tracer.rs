@@ -6,7 +6,7 @@ use remu_isa::isa::{
     IsaSpec,
     reg::{Fpr, Gpr},
 };
-use remu_types::{DynDiagError, StatKind, Tracer};
+use remu_types::{AllUsize, DynDiagError, StatKind, Tracer};
 use tabled::{
     Table, Tabled,
     settings::{Color, Style, object::Columns},
@@ -67,7 +67,11 @@ pub(crate) struct MemTable {
     byte_mask: u8,
 }
 
-fn fmt_hex(v: &u32) -> String {
+fn fmt_hex(v: &AllUsize) -> String {
+    format!("{v}")
+}
+
+fn fmt_hex_u32(v: &u32) -> String {
     format!("0x{v:08x}")
 }
 
@@ -76,13 +80,13 @@ pub(crate) struct RegTable {
     #[tabled()]
     register: Gpr,
     #[tabled(display = "fmt_hex")]
-    data: u32,
+    data: AllUsize,
 }
 
 #[derive(Tabled)]
 pub(crate) struct FprTable {
     register: String,
-    #[tabled(display = "fmt_hex")]
+    #[tabled(display = "fmt_hex_u32")]
     data: u32,
 }
 
@@ -227,15 +231,15 @@ impl Tracer for CLITracer {
         println!("{table}");
     }
 
-    fn reg_print(&self, regs: &[(Gpr, u32); 32], range: Range<usize>) {
+    fn reg_print(&self, regs: &[(Gpr, remu_isa::AllUsize); 32], range: Range<usize>) {
         // `range` is a half-open index range over the regs slice (start..end).
         // Clamp to slice bounds to avoid panics and make UX nicer.
         let start = range.start.min(regs.len());
         let end = range.end.min(regs.len());
 
-        let mut table = Table::new(regs[start..end].iter().map(|&(reg, data)| RegTable {
+        let mut table = Table::new(regs[start..end].iter().map(|&(reg, ref data)| RegTable {
             register: reg,
-            data,
+            data: data.clone(),
         }));
         table.with(Style::rounded());
         table.modify(Columns::one(0), Color::FG_YELLOW);
@@ -243,16 +247,16 @@ impl Tracer for CLITracer {
         println!("{table}");
     }
 
-    fn reg_show(&self, index: Gpr, data: u32) {
+    fn reg_show(&self, index: Gpr, data: remu_isa::AllUsize) {
         println!(
             "index: {}, data: {}",
             format!("{}", index).yellow(),
-            format!("0x{:08x}", data).blue()
+            format!("{}", data).blue()
         )
     }
 
-    fn reg_show_pc(&self, data: u32) {
-        println!("pc: {}", format!("0x{:08x}", data).blue())
+    fn reg_show_pc(&self, data: remu_isa::AllUsize) {
+        println!("pc: {}", format!("{}", data).blue())
     }
 
     fn reg_show_fpr(&self, index: usize, data: u32) {

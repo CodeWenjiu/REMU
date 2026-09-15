@@ -1,6 +1,7 @@
 //! RISC-V SYSTEM opcode: ECALL, EBREAK, CSR read/write (CSRRW, CSRRS, ...).
 
 use remu_isa::isa::reg::{Csr as CsrKind, RegAccess};
+use remu_isa::{WordOps, Xlen};
 
 use crate::riscv::{DecodedInst, Inst, csr, funct3, opcode::UNKNOWN, rd, rs1};
 
@@ -86,28 +87,31 @@ fn do_csr<P: remu_state::StatePolicy>(
     k: CsrKind,
     old_val: u32,
     new_val: u32,
-    pc: u32,
-) -> Result<u32, remu_state::StateError> {
+    pc: <P::ISA as remu_isa::isa::RvIsa>::XLEN,
+) -> Result<<P::ISA as remu_isa::isa::RvIsa>::XLEN, remu_state::StateError> {
     state.reg.csr.write(k, new_val);
-    state.reg.gpr.raw_write(decoded.rd.into(), old_val);
+    state
+        .reg
+        .gpr
+        .raw_write(decoded.rd.into(), <<P as remu_state::StatePolicy>::ISA as remu_isa::isa::RvIsa>::XLEN::from_u64(old_val as u64));
     if csr_write_dirties_vector_state(k, old_val, new_val) {
         state.reg.csr.set_mstatus_vs_dirty();
     }
-    Ok(pc.wrapping_add(4))
+    Ok(pc.wrapping_add(<<P as remu_state::StatePolicy>::ISA as remu_isa::isa::RvIsa>::XLEN::from_u64(4)))
 }
 
 #[inline(always)]
 pub(crate) fn execute<P: remu_state::StatePolicy, C: crate::ExecuteContext<P>>(
     ctx: &mut C,
     decoded: &DecodedInst,
-    pc: u32,
-) -> Result<u32, remu_state::StateError> {
+    pc: <P::ISA as remu_isa::isa::RvIsa>::XLEN,
+) -> Result<<P::ISA as remu_isa::isa::RvIsa>::XLEN, remu_state::StateError> {
     let state = ctx.state_mut();
     let Inst::System(sys) = decoded.inst else {
         unreachable!()
     };
     match sys {
-        SystemInst::Ecall => Ok(pc.wrapping_add(4)),
+        SystemInst::Ecall => Ok(pc.wrapping_add(<<P as remu_state::StatePolicy>::ISA as remu_isa::isa::RvIsa>::XLEN::from_u64(4))),
         SystemInst::Ebreak => ctx.on_ebreak(pc),
         SystemInst::Csrrw
         | SystemInst::Csrrs
@@ -120,7 +124,7 @@ pub(crate) fn execute<P: remu_state::StatePolicy, C: crate::ExecuteContext<P>>(
                 Some(k) => k,
                 None => {
                     return Err(remu_state::StateError::UnimplementedCsr {
-                        pc,
+                        pc: pc.to_u32(),
                         csr_addr: csr_imm,
                         imm_raw: decoded.imm,
                     });
@@ -131,9 +135,9 @@ pub(crate) fn execute<P: remu_state::StatePolicy, C: crate::ExecuteContext<P>>(
             }
             let old = state.reg.read_csr(k);
             let new_val = match sys {
-                SystemInst::Csrrw => state.reg.gpr.raw_read(decoded.rs1.into()),
-                SystemInst::Csrrs => old | state.reg.gpr.raw_read(decoded.rs1.into()),
-                SystemInst::Csrrc => old & !state.reg.gpr.raw_read(decoded.rs1.into()),
+                SystemInst::Csrrw => state.reg.gpr.raw_read(decoded.rs1.into()).to_u32(),
+                SystemInst::Csrrs => old | state.reg.gpr.raw_read(decoded.rs1.into()).to_u32(),
+                SystemInst::Csrrc => old & !state.reg.gpr.raw_read(decoded.rs1.into()).to_u32(),
                 SystemInst::Csrrwi => decoded.rs1 as u32,
                 SystemInst::Csrrsi => old | (decoded.rs1 as u32),
                 SystemInst::Csrrci => old & !(decoded.rs1 as u32),

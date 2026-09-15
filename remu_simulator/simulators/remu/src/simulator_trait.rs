@@ -11,6 +11,7 @@ use remu_simulator::{
 
 use crate::icache::Icache;
 use crate::riscv::{DecodedInst, decode};
+use remu_isa::WordOps;
 use remu_state::StatePolicy;
 
 const ICACHE_SIZE: usize = 1 << 16;
@@ -36,8 +37,11 @@ pub(crate) trait ExecuteContext<P: StatePolicy> {
 
     /// Called when ebreak is executed. Default: stop (breakpoint hit).
     /// On success returns the new PC (the breakpointed instruction ran).
-    fn on_ebreak(&mut self, pc: u32) -> Result<u32, StateError> {
-        Err(StateError::BreakpointHit(pc))
+    fn on_ebreak(
+        &mut self,
+        pc: <P::ISA as remu_isa::isa::RvIsa>::XLEN,
+    ) -> Result<<P::ISA as remu_isa::isa::RvIsa>::XLEN, StateError> {
+        Err(StateError::BreakpointHit(pc.to_u32()))
     }
 }
 
@@ -58,17 +62,20 @@ impl<P: SimulatorPolicy, const IS_DUT: bool> ExecuteContext<P> for SimulatorRemu
     fn flush_icache(&mut self) {
         self.icache.flush();
     }
-    fn on_ebreak(&mut self, pc: u32) -> Result<u32, StateError> {
+    fn on_ebreak(
+        &mut self,
+        pc: <P::ISA as remu_isa::isa::RvIsa>::XLEN,
+    ) -> Result<<P::ISA as remu_isa::isa::RvIsa>::XLEN, StateError> {
         if !IS_DUT {
-            return Err(StateError::BreakpointHit(pc));
+            return Err(StateError::BreakpointHit(pc.to_u32()));
         }
         match self.breakpoint_state {
             BreakpointState::Idle => {
                 self.breakpoint_state = BreakpointState::Active;
-                Err(StateError::BreakpointHit(pc))
+                Err(StateError::BreakpointHit(pc.to_u32()))
             }
             BreakpointState::Active => {
-                let orig = self.breakpoints.get(&pc).copied().unwrap();
+                let orig = self.breakpoints.get(&pc.to_u32()).copied().unwrap();
                 let decoded = decode::<P>(orig);
                 let new_pc = self.execute_inst(&decoded, pc)?;
                 self.breakpoint_state = BreakpointState::Idle;
@@ -85,8 +92,8 @@ impl<P: SimulatorPolicy, const IS_DUT: bool> SimulatorRemu<P, IS_DUT> {
     fn execute_inst(
         &mut self,
         decoded: &crate::riscv::DecodedInst,
-        pc: u32,
-    ) -> Result<u32, StateError> {
+        pc: <P::ISA as remu_isa::isa::RvIsa>::XLEN,
+    ) -> Result<<P::ISA as remu_isa::isa::RvIsa>::XLEN, StateError> {
         crate::riscv::execute(self, decoded, pc)
     }
 
@@ -97,49 +104,50 @@ impl<P: SimulatorPolicy, const IS_DUT: bool> SimulatorRemu<P, IS_DUT> {
     #[inline(always)]
     fn step_once_at<const TRACE: u64>(
         &mut self,
-        pc: u32,
+        pc: <P::ISA as remu_isa::isa::RvIsa>::XLEN,
         data_ptr: *mut crate::icache::CacheEntry,
-    ) -> Result<u32, SimulatorInnerError> {
+    ) -> Result<<P::ISA as remu_isa::isa::RvIsa>::XLEN, SimulatorInnerError> {
         use remu_types::TraceFlags;
         // The `decoded` reference passed to execution aliases the cache line
         // directly, avoiding a stack copy of `DecodedInst` on every hit.
         // Safety: the I-cache is never moved or dropped while `self` is alive;
         // `execute_inst` only re-borrows `&mut self` and never writes the
         // cache line (the cache is separate from `state`, so no aliasing).
-        let entry_ptr = unsafe { data_ptr.add((pc as usize) & (ICACHE_SIZE - 1)) };
+        let pc_u32 = pc.to_u32();
+        let entry_ptr = unsafe { data_ptr.add((pc.to_usize() as usize) & (ICACHE_SIZE - 1)) };
         let entry = unsafe { &mut *entry_ptr };
-        if entry.addr == pc {
+        if entry.addr == pc_u32 {
             let decoded: &DecodedInst = unsafe { &(*entry_ptr).decoded };
             let new_pc = self.execute_inst(decoded, pc).map_err(from_state_error)?;
             if TraceFlags::instruction(TRACE) && IS_DUT {
-                let inst = if let Some(&orig) = self.breakpoints.get(&pc) {
+                let inst = if let Some(&orig) = self.breakpoints.get(&pc_u32) {
                     orig
                 } else {
                     self.state
                         .bus
-                        .read_32(pc as usize)
+                        .read_32(pc.to_usize())
                         .map_err(|e| from_state_error(StateError::from(e)))
                         .unwrap()
                 };
-                self.tracer.borrow().disasm(pc as u64, inst);
+                self.tracer.borrow().disasm(pc.to_u64(), inst);
             }
             return Ok(new_pc);
         }
         let inst = self
             .state
             .bus
-            .read_32(pc as usize)
+            .read_32(pc.to_usize())
             .map_err(|e| from_state_error(StateError::from(e)))?;
         if TraceFlags::instruction(TRACE) && IS_DUT {
-            let trace_inst = if let Some(&orig) = self.breakpoints.get(&pc) {
+            let trace_inst = if let Some(&orig) = self.breakpoints.get(&pc_u32) {
                 orig
             } else {
                 inst
             };
-            self.tracer.borrow().disasm(pc as u64, trace_inst);
+            self.tracer.borrow().disasm(pc.to_u64(), trace_inst);
         }
         let d = decode::<P>(inst);
-        entry.addr = pc;
+        entry.addr = pc_u32;
         entry.decoded = d;
         self.execute_inst(&d, pc).map_err(from_state_error)
     }

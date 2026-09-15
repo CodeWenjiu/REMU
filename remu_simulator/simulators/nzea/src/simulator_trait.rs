@@ -20,6 +20,8 @@ use crate::Watchdog;
 use crate::{CommitMsg, NzeaDpi, clear_nzea, set_nzea};
 use crate::{ensure_nzea_loaded, get_nzea_fns};
 use remu_isa::isa::reg::{Csr as CsrKind, RegAccess};
+use remu_isa::WordOps;
+use remu_isa::Xlen;
 
 /// True after the first time wavetrace is enabled in this process; then we do not open trace.fst again,
 /// so a later run with wavetrace off does not overwrite the file.
@@ -212,8 +214,8 @@ where
         }
         if TraceFlags::instruction(TRACE) && IS_DUT {
             let pc = *self.state.reg.pc;
-            let inst = self.state.bus.read_32(pc as usize).unwrap_or(0);
-            self.tracer.borrow().disasm(pc as u64, inst);
+            let inst = self.state.bus.read_32(pc.to_usize()).unwrap_or(0);
+            self.tracer.borrow().disasm(pc.to_u64(), inst);
         }
         self.apply_commit(msg);
         Ok(())
@@ -300,17 +302,17 @@ where
     /// Apply a commit to state (for difftest).
     fn apply_commit(&mut self, msg: CommitMsg) {
         self.last_commit_is_mmio = msg.is_mmio;
-        *self.state.reg.pc = msg.next_pc;
+        *self.state.reg.pc = <<<P as remu_state::StatePolicy>::ISA as remu_isa::isa::RvIsa>::XLEN as Xlen>::from_u64(msg.next_pc as u64).into();
         if msg.csr_valid {
             if let Some(csr) = CsrKind::from_repr(msg.csr_addr as u16) {
                 self.state.reg.csr.write(csr, msg.csr_data);
             }
         }
         if msg.gpr_addr < 32 && msg.gpr_addr != 0 {
-            self.state
-                .reg
-                .gpr
-                .raw_write(msg.gpr_addr as usize, msg.gpr_data);
+            self.state.reg.gpr.raw_write(
+                msg.gpr_addr as usize,
+                Xlen::from_u64(msg.gpr_data as u64),
+            );
         }
     }
 }

@@ -8,7 +8,8 @@ use remu_debugger::{DebuggerOption, DebuggerRunner};
 use remu_harness::RemuIsaKind;
 use remu_isa::isa::IsaKind;
 use remu_isa::isa::extension_enum::{
-    RV32I, RV32I_wjCus0, RV32I_zve32x_zvl128b, RV32IM, RV32IM_wjCus0, RV32IM_zve32x_zvl128b,
+    RV32I, RV32I_wjCus0, RV32I_zve32x_zvl128b, RV32IM, RV32IM_wjCus0, RV32IM_zve32x_zvl128b, RV64I,
+    RV64IM,
 };
 use remu_simulator_nzea::NzeaIsaKind;
 use remu_types::{DifftestRef, Platform};
@@ -32,6 +33,8 @@ macro_rules! dispatch_remu {
             RemuIsaKind::Rv32ImZve32xZvl128b => {
                 $runner.run_with_config::<$Config<RV32IM_zve32x_zvl128b>>($opt, $irq)
             }
+            RemuIsaKind::Rv64I => $runner.run_with_config::<$Config<RV64I>>($opt, $irq),
+            RemuIsaKind::Rv64Im => $runner.run_with_config::<$Config<RV64IM>>($opt, $irq),
         }
     };
 }

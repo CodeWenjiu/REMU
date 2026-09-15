@@ -1,6 +1,7 @@
 use remu_isa::isa::extension_v::VExtensionConfig;
 use remu_isa::isa::reg::{Csr as CsrKind, Gpr, VrState as VrStateTrait};
 use remu_isa::isa::{RvIsa, reg::RegAccess};
+use remu_isa::{AllUsize, Xlen};
 
 use super::Csr;
 use crate::reg::{CsrRegCmd, FprRegCmd, GprRegCmd, PcRegCmd, RegCmd, RegOption, VrRegCmd};
@@ -17,13 +18,20 @@ pub struct RiscvReg<I: RvIsa> {
 impl<I: RvIsa> RiscvReg<I> {
     pub(crate) fn new(opt: RegOption, tracer: remu_types::TracerDyn) -> Self {
         Self {
-            pc: opt.init_pc.into(),
+            pc: I::XLEN::from_u64(opt.init_pc as u64).into(),
             gpr: Default::default(),
             fpr: Default::default(),
             vr: Default::default(),
             csr: Csr::default(),
             tracer,
         }
+    }
+
+    /// Convert an XLEN word into the display/difftest union type.
+    #[inline(always)]
+    fn to_all(w: I::XLEN) -> AllUsize {
+        use remu_isa::isa::reg::IntoAllUsize;
+        w.into_all()
     }
 
     /// Read CSR value: from state for stateful CSRs, from ISA for read-only (e.g. Misa).
@@ -48,10 +56,10 @@ impl<I: RvIsa> RiscvReg<I> {
     fn execute_pc(&mut self, cmd: &PcRegCmd) {
         match cmd {
             PcRegCmd::Read => {
-                self.tracer.borrow().reg_show_pc(*self.pc);
+                self.tracer.borrow().reg_show_pc(Self::to_all(*self.pc));
             }
             PcRegCmd::Write { value } => {
-                *self.pc = (*value).into();
+                *self.pc = I::XLEN::from_u64((*value) as u64).into();
             }
         }
     }
@@ -73,19 +81,19 @@ impl<I: RvIsa> RiscvReg<I> {
     fn execute_gpr(&mut self, cmd: &GprRegCmd) {
         match cmd {
             GprRegCmd::Read { index } => {
-                self.tracer
-                    .borrow()
-                    .reg_show(*index, self.gpr.raw_read(index.idx()));
+                let v = self.gpr.raw_read(index.idx());
+                self.tracer.borrow().reg_show(*index, Self::to_all(v));
             }
             GprRegCmd::Print { range } => {
-                let regs: [(Gpr, u32); 32] = core::array::from_fn(|i| {
+                let regs: [(Gpr, AllUsize); 32] = core::array::from_fn(|i| {
                     let reg = Gpr::from_repr(i).expect("valid RISC-V GPR index (0..=31)");
-                    (reg, self.gpr[i])
+                    (reg, Self::to_all(self.gpr[i]))
                 });
                 self.tracer.borrow().reg_print(&regs, range.clone());
             }
             GprRegCmd::Write { index, value } => {
-                self.gpr.raw_write(index.idx(), *value);
+                self.gpr
+                    .raw_write(index.idx(), I::XLEN::from_u64((*value) as u64));
             }
         }
     }

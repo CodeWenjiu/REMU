@@ -1,6 +1,7 @@
 use remu_isa::isa::RvIsa;
 use remu_isa::isa::extension_v::VExtensionConfig;
 use remu_isa::isa::reg::{RegAccess, VectorCsrState, VrState};
+use remu_isa::{WordOps, Xlen};
 use remu_state::StateError;
 
 use crate::riscv::{DecodedInst, Inst, funct3, opcode::UNKNOWN, rd, rs1};
@@ -118,8 +119,8 @@ pub(crate) fn decode<P: remu_state::StatePolicy>(inst: u32) -> DecodedInst {
 pub(crate) fn execute<P: remu_state::StatePolicy, C: crate::ExecuteContext<P>>(
     ctx: &mut C,
     decoded: &DecodedInst,
-    _pc: u32,
-) -> Result<u32, remu_state::StateError> {
+    _pc: <P::ISA as remu_isa::isa::RvIsa>::XLEN,
+) -> Result<<P::ISA as remu_isa::isa::RvIsa>::XLEN, remu_state::StateError> {
     let Inst::StoreFp(store) = decoded.inst else {
         unreachable!()
     };
@@ -137,18 +138,26 @@ pub(crate) fn execute<P: remu_state::StatePolicy, C: crate::ExecuteContext<P>>(
                 let state = ctx.state_mut();
                 let vlenb = <<P::ISA as RvIsa>::VConfig as VExtensionConfig>::VLENB as usize;
                 let vs3 = decoded.rd as usize;
-                let base = state.reg.gpr.raw_read(decoded.rs1.into()) as usize;
+                let base = state.reg.gpr.raw_read(decoded.rs1.into()).to_usize();
                 const NREGS: usize = 2;
                 for r in 0..NREGS {
                     let chunk = state.reg.vr.raw_read(vs3 + r);
                     for (j, &byte) in chunk.iter().enumerate() {
                         state
                             .bus
-                            .write_8(base.wrapping_add(r * vlenb).wrapping_add(j), byte)
+                            .write_8(
+                                base.wrapping_add((r * vlenb) as usize)
+                                    .wrapping_add(j as usize),
+                                byte,
+                            )
                             .map_err(StateError::from)?;
                     }
                 }
-                *state.reg.pc = state.reg.pc.wrapping_add(4);
+                *state.reg.pc = state.reg.pc.wrapping_add(
+                    <<P as remu_state::StatePolicy>::ISA as remu_isa::isa::RvIsa>::XLEN::from_u64(
+                        4,
+                    ),
+                );
             } else {
                 unsafe { core::hint::unreachable_unchecked() }
             }
@@ -170,10 +179,14 @@ pub(crate) fn execute<P: remu_state::StatePolicy, C: crate::ExecuteContext<P>>(
                 for (i, &byte) in data.iter().enumerate() {
                     state
                         .bus
-                        .write_8(rs1_val.wrapping_add(i as u32) as usize, byte)
+                        .write_8(rs1_val.to_usize().wrapping_add(i as usize), byte)
                         .map_err(StateError::from)?;
                 }
-                *state.reg.pc = state.reg.pc.wrapping_add(4);
+                *state.reg.pc = state.reg.pc.wrapping_add(
+                    <<P as remu_state::StatePolicy>::ISA as remu_isa::isa::RvIsa>::XLEN::from_u64(
+                        4,
+                    ),
+                );
             } else {
                 unsafe { core::hint::unreachable_unchecked() }
             }
@@ -213,10 +226,14 @@ pub(crate) fn execute<P: remu_state::StatePolicy, C: crate::ExecuteContext<P>>(
                     let chunk = state.reg.vr.raw_read(vs3 + reg_i);
                     state
                         .bus
-                        .write_8(base.wrapping_add(i) as usize, chunk[off])
+                        .write_8(base.to_usize().wrapping_add((i) as usize), chunk[off])
                         .map_err(StateError::from)?;
                 }
-                *state.reg.pc = state.reg.pc.wrapping_add(4);
+                *state.reg.pc = state.reg.pc.wrapping_add(
+                    <<P as remu_state::StatePolicy>::ISA as remu_isa::isa::RvIsa>::XLEN::from_u64(
+                        4,
+                    ),
+                );
             } else {
                 unsafe { core::hint::unreachable_unchecked() }
             }
@@ -257,10 +274,14 @@ pub(crate) fn execute<P: remu_state::StatePolicy, C: crate::ExecuteContext<P>>(
                     let val = u16::from_le_bytes(chunk[off..off + 2].try_into().unwrap());
                     state
                         .bus
-                        .write_16(base.wrapping_add(i.wrapping_mul(2)) as usize, val)
+                        .write_16(base.wrapping_add(<<P as remu_state::StatePolicy>::ISA as remu_isa::isa::RvIsa>::XLEN::from_u64((i.wrapping_mul(2)) as u64)).to_usize(), val)
                         .map_err(StateError::from)?;
                 }
-                *state.reg.pc = state.reg.pc.wrapping_add(4);
+                *state.reg.pc = state.reg.pc.wrapping_add(
+                    <<P as remu_state::StatePolicy>::ISA as remu_isa::isa::RvIsa>::XLEN::from_u64(
+                        4,
+                    ),
+                );
             } else {
                 unsafe { core::hint::unreachable_unchecked() }
             }
@@ -301,10 +322,14 @@ pub(crate) fn execute<P: remu_state::StatePolicy, C: crate::ExecuteContext<P>>(
                     let val = u32::from_le_bytes(chunk[off..off + 4].try_into().unwrap());
                     state
                         .bus
-                        .write_32(base.wrapping_add(i.wrapping_mul(4)) as usize, val)
+                        .write_32(base.wrapping_add(<<P as remu_state::StatePolicy>::ISA as remu_isa::isa::RvIsa>::XLEN::from_u64((i.wrapping_mul(4)) as u64)).to_usize(), val)
                         .map_err(StateError::from)?;
                 }
-                *state.reg.pc = state.reg.pc.wrapping_add(4);
+                *state.reg.pc = state.reg.pc.wrapping_add(
+                    <<P as remu_state::StatePolicy>::ISA as remu_isa::isa::RvIsa>::XLEN::from_u64(
+                        4,
+                    ),
+                );
             } else {
                 unsafe { core::hint::unreachable_unchecked() }
             }

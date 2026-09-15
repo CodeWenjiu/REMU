@@ -7,8 +7,8 @@ use crate::riscv::{
 pub(crate) fn execute<P: remu_state::StatePolicy, C: crate::ExecuteContext<P>>(
     ctx: &mut C,
     decoded: &DecodedInst,
-    _pc: u32,
-) -> Result<u32, remu_state::StateError> {
+    _pc: <P::ISA as remu_isa::isa::RvIsa>::XLEN,
+) -> Result<<P::ISA as remu_isa::isa::RvIsa>::XLEN, remu_state::StateError> {
     let v = match decoded.inst {
         Inst::V(v) => v,
         _ => return UNKNOWN::execute::<P, C>(ctx, decoded, _pc),
@@ -25,7 +25,7 @@ pub(crate) fn execute<P: remu_state::StatePolicy, C: crate::ExecuteContext<P>>(
         VInst::OpMvv(OpMvvInst::Vmv_x_s) | VInst::OpMvv(OpMvvInst::Vfirst_m)
     );
 
-    let r = match v {
+    let r: Result<(), remu_state::StateError> = match v {
         VInst::OpCfg(op) => super::op_cfg::execute(ctx, decoded, op),
         VInst::OpIvv(op) => super::op_ivv::execute(ctx, decoded, op),
         VInst::OpMvv(op) => super::op_mvv::execute(ctx, decoded, op),

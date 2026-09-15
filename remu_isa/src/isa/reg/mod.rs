@@ -1,84 +1,94 @@
 remu_macro::mod_prv!(gpr, fpr, vr);
 remu_macro::mod_pub!(csr);
 pub use csr::*;
-pub use gpr::Gpr;
 pub use fpr::Fpr;
+pub use gpr::Gpr;
 pub use vr::VrState;
 
 use core::ops::{Deref, DerefMut, Index};
 
 use crate::AllUsize;
+pub use crate::wordlen::{IntoAllUsize, Xlen};
 
 pub trait RegDiff {
     fn diff(ref_this: &Self, dut: &Self) -> Vec<(String, AllUsize, AllUsize)>;
 }
 
+/// PC state; the word is the ISA's XLEN type so RV32 and RV64 get distinct
+/// monomorphizations with no runtime dispatch.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
-pub struct PcState(pub u32);
+pub struct PcState<W: Xlen>(pub W);
 
-impl Deref for PcState {
-    type Target = u32;
+impl<W: Xlen> Deref for PcState<W> {
+    type Target = W;
     #[inline(always)]
-    fn deref(&self) -> &u32 {
+    fn deref(&self) -> &W {
         &self.0
     }
 }
-impl DerefMut for PcState {
+impl<W: Xlen> DerefMut for PcState<W> {
     #[inline(always)]
-    fn deref_mut(&mut self) -> &mut u32 {
+    fn deref_mut(&mut self) -> &mut W {
         &mut self.0
     }
 }
-impl From<u32> for PcState {
+impl<W: Xlen> From<W> for PcState<W> {
     #[inline(always)]
-    fn from(x: u32) -> Self {
+    fn from(x: W) -> Self {
         PcState(x)
     }
 }
-impl RegDiff for PcState {
-    fn diff(ref_this: &PcState, dut: &PcState) -> Vec<(String, AllUsize, AllUsize)> {
+impl<W: Xlen> PcState<W> {
+    #[inline(always)]
+    pub fn wrapping_add(self, rhs: W) -> Self {
+        PcState(self.0.wrapping_add(rhs))
+    }
+    #[inline(always)]
+    pub fn wrapping_sub(self, rhs: W) -> Self {
+        PcState(self.0.wrapping_sub(rhs))
+    }
+}
+impl<W: Xlen + IntoAllUsize> RegDiff for PcState<W> {
+    fn diff(ref_this: &PcState<W>, dut: &PcState<W>) -> Vec<(String, AllUsize, AllUsize)> {
         if ref_this.0 != dut.0 {
-            vec![(
-                "pc".to_string(),
-                AllUsize::U32(ref_this.0),
-                AllUsize::U32(dut.0),
-            )]
+            vec![("pc".to_string(), ref_this.0.into_all(), dut.0.into_all())]
         } else {
             vec![]
         }
     }
 }
 
+/// GPR state; the word is the ISA's XLEN type (see [`PcState`]).
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub struct GprState(pub [u32; 32]);
+pub struct GprState<W: Xlen>(pub [W; 32]);
 
-impl Default for GprState {
+impl<W: Xlen> Default for GprState<W> {
     fn default() -> Self {
-        GprState([0; 32])
+        GprState([W::default(); 32])
     }
 }
-impl RegAccess for GprState {
-    type Item = u32;
+impl<W: Xlen> RegAccess for GprState<W> {
+    type Item = W;
     #[inline(always)]
-    fn raw_read(&self, idx: usize) -> u32 {
+    fn raw_read(&self, idx: usize) -> W {
         self.0.raw_read(idx)
     }
     #[inline(always)]
-    fn raw_write(&mut self, idx: usize, val: u32) {
+    fn raw_write(&mut self, idx: usize, val: W) {
         if idx != 0 {
             self.0.raw_write(idx, val);
         }
     }
 }
-impl Index<usize> for GprState {
-    type Output = u32;
+impl<W: Xlen> Index<usize> for GprState<W> {
+    type Output = W;
     #[inline(always)]
-    fn index(&self, i: usize) -> &u32 {
+    fn index(&self, i: usize) -> &W {
         &self.0[i]
     }
 }
-impl RegDiff for GprState {
-    fn diff(ref_this: &GprState, dut: &GprState) -> Vec<(String, AllUsize, AllUsize)> {
+impl<W: Xlen + IntoAllUsize> RegDiff for GprState<W> {
+    fn diff(ref_this: &GprState<W>, dut: &GprState<W>) -> Vec<(String, AllUsize, AllUsize)> {
         (0..32)
             .filter_map(|i| {
                 let (r, d) = (ref_this.0.raw_read(i), dut.0.raw_read(i));
@@ -86,7 +96,7 @@ impl RegDiff for GprState {
                     let name = Gpr::from_repr(i)
                         .map(|g| g.to_string())
                         .unwrap_or_else(|| format!("x{i}"));
-                    Some((name, AllUsize::U32(r), AllUsize::U32(d)))
+                    Some((name, r.into_all(), d.into_all()))
                 } else {
                     None
                 }
@@ -144,30 +154,16 @@ pub trait RegAccess {
     fn raw_write(&mut self, idx: usize, val: Self::Item);
 }
 
-impl RegAccess for [u32; 32] {
-    type Item = u32;
+impl<W: Xlen> RegAccess for [W; 32] {
+    type Item = W;
 
     #[inline(always)]
-    fn raw_read(&self, idx: usize) -> Self::Item {
+    fn raw_read(&self, idx: usize) -> W {
         unsafe { *self.get_unchecked(idx) }
     }
 
     #[inline(always)]
-    fn raw_write(&mut self, idx: usize, val: Self::Item) {
-        unsafe { *self.get_unchecked_mut(idx) = val }
-    }
-}
-
-impl RegAccess for [u64; 32] {
-    type Item = u64;
-
-    #[inline(always)]
-    fn raw_read(&self, idx: usize) -> Self::Item {
-        unsafe { *self.get_unchecked(idx) }
-    }
-
-    #[inline(always)]
-    fn raw_write(&mut self, idx: usize, val: Self::Item) {
+    fn raw_write(&mut self, idx: usize, val: W) {
         unsafe { *self.get_unchecked_mut(idx) = val }
     }
 }

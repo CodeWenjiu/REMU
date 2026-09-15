@@ -1,5 +1,6 @@
 //! funct3 = 0b110: OP-MVX (vmv.s.x, vwmul.vx)
 
+use remu_isa::WordOps;
 use remu_isa::isa::reg::RegAccess;
 
 use crate::riscv::{DecodedInst, opcode::OP_V::OpMvxInst};
@@ -18,7 +19,7 @@ pub(crate) fn execute<P: remu_state::StatePolicy, C: crate::ExecuteContext<P>>(
     match op {
         OpMvxInst::Vwmul_vx => {
             let vctx = VContext::from_state::<P, C>(ctx);
-            let scalar = ctx.state_mut().reg.gpr.raw_read(decoded.rs1.into());
+            let scalar = ctx.state_mut().reg.gpr.raw_read(decoded.rs1.into()).to_u32();
             vector_wide_mul_vx::<P, C>(
                 ctx,
                 decoded.rd as usize,
@@ -28,11 +29,11 @@ pub(crate) fn execute<P: remu_state::StatePolicy, C: crate::ExecuteContext<P>>(
             )
         }
         OpMvxInst::Vmv_s_x => {
-            let scalar = ctx.state_mut().reg.gpr.raw_read(decoded.rs1.into());
+            let scalar = ctx.state_mut().reg.gpr.raw_read(decoded.rs1.into()).to_u32();
             vector_insert_scalar::<P, C>(ctx, decoded.rd as usize, scalar)
         }
         OpMvxInst::Vslide1down_vx => {
-            let rs1_x = ctx.state_mut().reg.gpr.raw_read(decoded.rs1.into());
+            let rs1_x = ctx.state_mut().reg.gpr.raw_read(decoded.rs1.into()).to_u32();
             vector_slide1down_vx::<P, C>(
                 ctx,
                 decoded.rd as usize,

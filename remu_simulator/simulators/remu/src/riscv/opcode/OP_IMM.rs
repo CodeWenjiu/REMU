@@ -1,4 +1,5 @@
 use remu_isa::isa::reg::RegAccess;
+use remu_isa::{WordOps, Xlen};
 
 use crate::riscv::{DecodedInst, Inst, funct3, funct7, imm_i, rd, rs1};
 
@@ -57,45 +58,53 @@ pub(crate) fn decode<P: remu_state::StatePolicy>(inst: u32) -> DecodedInst {
 fn finish<P: remu_state::StatePolicy, C: crate::ExecuteContext<P>>(
     ctx: &mut C,
     decoded: &DecodedInst,
-    pc: u32,
-    value: u32,
-) -> Result<u32, remu_state::StateError> {
+    pc: <P::ISA as remu_isa::isa::RvIsa>::XLEN,
+    value: <P::ISA as remu_isa::isa::RvIsa>::XLEN,
+) -> Result<<P::ISA as remu_isa::isa::RvIsa>::XLEN, remu_state::StateError> {
     let state = ctx.state_mut();
     state.reg.gpr.raw_write(decoded.rd.into(), value);
-    Ok(pc.wrapping_add(4))
+    Ok(pc.wrapping_add(<<P as remu_state::StatePolicy>::ISA as remu_isa::isa::RvIsa>::XLEN::from_u64(4)))
 }
 
 #[inline(always)]
 pub(crate) fn execute_addi<P: remu_state::StatePolicy, C: crate::ExecuteContext<P>>(
     ctx: &mut C,
     decoded: &DecodedInst,
-    pc: u32,
-) -> Result<u32, remu_state::StateError> {
+    pc: <P::ISA as remu_isa::isa::RvIsa>::XLEN,
+) -> Result<<P::ISA as remu_isa::isa::RvIsa>::XLEN, remu_state::StateError> {
     let state = ctx.state_mut();
     let rs1_val = state.reg.gpr.raw_read(decoded.rs1.into());
-    finish(ctx, decoded, pc, rs1_val.wrapping_add(decoded.imm))
+    finish(
+        ctx,
+        decoded,
+        pc,
+        rs1_val.wrapping_add(<<P as remu_state::StatePolicy>::ISA as remu_isa::isa::RvIsa>::XLEN::from_imm(decoded.imm)),
+    )
 }
 
 #[inline(always)]
 pub(crate) fn execute_slli<P: remu_state::StatePolicy, C: crate::ExecuteContext<P>>(
     ctx: &mut C,
     decoded: &DecodedInst,
-    pc: u32,
-) -> Result<u32, remu_state::StateError> {
+    pc: <P::ISA as remu_isa::isa::RvIsa>::XLEN,
+) -> Result<<P::ISA as remu_isa::isa::RvIsa>::XLEN, remu_state::StateError> {
     let state = ctx.state_mut();
     let rs1_val = state.reg.gpr.raw_read(decoded.rs1.into());
-    finish(ctx, decoded, pc, rs1_val.wrapping_shl(decoded.imm & 0x1F))
+    let shamt = decoded.imm & (<<P::ISA as remu_isa::isa::RvIsa>::XLEN as Xlen>::BITS - 1);
+    finish(ctx, decoded, pc, rs1_val.wrapping_shl(shamt))
 }
 
 #[inline(always)]
 pub(crate) fn execute_slti<P: remu_state::StatePolicy, C: crate::ExecuteContext<P>>(
     ctx: &mut C,
     decoded: &DecodedInst,
-    pc: u32,
-) -> Result<u32, remu_state::StateError> {
+    pc: <P::ISA as remu_isa::isa::RvIsa>::XLEN,
+) -> Result<<P::ISA as remu_isa::isa::RvIsa>::XLEN, remu_state::StateError> {
     let state = ctx.state_mut();
     let rs1_val = state.reg.gpr.raw_read(decoded.rs1.into());
-    let v = u32::from((rs1_val as i32) < (decoded.imm as i32));
+    let v = <<P as remu_state::StatePolicy>::ISA as remu_isa::isa::RvIsa>::XLEN::from_u64(u64::from(
+        rs1_val.to_signed() < <<P as remu_state::StatePolicy>::ISA as remu_isa::isa::RvIsa>::XLEN::from_imm(decoded.imm).to_signed(),
+    ));
     finish(ctx, decoded, pc, v)
 }
 
@@ -103,11 +112,11 @@ pub(crate) fn execute_slti<P: remu_state::StatePolicy, C: crate::ExecuteContext<
 pub(crate) fn execute_sltiu<P: remu_state::StatePolicy, C: crate::ExecuteContext<P>>(
     ctx: &mut C,
     decoded: &DecodedInst,
-    pc: u32,
-) -> Result<u32, remu_state::StateError> {
+    pc: <P::ISA as remu_isa::isa::RvIsa>::XLEN,
+) -> Result<<P::ISA as remu_isa::isa::RvIsa>::XLEN, remu_state::StateError> {
     let state = ctx.state_mut();
     let rs1_val = state.reg.gpr.raw_read(decoded.rs1.into());
-    let v = u32::from(rs1_val < decoded.imm);
+    let v = <<P as remu_state::StatePolicy>::ISA as remu_isa::isa::RvIsa>::XLEN::from_u64(u64::from(rs1_val < <<P as remu_state::StatePolicy>::ISA as remu_isa::isa::RvIsa>::XLEN::from_imm(decoded.imm)));
     finish(ctx, decoded, pc, v)
 }
 
@@ -115,33 +124,35 @@ pub(crate) fn execute_sltiu<P: remu_state::StatePolicy, C: crate::ExecuteContext
 pub(crate) fn execute_xori<P: remu_state::StatePolicy, C: crate::ExecuteContext<P>>(
     ctx: &mut C,
     decoded: &DecodedInst,
-    pc: u32,
-) -> Result<u32, remu_state::StateError> {
+    pc: <P::ISA as remu_isa::isa::RvIsa>::XLEN,
+) -> Result<<P::ISA as remu_isa::isa::RvIsa>::XLEN, remu_state::StateError> {
     let state = ctx.state_mut();
     let rs1_val = state.reg.gpr.raw_read(decoded.rs1.into());
-    finish(ctx, decoded, pc, rs1_val ^ decoded.imm)
+    finish(ctx, decoded, pc, rs1_val ^ <<P as remu_state::StatePolicy>::ISA as remu_isa::isa::RvIsa>::XLEN::from_imm(decoded.imm))
 }
 
 #[inline(always)]
 pub(crate) fn execute_srli<P: remu_state::StatePolicy, C: crate::ExecuteContext<P>>(
     ctx: &mut C,
     decoded: &DecodedInst,
-    pc: u32,
-) -> Result<u32, remu_state::StateError> {
+    pc: <P::ISA as remu_isa::isa::RvIsa>::XLEN,
+) -> Result<<P::ISA as remu_isa::isa::RvIsa>::XLEN, remu_state::StateError> {
     let state = ctx.state_mut();
     let rs1_val = state.reg.gpr.raw_read(decoded.rs1.into());
-    finish(ctx, decoded, pc, rs1_val.wrapping_shr(decoded.imm & 0x1F))
+    let shamt = decoded.imm & (<<P::ISA as remu_isa::isa::RvIsa>::XLEN as Xlen>::BITS - 1);
+    finish(ctx, decoded, pc, rs1_val.wrapping_shr(shamt))
 }
 
 #[inline(always)]
 pub(crate) fn execute_srai<P: remu_state::StatePolicy, C: crate::ExecuteContext<P>>(
     ctx: &mut C,
     decoded: &DecodedInst,
-    pc: u32,
-) -> Result<u32, remu_state::StateError> {
+    pc: <P::ISA as remu_isa::isa::RvIsa>::XLEN,
+) -> Result<<P::ISA as remu_isa::isa::RvIsa>::XLEN, remu_state::StateError> {
     let state = ctx.state_mut();
     let rs1_val = state.reg.gpr.raw_read(decoded.rs1.into());
-    let v = ((rs1_val as i32).wrapping_shr(decoded.imm & 0x1F)) as u32;
+    let shamt = decoded.imm & (<<P::ISA as remu_isa::isa::RvIsa>::XLEN as Xlen>::BITS - 1);
+    let v = Xlen::from_signed(rs1_val.to_signed().wrapping_shr(shamt));
     finish(ctx, decoded, pc, v)
 }
 
@@ -149,20 +160,20 @@ pub(crate) fn execute_srai<P: remu_state::StatePolicy, C: crate::ExecuteContext<
 pub(crate) fn execute_ori<P: remu_state::StatePolicy, C: crate::ExecuteContext<P>>(
     ctx: &mut C,
     decoded: &DecodedInst,
-    pc: u32,
-) -> Result<u32, remu_state::StateError> {
+    pc: <P::ISA as remu_isa::isa::RvIsa>::XLEN,
+) -> Result<<P::ISA as remu_isa::isa::RvIsa>::XLEN, remu_state::StateError> {
     let state = ctx.state_mut();
     let rs1_val = state.reg.gpr.raw_read(decoded.rs1.into());
-    finish(ctx, decoded, pc, rs1_val | decoded.imm)
+    finish(ctx, decoded, pc, rs1_val | <<P as remu_state::StatePolicy>::ISA as remu_isa::isa::RvIsa>::XLEN::from_imm(decoded.imm))
 }
 
 #[inline(always)]
 pub(crate) fn execute_andi<P: remu_state::StatePolicy, C: crate::ExecuteContext<P>>(
     ctx: &mut C,
     decoded: &DecodedInst,
-    pc: u32,
-) -> Result<u32, remu_state::StateError> {
+    pc: <P::ISA as remu_isa::isa::RvIsa>::XLEN,
+) -> Result<<P::ISA as remu_isa::isa::RvIsa>::XLEN, remu_state::StateError> {
     let state = ctx.state_mut();
     let rs1_val = state.reg.gpr.raw_read(decoded.rs1.into());
-    finish(ctx, decoded, pc, rs1_val & decoded.imm)
+    finish(ctx, decoded, pc, rs1_val & <<P as remu_state::StatePolicy>::ISA as remu_isa::isa::RvIsa>::XLEN::from_imm(decoded.imm))
 }

@@ -1,5 +1,7 @@
 //! funct3 = 0b011: OP-IVI
 
+use remu_isa::WordOps;
+use remu_isa::Xlen;
 use remu_isa::isa::reg::VrState;
 
 use crate::riscv::{DecodedInst, opcode::OP_V::OpIviInst};
@@ -94,7 +96,7 @@ pub(crate) fn execute<P: remu_state::StatePolicy, C: crate::ExecuteContext<P>>(
                 let data = state.reg.vr.raw_read(vs2_base + i).to_vec();
                 state.reg.vr.raw_write(vd_base + i, &data);
             }
-            *state.reg.pc = state.reg.pc.wrapping_add(4);
+            *state.reg.pc = state.reg.pc.wrapping_add(<<P as remu_state::StatePolicy>::ISA as remu_isa::isa::RvIsa>::XLEN::from_u64(4));
             Ok(())
         }
         OpIviInst::Vrsub_vi => {

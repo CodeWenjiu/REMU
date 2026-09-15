@@ -1,3 +1,4 @@
+use remu_isa::{Xlen, WordOps};
 use crate::riscv::{DecodedInst, Inst, funct3};
 
 #[allow(dead_code)]
@@ -34,13 +35,13 @@ pub(crate) fn decode<P: remu_state::StatePolicy>(inst: u32) -> DecodedInst {
 pub(crate) fn execute<P: remu_state::StatePolicy, C: crate::ExecuteContext<P>>(
     ctx: &mut C,
     decoded: &DecodedInst,
-    pc: u32,
-) -> Result<u32, remu_state::StateError> {
+    pc: <P::ISA as remu_isa::isa::RvIsa>::XLEN,
+) -> Result<<P::ISA as remu_isa::isa::RvIsa>::XLEN, remu_state::StateError> {
     let Inst::MiscMem(misc) = decoded.inst else {
         unreachable!()
     };
     if matches!(misc, MiscMemInst::FenceI) {
         ctx.flush_icache();
     }
-    Ok(pc.wrapping_add(4))
+    Ok(pc.wrapping_add(<<P as remu_state::StatePolicy>::ISA as remu_isa::isa::RvIsa>::XLEN::from_u64(4)))
 }

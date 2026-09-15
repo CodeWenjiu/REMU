@@ -129,8 +129,8 @@ pub(crate) fn decode<P: StatePolicy>(inst: u32) -> DecodedInst {
 pub(crate) fn execute<P: StatePolicy, C: crate::ExecuteContext<P>>(
     ctx: &mut C,
     decoded: &DecodedInst,
-    pc: u32,
-) -> Result<u32, StateError> {
+    pc: <P::ISA as RvIsa>::XLEN,
+) -> Result<<P::ISA as RvIsa>::XLEN, StateError> {
     match decoded.inst {
         Inst::Lui => LUI::execute(ctx, decoded, pc),
         Inst::Auipc => AUIPC::execute(ctx, decoded, pc),

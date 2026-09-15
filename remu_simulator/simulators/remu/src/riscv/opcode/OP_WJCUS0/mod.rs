@@ -1,9 +1,11 @@
-#![allow(dead_code)]
 //! Custom opcode **CUS0** (`0b0001011` / `0x0B`, RV custom-0) + simulated MNIST accelerator.
 //!
 //! - **NN_LOAD_ACT** — buffer one input activation (`rs1` / `rs2` GPR values).
 //! - **NN_START** — run embedded MLP forward on the buffer.
 //! - **NN_LOAD** — read one logit; **`rs1`** = GPR holding output index, **`rd`** = destination.
+
+#![allow(dead_code)]
+use remu_isa::{WordOps, Xlen};
 
 remu_macro::mod_prv!(mnist_infer);
 
@@ -102,16 +104,16 @@ pub(crate) fn decode<P: remu_state::StatePolicy>(inst: u32) -> DecodedInst {
 pub(crate) fn execute<P: remu_state::StatePolicy, C: crate::ExecuteContext<P>>(
     ctx: &mut C,
     decoded: &DecodedInst,
-    pc: u32,
-) -> Result<u32, StateError> {
+    pc: <P::ISA as remu_isa::isa::RvIsa>::XLEN,
+) -> Result<<P::ISA as remu_isa::isa::RvIsa>::XLEN, StateError> {
     let state = ctx.state_mut();
     let Inst::Cus0(op) = decoded.inst else {
         unsafe { unreachable_unchecked() }
     };
     match op {
         Cus0Inst::NnLoadAct => {
-            let idx = state.reg.gpr.raw_read(decoded.rs1.into()) as i32;
-            let v = state.reg.gpr.raw_read(decoded.rs2.into()) as i32;
+            let idx = state.reg.gpr.raw_read(decoded.rs1.into()).to_u32() as i32;
+            let v = state.reg.gpr.raw_read(decoded.rs2.into()).to_u32() as i32;
             if idx >= 0 {
                 let u = idx as usize;
                 mnist_infer::buffer_load_act(u, v as i8);
@@ -121,13 +123,16 @@ pub(crate) fn execute<P: remu_state::StatePolicy, C: crate::ExecuteContext<P>>(
             mnist_infer::run_inference();
         }
         Cus0Inst::NnLoadRd(NnLoadRdInst::NnLoad) => {
-            let k = state.reg.gpr.raw_read(decoded.rs1.into()) as i32;
+            let k = state.reg.gpr.raw_read(decoded.rs1.into()).to_u32() as i32;
             let idx = k.clamp(0, 9) as usize;
             let logit = mnist_infer::read_logit(idx);
             if decoded.rd != 0 {
-                state.reg.gpr.raw_write(decoded.rd.into(), logit as u32);
+                state
+                    .reg
+                    .gpr
+                    .raw_write(decoded.rd.into(), <<P as remu_state::StatePolicy>::ISA as remu_isa::isa::RvIsa>::XLEN::from_u64(logit as u64));
             }
         }
     }
-    Ok(pc.wrapping_add(4))
+    Ok(pc.wrapping_add(<<P as remu_state::StatePolicy>::ISA as remu_isa::isa::RvIsa>::XLEN::from_u64(4)))
 }

@@ -1,5 +1,7 @@
 //! funct3 = 0b111: vsetivli, vsetvli
 
+use remu_isa::WordOps;
+use remu_isa::Xlen;
 use remu_isa::isa::{
     extension_v::VExtensionConfig,
     reg::{RegAccess, VectorCsrState},
@@ -31,8 +33,8 @@ pub(crate) fn execute<P: remu_state::StatePolicy, C: crate::ExecuteContext<P>>(
             let state = ctx.state_mut();
             state.reg.csr.vector.set_vtype(vtype);
             state.reg.csr.vector.set_vl(vl);
-            state.reg.gpr.raw_write(rd.into(), vl);
-            *state.reg.pc = state.reg.pc.wrapping_add(4);
+            state.reg.gpr.raw_write(rd.into(), <<P as remu_state::StatePolicy>::ISA as remu_isa::isa::RvIsa>::XLEN::from_u64(vl as u64));
+            *state.reg.pc = state.reg.pc.wrapping_add(<<P as remu_state::StatePolicy>::ISA as remu_isa::isa::RvIsa>::XLEN::from_u64(4));
             Ok(())
         }
         OpCfgInst::Vsetvli => {
@@ -44,18 +46,18 @@ pub(crate) fn execute<P: remu_state::StatePolicy, C: crate::ExecuteContext<P>>(
             let rs1 = decoded.rs1;
             let state = ctx.state_mut();
             state.reg.csr.vector.set_vtype(vtype);
-            *state.reg.pc = state.reg.pc.wrapping_add(4);
+            *state.reg.pc = state.reg.pc.wrapping_add(<<P as remu_state::StatePolicy>::ISA as remu_isa::isa::RvIsa>::XLEN::from_u64(4));
             if rs1 == 0 && rd == 0 {
                 return Ok(());
             }
             let avl = if rs1 == 0 {
                 u32::MAX
             } else {
-                state.reg.gpr.raw_read(rs1.into())
+                state.reg.gpr.raw_read(rs1.into()).to_u32()
             };
             let vl = avl.min(vlmax);
             state.reg.csr.vector.set_vl(vl);
-            state.reg.gpr.raw_write(rd.into(), vl);
+            state.reg.gpr.raw_write(rd.into(), <<P as remu_state::StatePolicy>::ISA as remu_isa::isa::RvIsa>::XLEN::from_u64(vl as u64));
             Ok(())
         }
     }

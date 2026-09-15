@@ -24,10 +24,10 @@ pub trait Tracer {
     fn mem_show(&self, begin: usize, data: Result<AllUsize, Box<dyn DynDiagError>>);
     fn mem_show_map(&self, map: Vec<(String, Range<usize>)>);
 
-    fn reg_print(&self, regs: &[(Gpr, u32); 32], range: Range<usize>);
-    fn reg_show(&self, index: Gpr, data: u32);
+    fn reg_print(&self, regs: &[(Gpr, AllUsize); 32], range: Range<usize>);
+    fn reg_show(&self, index: Gpr, data: AllUsize);
 
-    fn reg_show_pc(&self, data: u32) {
+    fn reg_show_pc(&self, data: AllUsize) {
         let _ = data;
     }
     fn reg_show_fpr(&self, index: usize, data: u32) {

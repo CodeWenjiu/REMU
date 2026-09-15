@@ -1,5 +1,7 @@
 //! Shared vector execution helpers for OP-V sub-opcodes (element loop, mask compare, etc.).
 
+use remu_isa::WordOps;
+use remu_isa::Xlen;
 use remu_isa::isa::reg::{RegAccess, VectorCsrState, VrState};
 
 use super::context::VContext;
@@ -72,7 +74,7 @@ where
         }
         state.reg.vr.raw_write(rd + r, &dst_chunk);
     }
-    *state.reg.pc = state.reg.pc.wrapping_add(4);
+    *state.reg.pc = state.reg.pc.wrapping_add(<<P as remu_state::StatePolicy>::ISA as remu_isa::isa::RvIsa>::XLEN::from_u64(4));
     Ok(())
 }
 
@@ -131,7 +133,7 @@ where
         }
         state.reg.vr.raw_write(rd + r, &dst_chunk);
     }
-    *state.reg.pc = state.reg.pc.wrapping_add(4);
+    *state.reg.pc = state.reg.pc.wrapping_add(<<P as remu_state::StatePolicy>::ISA as remu_isa::isa::RvIsa>::XLEN::from_u64(4));
     Ok(())
 }
 
@@ -180,7 +182,7 @@ where
     }
 
     state.reg.vr.raw_write(vd, &vd_buf);
-    *state.reg.pc = state.reg.pc.wrapping_add(4);
+    *state.reg.pc = state.reg.pc.wrapping_add(<<P as remu_state::StatePolicy>::ISA as remu_isa::isa::RvIsa>::XLEN::from_u64(4));
     Ok(())
 }
 
@@ -234,7 +236,7 @@ where
     }
 
     state.reg.vr.raw_write(vd, &vd_buf);
-    *state.reg.pc = state.reg.pc.wrapping_add(4);
+    *state.reg.pc = state.reg.pc.wrapping_add(<<P as remu_state::StatePolicy>::ISA as remu_isa::isa::RvIsa>::XLEN::from_u64(4));
     Ok(())
 }
 
@@ -288,7 +290,7 @@ where
     for r in 0..nf {
         state.reg.vr.raw_write(rd + r, &vd_buf[r]);
     }
-    *state.reg.pc = state.reg.pc.wrapping_add(4);
+    *state.reg.pc = state.reg.pc.wrapping_add(<<P as remu_state::StatePolicy>::ISA as remu_isa::isa::RvIsa>::XLEN::from_u64(4));
     Ok(())
 }
 
@@ -356,7 +358,7 @@ where
     for r in 0..nf {
         state.reg.vr.raw_write(rd + r, &vd_buf[r]);
     }
-    *state.reg.pc = state.reg.pc.wrapping_add(4);
+    *state.reg.pc = state.reg.pc.wrapping_add(<<P as remu_state::StatePolicy>::ISA as remu_isa::isa::RvIsa>::XLEN::from_u64(4));
     Ok(())
 }
 
@@ -427,7 +429,7 @@ where
     for r in 0..nf {
         state.reg.vr.raw_write(rd + r, &vd_buf[r]);
     }
-    *state.reg.pc = state.reg.pc.wrapping_add(4);
+    *state.reg.pc = state.reg.pc.wrapping_add(<<P as remu_state::StatePolicy>::ISA as remu_isa::isa::RvIsa>::XLEN::from_u64(4));
     Ok(())
 }
 
@@ -512,7 +514,7 @@ where
         }
         state.reg.vr.raw_write(vd + r, &dst);
     }
-    *state.reg.pc = state.reg.pc.wrapping_add(4);
+    *state.reg.pc = state.reg.pc.wrapping_add(<<P as remu_state::StatePolicy>::ISA as remu_isa::isa::RvIsa>::XLEN::from_u64(4));
     Ok(())
 }
 
@@ -578,7 +580,7 @@ where
         }
         state.reg.vr.raw_write(vd + r, &dst);
     }
-    *state.reg.pc = state.reg.pc.wrapping_add(4);
+    *state.reg.pc = state.reg.pc.wrapping_add(<<P as remu_state::StatePolicy>::ISA as remu_isa::isa::RvIsa>::XLEN::from_u64(4));
     Ok(())
 }
 
@@ -599,7 +601,7 @@ where
     let vctx = VContext::from_state::<P, C>(ctx);
     let state = ctx.state_mut();
     if vctx.vl == 0 {
-        *state.reg.pc = state.reg.pc.wrapping_add(4);
+        *state.reg.pc = state.reg.pc.wrapping_add(<<P as remu_state::StatePolicy>::ISA as remu_isa::isa::RvIsa>::XLEN::from_u64(4));
         return Ok(());
     }
     let nf = vctx.nf.min(32_usize.saturating_sub(vs2));
@@ -620,7 +622,7 @@ where
     let mut vd_chunk = state.reg.vr.raw_read(vd).to_vec();
     vctx.sew.write(&mut vd_chunk, 0, acc as u64);
     state.reg.vr.raw_write(vd, &vd_chunk);
-    *state.reg.pc = state.reg.pc.wrapping_add(4);
+    *state.reg.pc = state.reg.pc.wrapping_add(<<P as remu_state::StatePolicy>::ISA as remu_isa::isa::RvIsa>::XLEN::from_u64(4));
     Ok(())
 }
 
@@ -639,7 +641,7 @@ where
     let mut chunk = state.reg.vr.raw_read(vd).to_vec();
     vctx.sew.write(&mut chunk, 0, scalar as u64);
     state.reg.vr.raw_write(vd, &chunk);
-    *state.reg.pc = state.reg.pc.wrapping_add(4);
+    *state.reg.pc = state.reg.pc.wrapping_add(<<P as remu_state::StatePolicy>::ISA as remu_isa::isa::RvIsa>::XLEN::from_u64(4));
     Ok(())
 }
 
@@ -656,8 +658,8 @@ where
     let vctx = VContext::from_state::<P, C>(ctx);
     let state = ctx.state_mut();
     let chunk = state.reg.vr.raw_read(vs2);
-    state.reg.gpr.raw_write(rd.into(), vctx.sew.read_i(chunk, 0) as u32);
-    *state.reg.pc = state.reg.pc.wrapping_add(4);
+    state.reg.gpr.raw_write(rd.into(), <<P as remu_state::StatePolicy>::ISA as remu_isa::isa::RvIsa>::XLEN::from_u64(vctx.sew.read_i(chunk, 0) as u64));
+    *state.reg.pc = state.reg.pc.wrapping_add(<<P as remu_state::StatePolicy>::ISA as remu_isa::isa::RvIsa>::XLEN::from_u64(4));
     Ok(())
 }
 
@@ -682,8 +684,8 @@ where
             break;
         }
     }
-    state.reg.gpr.raw_write(vd_reg.into(), pos);
-    *state.reg.pc = state.reg.pc.wrapping_add(4);
+    state.reg.gpr.raw_write(vd_reg.into(), <<P as remu_state::StatePolicy>::ISA as remu_isa::isa::RvIsa>::XLEN::from_u64(pos as u64));
+    *state.reg.pc = state.reg.pc.wrapping_add(<<P as remu_state::StatePolicy>::ISA as remu_isa::isa::RvIsa>::XLEN::from_u64(4));
     Ok(())
 }
 
@@ -719,8 +721,8 @@ where
         }
     }
 
-    state.reg.gpr.raw_write(rd_gpr.into(), popcount);
-    *state.reg.pc = state.reg.pc.wrapping_add(4);
+    state.reg.gpr.raw_write(rd_gpr.into(), <<P as remu_state::StatePolicy>::ISA as remu_isa::isa::RvIsa>::XLEN::from_u64(popcount as u64));
+    *state.reg.pc = state.reg.pc.wrapping_add(<<P as remu_state::StatePolicy>::ISA as remu_isa::isa::RvIsa>::XLEN::from_u64(4));
     Ok(())
 }
 
@@ -754,7 +756,7 @@ where
         }
     }
     state.reg.vr.raw_write(vd, &vd_buf);
-    *state.reg.pc = state.reg.pc.wrapping_add(4);
+    *state.reg.pc = state.reg.pc.wrapping_add(<<P as remu_state::StatePolicy>::ISA as remu_isa::isa::RvIsa>::XLEN::from_u64(4));
     Ok(())
 }
 
@@ -832,7 +834,7 @@ where
         }
         state.reg.vr.raw_write(vd + r, &dst);
     }
-    *state.reg.pc = state.reg.pc.wrapping_add(4);
+    *state.reg.pc = state.reg.pc.wrapping_add(<<P as remu_state::StatePolicy>::ISA as remu_isa::isa::RvIsa>::XLEN::from_u64(4));
     Ok(())
 }
 
@@ -894,6 +896,6 @@ where
         }
         state.reg.vr.raw_write(vd + r, &dst);
     }
-    *state.reg.pc = state.reg.pc.wrapping_add(4);
+    *state.reg.pc = state.reg.pc.wrapping_add(<<P as remu_state::StatePolicy>::ISA as remu_isa::isa::RvIsa>::XLEN::from_u64(4));
     Ok(())
 }
