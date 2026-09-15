@@ -46,19 +46,30 @@ fn print_run_app(args: RunAppArgs) -> ExitCode {
 
     let mut exports: Vec<String> = Vec::new();
 
-    // Platform-specific linker flags (from PlatformConfig trait).
+    // Platform-specific linker flags (from PlatformConfig trait). When the
+    // platform RUSTFLAGS env key collides with the zve one (same target triple),
+    // fold both into a single export — two exports of one variable would let the
+    // second clobber the first (losing `-Tmemory.x` and the zve feature flags).
     let pf = args.platform.rustflags();
     if !pf.is_empty() {
         let env_key = format!(
             "CARGO_TARGET_{}_RUSTFLAGS",
             resolved.triple_or_json.to_uppercase().replace('-', "_")
         );
-        exports.push(format!("{}={}", env_key, shell_escape(&pf.join(" "))));
+        if resolved.zve_cargo_rustflags_env == Some(env_key.as_str()) {
+            let combined = format!("{} {}", pf.join(" "), ZVE32_TARGET_RUSTFLAGS);
+            let rf_v = shell_escape(&merge_cargo_target_rustflags(&env_key, &combined));
+            exports.push(format!("{env_key}={rf_v}"));
+        } else {
+            exports.push(format!("{env_key}={}", shell_escape(&pf.join(" "))));
+        }
     }
 
     if let Some(env_k) = resolved.zve_cargo_rustflags_env {
-        let rf_v = shell_escape(&merge_cargo_target_rustflags(env_k, ZVE32_TARGET_RUSTFLAGS));
-        exports.push(format!("{env_k}={rf_v}"));
+        if !exports.iter().any(|e| e.starts_with(&format!("{env_k}="))) {
+            let rf_v = shell_escape(&merge_cargo_target_rustflags(env_k, ZVE32_TARGET_RUSTFLAGS));
+            exports.push(format!("{env_k}={rf_v}"));
+        }
     }
     if let Some(isa) = &resolved.remu_isa {
         exports.push(format!("{}={}", REMU_ISA_ENV, shell_escape(isa)));
