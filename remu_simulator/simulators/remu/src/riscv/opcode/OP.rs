@@ -1,4 +1,5 @@
 use remu_isa::isa::{RvIsa, reg::RegAccess};
+use remu_isa::{WordOps, Xlen};
 
 use crate::riscv::{DecodedInst, Inst, funct3, funct7, rd, rs1, rs2};
 
@@ -78,27 +79,44 @@ pub(crate) fn decode<P: remu_state::StatePolicy>(inst: u32) -> DecodedInst {
 }
 
 #[inline(always)]
+fn bool_w<P: remu_state::StatePolicy>(
+    b: bool,
+) -> <<P as remu_state::StatePolicy>::ISA as RvIsa>::XLEN {
+    <<P as remu_state::StatePolicy>::ISA as RvIsa>::XLEN::from_u64(u64::from(b))
+}
+
+#[inline(always)]
+fn shamt<P: remu_state::StatePolicy>(
+    b: <<P as remu_state::StatePolicy>::ISA as RvIsa>::XLEN,
+) -> u32 {
+    b.to_u32() & b.shamt_mask()
+}
+
+#[inline(always)]
 fn op2<P: remu_state::StatePolicy, C: crate::ExecuteContext<P>>(
     ctx: &mut C,
     decoded: &DecodedInst,
-    pc: u32,
-    f: impl FnOnce(u32, u32) -> u32,
-) -> Result<u32, remu_state::StateError> {
+    pc: <<P as remu_state::StatePolicy>::ISA as RvIsa>::XLEN,
+    f: impl FnOnce(
+        <<P as remu_state::StatePolicy>::ISA as RvIsa>::XLEN,
+        <<P as remu_state::StatePolicy>::ISA as RvIsa>::XLEN,
+    ) -> <<P as remu_state::StatePolicy>::ISA as RvIsa>::XLEN,
+) -> Result<<<P as remu_state::StatePolicy>::ISA as RvIsa>::XLEN, remu_state::StateError> {
     let state = ctx.state_mut();
     let rs1_val = state.reg.gpr.raw_read(decoded.rs1.into());
     let rs2_val = state.reg.gpr.raw_read(decoded.rs2.into());
     let value = f(rs1_val, rs2_val);
     let state = ctx.state_mut();
     state.reg.gpr.raw_write(decoded.rd.into(), value);
-    Ok(pc.wrapping_add(4))
+    Ok(pc.wrapping_add(<<P as remu_state::StatePolicy>::ISA as RvIsa>::XLEN::from_u64(4)))
 }
 
 #[inline(always)]
 pub(crate) fn execute_add<P: remu_state::StatePolicy, C: crate::ExecuteContext<P>>(
     ctx: &mut C,
     decoded: &DecodedInst,
-    pc: u32,
-) -> Result<u32, remu_state::StateError> {
+    pc: <<P as remu_state::StatePolicy>::ISA as RvIsa>::XLEN,
+) -> Result<<<P as remu_state::StatePolicy>::ISA as RvIsa>::XLEN, remu_state::StateError> {
     op2(ctx, decoded, pc, |a, b| a.wrapping_add(b))
 }
 
@@ -106,8 +124,8 @@ pub(crate) fn execute_add<P: remu_state::StatePolicy, C: crate::ExecuteContext<P
 pub(crate) fn execute_sub<P: remu_state::StatePolicy, C: crate::ExecuteContext<P>>(
     ctx: &mut C,
     decoded: &DecodedInst,
-    pc: u32,
-) -> Result<u32, remu_state::StateError> {
+    pc: <<P as remu_state::StatePolicy>::ISA as RvIsa>::XLEN,
+) -> Result<<<P as remu_state::StatePolicy>::ISA as RvIsa>::XLEN, remu_state::StateError> {
     op2(ctx, decoded, pc, |a, b| a.wrapping_sub(b))
 }
 
@@ -115,35 +133,37 @@ pub(crate) fn execute_sub<P: remu_state::StatePolicy, C: crate::ExecuteContext<P
 pub(crate) fn execute_sll<P: remu_state::StatePolicy, C: crate::ExecuteContext<P>>(
     ctx: &mut C,
     decoded: &DecodedInst,
-    pc: u32,
-) -> Result<u32, remu_state::StateError> {
-    op2(ctx, decoded, pc, |a, b| a.wrapping_shl(b & 0x1F))
+    pc: <<P as remu_state::StatePolicy>::ISA as RvIsa>::XLEN,
+) -> Result<<<P as remu_state::StatePolicy>::ISA as RvIsa>::XLEN, remu_state::StateError> {
+    op2(ctx, decoded, pc, |a, b| a.wrapping_shl(shamt::<P>(b)))
 }
 
 #[inline(always)]
 pub(crate) fn execute_slt<P: remu_state::StatePolicy, C: crate::ExecuteContext<P>>(
     ctx: &mut C,
     decoded: &DecodedInst,
-    pc: u32,
-) -> Result<u32, remu_state::StateError> {
-    op2(ctx, decoded, pc, |a, b| u32::from((a as i32) < (b as i32)))
+    pc: <<P as remu_state::StatePolicy>::ISA as RvIsa>::XLEN,
+) -> Result<<<P as remu_state::StatePolicy>::ISA as RvIsa>::XLEN, remu_state::StateError> {
+    op2(ctx, decoded, pc, |a, b| {
+        bool_w::<P>(a.to_signed() < b.to_signed())
+    })
 }
 
 #[inline(always)]
 pub(crate) fn execute_sltu<P: remu_state::StatePolicy, C: crate::ExecuteContext<P>>(
     ctx: &mut C,
     decoded: &DecodedInst,
-    pc: u32,
-) -> Result<u32, remu_state::StateError> {
-    op2(ctx, decoded, pc, |a, b| u32::from(a < b))
+    pc: <<P as remu_state::StatePolicy>::ISA as RvIsa>::XLEN,
+) -> Result<<<P as remu_state::StatePolicy>::ISA as RvIsa>::XLEN, remu_state::StateError> {
+    op2(ctx, decoded, pc, |a, b| bool_w::<P>(a < b))
 }
 
 #[inline(always)]
 pub(crate) fn execute_xor<P: remu_state::StatePolicy, C: crate::ExecuteContext<P>>(
     ctx: &mut C,
     decoded: &DecodedInst,
-    pc: u32,
-) -> Result<u32, remu_state::StateError> {
+    pc: <<P as remu_state::StatePolicy>::ISA as RvIsa>::XLEN,
+) -> Result<<<P as remu_state::StatePolicy>::ISA as RvIsa>::XLEN, remu_state::StateError> {
     op2(ctx, decoded, pc, |a, b| a ^ b)
 }
 
@@ -151,19 +171,21 @@ pub(crate) fn execute_xor<P: remu_state::StatePolicy, C: crate::ExecuteContext<P
 pub(crate) fn execute_srl<P: remu_state::StatePolicy, C: crate::ExecuteContext<P>>(
     ctx: &mut C,
     decoded: &DecodedInst,
-    pc: u32,
-) -> Result<u32, remu_state::StateError> {
-    op2(ctx, decoded, pc, |a, b| a.wrapping_shr(b & 0x1F))
+    pc: <<P as remu_state::StatePolicy>::ISA as RvIsa>::XLEN,
+) -> Result<<<P as remu_state::StatePolicy>::ISA as RvIsa>::XLEN, remu_state::StateError> {
+    op2(ctx, decoded, pc, |a, b| a.wrapping_shr(shamt::<P>(b)))
 }
 
 #[inline(always)]
 pub(crate) fn execute_sra<P: remu_state::StatePolicy, C: crate::ExecuteContext<P>>(
     ctx: &mut C,
     decoded: &DecodedInst,
-    pc: u32,
-) -> Result<u32, remu_state::StateError> {
+    pc: <<P as remu_state::StatePolicy>::ISA as RvIsa>::XLEN,
+) -> Result<<<P as remu_state::StatePolicy>::ISA as RvIsa>::XLEN, remu_state::StateError> {
     op2(ctx, decoded, pc, |a, b| {
-        ((a as i32).wrapping_shr(b & 0x1F)) as u32
+        <<P as remu_state::StatePolicy>::ISA as RvIsa>::XLEN::from_signed(
+            a.to_signed().wrapping_shr(shamt::<P>(b)),
+        )
     })
 }
 
@@ -171,8 +193,8 @@ pub(crate) fn execute_sra<P: remu_state::StatePolicy, C: crate::ExecuteContext<P
 pub(crate) fn execute_or<P: remu_state::StatePolicy, C: crate::ExecuteContext<P>>(
     ctx: &mut C,
     decoded: &DecodedInst,
-    pc: u32,
-) -> Result<u32, remu_state::StateError> {
+    pc: <<P as remu_state::StatePolicy>::ISA as RvIsa>::XLEN,
+) -> Result<<<P as remu_state::StatePolicy>::ISA as RvIsa>::XLEN, remu_state::StateError> {
     op2(ctx, decoded, pc, |a, b| a | b)
 }
 
@@ -180,8 +202,8 @@ pub(crate) fn execute_or<P: remu_state::StatePolicy, C: crate::ExecuteContext<P>
 pub(crate) fn execute_and<P: remu_state::StatePolicy, C: crate::ExecuteContext<P>>(
     ctx: &mut C,
     decoded: &DecodedInst,
-    pc: u32,
-) -> Result<u32, remu_state::StateError> {
+    pc: <<P as remu_state::StatePolicy>::ISA as RvIsa>::XLEN,
+) -> Result<<<P as remu_state::StatePolicy>::ISA as RvIsa>::XLEN, remu_state::StateError> {
     op2(ctx, decoded, pc, |a, b| a & b)
 }
 
@@ -189,23 +211,31 @@ pub(crate) fn execute_and<P: remu_state::StatePolicy, C: crate::ExecuteContext<P
 pub(crate) fn execute_mul<P: remu_state::StatePolicy, C: crate::ExecuteContext<P>>(
     ctx: &mut C,
     decoded: &DecodedInst,
-    pc: u32,
-) -> Result<u32, remu_state::StateError> {
+    pc: <<P as remu_state::StatePolicy>::ISA as RvIsa>::XLEN,
+) -> Result<<<P as remu_state::StatePolicy>::ISA as RvIsa>::XLEN, remu_state::StateError> {
     op2(ctx, decoded, pc, |a, b| a.wrapping_mul(b))
+}
+
+/// mulh / mulhsu / mulhu: high `BITS` bits of the 2·BITS product.
+/// Implemented with 128-bit intermediates so it is XLEN-agnostic (RV32 & RV64).
+#[inline(always)]
+fn high_bits<P: remu_state::StatePolicy>(
+    prod: i128,
+    mask: u32,
+) -> <<P as remu_state::StatePolicy>::ISA as RvIsa>::XLEN {
+    <<P as remu_state::StatePolicy>::ISA as RvIsa>::XLEN::from_u64((prod >> mask) as u64)
 }
 
 #[inline(always)]
 pub(crate) fn execute_mulh<P: remu_state::StatePolicy, C: crate::ExecuteContext<P>>(
     ctx: &mut C,
     decoded: &DecodedInst,
-    pc: u32,
-) -> Result<u32, remu_state::StateError> {
-    // RV32 mulh: high XLEN bits of signed×signed product. Operands must be
-    // sign-extended to i64; `u32 as i64` zero-extends and breaks negatives.
+    pc: <<P as remu_state::StatePolicy>::ISA as RvIsa>::XLEN,
+) -> Result<<<P as remu_state::StatePolicy>::ISA as RvIsa>::XLEN, remu_state::StateError> {
     op2(ctx, decoded, pc, |a, b| {
-        (a as i32 as i64)
-            .wrapping_mul(b as i32 as i64)
-            .wrapping_shr(32) as u32
+        let sa = a.to_signed().to_i128();
+        let sb = b.to_signed().to_i128();
+        high_bits::<P>(sa.wrapping_mul(sb), b.shamt_mask() + 1)
     })
 }
 
@@ -213,12 +243,12 @@ pub(crate) fn execute_mulh<P: remu_state::StatePolicy, C: crate::ExecuteContext<
 pub(crate) fn execute_mulhsu<P: remu_state::StatePolicy, C: crate::ExecuteContext<P>>(
     ctx: &mut C,
     decoded: &DecodedInst,
-    pc: u32,
-) -> Result<u32, remu_state::StateError> {
+    pc: <<P as remu_state::StatePolicy>::ISA as RvIsa>::XLEN,
+) -> Result<<<P as remu_state::StatePolicy>::ISA as RvIsa>::XLEN, remu_state::StateError> {
     op2(ctx, decoded, pc, |a, b| {
-        (a as i32 as i64)
-            .wrapping_mul(b as u32 as i64)
-            .wrapping_shr(32) as u32
+        let sa = a.to_signed().to_i128();
+        let ub = b.to_u128();
+        high_bits::<P>(sa.wrapping_mul(ub as i128), b.shamt_mask() + 1)
     })
 }
 
@@ -226,10 +256,14 @@ pub(crate) fn execute_mulhsu<P: remu_state::StatePolicy, C: crate::ExecuteContex
 pub(crate) fn execute_mulhu<P: remu_state::StatePolicy, C: crate::ExecuteContext<P>>(
     ctx: &mut C,
     decoded: &DecodedInst,
-    pc: u32,
-) -> Result<u32, remu_state::StateError> {
+    pc: <<P as remu_state::StatePolicy>::ISA as RvIsa>::XLEN,
+) -> Result<<<P as remu_state::StatePolicy>::ISA as RvIsa>::XLEN, remu_state::StateError> {
     op2(ctx, decoded, pc, |a, b| {
-        (a as u64).wrapping_mul(b as u64).wrapping_shr(32) as u32
+        let ua = a.to_u128();
+        let ub = b.to_u128();
+        <<P as remu_state::StatePolicy>::ISA as RvIsa>::XLEN::from_u64(
+            (ua.wrapping_mul(ub) >> (b.shamt_mask() + 1)) as u64,
+        )
     })
 }
 
@@ -237,13 +271,19 @@ pub(crate) fn execute_mulhu<P: remu_state::StatePolicy, C: crate::ExecuteContext
 pub(crate) fn execute_div<P: remu_state::StatePolicy, C: crate::ExecuteContext<P>>(
     ctx: &mut C,
     decoded: &DecodedInst,
-    pc: u32,
-) -> Result<u32, remu_state::StateError> {
+    pc: <<P as remu_state::StatePolicy>::ISA as RvIsa>::XLEN,
+) -> Result<<<P as remu_state::StatePolicy>::ISA as RvIsa>::XLEN, remu_state::StateError> {
     op2(ctx, decoded, pc, |a, b| {
-        if b == 0 {
-            0xFFFF_FFFF
+        let sa = a.to_signed().to_i128();
+        let sb = b.to_signed().to_i128();
+        if sb == 0 {
+            <<P as remu_state::StatePolicy>::ISA as RvIsa>::XLEN::from_i64(-1)
+        } else if sa == i128::MIN >> (128 - (b.shamt_mask() + 1)) && sb == -1 {
+            <<P as remu_state::StatePolicy>::ISA as RvIsa>::XLEN::from_i64(sa as i64)
         } else {
-            (a as i32).wrapping_div(b as i32) as u32
+            <<P as remu_state::StatePolicy>::ISA as RvIsa>::XLEN::from_i64(
+                sa.wrapping_div(sb) as i64
+            )
         }
     })
 }
@@ -252,11 +292,11 @@ pub(crate) fn execute_div<P: remu_state::StatePolicy, C: crate::ExecuteContext<P
 pub(crate) fn execute_divu<P: remu_state::StatePolicy, C: crate::ExecuteContext<P>>(
     ctx: &mut C,
     decoded: &DecodedInst,
-    pc: u32,
-) -> Result<u32, remu_state::StateError> {
+    pc: <<P as remu_state::StatePolicy>::ISA as RvIsa>::XLEN,
+) -> Result<<<P as remu_state::StatePolicy>::ISA as RvIsa>::XLEN, remu_state::StateError> {
     op2(ctx, decoded, pc, |a, b| {
-        if b == 0 {
-            0xFFFF_FFFF
+        if b == a.wrapping_sub(a) {
+            <<P as remu_state::StatePolicy>::ISA as RvIsa>::XLEN::from_u64(u64::MAX)
         } else {
             a.wrapping_div(b)
         }
@@ -267,10 +307,20 @@ pub(crate) fn execute_divu<P: remu_state::StatePolicy, C: crate::ExecuteContext<
 pub(crate) fn execute_rem<P: remu_state::StatePolicy, C: crate::ExecuteContext<P>>(
     ctx: &mut C,
     decoded: &DecodedInst,
-    pc: u32,
-) -> Result<u32, remu_state::StateError> {
+    pc: <<P as remu_state::StatePolicy>::ISA as RvIsa>::XLEN,
+) -> Result<<<P as remu_state::StatePolicy>::ISA as RvIsa>::XLEN, remu_state::StateError> {
     op2(ctx, decoded, pc, |a, b| {
-        (a as i32).wrapping_rem(b as i32) as u32
+        let sa = a.to_signed().to_i128();
+        let sb = b.to_signed().to_i128();
+        if sb == 0 {
+            a
+        } else if sa == i128::MIN >> (128 - (b.shamt_mask() + 1)) && sb == -1 {
+            <<P as remu_state::StatePolicy>::ISA as RvIsa>::XLEN::from_u64(0)
+        } else {
+            <<P as remu_state::StatePolicy>::ISA as RvIsa>::XLEN::from_i64(
+                sa.wrapping_rem(sb) as i64
+            )
+        }
     })
 }
 
@@ -278,14 +328,9 @@ pub(crate) fn execute_rem<P: remu_state::StatePolicy, C: crate::ExecuteContext<P
 pub(crate) fn execute_remu<P: remu_state::StatePolicy, C: crate::ExecuteContext<P>>(
     ctx: &mut C,
     decoded: &DecodedInst,
-    pc: u32,
-) -> Result<u32, remu_state::StateError> {
-    op2(
-        ctx,
-        decoded,
-        pc,
-        |a, b| {
-            if b == 0 { a } else { a.wrapping_rem(b) }
-        },
-    )
+    pc: <<P as remu_state::StatePolicy>::ISA as RvIsa>::XLEN,
+) -> Result<<<P as remu_state::StatePolicy>::ISA as RvIsa>::XLEN, remu_state::StateError> {
+    op2(ctx, decoded, pc, |a, b| {
+        if b == 0.into() { a } else { a.wrapping_rem(b) }
+    })
 }

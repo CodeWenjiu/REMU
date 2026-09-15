@@ -8,6 +8,7 @@ pub use error::BusError;
 pub use flow::{BusCmd, BusOption, ReadArgs, ReadCommand, WriteCommand};
 pub use memory::{
     AccessKind, MemFault, MemRegionSpec, Memory, MemoryEntry, try_load_elf_into_memory,
+    write_app_args_to_entries,
 };
 pub use observer::{BusObserver, DifftestObserver, FastObserver, ObserverEvent};
 pub(crate) use parse::parse_usize_allow_hex_underscore;
@@ -133,22 +134,9 @@ impl<I: RvIsa, O: BusObserver> Bus<I, O> {
         let mut memory = Memory::new(entries.into_boxed_slice());
         memory.try_load_elf(&opt.elf, &tracer);
 
-        // Write app args to known address (top of RAM - 4 KiB)
-        if let Some(ref args) = opt.app_args {
-            const APP_ARGS_BASE: usize = 0x87FF_F000;
-            const APP_ARGS_MAX: usize = 4096;
-            let bytes = args.as_bytes();
-            let len = bytes.len().min(APP_ARGS_MAX - 1);
-            let ram = memory.entries_mut().iter_mut().find(|e| {
-                APP_ARGS_BASE >= e.range.start && APP_ARGS_BASE + APP_ARGS_MAX <= e.range.end
-            });
-            if let Some(ram) = ram {
-                let buf = &bytes[..len];
-                ram.write_bytes(APP_ARGS_BASE, buf);
-                // null terminator
-                ram.write_bytes(APP_ARGS_BASE + len, &[0]);
-            }
-        }
+        // Write app args to known address (top of RAM - 4 KiB). Shared with
+        // reference simulators (e.g. spike) so the ref sees the same payload.
+        memory.write_app_args(&opt.app_args);
 
         // 5. Attach extra memory region pointers to devices that declared them.
         for (_, dev) in devices.iter_mut() {

@@ -12,7 +12,6 @@ remu_state = { path = "../../../remu_state" }
 
 thiserror.workspace = true
 tracing.workspace = true
-target-lexicon.workspace = true
 libloading.workspace = true
 sha2 = "0.10"
 nanospinner.workspace = true

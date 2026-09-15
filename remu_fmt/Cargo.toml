@@ -12,7 +12,6 @@ thiserror.workspace = true
 tracing.workspace = true
 
 winnow.workspace = true
-target-lexicon.workspace = true
 capstone = { git = "ssh://git@github.com/capstone-rust/capstone-rs.git", branch = "capstone-v6", default-features = false, features = ["full", "arch_riscv"] }
 
 [lints]

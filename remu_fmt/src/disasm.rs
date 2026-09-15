@@ -3,7 +3,6 @@ use capstone::{
     arch::{self, BuildsCapstone, BuildsCapstoneExtraMode},
 };
 use remu_isa::isa::IsaSpec;
-use target_lexicon::Architecture;
 use thiserror::Error;
 
 fn format_insn(insn: &Option<&capstone::Insn>) -> String {
@@ -81,9 +80,9 @@ impl ByteGuesser {
     /// Builds a RISC-V disassembler for the given ISA. Capstone v6 (via git)
     /// supports RISC-V vector extension (RVV) disassembly.
     pub fn new(isa: IsaSpec) -> Self {
-        let arch_mode = match isa.base {
-            Architecture::Riscv32(_) => arch::riscv::ArchMode::RiscV32,
-            Architecture::Riscv64(_) => arch::riscv::ArchMode::RiscV64,
+        let arch_mode = match isa.base.xlen() {
+            32 => arch::riscv::ArchMode::RiscV32,
+            64 => arch::riscv::ArchMode::RiscV64,
             _ => unreachable!(),
         };
 

@@ -13,7 +13,6 @@ thiserror.workspace = true
 tracing.workspace = true
 
 clap = { workspace = true, features = [ "derive", "color" ] }
-target-lexicon.workspace = true
 
 rand.workspace = true
 

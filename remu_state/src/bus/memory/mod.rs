@@ -43,6 +43,12 @@ impl Memory {
         try_load_elf_into_memory(self.entries_mut(), elf, tracer);
     }
 
+    /// Write `--app-args` payload at the convention address (top of first RAM
+    /// region - 4 KiB). No-op when `app_args` is `None`.
+    pub fn write_app_args(&mut self, app_args: &Option<String>) {
+        write_app_args_to_entries(self.entries_mut(), app_args);
+    }
+
     #[inline(always)]
     fn find_memory_mut(&mut self, range: Range<usize>) -> Option<&mut MemoryEntry> {
         if let Some(i) = self.last_hit {
@@ -384,4 +390,24 @@ impl Memory {
         }
         Some(())
     }
+}
+
+/// Write the `--app-args` payload at the convention address (top of first RAM
+/// region - 4 KiB: `0x87FF_F000`). Shared by the DUT bus and reference
+/// simulators so both sides observe the same arguments. No-op when `None`.
+pub fn write_app_args_to_entries(memory: &mut [MemoryEntry], app_args: &Option<String>) {
+    const APP_ARGS_BASE: usize = 0x87FF_F000;
+    const APP_ARGS_MAX: usize = 4096;
+    let Some(args) = app_args else {
+        return;
+    };
+    let bytes = args.as_bytes();
+    let len = bytes.len().min(APP_ARGS_MAX - 1);
+    let Some(ram) = memory.iter_mut().find(|e| {
+        APP_ARGS_BASE >= e.range.start && APP_ARGS_BASE + APP_ARGS_MAX <= e.range.end
+    }) else {
+        return;
+    };
+    ram.write_bytes(APP_ARGS_BASE, &bytes[..len]);
+    ram.write_bytes(APP_ARGS_BASE + len, &[0]);
 }

@@ -18,7 +18,6 @@ tracing.workspace = true
 thiserror.workspace = true
 
 clap = { workspace = true, features = [ "derive", "color" ] }
-target-lexicon.workspace = true
 
 [lints]
 workspace = true

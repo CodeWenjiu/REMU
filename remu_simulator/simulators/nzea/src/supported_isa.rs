@@ -1,7 +1,6 @@
 //! Which [`IsaSpec`](remu_isa::isa::IsaSpec) values the nzea Verilated backend accepts.
 
-use remu_isa::isa::{ExtensionSpec, IsaKind, IsaSpec};
-use target_lexicon::{Architecture, Riscv32Architecture};
+use remu_isa::isa::{ExtensionSpec, IsaBase, IsaKind, IsaSpec};
 
 /// nzea models **riscv32i** / **riscv32im**, optionally with **`wjCus0`** suffix (same RTL as base).
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -16,18 +15,10 @@ impl NzeaIsaKind {
     /// `None` if this ISA is not supported on nzea.
     pub fn try_from_isa_spec(spec: &IsaSpec) -> Option<Self> {
         match (spec.base, spec.extensions) {
-            (Architecture::Riscv32(Riscv32Architecture::Riscv32i), ExtensionSpec::None) => {
-                Some(Self::Rv32I)
-            }
-            (Architecture::Riscv32(Riscv32Architecture::Riscv32im), ExtensionSpec::None) => {
-                Some(Self::Rv32Im)
-            }
-            (Architecture::Riscv32(Riscv32Architecture::Riscv32i), ExtensionSpec::WjCus0) => {
-                Some(Self::Rv32IWjCus0)
-            }
-            (Architecture::Riscv32(Riscv32Architecture::Riscv32im), ExtensionSpec::WjCus0) => {
-                Some(Self::Rv32ImWjCus0)
-            }
+            (IsaBase::Rv32I, ExtensionSpec::None) => Some(Self::Rv32I),
+            (IsaBase::Rv32Im, ExtensionSpec::None) => Some(Self::Rv32Im),
+            (IsaBase::Rv32I, ExtensionSpec::WjCus0) => Some(Self::Rv32IWjCus0),
+            (IsaBase::Rv32Im, ExtensionSpec::WjCus0) => Some(Self::Rv32ImWjCus0),
             _ => None,
         }
     }

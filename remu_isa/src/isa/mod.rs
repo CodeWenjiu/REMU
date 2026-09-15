@@ -5,7 +5,6 @@ pub use isa_kind::IsaKind;
 use std::str::FromStr;
 
 use core::ops::{Deref, DerefMut, Index};
-use target_lexicon::{Architecture, Triple};
 
 use crate::Xlen;
 use crate::isa::reg::CSRS_FOR_DIFFTEST_BASE;
@@ -18,16 +17,16 @@ pub trait RvIsa: 'static + Copy {
         + PartialEq
         + std::fmt::Debug
         + crate::isa::reg::RegDiff
-        + From<u32>
-        + Deref<Target = u32>
+        + From<Self::XLEN>
+        + Deref<Target = Self::XLEN>
         + DerefMut;
     type GprState: Default
         + Copy
         + PartialEq
         + std::fmt::Debug
-        + crate::isa::reg::RegAccess<Item = u32>
+        + crate::isa::reg::RegAccess<Item = Self::XLEN>
         + crate::isa::reg::RegDiff
-        + Index<usize, Output = u32>;
+        + Index<usize, Output = Self::XLEN>;
     type FprState: Default
         + Copy
         + PartialEq
@@ -83,22 +82,43 @@ impl FromStr for ExtensionSpec {
     }
 }
 
-/// ISA selector: base architecture (via target_lexicon Triple) + optional extension spec.
-/// Parse with first `_` as separator: prefix → Triple, suffix → ExtensionSpec.
+/// Base ISA (XLEN + base extension letters), parsed directly from the ISA string.
+///
+/// We intentionally do **not** use target-lexicon for this: it has no
+/// `riscv64i`/`riscv64im` variants (only gc/imac) and its vendor/os/abi triple
+/// concept is meaningless for a bare-metal simulator. Add new variants here when
+/// supporting more base ISAs.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub struct IsaSpec {
-    /// Base architecture from Triple (e.g. riscv32i, riscv32im).
-    pub base: Architecture,
-    /// Optional extensions (parsed from substring after first `_`).
-    pub extensions: ExtensionSpec,
+pub enum IsaBase {
+    /// riscv32i
+    Rv32I,
+    /// riscv32im
+    Rv32Im,
+    /// riscv64i
+    Rv64I,
+    /// riscv64im
+    Rv64Im,
 }
 
-impl IsaSpec {
-    /// Architecture for disassembly (ByteGuesser, etc.). Uses the Triple base.
+impl IsaBase {
+    /// XLEN in bits (32 or 64).
     #[inline]
-    pub fn architecture(self) -> Architecture {
-        self.base
+    pub const fn xlen(self) -> u8 {
+        match self {
+            Self::Rv32I | Self::Rv32Im => 32,
+            Self::Rv64I | Self::Rv64Im => 64,
+        }
     }
+}
+
+/// ISA selector: base ISA + optional extension spec. Parse with first `_` as
+/// separator: prefix → [`IsaBase`], suffix → [`ExtensionSpec`].
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct IsaSpec {
+    /// Base ISA (e.g. riscv32im).
+    pub base: IsaBase,
+    /// Optional extensions (parsed from substring after first `_`).
+    pub extensions: ExtensionSpec,
 }
 
 impl FromStr for IsaSpec {
@@ -111,31 +131,96 @@ impl FromStr for IsaSpec {
             None => (s, ""),
         };
 
-        let normalized = if prefix.contains('-') {
-            prefix.to_string()
-        } else {
-            format!("{}-unknown-none-elf", prefix)
-        };
-
-        let base = normalized
-            .parse::<Triple>()
-            .map_err(|e| format!("Invalid ISA string: '{}',: {}", s, e))?
-            .architecture;
-
-        let architecture = match base {
-            Architecture::Riscv32(_) | Architecture::Riscv64(_) => base,
-            _ => return Err(format!("Unsupported ISA architecture: {}", base)),
+        // Accept both shorthand (`riscv32im`) and full-triple forms
+        // (`riscv32im-unknown-none-elf`); the vendor/os/abi part is ignored for
+        // bare-metal simulation, exactly like before.
+        let arch = prefix.split('-').next().unwrap_or(prefix);
+        let base = match to_ascii_lowercase(arch).as_str() {
+            "riscv32i" => IsaBase::Rv32I,
+            "riscv32im" => IsaBase::Rv32Im,
+            "riscv64i" => IsaBase::Rv64I,
+            "riscv64im" => IsaBase::Rv64Im,
+            other => {
+                return Err(format!(
+                    "unsupported base ISA '{other}'; supported: riscv32i, riscv32im, riscv64i, riscv64im"
+                ));
+            }
         };
 
         let extensions = ExtensionSpec::from_str(suffix)?;
 
-        Ok(IsaSpec {
-            base: architecture,
-            extensions,
-        })
+        Ok(IsaSpec { base, extensions })
     }
 }
 
 fn to_ascii_lowercase(s: &str) -> String {
     s.chars().map(|c| c.to_ascii_lowercase()).collect()
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn parsed(s: &str) -> IsaSpec {
+        IsaSpec::from_str(s).unwrap()
+    }
+
+    #[test]
+    fn parses_rv32_bases() {
+        assert_eq!(parsed("riscv32i").base, IsaBase::Rv32I);
+        assert_eq!(parsed("riscv32im").base, IsaBase::Rv32Im);
+    }
+
+    #[test]
+    fn parses_rv64_bases() {
+        assert_eq!(parsed("riscv64i").base, IsaBase::Rv64I);
+        assert_eq!(parsed("riscv64im").base, IsaBase::Rv64Im);
+    }
+
+    #[test]
+    fn parses_full_triple_form() {
+        // vendor/os/abi part is ignored for bare-metal simulation
+        assert_eq!(parsed("riscv64im-unknown-none-elf").base, IsaBase::Rv64Im);
+        assert_eq!(parsed("riscv32im-unknown-none-elf").base, IsaBase::Rv32Im);
+    }
+
+    #[test]
+    fn names_extension_suffix() {
+        let spec = parsed("riscv32im_wjCus0");
+        assert_eq!(spec.base, IsaBase::Rv32Im);
+        assert_eq!(spec.extensions, ExtensionSpec::WjCus0);
+
+        let spec = parsed("riscv32i_zve32x_zvl128b");
+        assert_eq!(spec.base, IsaBase::Rv32I);
+        assert_eq!(spec.extensions, ExtensionSpec::Zve32xZvl128b);
+    }
+
+    #[test]
+    fn xlen_matches_base() {
+        assert_eq!(IsaBase::Rv32I.xlen(), 32);
+        assert_eq!(IsaBase::Rv32Im.xlen(), 32);
+        assert_eq!(IsaBase::Rv64I.xlen(), 64);
+        assert_eq!(IsaBase::Rv64Im.xlen(), 64);
+    }
+
+    #[test]
+    fn rejects_unknown_or_unsupported_bases() {
+        for s in [
+            "riscv32imac",
+            "riscv32",
+            "riscv64",
+            "riscv64gc",
+            "riscv64imac",
+            "x86_64",
+            "",
+        ] {
+            assert!(IsaSpec::from_str(s).is_err(), "{s:?} should be rejected");
+        }
+    }
+
+    #[test]
+    fn rejects_bad_suffix() {
+        assert!(IsaSpec::from_str("riscv32im_wjCus0_zve32x_zvl128b").is_err());
+        assert!(IsaSpec::from_str("riscv64im_foo").is_err());
+    }
 }

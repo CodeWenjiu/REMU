@@ -4,9 +4,12 @@ use std::os::raw::c_uint;
 
 use remu_isa::isa::RvIsa;
 use remu_isa::isa::extension_v::VExtensionConfig;
+use remu_isa::isa::reg::IntoAllUsize;
 use remu_isa::isa::reg::{Fpr, Gpr, RegAccess, VrState as VrStateTrait};
-use remu_isa::{AllUsize, Xlen};
-use remu_state::bus::{BusOption, MemoryEntry, try_load_elf_into_memory};
+use remu_isa::{AllUsize, WordOps, Xlen};
+use remu_state::bus::{
+    BusOption, MemoryEntry, try_load_elf_into_memory, write_app_args_to_entries,
+};
 use remu_state::reg::riscv::RiscvReg;
 use remu_state::{State, StateCmd};
 use remu_types::{DifftestGroup, DifftestMismatchItem, DifftestRegGroup, TracerDyn};
@@ -40,7 +43,7 @@ impl<P: SimulatorPolicy> SimulatorCore<P> for SimulatorSpike<P> {
         let bus_option = opt.state.bus.clone();
 
         let mut memory: Vec<MemoryEntry> = bus_option
-            .mem
+            .resolve_mem_regions()
             .iter()
             .map(|region| {
                 MemoryEntry::new(region.clone())
@@ -49,6 +52,7 @@ impl<P: SimulatorPolicy> SimulatorCore<P> for SimulatorSpike<P> {
             .collect();
 
         try_load_elf_into_memory(&mut memory, &bus_option.elf, &tracer);
+        write_app_args_to_entries(&mut memory, &bus_option.app_args);
 
         if memory.is_empty() {
             return Self {
@@ -188,19 +192,19 @@ impl<P: SimulatorPolicy> SimulatorCore<P> for SimulatorSpike<P> {
         let mut out = Vec::new();
         let ref_pc = unsafe { *pc_ptr };
 
-        if ref_pc != *dut_reg.pc {
+        if ref_pc != (*dut_reg.pc).to_u32() {
             out.push(DifftestMismatchItem {
                 group: DifftestGroup::Reg(DifftestRegGroup::Pc),
                 name: "pc".to_string(),
                 ref_val: AllUsize::U32(ref_pc),
-                dut_val: AllUsize::U32(*dut_reg.pc),
+                dut_val: remu_isa::AllUsize::U64((*dut_reg.pc).to_u64()),
             });
         }
 
         for i in 0..32 {
             let r = unsafe { *gpr_ptr.add(2 * i) };
             let d = dut_reg.gpr.raw_read(i);
-            if r != d {
+            if r != d.to_u32() {
                 let name = Gpr::from_repr(i)
                     .map(|g| g.to_string())
                     .unwrap_or_else(|| format!("x{i}"));
@@ -208,7 +212,7 @@ impl<P: SimulatorPolicy> SimulatorCore<P> for SimulatorSpike<P> {
                     group: DifftestGroup::Reg(DifftestRegGroup::Gpr),
                     name,
                     ref_val: AllUsize::U32(r),
-                    dut_val: AllUsize::U32(d),
+                    dut_val: remu_isa::AllUsize::U64(d.to_u64()),
                 });
             }
         }
@@ -332,9 +336,12 @@ impl<P: SimulatorPolicy> Drop for SimulatorSpike<P> {
 fn reg_to_difftest_regs<P: SimulatorPolicy>(reg: &RiscvReg<P::ISA>) -> DifftestRegs {
     let mut gpr = [0u32; 32];
     for i in 0..32 {
-        gpr[i] = reg.gpr.raw_read(i);
+        gpr[i] = reg.gpr.raw_read(i).to_u32();
     }
-    DifftestRegs { pc: *reg.pc, gpr }
+    DifftestRegs {
+        pc: (*reg.pc).to_u32(),
+        gpr,
+    }
 }
 
 fn state_exec_reg(
@@ -354,7 +361,7 @@ fn state_exec_reg(
     match cmd {
         remu_state::reg::RegCmd::Pc { subcmd } => match subcmd {
             PcRegCmd::Read => {
-                tracer.borrow().reg_show_pc(pc);
+                tracer.borrow().reg_show_pc(pc.into_all());
             }
             PcRegCmd::Write { value } => {
                 let mut new_gpr = [0u32; 32];
@@ -372,13 +379,14 @@ fn state_exec_reg(
             remu_state::reg::GprRegCmd::Read { index } => {
                 let idx = index.idx();
                 let val = unsafe { *gpr_ptr.add(2 * idx) };
-                tracer.borrow().reg_show(*index, val);
+                tracer.borrow().reg_show(*index, val.into_all());
             }
             remu_state::reg::GprRegCmd::Print { range } => {
-                let regs_arr: [(Gpr, u32); 32] = core::array::from_fn(|i| {
-                    (Gpr::from_repr(i).expect("valid"), unsafe {
-                        *gpr_ptr.add(2 * i)
-                    })
+                let regs_arr: [(Gpr, AllUsize); 32] = core::array::from_fn(|i| {
+                    (
+                        Gpr::from_repr(i).expect("valid"),
+                        unsafe { *gpr_ptr.add(2 * i) }.into_all(),
+                    )
                 });
                 tracer.borrow().reg_print(&regs_arr, range.clone());
             }
