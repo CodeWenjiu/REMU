@@ -184,6 +184,17 @@ pub trait Xlen: MachineWord + IntoAllUsize + WordOps {
     fn shamt_mask(self) -> u32 {
         Self::BITS - 1
     }
+
+    /// High `BITS` bits of the 2·BITS signed product (RV `mulh`). Implemented
+    /// per width with the narrowest sufficient intermediate (u32 → i64, u64 →
+    /// i128) so the hot RV32 path stays on cheap 64-bit arithmetic.
+    fn mulh(self, rhs: Self) -> Self;
+
+    /// High `BITS` bits of the signed×unsigned 2·BITS product (RV `mulhsu`).
+    fn mulhsu(self, rhs: Self) -> Self;
+
+    /// High `BITS` bits of the 2·BITS unsigned product (RV `mulhu`).
+    fn mulhu(self, rhs: Self) -> Self;
 }
 
 impl MachineWord for u32 {}
@@ -211,6 +222,18 @@ impl Xlen for u32 {
     fn from_i64(v: i64) -> u32 {
         v as u32
     }
+    #[inline(always)]
+    fn mulh(self, rhs: u32) -> u32 {
+        ((self as i32 as i64).wrapping_mul(rhs as i32 as i64) >> 32) as u32
+    }
+    #[inline(always)]
+    fn mulhsu(self, rhs: u32) -> u32 {
+        ((self as i32 as i64).wrapping_mul(rhs as i64) >> 32) as u32
+    }
+    #[inline(always)]
+    fn mulhu(self, rhs: u32) -> u32 {
+        ((self as u64).wrapping_mul(rhs as u64) >> 32) as u32
+    }
     const BITS: u32 = 32;
 }
 
@@ -232,6 +255,18 @@ impl Xlen for u64 {
     fn from_i64(v: i64) -> u64 {
         v as u64
     }
+    #[inline(always)]
+    fn mulh(self, rhs: u64) -> u64 {
+        ((self as i64 as i128).wrapping_mul(rhs as i64 as i128) >> 64) as u64
+    }
+    #[inline(always)]
+    fn mulhsu(self, rhs: u64) -> u64 {
+        ((self as i64 as i128).wrapping_mul(rhs as i128) >> 64) as u64
+    }
+    #[inline(always)]
+    fn mulhu(self, rhs: u64) -> u64 {
+        ((self as u128).wrapping_mul(rhs as u128) >> 64) as u64
+    }
     const BITS: u32 = 64;
 }
 
@@ -252,6 +287,19 @@ impl Xlen for u128 {
     #[inline(always)]
     fn from_i64(v: i64) -> u128 {
         v as u128
+    }
+    // No 128-bit XLEN ISA exists; these stay unreachable. Kept for trait completeness.
+    #[inline(always)]
+    fn mulh(self, _rhs: u128) -> u128 {
+        unreachable!()
+    }
+    #[inline(always)]
+    fn mulhsu(self, _rhs: u128) -> u128 {
+        unreachable!()
+    }
+    #[inline(always)]
+    fn mulhu(self, _rhs: u128) -> u128 {
+        unreachable!()
     }
     const BITS: u32 = 128;
 }

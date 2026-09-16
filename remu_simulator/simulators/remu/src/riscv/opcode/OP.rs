@@ -216,27 +216,13 @@ pub(crate) fn execute_mul<P: remu_state::StatePolicy, C: crate::ExecuteContext<P
     op2(ctx, decoded, pc, |a, b| a.wrapping_mul(b))
 }
 
-/// mulh / mulhsu / mulhu: high `BITS` bits of the 2·BITS product.
-/// Implemented with 128-bit intermediates so it is XLEN-agnostic (RV32 & RV64).
-#[inline(always)]
-fn high_bits<P: remu_state::StatePolicy>(
-    prod: i128,
-    mask: u32,
-) -> <<P as remu_state::StatePolicy>::ISA as RvIsa>::XLEN {
-    <<P as remu_state::StatePolicy>::ISA as RvIsa>::XLEN::from_u64((prod >> mask) as u64)
-}
-
 #[inline(always)]
 pub(crate) fn execute_mulh<P: remu_state::StatePolicy, C: crate::ExecuteContext<P>>(
     ctx: &mut C,
     decoded: &DecodedInst,
     pc: <<P as remu_state::StatePolicy>::ISA as RvIsa>::XLEN,
 ) -> Result<<<P as remu_state::StatePolicy>::ISA as RvIsa>::XLEN, remu_state::StateError> {
-    op2(ctx, decoded, pc, |a, b| {
-        let sa = a.to_signed().to_i128();
-        let sb = b.to_signed().to_i128();
-        high_bits::<P>(sa.wrapping_mul(sb), b.shamt_mask() + 1)
-    })
+    op2(ctx, decoded, pc, |a, b| a.mulh(b))
 }
 
 #[inline(always)]
@@ -245,11 +231,7 @@ pub(crate) fn execute_mulhsu<P: remu_state::StatePolicy, C: crate::ExecuteContex
     decoded: &DecodedInst,
     pc: <<P as remu_state::StatePolicy>::ISA as RvIsa>::XLEN,
 ) -> Result<<<P as remu_state::StatePolicy>::ISA as RvIsa>::XLEN, remu_state::StateError> {
-    op2(ctx, decoded, pc, |a, b| {
-        let sa = a.to_signed().to_i128();
-        let ub = b.to_u128();
-        high_bits::<P>(sa.wrapping_mul(ub as i128), b.shamt_mask() + 1)
-    })
+    op2(ctx, decoded, pc, |a, b| a.mulhsu(b))
 }
 
 #[inline(always)]
@@ -258,13 +240,7 @@ pub(crate) fn execute_mulhu<P: remu_state::StatePolicy, C: crate::ExecuteContext
     decoded: &DecodedInst,
     pc: <<P as remu_state::StatePolicy>::ISA as RvIsa>::XLEN,
 ) -> Result<<<P as remu_state::StatePolicy>::ISA as RvIsa>::XLEN, remu_state::StateError> {
-    op2(ctx, decoded, pc, |a, b| {
-        let ua = a.to_u128();
-        let ub = b.to_u128();
-        <<P as remu_state::StatePolicy>::ISA as RvIsa>::XLEN::from_u64(
-            (ua.wrapping_mul(ub) >> (b.shamt_mask() + 1)) as u64,
-        )
-    })
+    op2(ctx, decoded, pc, |a, b| a.mulhu(b))
 }
 
 #[inline(always)]
@@ -274,16 +250,17 @@ pub(crate) fn execute_div<P: remu_state::StatePolicy, C: crate::ExecuteContext<P
     pc: <<P as remu_state::StatePolicy>::ISA as RvIsa>::XLEN,
 ) -> Result<<<P as remu_state::StatePolicy>::ISA as RvIsa>::XLEN, remu_state::StateError> {
     op2(ctx, decoded, pc, |a, b| {
-        let sa = a.to_signed().to_i128();
-        let sb = b.to_signed().to_i128();
-        if sb == 0 {
-            <<P as remu_state::StatePolicy>::ISA as RvIsa>::XLEN::from_i64(-1)
-        } else if sa == i128::MIN >> (128 - (b.shamt_mask() + 1)) && sb == -1 {
-            <<P as remu_state::StatePolicy>::ISA as RvIsa>::XLEN::from_i64(sa as i64)
+        let sa = a.to_signed();
+        let sb = b.to_signed();
+        let zero = sa.wrapping_sub(sa);
+        if sb == zero {
+            // div by zero: all bits one
+            <<P as remu_state::StatePolicy>::ISA as RvIsa>::XLEN::from_u64(u64::MAX)
         } else {
-            <<P as remu_state::StatePolicy>::ISA as RvIsa>::XLEN::from_i64(
-                sa.wrapping_div(sb) as i64
-            )
+            // wrapping_div on the native width (i32/i64): MIN / -1 already
+            // yields MIN, matching the RISC-V overflow rule, with no wide
+            // intermediate and no libcall.
+            <<P as remu_state::StatePolicy>::ISA as RvIsa>::XLEN::from_signed(sa.wrapping_div(sb))
         }
     })
 }
@@ -310,16 +287,14 @@ pub(crate) fn execute_rem<P: remu_state::StatePolicy, C: crate::ExecuteContext<P
     pc: <<P as remu_state::StatePolicy>::ISA as RvIsa>::XLEN,
 ) -> Result<<<P as remu_state::StatePolicy>::ISA as RvIsa>::XLEN, remu_state::StateError> {
     op2(ctx, decoded, pc, |a, b| {
-        let sa = a.to_signed().to_i128();
-        let sb = b.to_signed().to_i128();
-        if sb == 0 {
+        let sa = a.to_signed();
+        let sb = b.to_signed();
+        if sb == sa.wrapping_sub(sa) {
             a
-        } else if sa == i128::MIN >> (128 - (b.shamt_mask() + 1)) && sb == -1 {
-            <<P as remu_state::StatePolicy>::ISA as RvIsa>::XLEN::from_u64(0)
         } else {
-            <<P as remu_state::StatePolicy>::ISA as RvIsa>::XLEN::from_i64(
-                sa.wrapping_rem(sb) as i64
-            )
+            // wrapping_rem on the native width (i32/i64): MIN % -1 already
+            // yields 0, matching the RISC-V overflow rule.
+            <<P as remu_state::StatePolicy>::ISA as RvIsa>::XLEN::from_signed(sa.wrapping_rem(sb))
         }
     })
 }
