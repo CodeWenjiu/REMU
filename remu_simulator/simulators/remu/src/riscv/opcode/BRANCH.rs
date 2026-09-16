@@ -52,7 +52,7 @@ fn execute_cond<P: remu_state::StatePolicy, C: crate::ExecuteContext<P>>(
     let rs1_val = state.reg.gpr.raw_read(decoded.rs1.into());
     let rs2_val = state.reg.gpr.raw_read(decoded.rs2.into());
     Ok(if take(rs1_val, rs2_val) {
-        pc.wrapping_add(<<P as remu_state::StatePolicy>::ISA as remu_isa::isa::RvIsa>::XLEN::from_u64(decoded.imm as u64))
+        pc.wrapping_add(<<P as remu_state::StatePolicy>::ISA as remu_isa::isa::RvIsa>::XLEN::from_imm(decoded.imm))
     } else {
         pc.wrapping_add(<<P as remu_state::StatePolicy>::ISA as remu_isa::isa::RvIsa>::XLEN::from_u64(4))
     })

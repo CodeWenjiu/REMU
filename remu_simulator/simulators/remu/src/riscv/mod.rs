@@ -1,5 +1,6 @@
 #![allow(non_snake_case)]
 
+use remu_isa::Xlen;
 use remu_isa::isa::RvIsa;
 use remu_isa::isa::extension_v::VExtensionConfig;
 use remu_state::{StateError, StatePolicy};
@@ -65,18 +66,36 @@ pub(crate) enum Inst {
     Lb,
     Lh,
     Lw,
+    Ld,
     Lbu,
     Lhu,
+    Lwu,
     // STORE (flat)
     Sb,
     Sh,
     Sw,
+    Sd,
     LoadFp(LOAD_FP::LoadFpInst),
     StoreFp(STORE_FP::StoreFpInst),
     MiscMem(MISC_MEM::MiscMemInst),
     System(SYSTEM::SystemInst),
     V(OP_V::VInst),
     Cus0(CUS0::Cus0Inst),
+    // RV64 word ops (opcodes 0x1b / 0x3b)
+    Addiw,
+    Slliw,
+    Srliw,
+    Sraiw,
+    Addw,
+    Subw,
+    Sllw,
+    Srlw,
+    Sraw,
+    Mulw,
+    Divw,
+    Divuw,
+    Remw,
+    Remuw,
     #[default]
     Unknown,
 }
@@ -88,6 +107,14 @@ pub(crate) struct DecodedInst {
     pub(crate) rd: u8,
     pub imm: u32,
     pub(crate) inst: Inst,
+}
+
+/// Compile-time XLEN test. `XLEN::BITS` is an associated const, so every
+/// `if rv64::<P>()` folds to a constant per instantiation and LLVM drops the
+/// RV64-only branch (and its callees) from RV32 monomorphizations entirely.
+#[inline(always)]
+pub(crate) const fn rv64<P: StatePolicy>() -> bool {
+    <<P::ISA as RvIsa>::XLEN as Xlen>::BITS == 64
 }
 
 #[inline(always)]
@@ -104,7 +131,23 @@ pub(crate) fn decode<P: StatePolicy>(inst: u32) -> DecodedInst {
         STORE::OPCODE => STORE::decode::<P>(inst),
         STORE_FP::OPCODE => STORE_FP::decode::<P>(inst),
         OP_IMM::OPCODE => OP_IMM::decode::<P>(inst),
+        OP_IMM::OPCODE_W => {
+            // RV64-only word-immediate ops: illegal on RV32.
+            if rv64::<P>() {
+                OP_IMM::decode_w::<P>(inst)
+            } else {
+                UNKNOWN::decode::<P>(inst)
+            }
+        }
         OP::OPCODE => OP::decode::<P>(inst),
+        OP::OPCODE_W => {
+            // RV64-only word ALU ops: illegal on RV32.
+            if rv64::<P>() {
+                OP::decode_w::<P>(inst)
+            } else {
+                UNKNOWN::decode::<P>(inst)
+            }
+        }
         MISC_MEM::OPCODE => MISC_MEM::decode::<P>(inst),
         SYSTEM::OPCODE => SYSTEM::decode::<P>(inst),
         OP_V::OPCODE => {
@@ -173,11 +216,16 @@ pub(crate) fn execute<P: StatePolicy, C: crate::ExecuteContext<P>>(
         Inst::Lb => LOAD::execute_lb(ctx, decoded, pc),
         Inst::Lh => LOAD::execute_lh(ctx, decoded, pc),
         Inst::Lw => LOAD::execute_lw(ctx, decoded, pc),
+        // RV64-only widths: the guard folds to false for RV32 monomorphizations,
+        // so these arms (and their inlined execute bodies) are never compiled.
+        Inst::Ld if rv64::<P>() => LOAD::execute_ld(ctx, decoded, pc),
         Inst::Lbu => LOAD::execute_lbu(ctx, decoded, pc),
         Inst::Lhu => LOAD::execute_lhu(ctx, decoded, pc),
+        Inst::Lwu if rv64::<P>() => LOAD::execute_lwu(ctx, decoded, pc),
         Inst::Sb => STORE::execute_sb(ctx, decoded, pc),
         Inst::Sh => STORE::execute_sh(ctx, decoded, pc),
         Inst::Sw => STORE::execute_sw(ctx, decoded, pc),
+        Inst::Sd if rv64::<P>() => STORE::execute_sd(ctx, decoded, pc),
         Inst::LoadFp(..) => LOAD_FP::execute(ctx, decoded, pc),
         Inst::StoreFp(..) => STORE_FP::execute(ctx, decoded, pc),
         Inst::MiscMem(..) => MISC_MEM::execute(ctx, decoded, pc),
@@ -196,7 +244,65 @@ pub(crate) fn execute<P: StatePolicy, C: crate::ExecuteContext<P>>(
                 UNKNOWN::execute(ctx, decoded, pc)
             }
         }
+        Inst::Addiw if rv64::<P>() => OP_IMM::execute_addiw(ctx, decoded, pc),
+        Inst::Slliw if rv64::<P>() => OP_IMM::execute_slliw(ctx, decoded, pc),
+        Inst::Srliw if rv64::<P>() => OP_IMM::execute_srliw(ctx, decoded, pc),
+        Inst::Sraiw if rv64::<P>() => OP_IMM::execute_sraiw(ctx, decoded, pc),
+        // RV64-only word-ALU ops; same folding rationale as the LOAD/STORE arms.
+        Inst::Addw if rv64::<P>() => OP::execute_addw(ctx, decoded, pc),
+        Inst::Subw if rv64::<P>() => OP::execute_subw(ctx, decoded, pc),
+        Inst::Sllw if rv64::<P>() => OP::execute_sllw(ctx, decoded, pc),
+        Inst::Srlw if rv64::<P>() => OP::execute_srlw(ctx, decoded, pc),
+        Inst::Sraw if rv64::<P>() => OP::execute_sraw(ctx, decoded, pc),
+        Inst::Mulw if rv64::<P>() => OP::execute_mulw(ctx, decoded, pc),
+        Inst::Divw if rv64::<P>() => OP::execute_divw(ctx, decoded, pc),
+        Inst::Divuw if rv64::<P>() => OP::execute_divuw(ctx, decoded, pc),
+        Inst::Remw if rv64::<P>() => OP::execute_remw(ctx, decoded, pc),
+        Inst::Remuw if rv64::<P>() => OP::execute_remuw(ctx, decoded, pc),
         Inst::Unknown => UNKNOWN::execute(ctx, decoded, pc),
+        // Defensive tail: exhaustive by construction (every variant has an arm
+        // above, gated by `rv64` where RV64-only). For RV32 monomorphizations
+        // the gated arms fold away, leaving this arm unreachable and DCEd too.
+        _ => UNKNOWN::execute(ctx, decoded, pc),
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use remu_isa::isa::extension_enum::{RV32I, RV64IM};
+    use remu_state::StateFastProfile;
+
+    fn is_known<P: StatePolicy>(inst: u32) -> bool {
+        core::mem::discriminant(&decode::<P>(inst).inst) != core::mem::discriminant(&Inst::Unknown)
+    }
+
+    #[test]
+    fn rv32_rejects_rv64_only_encodings() {
+        type P32 = StateFastProfile<RV32I>;
+        // Word-immediate / word-ALU opcodes (0x1b / 0x3b) are RV64-only.
+        assert!(!is_known::<P32>(0x0005051b)); // addiw a0, a0, 0
+        assert!(!is_known::<P32>(0x02a7053b)); // mulw a0, a4, a0
+        assert!(!is_known::<P32>(0x4075559b)); // sraiw a1, a0, 7
+        // RV64-only load/store widths.
+        assert!(!is_known::<P32>(0x00053503)); // ld a0, 0(a0)
+        assert!(!is_known::<P32>(0x00056503)); // lwu a0, 0(a0)
+        assert!(!is_known::<P32>(0x00a53023)); // sd a0, 0(a0)
+        // Sanity: shared encodings stay legal.
+        assert!(is_known::<P32>(0x00b50533)); // add a0, a0, a1
+        assert!(is_known::<P32>(0x00052503)); // lw a0, 0(a0)
+        assert!(is_known::<P32>(0x00a52023)); // sw a0, 0(a0)
+    }
+
+    #[test]
+    fn rv64_accepts_rv64_encodings() {
+        type P64 = StateFastProfile<RV64IM>;
+        assert!(is_known::<P64>(0x0005051b)); // addiw
+        assert!(is_known::<P64>(0x02a7053b)); // mulw
+        assert!(is_known::<P64>(0x4075559b)); // sraiw
+        assert!(is_known::<P64>(0x00053503)); // ld
+        assert!(is_known::<P64>(0x00056503)); // lwu
+        assert!(is_known::<P64>(0x00a53023)); // sd
     }
 }
 #[allow(dead_code)]

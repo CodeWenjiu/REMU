@@ -1,5 +1,5 @@
 use remu_isa::isa::reg::RegAccess;
-use remu_isa::{Xlen, WordOps};
+use remu_isa::{WordOps, Xlen};
 use remu_state::StateError;
 
 use crate::riscv::{DecodedInst, Inst, funct3, imm_s, rs1, rs2};
@@ -13,6 +13,7 @@ mod func3 {
     pub(super) const SB: u32 = 0b000;
     pub(super) const SH: u32 = 0b001;
     pub(super) const SW: u32 = 0b010;
+    pub(super) const SD: u32 = 0b011;
 }
 
 #[inline(always)]
@@ -22,6 +23,13 @@ pub(crate) fn decode<P: remu_state::StatePolicy>(inst: u32) -> DecodedInst {
         func3::SB => Inst::Sb,
         func3::SH => Inst::Sh,
         func3::SW => Inst::Sw,
+        // RV64-only width: illegal on RV32.
+        func3::SD => {
+            if !crate::riscv::rv64::<P>() {
+                return DecodedInst::default();
+            }
+            Inst::Sd
+        }
         _ => return DecodedInst::default(),
     };
     DecodedInst {
@@ -40,11 +48,9 @@ pub(crate) fn execute_sb<P: remu_state::StatePolicy, C: crate::ExecuteContext<P>
     pc: <P::ISA as remu_isa::isa::RvIsa>::XLEN,
 ) -> Result<<P::ISA as remu_isa::isa::RvIsa>::XLEN, remu_state::StateError> {
     let state = ctx.state_mut();
-    let addr = state
-        .reg
-        .gpr
-        .raw_read(decoded.rs1.into())
-        .wrapping_add(<<P as remu_state::StatePolicy>::ISA as remu_isa::isa::RvIsa>::XLEN::from_u64(decoded.imm as u64));
+    let addr = state.reg.gpr.raw_read(decoded.rs1.into()).wrapping_add(
+        <<P as remu_state::StatePolicy>::ISA as remu_isa::isa::RvIsa>::XLEN::from_imm(decoded.imm),
+    );
     let v = state.reg.gpr.raw_read(decoded.rs2.into()).to_u8();
     match state.bus.write_8_fast(addr.to_usize(), v) {
         Some(()) => {}
@@ -53,7 +59,9 @@ pub(crate) fn execute_sb<P: remu_state::StatePolicy, C: crate::ExecuteContext<P>
             .write_8_slow_err(addr.to_usize(), v)
             .map_err(StateError::from)?,
     }
-    Ok(pc.wrapping_add(<<P as remu_state::StatePolicy>::ISA as remu_isa::isa::RvIsa>::XLEN::from_u64(4)))
+    Ok(pc.wrapping_add(
+        <<P as remu_state::StatePolicy>::ISA as remu_isa::isa::RvIsa>::XLEN::from_u64(4),
+    ))
 }
 
 #[inline(always)]
@@ -63,11 +71,9 @@ pub(crate) fn execute_sh<P: remu_state::StatePolicy, C: crate::ExecuteContext<P>
     pc: <P::ISA as remu_isa::isa::RvIsa>::XLEN,
 ) -> Result<<P::ISA as remu_isa::isa::RvIsa>::XLEN, remu_state::StateError> {
     let state = ctx.state_mut();
-    let addr = state
-        .reg
-        .gpr
-        .raw_read(decoded.rs1.into())
-        .wrapping_add(<<P as remu_state::StatePolicy>::ISA as remu_isa::isa::RvIsa>::XLEN::from_u64(decoded.imm as u64));
+    let addr = state.reg.gpr.raw_read(decoded.rs1.into()).wrapping_add(
+        <<P as remu_state::StatePolicy>::ISA as remu_isa::isa::RvIsa>::XLEN::from_imm(decoded.imm),
+    );
     let v = state.reg.gpr.raw_read(decoded.rs2.into()).to_u16();
     match state.bus.write_16_fast(addr.to_usize(), v) {
         Some(()) => {}
@@ -76,7 +82,9 @@ pub(crate) fn execute_sh<P: remu_state::StatePolicy, C: crate::ExecuteContext<P>
             .write_16_slow_err(addr.to_usize(), v)
             .map_err(StateError::from)?,
     }
-    Ok(pc.wrapping_add(<<P as remu_state::StatePolicy>::ISA as remu_isa::isa::RvIsa>::XLEN::from_u64(4)))
+    Ok(pc.wrapping_add(
+        <<P as remu_state::StatePolicy>::ISA as remu_isa::isa::RvIsa>::XLEN::from_u64(4),
+    ))
 }
 
 #[inline(always)]
@@ -86,11 +94,9 @@ pub(crate) fn execute_sw<P: remu_state::StatePolicy, C: crate::ExecuteContext<P>
     pc: <P::ISA as remu_isa::isa::RvIsa>::XLEN,
 ) -> Result<<P::ISA as remu_isa::isa::RvIsa>::XLEN, remu_state::StateError> {
     let state = ctx.state_mut();
-    let addr = state
-        .reg
-        .gpr
-        .raw_read(decoded.rs1.into())
-        .wrapping_add(<<P as remu_state::StatePolicy>::ISA as remu_isa::isa::RvIsa>::XLEN::from_u64(decoded.imm as u64));
+    let addr = state.reg.gpr.raw_read(decoded.rs1.into()).wrapping_add(
+        <<P as remu_state::StatePolicy>::ISA as remu_isa::isa::RvIsa>::XLEN::from_imm(decoded.imm),
+    );
     let v = state.reg.gpr.raw_read(decoded.rs2.into());
     match state.bus.write_32_fast(addr.to_usize(), v.to_u32()) {
         Some(()) => {}
@@ -99,5 +105,31 @@ pub(crate) fn execute_sw<P: remu_state::StatePolicy, C: crate::ExecuteContext<P>
             .write_32_slow_err(addr.to_usize(), v.to_u32())
             .map_err(StateError::from)?,
     }
-    Ok(pc.wrapping_add(<<P as remu_state::StatePolicy>::ISA as remu_isa::isa::RvIsa>::XLEN::from_u64(4)))
+    Ok(pc.wrapping_add(
+        <<P as remu_state::StatePolicy>::ISA as remu_isa::isa::RvIsa>::XLEN::from_u64(4),
+    ))
+}
+
+/// RV64 `sd`: 64-bit store.
+#[inline(always)]
+pub(crate) fn execute_sd<P: remu_state::StatePolicy, C: crate::ExecuteContext<P>>(
+    ctx: &mut C,
+    decoded: &DecodedInst,
+    pc: <P::ISA as remu_isa::isa::RvIsa>::XLEN,
+) -> Result<<P::ISA as remu_isa::isa::RvIsa>::XLEN, remu_state::StateError> {
+    let state = ctx.state_mut();
+    let addr = state.reg.gpr.raw_read(decoded.rs1.into()).wrapping_add(
+        <<P as remu_state::StatePolicy>::ISA as remu_isa::isa::RvIsa>::XLEN::from_imm(decoded.imm),
+    );
+    let v = state.reg.gpr.raw_read(decoded.rs2.into()).to_u64();
+    match state.bus.write_64_fast(addr.to_usize(), v) {
+        Some(()) => {}
+        None => state
+            .bus
+            .write_64_slow_err(addr.to_usize(), v)
+            .map_err(StateError::from)?,
+    }
+    Ok(pc.wrapping_add(
+        <<P as remu_state::StatePolicy>::ISA as remu_isa::isa::RvIsa>::XLEN::from_u64(4),
+    ))
 }

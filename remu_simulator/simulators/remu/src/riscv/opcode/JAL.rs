@@ -28,5 +28,5 @@ pub(crate) fn execute<P: remu_state::StatePolicy, C: crate::ExecuteContext<P>>(
     let state = ctx.state_mut();
     let value = pc.wrapping_add(<<P as remu_state::StatePolicy>::ISA as remu_isa::isa::RvIsa>::XLEN::from_u64(4));
     state.reg.gpr.raw_write(decoded.rd.into(), value);
-    Ok(pc.wrapping_add(<<P as remu_state::StatePolicy>::ISA as remu_isa::isa::RvIsa>::XLEN::from_u64(decoded.imm as u64)))
+    Ok(pc.wrapping_add(<<P as remu_state::StatePolicy>::ISA as remu_isa::isa::RvIsa>::XLEN::from_imm(decoded.imm)))
 }
