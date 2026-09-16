@@ -1,8 +1,6 @@
-#![cfg_attr(target_arch = "riscv32", no_std, no_main)]
-
 use remu_hal::{Box, FmtWrite, String, Uart16550, Vec, exit_success};
 
-#[cfg_attr(target_arch = "riscv32", remu_hal::entry)]
+#[remu_hal::entry]
 fn main() -> ! {
     remu_hal::init();
     let mut uart = Uart16550::default_base();

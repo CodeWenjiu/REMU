@@ -5,6 +5,7 @@ edition = "2024"
 
 [dependencies]
 remu_macro = { path = "../../remu_macro" }
+remu_hal_macros = { path = "./macros" }
 embedded-io = "0.7.1"
 
 [target.'cfg(any(target_arch = "riscv32", target_arch = "riscv64"))'.dependencies]

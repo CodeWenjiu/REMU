@@ -1,12 +1,7 @@
-#![allow(unreachable_pub)]
-#![allow(dead_code)]
-#![cfg_attr(target_arch = "riscv32", no_std, no_main)]
-
 #[macro_use]
 extern crate alloc;
 
 remu_macro::mod_pub!(crate, inference);
-#[cfg(target_arch = "riscv32")]
 use remu_hal::entry;
 use remu_hal::{FmtWrite, Uart16550, exit_success};
 
@@ -17,7 +12,7 @@ type Engine = crate::inference::Cus0Inference;
 
 static BENCHMARK_MODE: bool = false;
 
-#[cfg_attr(target_arch = "riscv32", entry)]
+#[entry]
 fn main() -> ! {
     // `init()` 内含 `pre_main_init()`，并初始化全局堆；分配前必须调用。
     remu_hal::init();

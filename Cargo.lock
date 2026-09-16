@@ -5167,6 +5167,7 @@ version = "0.1.0"
 dependencies = [
  "embedded-io",
  "remu_hal_embedded",
+ "remu_hal_macros",
  "remu_macro",
  "softbuffer",
  "winit",
@@ -5186,6 +5187,10 @@ dependencies = [
  "riscv-rt",
  "xtask",
 ]
+
+[[package]]
+name = "remu_hal_macros"
+version = "0.1.0"
 
 [[package]]
 name = "remu_hal_slint"

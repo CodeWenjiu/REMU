@@ -22,6 +22,7 @@ members = [
 
     "remu_app/remu_hal",
     "remu_app/remu_hal/embedded",
+    "remu_app/remu_hal/macros",
     "remu_app/remu_hal/xtask",
     "remu_app/remu_hal_slint",
     "remu_app/hello_world",

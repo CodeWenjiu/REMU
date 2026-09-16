@@ -1,0 +1,11 @@
+[package]
+name = "remu_hal_macros"
+version = "0.1.0"
+edition = "2024"
+description = "Platform-adaptive attribute macros for remu_hal apps"
+
+[lib]
+proc-macro = true
+
+[lints]
+workspace = true

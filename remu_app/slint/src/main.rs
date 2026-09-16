@@ -1,9 +1,7 @@
-#![cfg_attr(target_arch = "riscv32", no_std, no_main)]
-
-//! A minimal Slint UI demo running on remu (embedded) and host.
-//!
-//! Demonstrates keyboard (global key-pressed callback) and mouse
-//! (TouchArea mouse-moved + button click) interaction.
+// A minimal Slint UI demo running on remu (embedded) and host.
+//
+// Demonstrates keyboard (global key-pressed callback) and mouse
+// (TouchArea mouse-moved + button click) interaction.
 
 extern crate alloc;
 
@@ -21,7 +19,7 @@ use slint::ComponentHandle as _;
 /// pump / redraw loop to ~60 fps.
 const FRAME_MS: u64 = 16;
 
-#[cfg_attr(target_arch = "riscv32", remu_hal::entry)]
+#[remu_hal::entry]
 fn main() -> ! {
     remu_hal::init();
     let mut uart = Uart16550::default_base();

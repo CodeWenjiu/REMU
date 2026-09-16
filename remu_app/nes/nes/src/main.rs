@@ -1,13 +1,11 @@
-#![cfg_attr(target_arch = "riscv32", no_std, no_main)]
-
-//! A NES emulator running on remu, driven by the vendored `runes_core`, with a
-//! Slint launcher menu for selecting embedded ROMs.
-//!
-//! The launcher runs in Slint (rendered by remu_hal_slint into the display
-//! framebuffer). Once a game is launched, control transfers to the NES loop,
-//! which renders directly into the framebuffer via `NesScreen` — Slint is
-//! *not* pumped during gameplay, so the menu costs nothing in-game. Press
-//! Escape at any time to return to the menu.
+// A NES emulator running on remu, driven by the vendored `runes_core`, with a
+// Slint launcher menu for selecting embedded ROMs.
+//
+// The launcher runs in Slint (rendered by remu_hal_slint into the display
+// framebuffer). Once a game is launched, control transfers to the NES loop,
+// which renders directly into the framebuffer via `NesScreen` — Slint is
+// *not* pumped during gameplay, so the menu costs nothing in-game. Press
+// Escape at any time to return to the menu.
 
 extern crate alloc;
 
@@ -152,7 +150,7 @@ fn run_game(idx: usize, uart: &mut Uart16550) {
     }
 }
 
-#[cfg_attr(target_arch = "riscv32", remu_hal::entry)]
+#[remu_hal::entry]
 fn main() -> ! {
     remu_hal::init();
     let mut uart = Uart16550::default_base();

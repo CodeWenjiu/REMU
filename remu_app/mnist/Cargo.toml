@@ -9,3 +9,7 @@ remu_hal = { path = "../remu_hal" }
 
 [lints]
 workspace = true
+
+[[bin]]
+name = "remu_app_mnist"
+path = "../remu_hal/embedded/templates/app_entry.rs"

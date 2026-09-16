@@ -16,3 +16,7 @@ slint-build.workspace = true
 
 [lints]
 workspace = true
+
+[[bin]]
+name = "remu_app_nes"
+path = "../../remu_hal/embedded/templates/app_entry.rs"

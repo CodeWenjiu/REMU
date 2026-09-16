@@ -24,6 +24,7 @@
 extern crate alloc;
 
 // ── Platform-specific backend ──
+// ── Platform-specific backend ──
 #[cfg(not(any(target_arch = "riscv32", target_arch = "riscv64")))]
 mod host;
 
@@ -105,10 +106,19 @@ pub fn key_kind_from_u32(v: u32) -> KeyKind {
 #[cfg(any(target_arch = "riscv32", target_arch = "riscv64"))]
 pub use embedded_io::Write;
 
+/// Platform-adaptive entry point: on riscv targets this becomes
+/// `riscv_rt::entry` (bare-metal `_start`); on host targets the function is
+/// passed through untouched as a plain `std main`.
+pub use remu_hal_macros::entry;
+
 #[cfg(any(target_arch = "riscv32", target_arch = "riscv64"))]
 pub use remu_hal_embedded::{
-    MTIME_TICK_HZ, Uart16550, app_args, entry, exit_failure, exit_success, read_mtime,
+    MTIME_TICK_HZ, Uart16550, app_args, exit_failure, exit_success, read_mtime,
 };
+
+/// riscv-only entry delegate used by [`entry`]'s cfg-guarded riscv copy.
+#[cfg(any(target_arch = "riscv32", target_arch = "riscv64"))]
+pub use remu_hal_embedded::entry as rt_entry;
 
 #[cfg(not(any(target_arch = "riscv32", target_arch = "riscv64")))]
 pub use host::{MTIME_TICK_HZ, Stdout as Uart16550, read_mtime};
@@ -136,13 +146,17 @@ pub fn read_key_kind() -> KeyKind {
     key_kind_from_u32(read_key_kind_raw())
 }
 
-// ── Safe init (wraps unsafe embedded init) ──
-#[cfg(any(target_arch = "riscv32", target_arch = "riscv64"))]
+// ── Safe init (single implementation; embedded bring-up, host no-op) ──
+/// Performs platform bring-up. On embedded targets this wraps the unsafe
+/// heap/UART init from `remu_hal_embedded`; on host targets std has already
+/// set everything up, so the whole body compiles away to a no-op.
+#[inline]
 pub fn init() {
-    unsafe { remu_hal_embedded::init() };
+    #[cfg(any(target_arch = "riscv32", target_arch = "riscv64"))]
+    unsafe {
+        remu_hal_embedded::init()
+    };
 }
-#[cfg(not(any(target_arch = "riscv32", target_arch = "riscv64")))]
-pub use host::init;
 
 // ── Exit (both platforms) ──
 #[cfg(not(any(target_arch = "riscv32", target_arch = "riscv64")))]

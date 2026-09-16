@@ -1,18 +1,16 @@
-#![cfg_attr(target_arch = "riscv32", no_std, no_main)]
-
-//! AM video test 的 Rust 移植：N×N 彩色螺旋刷动画。
-//!
-//! 参考 https://github.com/NJU-ProjectN/am-kernels/blob/master/tests/am-tests/src/tests/video.c
-//!
-//! - 画布分成 N×N 个纯色块，每帧沿螺旋路径重新填充颜色
-//! - 颜色由计数器 `tsc` 决定（b = tsc & 0xff，RGB = (b*6, b*7, b)）
-//! - 以 30 FPS 刷新，每秒打印一次 FPS
-//!
-//! 鼠标交互（方案 A）：
-//! - 鼠标位置 → 扩散中心（颜色从鼠标处向外涟漪扩散）
-//! - 左键 → 加速（tsc 步进 ×4）；右键 → 放慢（步进减半）
-//!
-//! 计算量极小（纯整数，无浮点），适合任何平台。
+// AM video test 的 Rust 移植：N×N 彩色螺旋刷动画。
+//
+// 参考 https://github.com/NJU-ProjectN/am-kernels/blob/master/tests/am-tests/src/tests/video.c
+//
+// - 画布分成 N×N 个纯色块，每帧沿螺旋路径重新填充颜色
+// - 颜色由计数器 `tsc` 决定（b = tsc & 0xff，RGB = (b*6, b*7, b)）
+// - 以 30 FPS 刷新，每秒打印一次 FPS
+//
+// 鼠标交互（方案 A）：
+// - 鼠标位置 → 扩散中心（颜色从鼠标处向外涟漪扩散）
+// - 左键 → 加速（tsc 步进 ×4）；右键 → 放慢（步进减半）
+//
+// 计算量极小（纯整数，无浮点），适合任何平台。
 
 use remu_hal::{
     FB_HEIGHT, FB_WIDTH, FmtWrite, MTIME_TICK_HZ, Uart16550, display_alive, exit_success, fb_base,
@@ -117,7 +115,7 @@ fn redraw(fb: *mut u32, disp_w: usize, disp_h: usize) {
     frame_done();
 }
 
-#[cfg_attr(target_arch = "riscv32", remu_hal::entry)]
+#[remu_hal::entry]
 fn main() -> ! {
     remu_hal::init();
     let mut uart = Uart16550::default_base();

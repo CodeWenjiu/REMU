@@ -51,10 +51,6 @@ impl fmt::Write for Stdout {
     }
 }
 
-/// No-op heap init on host (global allocator already set up by std).
-#[inline]
-pub fn init() {}
-
 /// MTIME tick frequency (host: 1000 ticks/sec — `read_mtime` returns ms).
 pub const MTIME_TICK_HZ: u64 = 1000;
 

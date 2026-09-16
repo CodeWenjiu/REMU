@@ -1,12 +1,10 @@
-#![cfg_attr(target_arch = "riscv32", no_std, no_main)]
-
-//! 60 个发光点沿轨道运行的 shader（来自 glslsandbox）。
-//!
-//! 每个点围绕中心做螺旋运动：x 相位 `θ·t`、y 相位 `θ−t`，颜色随时间
-//! 旋转，亮度按 `1/d` 衰减。整个图案像一朵缓慢绽放的旋转光花。
-//!
-//! 固定点数学（无 f32）+ 256 项 cos 查表，适配无 FPU 的 RISC-V。渲染
-//! 分辨率自动跟随窗口大小（`read_disp_size`），并上采样 `UP` 倍。
+// 60 个发光点沿轨道运行的 shader（来自 glslsandbox）。
+//
+// 每个点围绕中心做螺旋运动：x 相位 `θ·t`、y 相位 `θ−t`，颜色随时间
+// 旋转，亮度按 `1/d` 衰减。整个图案像一朵缓慢绽放的旋转光花。
+//
+// 固定点数学（无 f32）+ 256 项 cos 查表，适配无 FPU 的 RISC-V。渲染
+// 分辨率自动跟随窗口大小（`read_disp_size`），并上采样 `UP` 倍。
 
 use remu_hal::{
     FB_WIDTH, FmtWrite, MTIME_TICK_HZ, Uart16550, display_alive, exit_success, fb_base, frame_done,
@@ -105,7 +103,7 @@ fn isqrt(v: i64) -> i64 {
     x
 }
 
-#[cfg_attr(target_arch = "riscv32", remu_hal::entry)]
+#[remu_hal::entry]
 fn main() -> ! {
     remu_hal::init();
     let mut uart = Uart16550::default_base();
