@@ -12,3 +12,7 @@ miniz_oxide = { version = "0.8", default-features = false, features = ["with-all
 
 [lints]
 workspace = true
+
+[[bin]]
+name = "remu_app_microbench"
+path = "../remu_hal/embedded/templates/app_entry.rs"

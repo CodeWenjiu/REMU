@@ -21,10 +21,14 @@ pub(crate) struct ParsedAppShorthand {
     pub extensions: Vec<NamedExtension>,
 }
 
-fn rv32_base(input: &mut &str) -> ModalResult<&'static str> {
+fn rv_base(input: &mut &str) -> ModalResult<&'static str> {
     alt((
+        // Longer prefixes first (winnow matches literals in order).
+        literal("riscv64imac").value("riscv64imac"),
         literal("riscv32imac").value("riscv32imac"),
+        literal("riscv64im").value("riscv64im"),
         literal("riscv32im").value("riscv32im"),
+        literal("riscv64i").value("riscv64i"),
         literal("riscv32i").value("riscv32i"),
     ))
     .parse_next(input)
@@ -52,13 +56,13 @@ fn named_extension_segment(input: &mut &str) -> ModalResult<NamedExtension> {
     alt((underscore_zve32x_zvl128b, underscore_wj_cus0)).parse_next(input)
 }
 
-/// If `key` does not start with a known `riscv32*` base, returns `Ok(None)` so callers can fall back
+/// If `key` does not start with a known `riscv*` base, returns `Ok(None)` so callers can fall back
 /// to legacy `expand_builtin` (e.g. hypothetical custom short names).
 ///
-/// If it starts with `riscv32*` but trailing segments are invalid, returns `Err`.
+/// If it starts with `riscv*` but trailing segments are invalid, returns `Err`.
 pub(crate) fn parse_riscv_app_shorthand(key: &str) -> Result<Option<ParsedAppShorthand>, String> {
     let mut input = key;
-    let base = match rv32_base.parse_next(&mut input) {
+    let base = match rv_base.parse_next(&mut input) {
         Ok(b) => b.to_string(),
         Err(_) => return Ok(None),
     };
@@ -142,5 +146,38 @@ mod tests {
             .unwrap()
             .unwrap();
         assert_eq!(p.extensions.len(), 2);
+    }
+}
+
+#[cfg(test)]
+mod rv64_tests {
+    use super::*;
+
+    #[test]
+    fn riscv64im_plain() {
+        let p = parse_riscv_app_shorthand("riscv64im").unwrap().unwrap();
+        assert_eq!(p.base_prefix, "riscv64im");
+        assert!(p.extensions.is_empty());
+    }
+
+    #[test]
+    fn riscv64i_plain() {
+        let p = parse_riscv_app_shorthand("riscv64i").unwrap().unwrap();
+        assert_eq!(p.base_prefix, "riscv64i");
+        assert!(p.extensions.is_empty());
+    }
+
+    #[test]
+    fn longer_prefix_wins() {
+        // "riscv64im" must not be parsed as "riscv64i" + leftover "m".
+        let p = parse_riscv_app_shorthand("riscv64imac").unwrap().unwrap();
+        assert_eq!(p.base_prefix, "riscv64imac");
+        let p = parse_riscv_app_shorthand("riscv64im").unwrap().unwrap();
+        assert_eq!(p.base_prefix, "riscv64im");
+    }
+
+    #[test]
+    fn rv64_with_unknown_suffix_errors() {
+        assert!(parse_riscv_app_shorthand("riscv64im_foo").is_err());
     }
 }

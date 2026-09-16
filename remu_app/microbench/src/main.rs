@@ -1,5 +1,3 @@
-#![cfg_attr(target_arch = "riscv32", no_std, no_main)]
-
 extern crate alloc;
 
 mod bench;
@@ -20,7 +18,7 @@ fn get_size() -> Option<Size> {
     }
 }
 
-#[cfg_attr(target_arch = "riscv32", remu_hal::entry)]
+#[remu_hal::entry]
 fn main() -> ! {
     remu_hal::init();
     let size = match get_size() {
