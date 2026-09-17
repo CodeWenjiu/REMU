@@ -75,19 +75,19 @@ struct spike_difftest_ctx {
     processor_t* proc;
 };
 
-static reg_t difftest_u32_to_reg_t(uint32_t u, unsigned xlen)
-{
-    if (xlen == 32)
-        return static_cast<reg_t>(static_cast<int32_t>(u));
-    return static_cast<reg_t>(u);
-}
-
 static void sync_regs_to_spike(const difftest_regs_t* r, processor_t* p) {
     state_t* s = p->get_state();
     const unsigned xl = p->get_xlen();
-    s->pc = difftest_u32_to_reg_t(r->pc, xl);
-    for (int i = 0; i < 32; i++) {
-        s->XPR.write(i, difftest_u32_to_reg_t(r->gpr[i], xl));
+    if (xl == 32) {
+        /* spike stores rv32 XPR/PC as sign-extended reg_t */
+        s->pc = (reg_t)(int32_t)r->pc;
+        for (int i = 0; i < 32; i++)
+            s->XPR.write(i, (reg_t)(int32_t)r->gpr[i]);
+    } else {
+        /* XLEN-wide values pass through directly */
+        s->pc = r->pc;
+        for (int i = 0; i < 32; i++)
+            s->XPR.write(i, r->gpr[i]);
     }
 }
 
@@ -105,12 +105,12 @@ extern "C" {
 
 spike_difftest_ctx_t* spike_difftest_init(const difftest_mem_layout_t* layout,
                                           size_t n_regions,
-                                          uint32_t init_pc,
-                                          const uint32_t* init_gpr,
+                                          uint64_t init_pc,
+                                          const uint64_t* init_gpr,
                                           uint32_t xlen,
                                           const char* isa)
 {
-    (void)xlen;  /* reserved for future rv64 support */
+    (void)xlen;  /* XLEN comes from the ISA string (rv32 or rv64) */
     if (!layout || n_regions == 0 || !isa) {
         return nullptr;
     }
@@ -229,19 +229,19 @@ int spike_difftest_step(spike_difftest_ctx_t* ctx)
     }
 }
 
-const uint32_t* spike_difftest_get_pc_ptr(spike_difftest_ctx_t* ctx)
+const uint64_t* spike_difftest_get_pc_ptr(spike_difftest_ctx_t* ctx)
 {
     if (!ctx || !ctx->proc) return nullptr;
     state_t* s = ctx->proc->get_state();
-    return reinterpret_cast<const uint32_t*>(&s->pc);
+    return reinterpret_cast<const uint64_t*>(&s->pc);
 }
 
-const uint32_t* spike_difftest_get_gpr_ptr(spike_difftest_ctx_t* ctx)
+const uint64_t* spike_difftest_get_gpr_ptr(spike_difftest_ctx_t* ctx)
 {
     if (!ctx || !ctx->proc) return nullptr;
     state_t* s = ctx->proc->get_state();
-    /* XPR is reg_t[32]; reg_t is uint64_t. For rv32, low 32 bits at 2*i. */
-    return reinterpret_cast<const uint32_t*>(&s->XPR[0]);
+    /* XPR is reg_t[32] = uint64_t[32]; XLEN-wide values. */
+    return reinterpret_cast<const uint64_t*>(&s->XPR[0]);
 }
 
 uint32_t spike_difftest_get_csr(spike_difftest_ctx_t* ctx, uint16_t csr_addr)

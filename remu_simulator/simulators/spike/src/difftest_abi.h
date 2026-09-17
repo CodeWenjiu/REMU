@@ -8,13 +8,10 @@
 extern "C" {
 #endif
 
-#define DIFFTEST_MAGIC 0x44534654
-#define DIFFTEST_VERSION 2
-
-/** 32-bit GPR; x0 is always 0, enforced by both sides */
+/** XLEN-wide GPR (u64 on the bus; RV32 keeps the low 32 bits, high bits 0). */
 typedef struct __attribute__((packed, aligned(8))) {
-    uint32_t pc;
-    uint32_t gpr[32];
+    uint64_t pc;
+    uint64_t gpr[32];
 } difftest_regs_t;
 
 /** Memory layout: base + size only; Spike owns the memory */
@@ -32,16 +29,16 @@ typedef struct spike_difftest_ctx spike_difftest_ctx_t;
  *
  * @param layout    Memory layout array (guest_base, size)
  * @param n_regions Number of regions
- * @param init_pc   Initial PC
- * @param init_gpr  Initial GPR[32], may be NULL (then all zeros)
+ * @param init_pc   Initial PC (XLEN-wide)
+ * @param init_gpr  Initial GPR[32] (XLEN-wide values), may be NULL (then all zeros)
  * @param xlen      32 or 64
- * @param isa       e.g. "rv32im" or "rv32i_zve32x_zvl128b". VLEN comes from ISA (zvl* in string).
+ * @param isa       e.g. "rv64im" or "rv32im". VLEN comes from ISA (zvl* in string).
  * @return Context, or NULL on failure
  */
 spike_difftest_ctx_t* spike_difftest_init(const difftest_mem_layout_t* layout,
                                           size_t n_regions,
-                                          uint32_t init_pc,
-                                          const uint32_t* init_gpr,
+                                          uint64_t init_pc,
+                                          const uint64_t* init_gpr,
                                           uint32_t xlen,
                                           const char* isa);
 
@@ -76,17 +73,15 @@ int spike_difftest_write_mem(spike_difftest_ctx_t* ctx,
 int spike_difftest_step(spike_difftest_ctx_t* ctx);
 
 /**
- * Get pointer to Spike's internal PC (reg_t).
- * For rv32, use low 32 bits. Valid until next step/sync.
+ * Get pointer to Spike's internal PC (reg_t). XLEN-wide. Valid until next step/sync.
  */
-const uint32_t* spike_difftest_get_pc_ptr(spike_difftest_ctx_t* ctx);
+const uint64_t* spike_difftest_get_pc_ptr(spike_difftest_ctx_t* ctx);
 
 /**
- * Get pointer to Spike's internal GPR[0].
- * Spike uses reg_t (uint64_t) per reg; for rv32, low 32 bits at offset 2*i.
- * I.e. (const uint32_t*)ptr, then gpr[i] = ptr[2*i]. Valid until next step/sync.
+ * Get pointer to Spike's internal GPR[0] (reg_t = uint64_t per register).
+ * XLEN-wide; RV32 keeps values in the low 32 bits. Valid until next step/sync.
  */
-const uint32_t* spike_difftest_get_gpr_ptr(spike_difftest_ctx_t* ctx);
+const uint64_t* spike_difftest_get_gpr_ptr(spike_difftest_ctx_t* ctx);
 
 /**
  * Read one CSR from Spike by address (e.g. 0x300 = mstatus).

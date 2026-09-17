@@ -6,11 +6,11 @@ use std::os::raw::{c_char, c_int, c_uint};
 
 use libloading::Library;
 
-/// Layout matches difftest_regs_t
+/// Layout matches difftest_regs_t (XLEN-wide values; RV32 keeps low 32 bits)
 #[repr(C)]
 pub(crate) struct DifftestRegs {
-    pub(crate) pc: u32,
-    pub(crate) gpr: [u32; 32],
+    pub(crate) pc: u64,
+    pub(crate) gpr: [u64; 32],
 }
 
 /// Memory layout: base + size only; Spike owns the memory
@@ -32,8 +32,8 @@ pub(crate) struct SpikeFns {
     pub init: unsafe extern "C" fn(
         layout: *const DifftestMemLayout,
         n_regions: usize,
-        init_pc: u32,
-        init_gpr: *const u32,
+        init_pc: u64,
+        init_gpr: *const u64,
         xlen: c_uint,
         isa: *const c_char,
     ) -> SpikeDifftestCtx,
@@ -54,9 +54,9 @@ pub(crate) struct SpikeFns {
     /// Returns 0 success, 1 program exit, -1 error
     pub step: unsafe extern "C" fn(ctx: SpikeDifftestCtx) -> c_int,
 
-    pub get_pc_ptr: unsafe extern "C" fn(ctx: SpikeDifftestCtx) -> *const u32,
+    pub get_pc_ptr: unsafe extern "C" fn(ctx: SpikeDifftestCtx) -> *const u64,
 
-    pub get_gpr_ptr: unsafe extern "C" fn(ctx: SpikeDifftestCtx) -> *const u32,
+    pub get_gpr_ptr: unsafe extern "C" fn(ctx: SpikeDifftestCtx) -> *const u64,
 
     pub get_csr: unsafe extern "C" fn(ctx: SpikeDifftestCtx, csr_addr: u16) -> u32,
 

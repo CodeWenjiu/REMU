@@ -87,7 +87,7 @@ impl<P: SimulatorPolicy> SimulatorCore<P> for SimulatorSpike<P> {
             .collect();
 
         let init_pc = opt.state.reg.init_pc;
-        let init_gpr = [0u32; 32];
+        let init_gpr = [0u64; 32];
 
         let isa_str = CString::new(P::ISA::ISA_STR).expect("ISA_STR contains null");
         let xlen: c_uint = <<P::ISA as RvIsa>::XLEN as Xlen>::BITS;
@@ -96,7 +96,7 @@ impl<P: SimulatorPolicy> SimulatorCore<P> for SimulatorSpike<P> {
             (spike_fns.init)(
                 layout.as_ptr(),
                 layout.len(),
-                init_pc,
+                init_pc as u64,
                 init_gpr.as_ptr(),
                 xlen,
                 isa_str.as_ptr(),
@@ -190,29 +190,35 @@ impl<P: SimulatorPolicy> SimulatorCore<P> for SimulatorSpike<P> {
         }
 
         let mut out = Vec::new();
+        // RV32: spike sign-extends reg_t values; compare only the XLEN-wide bits.
+        let xlen_mask: u64 = if <<P::ISA as RvIsa>::XLEN as Xlen>::BITS == 64 {
+            u64::MAX
+        } else {
+            0xffff_ffff
+        };
         let ref_pc = unsafe { *pc_ptr };
 
-        if ref_pc != (*dut_reg.pc).to_u32() {
+        if (ref_pc & xlen_mask) != ((*dut_reg.pc).to_u64() & xlen_mask) {
             out.push(DifftestMismatchItem {
                 group: DifftestGroup::Reg(DifftestRegGroup::Pc),
                 name: "pc".to_string(),
-                ref_val: AllUsize::U32(ref_pc),
-                dut_val: remu_isa::AllUsize::U64((*dut_reg.pc).to_u64()),
+                ref_val: AllUsize::U64(ref_pc & xlen_mask),
+                dut_val: remu_isa::AllUsize::U64((*dut_reg.pc).to_u64() & xlen_mask),
             });
         }
 
         for i in 0..32 {
-            let r = unsafe { *gpr_ptr.add(2 * i) };
+            let r = unsafe { *gpr_ptr.add(i) };
             let d = dut_reg.gpr.raw_read(i);
-            if r != d.to_u32() {
+            if (r & xlen_mask) != (d.to_u64() & xlen_mask) {
                 let name = Gpr::from_repr(i)
                     .map(|g| g.to_string())
                     .unwrap_or_else(|| format!("x{i}"));
                 out.push(DifftestMismatchItem {
                     group: DifftestGroup::Reg(DifftestRegGroup::Gpr),
                     name,
-                    ref_val: AllUsize::U32(r),
-                    dut_val: remu_isa::AllUsize::U64(d.to_u64()),
+                    ref_val: AllUsize::U64(r & xlen_mask),
+                    dut_val: remu_isa::AllUsize::U64(d.to_u64() & xlen_mask),
                 });
             }
         }
@@ -334,12 +340,12 @@ impl<P: SimulatorPolicy> Drop for SimulatorSpike<P> {
 }
 
 fn reg_to_difftest_regs<P: SimulatorPolicy>(reg: &RiscvReg<P::ISA>) -> DifftestRegs {
-    let mut gpr = [0u32; 32];
+    let mut gpr = [0u64; 32];
     for i in 0..32 {
-        gpr[i] = reg.gpr.raw_read(i).to_u32();
+        gpr[i] = reg.gpr.raw_read(i).to_u64();
     }
     DifftestRegs {
-        pc: (*reg.pc).to_u32(),
+        pc: (*reg.pc).to_u64(),
         gpr,
     }
 }
@@ -364,12 +370,12 @@ fn state_exec_reg(
                 tracer.borrow().reg_show_pc(pc.into_all());
             }
             PcRegCmd::Write { value } => {
-                let mut new_gpr = [0u32; 32];
+                let mut new_gpr = [0u64; 32];
                 for i in 0..32 {
-                    new_gpr[i] = unsafe { *gpr_ptr.add(2 * i) };
+                    new_gpr[i] = unsafe { *gpr_ptr.add(i) };
                 }
                 let new_regs = DifftestRegs {
-                    pc: *value,
+                    pc: *value as u64,
                     gpr: new_gpr,
                 };
                 unsafe { (get_spike_fns().sync_regs_to_spike)(ctx, &new_regs) };
@@ -378,25 +384,25 @@ fn state_exec_reg(
         remu_state::reg::RegCmd::Gpr { subcmd } => match subcmd {
             remu_state::reg::GprRegCmd::Read { index } => {
                 let idx = index.idx();
-                let val = unsafe { *gpr_ptr.add(2 * idx) };
+                let val = unsafe { *gpr_ptr.add(idx) };
                 tracer.borrow().reg_show(*index, val.into_all());
             }
             remu_state::reg::GprRegCmd::Print { range } => {
                 let regs_arr: [(Gpr, AllUsize); 32] = core::array::from_fn(|i| {
                     (
                         Gpr::from_repr(i).expect("valid"),
-                        unsafe { *gpr_ptr.add(2 * i) }.into_all(),
+                        unsafe { *gpr_ptr.add(i) }.into_all(),
                     )
                 });
                 tracer.borrow().reg_print(&regs_arr, range.clone());
             }
             remu_state::reg::GprRegCmd::Write { index, value } => {
-                let mut new_gpr = [0u32; 32];
+                let mut new_gpr = [0u64; 32];
                 for i in 0..32 {
-                    new_gpr[i] = unsafe { *gpr_ptr.add(2 * i) };
+                    new_gpr[i] = unsafe { *gpr_ptr.add(i) };
                 }
                 if index.idx() != 0 {
-                    new_gpr[index.idx()] = *value;
+                    new_gpr[index.idx()] = *value as u64;
                 }
                 let new_regs = DifftestRegs { pc, gpr: new_gpr };
                 unsafe { (get_spike_fns().sync_regs_to_spike)(ctx, &new_regs) };
