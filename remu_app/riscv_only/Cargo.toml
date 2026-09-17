@@ -1,0 +1,20 @@
+[package]
+name = "remu_app_riscv_only"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+remu_hal = { path = "../remu_hal" }
+
+# Test app for the per-app ISA filter: only these targets are allowed
+# (all four are built-in/installed rustc targets; riscv64i / riscv64imac /
+# host must be rejected by xtask).
+[package.metadata.remu]
+isas = ["riscv32i", "riscv32im", "riscv32imac", "riscv64im"]
+
+[[bin]]
+name = "remu_app_riscv_only"
+path = "../remu_hal/embedded/templates/app_entry.rs"
+
+[lints]
+workspace = true

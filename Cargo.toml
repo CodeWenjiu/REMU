@@ -30,6 +30,7 @@ members = [
     "remu_app/display",
     "remu_app/shader",
     "remu_app/microbench",
+    "remu_app/riscv_only",
     "remu_app/mnist", "remu_app/mnist/mnist_generator",
     "remu_app/nes/runes_core", "remu_app/nes/nes",
     "remu_app/slint",
