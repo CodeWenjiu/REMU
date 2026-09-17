@@ -27,11 +27,18 @@ pub(crate) struct PrintCli {
     pub cmd: PrintCmd,
 }
 
+#[derive(Debug, clap::Args)]
+pub(crate) struct CheckAppArgs {
+    pub app: String,
+    pub target: String,
+}
+
 #[derive(Debug, Subcommand)]
 pub(crate) enum PrintCmd {
     RunApp(RunAppArgs),
     BuildApp(BuildAppArgs),
     RunRemu(RunRemuArgs),
+    CheckApp(CheckAppArgs),
 }
 
 #[derive(Debug, clap::Args)]

@@ -67,6 +67,7 @@ petgraph = "0.8.3"
 
 clap = "4.6.1"
 winnow = "1.0.3"
+toml = "1.1"
 
 rand = "0.10.1"
 nanospinner = "0.1"

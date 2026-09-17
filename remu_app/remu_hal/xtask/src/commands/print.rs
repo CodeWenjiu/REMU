@@ -1,7 +1,7 @@
 use std::path::PathBuf;
 use std::process::ExitCode;
 
-use crate::cli::{BuildAppArgs, PrintCmd, RunAppArgs, RunRemuArgs};
+use crate::cli::{BuildAppArgs, CheckAppArgs, PrintCmd, RunAppArgs, RunRemuArgs};
 use crate::disasm::infer_isa_from_elf_path;
 use crate::paths::Paths;
 use crate::platform::PlatformConfig;
@@ -18,6 +18,21 @@ pub(crate) fn run(cmd: PrintCmd) -> ExitCode {
         PrintCmd::RunApp(a) => print_run_app(a),
         PrintCmd::BuildApp(a) => print_build_app(a),
         PrintCmd::RunRemu(a) => print_run_remu(a),
+        PrintCmd::CheckApp(a) => print_check_app(a),
+    }
+}
+
+/// Validation-only subcommand (prints nothing on success): usable from scripts
+/// that build without xtask, e.g. `just run-app --platform host`.
+fn print_check_app(args: CheckAppArgs) -> ExitCode {
+    let paths = Paths::from_env();
+    let ws = paths.workspace_canonical();
+    match crate::app_caps::validate_app_target(&ws, &args.app, &args.target) {
+        Ok(()) => ExitCode::SUCCESS,
+        Err(e) => {
+            eprintln!("xtask: {e}");
+            ExitCode::from(1)
+        }
     }
 }
 
@@ -31,6 +46,10 @@ fn print_run_app(args: RunAppArgs) -> ExitCode {
             return ExitCode::from(1);
         }
     };
+    if let Err(e) = crate::app_caps::validate_app_target(&ws, &args.app, &args.target) {
+        eprintln!("xtask: {e}");
+        return ExitCode::from(1);
+    }
     let sub = cargo_target_dir_subdir(resolved.zve);
     let target_dir = ws.join("target").join(sub);
     let td = shell_escape(target_dir.to_str().expect("utf-8 path"));
@@ -116,6 +135,10 @@ fn print_build_app(args: BuildAppArgs) -> ExitCode {
             return ExitCode::from(1);
         }
     };
+    if let Err(e) = crate::app_caps::validate_app_target(&ws, &args.app, &args.target) {
+        eprintln!("xtask: {e}");
+        return ExitCode::from(1);
+    }
     let sub = cargo_target_dir_subdir(resolved.zve);
     let target_dir = ws.join("target").join(sub);
     let artifact_dir = artifact_dir_name(&resolved.triple_or_json);

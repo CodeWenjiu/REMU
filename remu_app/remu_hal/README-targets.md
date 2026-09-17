@@ -39,6 +39,19 @@ eval "$(cargo run -p xtask -- print build-app <name> riscv32im_wjCus0)"
 
 `just build-app` / `just run-app` wrap the above. `clean-app` removes `target/app` and `target/app_zve32x`.
 
+### App ISA restrictions (`[package.metadata.remu]`)
+
+Apps may **opt in** to a restricted target list by adding a `package.metadata.remu` section to their `Cargo.toml`:
+
+```toml
+[package.metadata.remu]
+isas = ["riscv32im", "riscv32im_zve32x_zvl128b", "host"]
+```
+
+Entries use the same vocabulary as xtask target arguments (`riscv32i` / `riscv32im` / `riscv32imac` / `riscv64*`, plus `_zve32x_zvl128b` / `_wjCus0` suffixes when needed) and the special token `host`. Apps **without** the section keep supporting every target.
+
+When the requested target is not in the list, `xtask print run-app` / `build-app` (and therefore `just run-app` / `just build-app`) fail **before** invoking cargo with a message listing the supported targets. `xtask print check-app <name> <target>` is a validation-only variant used by the host branch of `just run-app`.
+
 `remu-cargo-runner.sh` **unsets `CARGO_TARGET_DIR`** before building/running host `remu_cli`: otherwise that variable leaks from embedded `cargo run` and host artifacts would live under `target/app*`, so `clean-app` would delete them and force a full `remu_cli` rebuild.
 
 ### Manual Zve (no xtask)

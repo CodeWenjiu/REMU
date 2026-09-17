@@ -1,6 +1,15 @@
 use std::process::ExitCode;
 
-remu_macro::mod_prv!(isa_shorthand, cli, paths, target, disasm, util, platform);
+remu_macro::mod_prv!(
+    app_caps,
+    isa_shorthand,
+    cli,
+    paths,
+    target,
+    disasm,
+    util,
+    platform
+);
 remu_macro::mod_pub!(crate, commands);
 
 use cli::{Cli, Command};

@@ -14,6 +14,17 @@ pub(crate) enum NamedExtension {
     WjCus0,
 }
 
+impl NamedExtension {
+    /// Canonical shorthand segment, e.g. `zve32x_zvl128b` (used in declared
+    /// target lists and error messages).
+    pub(crate) fn as_str(self) -> &'static str {
+        match self {
+            Self::Zve32xZvl128b => "zve32x_zvl128b",
+            Self::WjCus0 => "wjCus0",
+        }
+    }
+}
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) struct ParsedAppShorthand {
     /// e.g. `riscv32im` (no `-unknown-none-elf` suffix).

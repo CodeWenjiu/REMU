@@ -28,6 +28,7 @@ run-app APP target="riscv32i" platform="remu" dev='' app_args='' *remu_cli_args:
     cd "{{ justfile_directory() }}"
     export REMU_APP_ARGS="{{ app_args }}"
     if [ "{{ platform }}" = "host" ]; then
+        cargo run -p xtask -- print check-app "{{ APP }}" host
         cargo run --release -p "remu_app_{{ APP }}" -- {{ app_args }}
     elif [ "{{ platform }}" = "qemu" ]; then
         eval "$(cargo run -p xtask -- print build-app "{{ APP }}" "{{ target }}" --platform qemu)"
