@@ -15,12 +15,4 @@ rustflags = [
 [target.'cfg(all(any(target_arch = "riscv32", target_arch = "riscv64"), target_os = "none"))']
 linker = "rust-lld"
 rustflags = ["-C", "link-arg=-Tlink.x"]
-
-[target.riscv32i-unknown-none-elf]
-runner = "remu_app/remu_hal/scripts/remu-cargo-runner.sh"
-
-[target.riscv32im-unknown-none-elf]
-runner = "remu_app/remu_hal/scripts/remu-cargo-runner.sh"
-
-[target.riscv32imac-unknown-none-elf]
 runner = "remu_app/remu_hal/scripts/remu-cargo-runner.sh"
