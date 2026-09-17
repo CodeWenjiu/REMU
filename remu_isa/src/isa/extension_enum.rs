@@ -18,8 +18,8 @@ macro_rules! for_each_isa {
         $cb!(RV32IM_wjCus0,       u32, +, -, $crate::isa::extension_v::NoV,          +, 0x4000_1100, "riscv32im_wjCus0",   im, wj,   RN);
         $cb!(RV32I_zve32x_zvl128b,u32, -, -, $crate::isa::extension_v::Zve32xZvl128b,-, 0x4000_0100, "rv32i_zve32x_zvl128b", i,  zve,  R);
         $cb!(RV32IM_zve32x_zvl128b,u32,+, -, $crate::isa::extension_v::Zve32xZvl128b,-, 0x4000_1100, "rv32im_zve32x_zvl128b",im, zve,  R);
-        $cb!(RV64I,               u64, -, -, $crate::isa::extension_v::NoV,          -, 0x4000_0100, "rv64i",             i,  none, R);
-        $cb!(RV64IM,              u64, +, -, $crate::isa::extension_v::NoV,          -, 0x4000_1100, "rv64im",            im, none, R);
+        $cb!(RV64I,               u64, -, -, $crate::isa::extension_v::NoV,          -, 0x0000_0100, "rv64i",             i,  none, R);
+        $cb!(RV64IM,              u64, +, -, $crate::isa::extension_v::NoV,          -, 0x0000_1100, "rv64im",            im, none, R);
     };
 }
 

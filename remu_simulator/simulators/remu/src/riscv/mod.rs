@@ -304,6 +304,22 @@ mod tests {
         assert!(is_known::<P64>(0x00056503)); // lwu
         assert!(is_known::<P64>(0x00a53023)); // sd
     }
+
+    #[test]
+    fn rv64_mulhu_op_decode() {
+        // 0x0365b5b3: funct7=MAD funct3=011 opcode=0x33 -> mulhu a1, a1, s6
+        type P64 = StateFastProfile<RV64IM>;
+        let d = decode::<P64>(0x0365b5b3);
+        assert_eq!(
+            core::mem::discriminant(&d.inst),
+            core::mem::discriminant(&Inst::Mulhu),
+            "got {:?}",
+            d.inst
+        );
+        assert_eq!(d.rs1, 11);
+        assert_eq!(d.rs2, 22);
+        assert_eq!(d.rd, 11);
+    }
 }
 #[allow(dead_code)]
 

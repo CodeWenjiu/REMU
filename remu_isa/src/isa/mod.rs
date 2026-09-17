@@ -38,6 +38,9 @@ pub trait RvIsa: 'static + Copy {
     type VConfig: crate::isa::extension_v::VExtensionConfig;
 
     const ISA_STR: &'static str = "rv32i";
+    /// Low 32 bits of the `misa` CSR. The MXL field lives in bits [63:62] and
+    /// is derived from [`XLEN`](Self::XLEN) (32 -> 01, 64 -> 10), never stored
+    /// here — RV64's MXL does not fit in the low word.
     const MISA: u32 = 0x4000_0100;
     const HAS_M: bool = false;
     const HAS_F: bool = false;

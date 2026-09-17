@@ -35,6 +35,8 @@ impl<I: RvIsa> RiscvReg<I> {
     }
 
     /// Read CSR value: from state for stateful CSRs, from ISA for read-only (e.g. Misa).
+    /// The difftest/CSR protocol is 32-bit wide; `MISA` stores the low word and
+    /// RV64's MXL (bits [63:62]) is intentionally not represented here.
     #[inline(always)]
     pub fn read_csr(&self, reg: CsrKind) -> u32 {
         if reg == CsrKind::Misa {
