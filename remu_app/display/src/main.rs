@@ -139,11 +139,11 @@ fn main() -> ! {
             let disp = read_disp_size();
             let disp_w = disp.width.clamp(2, FB_WIDTH);
             let disp_h = disp.height.clamp(2, FB_HEIGHT);
-            // 鼠标位置 → 扩散中心（网格坐标）。
+            // 鼠标位置 → 扩散中心（网格坐标）。纯 usize 运算，与 XLEN 同宽。
             let mx = mouse.x.clamp(0, disp_w);
             let my = mouse.y.clamp(0, disp_h);
-            let cx = (mx as u32 * N as u32 / disp_w as u32) as usize;
-            let cy = (my as u32 * N as u32 / disp_h as u32) as usize;
+            let cx = mx * N / disp_w;
+            let cy = my * N / disp_h;
             // 颜色相位由 tsc 决定；起始色随相位变化。
             let init = tsc;
             // 左键加速 ×4，右键放慢减半。

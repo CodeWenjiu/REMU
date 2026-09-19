@@ -61,6 +61,7 @@ just run-app hello_world riscv32im
 just run-app microbench riscv32im --platform host --app-args ref
 
 # Full difftest (release build, remu backend):
+# Software-platform tier; RTL (nzea) runs must use --app-args test instead of ref.
 just run-app microbench riscv32im --platform remu --app-args ref -- --batch --startup '{' continue '}' --difftest remu
 
 # QEMU:
@@ -146,6 +147,21 @@ or pass multiple pairs space-separated.
 --sim-opt target=core watchdog=5            # multiple pairs in one --sim-opt
 --sim-opt target=core --sim-opt watchdog=5  # or repeat --sim-opt
 ```
+
+> **RTL (nzea) runs: benchmark sizing & watchdog**
+>
+> The nzea backend is ~40-50x slower than the built-in simulators. For
+> `microbench` (or any sized app) use the smallest tier on RTL —
+> `--app-args test` (~10 s) — and keep `train` / `ref` / `huge` for the
+> software platforms (`remu` / `qemu` / `spike` / `host`): `ref` takes
+> about an hour on RTL.
+>
+> The watchdog fires when no sim cycles are fed for `misses × interval`,
+> but the feed only happens at 1024-cycle boundaries inside a `step_once`
+> loop. With a fast DUT whose commits return from `step_once` before that
+> boundary (e.g. the in-order engine at ~7 cycles/commit), the watchdog is
+> never fed and interrupts a healthy run; use `--sim-opt watchdog=off` for
+> such runs and keep the default only for long deadlock-prone programs.
 
 ### Automation
 
