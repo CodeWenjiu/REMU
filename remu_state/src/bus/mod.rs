@@ -4,11 +4,12 @@ remu_macro::mod_prv!(error, parse, access, observer);
 
 use std::{marker::PhantomData, ops::Range, sync::Arc};
 
+pub use device::DeviceKind;
 pub use error::BusError;
 pub use flow::{BusCmd, BusOption, ReadArgs, ReadCommand, WriteCommand};
 pub use memory::{
-    AccessKind, MemFault, MemRegionSpec, Memory, MemoryEntry, try_load_elf_into_memory,
-    write_app_args_to_entries,
+    AccessKind, MemFault, MemRegionSpec, Memory, MemoryEntry, try_load_elf_image,
+    try_load_elf_images, write_app_args_to_entries,
 };
 pub use observer::{BusObserver, DifftestObserver, FastObserver, ObserverEvent};
 pub(crate) use parse::parse_usize_allow_hex_underscore;
@@ -16,12 +17,14 @@ use remu_isa::AllUsize;
 use remu_isa::isa::RvIsa;
 use remu_types::DynDiagError;
 
-use crate::bus::device::{DeviceAccess, DeviceContext, DeviceKind, WindowHost, instantiate_device};
+use crate::bus::device::{
+    DeviceAccess, DeviceConfig, DeviceContext, WindowHost, instantiate_device,
+};
 
 /// Validate that no memory region overlaps another memory region or a device
 /// MMIO range. Called before building `Memory`; panics with a clear message on
 /// collision (layout errors are programmer/config errors, not recoverable).
-fn validate_layout(specs: &[MemRegionSpec], devices: &[(usize, Box<dyn DeviceAccess>)]) {
+fn validate_layout(specs: &[MemRegionSpec], devices: &[(DeviceConfig, Box<dyn DeviceAccess>)]) {
     // Memory region vs memory region.
     for (i, a) in specs.iter().enumerate() {
         for b in &specs[i + 1..] {
@@ -35,9 +38,9 @@ fn validate_layout(specs: &[MemRegionSpec], devices: &[(usize, Box<dyn DeviceAcc
     }
     // Memory region vs device MMIO.
     for spec in specs {
-        for (dev_addr, dev) in devices {
-            let dev_end = *dev_addr + dev.size();
-            let overlap = spec.region.start < dev_end && *dev_addr < spec.region.end;
+        for (cfg, dev) in devices {
+            let dev_end = cfg.start + dev.size();
+            let overlap = spec.region.start < dev_end && cfg.start < spec.region.end;
             assert!(
                 !overlap,
                 "memory region '{}' [{:#x}..{:#x}) overlaps device '{}' at [{:#x}..{:#x})",
@@ -45,7 +48,7 @@ fn validate_layout(specs: &[MemRegionSpec], devices: &[(usize, Box<dyn DeviceAcc
                 spec.region.start,
                 spec.region.end,
                 dev.name(),
-                *dev_addr,
+                cfg.start,
                 dev_end
             );
         }
@@ -54,7 +57,13 @@ fn validate_layout(specs: &[MemRegionSpec], devices: &[(usize, Box<dyn DeviceAcc
 
 pub struct Bus<I: RvIsa, O: BusObserver> {
     memory: Memory,
-    device: Box<[(usize, Box<dyn DeviceAccess>)]>,
+    device: Box<[(DeviceConfig, Box<dyn DeviceAccess>)]>,
+    /// Reset PC when a firmware image (`--firmware`) is loaded: its ELF entry.
+    /// `None` = no firmware, the caller's `--init-pc` applies unchanged.
+    firmware_entry: Option<usize>,
+    /// Address of the boot-info block handed to a loaded firmware in `a1`
+    /// (RISC-V boot convention: `a0` = hartid). `None` without firmware.
+    boot_info_addr: Option<usize>,
     /// Shared window host (if any device needs it). Owned by this Bus; devices
     /// hold clones. Dropped with the Bus, tearing down the window thread.
     window: Option<Arc<WindowHost>>,
@@ -93,7 +102,7 @@ impl<I: RvIsa, O: BusObserver> Bus<I, O> {
             ctx.set_window(Arc::clone(w));
         }
 
-        let mut devices: Vec<(usize, Box<dyn DeviceAccess>)> = dev_configs
+        let mut devices: Vec<(DeviceConfig, Box<dyn DeviceAccess>)> = dev_configs
             .into_iter()
             .map(|(start, kind)| {
                 tracing::info!(
@@ -102,7 +111,8 @@ impl<I: RvIsa, O: BusObserver> Bus<I, O> {
                     kind.as_str(),
                     start
                 );
-                (start, instantiate_device(kind, &ctx))
+                let cfg = DeviceConfig { kind, start };
+                (cfg, instantiate_device(kind, &ctx))
             })
             .collect();
 
@@ -132,7 +142,15 @@ impl<I: RvIsa, O: BusObserver> Bus<I, O> {
             })
             .collect();
         let mut memory = Memory::new(entries.into_boxed_slice());
-        memory.try_load_elf(&opt.elf, &tracer);
+        // Load images in order (firmware first, then the program). The first
+        // loaded image's entry becomes the reset PC — `--firmware` needs no
+        // address of its own. Columns: firmware entry, program entry.
+        let entries = memory.try_load_elf(&opt.images(), &tracer);
+        let firmware_entry = match (opt.firmware.is_some(), entries.first().copied().flatten()) {
+            (true, Some(entry)) => Some(entry as usize),
+            _ => None,
+        };
+        let program_entry = entries.get(1).copied().flatten().map(|e| e as usize);
 
         // Write app args to known address (top of RAM - 4 KiB). Shared with
         // reference simulators (e.g. spike) so the ref sees the same payload.
@@ -154,14 +172,37 @@ impl<I: RvIsa, O: BusObserver> Bus<I, O> {
             }
         }
 
+        let boot_info_addr = if firmware_entry.is_some() {
+            write_boot_info(&mut memory, &devices, program_entry, &tracer)
+        } else {
+            None
+        };
+
         Self {
             memory,
             device: devices.into_boxed_slice(),
+            firmware_entry,
+            boot_info_addr,
             window,
             tracer,
             observer: O::new(),
             _marker: PhantomData,
         }
+    }
+
+    /// Reset PC contributed by a loaded firmware image (`--firmware`): its ELF
+    /// entry, resolved at load time. `None` when no firmware was configured,
+    /// in which case the caller's `--init-pc` applies.
+    #[inline]
+    pub fn firmware_entry(&self) -> Option<usize> {
+        self.firmware_entry
+    }
+
+    /// Boot-info address passed to a loaded firmware in `a1` (`None` without
+    /// firmware). See [`write_boot_info`].
+    #[inline]
+    pub fn boot_info_addr(&self) -> Option<usize> {
+        self.boot_info_addr
     }
 
     /// Take and clear all observer events this step (MMIO and/or memory writes).
@@ -198,14 +239,26 @@ impl<I: RvIsa, O: BusObserver> Bus<I, O> {
         &mut self,
         range: Range<usize>,
     ) -> Option<(usize, &mut Box<dyn DeviceAccess>)> {
-        for (addr, device) in self.device.iter_mut() {
-            let device_end = *addr + device.size();
-            if range.start >= *addr && range.end <= device_end {
-                return Some((*addr, device));
+        for (cfg, device) in self.device.iter_mut() {
+            let addr = cfg.start;
+            let device_end = addr + device.size();
+            if range.start >= addr && range.end <= device_end {
+                return Some((addr, device));
             }
         }
 
         None
+    }
+
+    /// Start address of the first device of `kind`, if it is mapped.
+    /// Lets the boot-info writer (`--firmware` setup) resolve the device map
+    /// without duplicating it; the address comes from the same configuration
+    /// the bus was actually built from.
+    pub fn device_addr(&self, kind: DeviceKind) -> Option<usize> {
+        self.device
+            .iter()
+            .find(|(cfg, _)| cfg.kind == kind)
+            .map(|(cfg, _)| cfg.start)
     }
 
     pub(crate) fn execute(&mut self, subcmd: &BusCmd) -> Result<(), BusError> {
@@ -274,11 +327,9 @@ impl<I: RvIsa, O: BusObserver> Bus<I, O> {
                         .entries()
                         .iter()
                         .map(|m| (m.name.clone(), m.range.clone()))
-                        .chain(
-                            self.device
-                                .iter()
-                                .map(|d| (d.1.name().to_string(), d.0..d.0 + d.1.size())),
-                        )
+                        .chain(self.device.iter().map(|(cfg, d)| {
+                            (d.name().to_string(), cfg.start..cfg.start + d.size())
+                        }))
                         .collect(),
                 );
             }
@@ -295,5 +346,79 @@ impl<I: RvIsa, O: BusObserver> Drop for Bus<I, O> {
         if let Some(w) = &self.window {
             w.request_shutdown();
         }
+    }
+}
+
+/// Fixed address of the boot-info block for a loaded firmware (`--firmware`).
+/// The firmware reads it via `a1` at reset (RISC-V boot convention) and must
+/// use the *same* layout — see `remu_firmware`'s `boot_info` module.
+pub(crate) const BOOT_INFO_BASE: usize = 0x87FF_E000;
+
+/// Magic for [`BootInfo`]: ASCII "REMU".
+pub(crate) const BOOT_INFO_MAGIC: u32 = 0x5245_4D55;
+
+/// Version of the [`BootInfo`] layout; mismatch makes the firmware stop.
+pub(crate) const BOOT_INFO_VERSION: u32 = 1;
+
+/// Boot-info handed to a loaded firmware in `a1`: the resolved device map
+/// (addresses come from the user configuration, never hardcoded) and the
+/// handover target the firmware jumps to after it finishes.
+///
+/// Fields are u64 (XLEN-independent so RV32/RV64 firmwares share the layout);
+/// the struct is written as raw bytes, so it must stay `repr(C)` and the
+/// firmware side must mirror it exactly.
+#[repr(C)]
+#[derive(Clone, Copy)]
+pub(crate) struct BootInfo {
+    pub(crate) magic: u32,
+    pub(crate) version: u32,
+    /// UART 16550 base (0 = not configured).
+    pub(crate) uart_base: u64,
+    /// SiFive test finisher base (0 = not configured).
+    pub(crate) finisher_base: u64,
+    /// CLINT base (0 = not configured).
+    pub(crate) clint_base: u64,
+    /// S-mode payload (kernel) entry point.
+    pub(crate) kernel_entry: u64,
+}
+
+/// Write the [`BootInfo`] block at [`BOOT_INFO_BASE`]; returns its address
+/// when the block is inside a mapped RAM region, `None` otherwise.
+fn write_boot_info(
+    memory: &mut Memory,
+    devices: &[(DeviceConfig, Box<dyn DeviceAccess>)],
+    kernel_entry: Option<usize>,
+    tracer: &remu_types::TracerDyn,
+) -> Option<usize> {
+    let find_addr = |kind: DeviceKind| {
+        devices
+            .iter()
+            .find(|(cfg, _)| cfg.kind == kind)
+            .map(|(cfg, _)| cfg.start as u64)
+            .unwrap_or(0)
+    };
+    let info = BootInfo {
+        magic: BOOT_INFO_MAGIC,
+        version: BOOT_INFO_VERSION,
+        uart_base: find_addr(DeviceKind::Uart16550),
+        finisher_base: find_addr(DeviceKind::SifiveTestFinisher),
+        clint_base: find_addr(DeviceKind::Clint),
+        kernel_entry: kernel_entry.unwrap_or(0) as u64,
+    };
+    let bytes = unsafe {
+        core::slice::from_raw_parts(
+            (&info as *const BootInfo).cast::<u8>(),
+            core::mem::size_of::<BootInfo>(),
+        )
+    };
+    if memory.write_bytes(BOOT_INFO_BASE, bytes).is_some() {
+        tracing::info!("wrote boot info block for firmware at 0x{BOOT_INFO_BASE:x}");
+        Some(BOOT_INFO_BASE)
+    } else {
+        tracer.borrow().print(&format!(
+            "firmware loaded but boot-info area 0x{BOOT_INFO_BASE:x} is not in a RAM region; \
+             the firmware will not receive the device map"
+        ));
+        None
     }
 }

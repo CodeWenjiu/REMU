@@ -10,6 +10,31 @@ use core::ops::{Deref, DerefMut, Index};
 use crate::AllUsize;
 pub use crate::wordlen::{IntoAllUsize, Xlen};
 
+/// Privilege mode (RISC-V privileged spec encoding): U=0, S=1, M=3.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub enum PrivMode {
+    User = 0,
+    Supervisor = 1,
+    #[default]
+    Machine = 3,
+}
+
+impl PrivMode {
+    #[inline(always)]
+    pub fn bits(self) -> u32 {
+        self as u32
+    }
+
+    #[inline(always)]
+    pub fn from_bits(bits: u32) -> Self {
+        match bits {
+            0 => Self::User,
+            1 => Self::Supervisor,
+            _ => Self::Machine,
+        }
+    }
+}
+
 pub trait RegDiff {
     fn diff(ref_this: &Self, dut: &Self) -> Vec<(String, AllUsize, AllUsize)>;
 }

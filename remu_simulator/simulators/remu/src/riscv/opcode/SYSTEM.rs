@@ -1,6 +1,10 @@
-//! RISC-V SYSTEM opcode: ECALL, EBREAK, CSR read/write (CSRRW, CSRRS, ...).
+//! RISC-V SYSTEM opcode: ECALL, EBREAK, MRET, CSR read/write (CSRRW, CSRRS, ...).
+//!
+//! `ecall` takes a machine trap per the privileged spec (see [`UNKNOWN::trap`]);
+//! `ebreak` is reported to the context (the simulator's breakpoint policy);
+//! `mret` returns from an M-mode trap.
 
-use remu_isa::isa::reg::{Csr as CsrKind, RegAccess};
+use remu_isa::isa::reg::{Csr as CsrKind, Mcause, PrivMode, RegAccess};
 use remu_isa::{WordOps, Xlen};
 
 use crate::riscv::{DecodedInst, Inst, csr, funct3, opcode::UNKNOWN, rd, rs1};
@@ -30,6 +34,7 @@ fn imm_priv(inst: u32) -> u32 {
 pub(crate) enum SystemInst {
     Ecall,
     Ebreak,
+    Mret,
     Csrrw,
     Csrrs,
     Csrrc,
@@ -45,6 +50,7 @@ pub(crate) fn decode<P: remu_state::StatePolicy>(inst: u32) -> DecodedInst {
         func3::PRIV => match imm_priv(inst) {
             0 => SystemInst::Ecall,
             1 => SystemInst::Ebreak,
+            0x302 => SystemInst::Mret,
             _ => return DecodedInst::default(),
         },
         func3::CSRRW => SystemInst::Csrrw,
@@ -90,14 +96,18 @@ fn do_csr<P: remu_state::StatePolicy>(
     pc: <P::ISA as remu_isa::isa::RvIsa>::XLEN,
 ) -> Result<<P::ISA as remu_isa::isa::RvIsa>::XLEN, remu_state::StateError> {
     state.reg.csr.write(k, new_val);
-    state
-        .reg
-        .gpr
-        .raw_write(decoded.rd.into(), <<P as remu_state::StatePolicy>::ISA as remu_isa::isa::RvIsa>::XLEN::from_u64(old_val as u64));
+    state.reg.gpr.raw_write(
+        decoded.rd.into(),
+        <<P as remu_state::StatePolicy>::ISA as remu_isa::isa::RvIsa>::XLEN::from_u64(
+            old_val as u64,
+        ),
+    );
     if csr_write_dirties_vector_state(k, old_val, new_val) {
         state.reg.csr.set_mstatus_vs_dirty();
     }
-    Ok(pc.wrapping_add(<<P as remu_state::StatePolicy>::ISA as remu_isa::isa::RvIsa>::XLEN::from_u64(4)))
+    Ok(pc.wrapping_add(
+        <<P as remu_state::StatePolicy>::ISA as remu_isa::isa::RvIsa>::XLEN::from_u64(4),
+    ))
 }
 
 #[inline(always)]
@@ -106,44 +116,59 @@ pub(crate) fn execute<P: remu_state::StatePolicy, C: crate::ExecuteContext<P>>(
     decoded: &DecodedInst,
     pc: <P::ISA as remu_isa::isa::RvIsa>::XLEN,
 ) -> Result<<P::ISA as remu_isa::isa::RvIsa>::XLEN, remu_state::StateError> {
-    let state = ctx.state_mut();
     let Inst::System(sys) = decoded.inst else {
         unreachable!()
     };
-    match sys {
-        SystemInst::Ecall => Ok(pc.wrapping_add(<<P as remu_state::StatePolicy>::ISA as remu_isa::isa::RvIsa>::XLEN::from_u64(4))),
-        SystemInst::Ebreak => ctx.on_ebreak(pc),
-        SystemInst::Csrrw
-        | SystemInst::Csrrs
-        | SystemInst::Csrrc
-        | SystemInst::Csrrwi
-        | SystemInst::Csrrsi
-        | SystemInst::Csrrci => {
-            let csr_imm = (decoded.imm & 0xFFF) as u16;
-            let k = match CsrKind::from_repr(csr_imm) {
-                Some(k) => k,
-                None => {
-                    return Err(remu_state::StateError::UnimplementedCsr {
-                        pc: pc.to_u32(),
-                        csr_addr: csr_imm,
-                        imm_raw: decoded.imm,
-                    });
-                }
+    // `ecall` traps through the shared machine-trap path; `ebreak` is reported
+    // to the context (breakpoint policy); the CSR arms only need the state
+    // borrow.
+    let csr_inst = match sys {
+        SystemInst::Ecall => {
+            let state = ctx.state_mut();
+            let cause = match state.reg.csr.priv_mode() {
+                PrivMode::User => Mcause::EnvCallFromU,
+                PrivMode::Supervisor => Mcause::EnvCallFromS,
+                PrivMode::Machine => Mcause::EnvCallFromM,
             };
-            if k.illegal_when_vs_off() && state.reg.csr.mstatus_vs_off() {
-                return Ok(UNKNOWN::trap_illegal_instruction(state, pc));
-            }
-            let old = state.reg.read_csr(k);
-            let new_val = match sys {
-                SystemInst::Csrrw => state.reg.gpr.raw_read(decoded.rs1.into()).to_u32(),
-                SystemInst::Csrrs => old | state.reg.gpr.raw_read(decoded.rs1.into()).to_u32(),
-                SystemInst::Csrrc => old & !state.reg.gpr.raw_read(decoded.rs1.into()).to_u32(),
-                SystemInst::Csrrwi => decoded.rs1 as u32,
-                SystemInst::Csrrsi => old | (decoded.rs1 as u32),
-                SystemInst::Csrrci => old & !(decoded.rs1 as u32),
-                _ => unreachable!(),
-            };
-            do_csr(state, decoded, k, old, new_val, pc)
+            return Ok(UNKNOWN::trap(state, pc, cause));
         }
+        SystemInst::Ebreak => return ctx.on_ebreak(pc),
+        SystemInst::Mret => {
+            let state = ctx.state_mut();
+            let new_pc = state.reg.csr.mepc;
+            state.reg.csr.mstatus_apply_mret();
+            return Ok(
+                <<P as remu_state::StatePolicy>::ISA as remu_isa::isa::RvIsa>::XLEN::from_u64(
+                    new_pc as u64,
+                ),
+            );
+        }
+        csr_inst => csr_inst,
+    };
+    let state = ctx.state_mut();
+    let csr_imm = (decoded.imm & 0xFFF) as u16;
+    let k = match CsrKind::from_repr(csr_imm) {
+        Some(k) => k,
+        None => {
+            return Err(remu_state::StateError::UnimplementedCsr {
+                pc: pc.to_u32(),
+                csr_addr: csr_imm,
+                imm_raw: decoded.imm,
+            });
+        }
+    };
+    if k.illegal_when_vs_off() && state.reg.csr.mstatus_vs_off() {
+        return Ok(UNKNOWN::trap_illegal_instruction(state, pc));
     }
+    let old = state.reg.read_csr(k);
+    let new_val = match csr_inst {
+        SystemInst::Csrrw => state.reg.gpr.raw_read(decoded.rs1.into()).to_u32(),
+        SystemInst::Csrrs => old | state.reg.gpr.raw_read(decoded.rs1.into()).to_u32(),
+        SystemInst::Csrrc => old & !state.reg.gpr.raw_read(decoded.rs1.into()).to_u32(),
+        SystemInst::Csrrwi => decoded.rs1 as u32,
+        SystemInst::Csrrsi => old | (decoded.rs1 as u32),
+        SystemInst::Csrrci => old & !(decoded.rs1 as u32),
+        SystemInst::Ecall | SystemInst::Ebreak | SystemInst::Mret => unreachable!(),
+    };
+    do_csr(state, decoded, k, old, new_val, pc)
 }

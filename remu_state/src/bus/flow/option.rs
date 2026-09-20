@@ -55,12 +55,26 @@ pub struct BusOption {
     #[arg(long = "elf", alias = "bin", value_name = "PATH", value_parser = file_exists, value_hint = ValueHint::FilePath)]
     pub elf: Option<PathBuf>,
 
+    /// Firmware image (e.g. an SBI implementation) loaded **in addition to**
+    /// `--elf`. Its ELF entry becomes the reset PC, so the firmware runs first
+    /// and hands over to the program without any address being configured here.
+    /// Optional: without it, `--init-pc` is the reset PC as before.
+    #[arg(long = "firmware", value_name = "PATH", value_parser = file_exists, value_hint = ValueHint::FilePath)]
+    pub firmware: Option<PathBuf>,
+
     /// Application arguments written to 0x87FF_F000 before boot.
     #[arg(long = "app-args", value_name = "ARGS")]
     pub app_args: Option<String>,
 }
 
 impl BusOption {
+    /// Images to load into RAM, in load order: the firmware (if any) first, so
+    /// it can claim the reset region, then the program image. Both are plain
+    /// ELFs loaded at their own link addresses.
+    pub fn images(&self) -> Vec<&PathBuf> {
+        self.firmware.iter().chain(self.elf.iter()).collect()
+    }
+
     /// Resolve the full memory region list: base (file or built-in default),
     /// then addon files, then the `--mem` extras.
     pub fn resolve_mem_regions(&self) -> Vec<MemRegionSpec> {

@@ -1,5 +1,5 @@
 use remu_isa::isa::extension_v::CsrConfig;
-use remu_isa::isa::reg::{Csr as CsrKind, VectorCsrState};
+use remu_isa::isa::reg::{Csr as CsrKind, PrivMode, VectorCsrState};
 
 #[derive(Clone)]
 pub struct Csr<C: CsrConfig> {
@@ -13,6 +13,9 @@ pub struct Csr<C: CsrConfig> {
     pub mcause: u32,
     pub mtval: u32,
     pub mip: u32,
+
+    /// Current privilege mode (not a CSR; tracked alongside the trap CSRs).
+    pub priv_mode: PrivMode,
 
     // Vector CSRs: from config (same as FprState: () vs FprRegs).
     pub vector: C::VectorCsrState,
@@ -30,6 +33,7 @@ impl<C: CsrConfig> Default for Csr<C> {
             mcause: 0,
             mtval: 0,
             mip: 0,
+            priv_mode: PrivMode::Machine,
             vector: C::VectorCsrState::default(),
         }
     }
@@ -46,6 +50,7 @@ impl<C: CsrConfig> std::fmt::Debug for Csr<C> {
             .field("mcause", &self.mcause)
             .field("mtval", &self.mtval)
             .field("mip", &self.mip)
+            .field("priv_mode", &self.priv_mode)
             .field("vector", &self.vector)
             .finish()
     }
@@ -62,7 +67,6 @@ impl<C: CsrConfig> Csr<C> {
     /// Summary dirty (RV32): OR of FS/VS/XS dirty states.
     const MSTATUS_SD: u32 = 1 << 31;
     const MSTATUS_MPP_MASK: u32 = 3 << 11;
-    const MSTATUS_MPP_MACHINE: u32 = 3 << 11;
 
     #[inline(always)]
     pub fn mstatus_mie(&self) -> bool {
@@ -102,12 +106,31 @@ impl<C: CsrConfig> Csr<C> {
         self.mstatus = (self.mstatus & !Self::MSTATUS_MPP_MASK) | ((v & 3) << 11);
     }
 
+    /// Current privilege mode.
+    #[inline(always)]
+    pub fn priv_mode(&self) -> PrivMode {
+        self.priv_mode
+    }
+
     #[inline(always)]
     pub fn mstatus_apply_trap_entry(&mut self) {
         let mie = self.mstatus_mie();
         self.set_mstatus_mie(false);
         self.set_mstatus_mpie(mie);
-        self.set_mstatus_mpp(Self::MSTATUS_MPP_MACHINE >> 11);
+        self.set_mstatus_mpp(self.priv_mode.bits());
+        self.priv_mode = PrivMode::Machine;
+    }
+
+    /// `mret`: privilege returns to `mstatus.MPP`, interrupts restore from
+    /// `MPIE`; `MPIE` is set and `MPP` is reset to M (U mode is not modeled).
+    #[inline(always)]
+    pub fn mstatus_apply_mret(&mut self) {
+        let prv = PrivMode::from_bits(self.mstatus_mpp());
+        let mpie = self.mstatus_mpie();
+        self.set_mstatus_mie(mpie);
+        self.set_mstatus_mpie(true);
+        self.set_mstatus_mpp(PrivMode::Machine.bits());
+        self.priv_mode = prv;
     }
 
     /// `mstatus.VS` field (0=Off, 1=Initial, 2=Clean, 3=Dirty).
@@ -193,7 +216,7 @@ impl<C: CsrConfig> Csr<C> {
             CsrKind::Vl => self.vector.set_vl(value),
             CsrKind::Vtype => self.vector.set_vtype(value),
             CsrKind::Vlenb => {} // read-only
-            _ => {} // Misa and other read-only: no-op
+            _ => {}              // Misa and other read-only: no-op
         }
     }
 }

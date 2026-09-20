@@ -2,7 +2,7 @@ remu_macro::mod_prv!(entry, dcache, elf);
 
 use core::ops::Range;
 
-pub use elf::try_load_elf_into_memory;
+pub use elf::{try_load_elf_image, try_load_elf_images};
 pub use entry::{AccessKind, MemFault, MemRegionSpec, MemoryEntry};
 
 use dcache::{Dcache, PAGE_MASK, PAGE_SHIFT};
@@ -34,13 +34,15 @@ impl Memory {
         &mut self.entries
     }
 
-    /// Best-effort load ELF into this memory's entries. Call after construction if desired.
+    /// Best-effort load the configured images (firmware first, then the program)
+    /// into this memory's entries. Returns one entry point per image, `None`
+    /// for an image that failed to load or declares none.
     pub fn try_load_elf(
         &mut self,
-        elf: &Option<std::path::PathBuf>,
+        images: &[&std::path::PathBuf],
         tracer: &remu_types::TracerDyn,
-    ) {
-        try_load_elf_into_memory(self.entries_mut(), elf, tracer);
+    ) -> Vec<Option<u64>> {
+        try_load_elf_images(self.entries_mut(), images, tracer)
     }
 
     /// Write `--app-args` payload at the convention address (top of first RAM
@@ -403,9 +405,10 @@ pub fn write_app_args_to_entries(memory: &mut [MemoryEntry], app_args: &Option<S
     };
     let bytes = args.as_bytes();
     let len = bytes.len().min(APP_ARGS_MAX - 1);
-    let Some(ram) = memory.iter_mut().find(|e| {
-        APP_ARGS_BASE >= e.range.start && APP_ARGS_BASE + APP_ARGS_MAX <= e.range.end
-    }) else {
+    let Some(ram) = memory
+        .iter_mut()
+        .find(|e| APP_ARGS_BASE >= e.range.start && APP_ARGS_BASE + APP_ARGS_MAX <= e.range.end)
+    else {
         return;
     };
     ram.write_bytes(APP_ARGS_BASE, &bytes[..len]);

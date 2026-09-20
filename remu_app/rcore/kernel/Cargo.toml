@@ -1,0 +1,15 @@
+[package]
+name = "rcore_kernel"
+version = "0.1.0"
+edition = "2024"
+
+# Deliberately zero dependencies: the kernel owns its runtime (entry, stack,
+# linker layout) and talks to the M-mode firmware via SBI. See
+# remu_app/rcore/README.md for the layering rationale.
+
+[lints]
+workspace = true
+
+[[bin]]
+name = "rcore_kernel"
+path = "src/main.rs"

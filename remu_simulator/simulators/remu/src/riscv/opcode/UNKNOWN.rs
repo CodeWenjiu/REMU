@@ -4,18 +4,30 @@ use remu_state::{State, StatePolicy};
 
 use crate::riscv::{DecodedInst, Inst};
 
+/// Enter an M-mode trap: save `pc`/`cause`, clear `mtval`, apply the `mstatus`
+/// trap-entry transition, and return the (direct-mode) `mtvec` PC.
+#[inline(always)]
+pub(crate) fn trap<P: StatePolicy>(
+    state: &mut State<P>,
+    pc: <P::ISA as remu_isa::isa::RvIsa>::XLEN,
+    cause: Mcause,
+) -> <P::ISA as remu_isa::isa::RvIsa>::XLEN {
+    state.reg.csr.mepc = pc.to_u32();
+    state.reg.csr.mcause = cause.to_u32();
+    state.reg.csr.mtval = 0;
+    state.reg.csr.mstatus_apply_trap_entry();
+    <<P as remu_state::StatePolicy>::ISA as remu_isa::isa::RvIsa>::XLEN::from_u64(
+        state.reg.csr.mtvec_base() as u64,
+    )
+}
+
 /// Illegal-instruction trap (M-mode); shared by [`execute`] and vector `mstatus.VS` checks.
-/// `pc` is the faulting instruction address; returns the new (trap-vector) PC.
 #[inline(always)]
 pub(crate) fn trap_illegal_instruction<P: StatePolicy>(
     state: &mut State<P>,
     pc: <P::ISA as remu_isa::isa::RvIsa>::XLEN,
 ) -> <P::ISA as remu_isa::isa::RvIsa>::XLEN {
-    state.reg.csr.mepc = pc.to_u32();
-    state.reg.csr.mcause = Mcause::IllegalInstruction.to_u32();
-    state.reg.csr.mtval = 0;
-    state.reg.csr.mstatus_apply_trap_entry();
-    <<P as remu_state::StatePolicy>::ISA as remu_isa::isa::RvIsa>::XLEN::from_u64(state.reg.csr.mtvec_base() as u64)
+    trap(state, pc, Mcause::IllegalInstruction)
 }
 
 #[allow(dead_code)]

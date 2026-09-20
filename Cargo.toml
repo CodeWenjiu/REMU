@@ -35,6 +35,8 @@ members = [
     "remu_app/mnist", "remu_app/mnist/mnist_generator",
     "remu_app/nes/runes_core", "remu_app/nes/nes",
     "remu_app/slint",
+    "remu_app/rcore/kernel",
+    "remu_app/rcore/firmware",
 ]
 
 [workspace.lints.rust]

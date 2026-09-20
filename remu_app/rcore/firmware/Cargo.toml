@@ -1,0 +1,17 @@
+[package]
+name = "remu_firmware"
+version = "0.1.0"
+edition = "2024"
+
+# Deliberately zero dependencies: the firmware is the M-mode program that
+# serves the kernel's SBI calls directly. It owns its runtime (entry, stack,
+# linker layout) exactly like the kernel, and lives at the QEMU `virt` reset
+# region (0x8000_0000) where OpenSBI would sit — see
+# remu_app/rcore/README.md for the layering rationale.
+
+[lints]
+workspace = true
+
+[[bin]]
+name = "remu_firmware"
+path = "src/main.rs"

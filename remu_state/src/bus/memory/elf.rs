@@ -2,28 +2,25 @@ use object::{Object as _, ObjectSegment as _};
 
 use super::entry::MemoryEntry;
 
-/// Best-effort load an ELF file into the given memory entries. ELF can only be loaded into
-/// RAM (memory entries), never into devices.
-pub fn try_load_elf_into_memory(
+/// Best-effort load one ELF file into the given memory entries. ELF can only
+/// be loaded into RAM (memory entries), never into devices. Returns the ELF
+/// entry point when the image was loaded and declares one.
+pub fn try_load_elf_image(
     memory: &mut [MemoryEntry],
-    elf: &Option<std::path::PathBuf>,
+    path: &std::path::Path,
     tracer: &remu_types::TracerDyn,
-) {
-    let Some(path) = elf.as_ref() else {
-        return;
-    };
-
+) -> Option<u64> {
     if !path.exists() {
         tracer
             .borrow()
             .print(&format!("ELF path does not exist: {}", path.display()));
-        return;
+        return None;
     }
     if !path.is_file() {
         tracer
             .borrow()
             .print(&format!("ELF path is not a file: {}", path.display()));
-        return;
+        return None;
     }
 
     let buf = match std::fs::read(path) {
@@ -33,7 +30,7 @@ pub fn try_load_elf_into_memory(
                 "Failed to read ELF file '{}': {err}",
                 path.display()
             ));
-            return;
+            return None;
         }
     };
 
@@ -43,7 +40,7 @@ pub fn try_load_elf_into_memory(
             tracer
                 .borrow()
                 .print(&format!("Failed to parse ELF '{}': {err}", path.display()));
-            return;
+            return None;
         }
     };
 
@@ -66,7 +63,7 @@ pub fn try_load_elf_into_memory(
         tracer
             .borrow()
             .print(&format!("ELF has no loadable segments: {}", path.display()));
-        return;
+        return None;
     }
 
     let start_usize = start as usize;
@@ -89,7 +86,7 @@ pub fn try_load_elf_into_memory(
             total_len,
             path.display()
         ));
-        return;
+        return None;
     };
 
     for seg in obj.segments() {
@@ -131,4 +128,19 @@ pub fn try_load_elf_into_memory(
         end,
         path.display()
     );
+    Some(obj.entry())
+}
+
+/// Load a list of images in order (e.g. firmware first, then the program).
+/// Returns one entry point per image (in `images` order), `None` for an image
+/// that failed to load or declares none.
+pub fn try_load_elf_images(
+    memory: &mut [MemoryEntry],
+    images: &[&std::path::PathBuf],
+    tracer: &remu_types::TracerDyn,
+) -> Vec<Option<u64>> {
+    images
+        .iter()
+        .map(|path| try_load_elf_image(memory, path, tracer))
+        .collect()
 }

@@ -7,9 +7,7 @@ use remu_isa::isa::extension_v::VExtensionConfig;
 use remu_isa::isa::reg::IntoAllUsize;
 use remu_isa::isa::reg::{Fpr, Gpr, RegAccess, VrState as VrStateTrait};
 use remu_isa::{AllUsize, WordOps, Xlen};
-use remu_state::bus::{
-    BusOption, MemoryEntry, try_load_elf_into_memory, write_app_args_to_entries,
-};
+use remu_state::bus::{BusOption, MemoryEntry, try_load_elf_images, write_app_args_to_entries};
 use remu_state::reg::riscv::RiscvReg;
 use remu_state::{State, StateCmd};
 use remu_types::{DifftestGroup, DifftestMismatchItem, DifftestRegGroup, TracerDyn};
@@ -51,7 +49,7 @@ impl<P: SimulatorPolicy> SimulatorCore<P> for SimulatorSpike<P> {
             })
             .collect();
 
-        try_load_elf_into_memory(&mut memory, &bus_option.elf, &tracer);
+        try_load_elf_images(&mut memory, &bus_option.images(), &tracer);
         write_app_args_to_entries(&mut memory, &bus_option.app_args);
 
         if memory.is_empty() {

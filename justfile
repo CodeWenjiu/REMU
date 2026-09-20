@@ -49,6 +49,25 @@ run-app APP target="riscv32i" platform="remu" dev='' app_args='' *remu_cli_args:
 clean-app:
     @rm -rf "{{ justfile_directory() }}/target/app" "{{ justfile_directory() }}/target/app_zve32x"
 
+build-os:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    cd "{{ justfile_directory() }}"
+    cargo build -p remu_firmware --target riscv64im-unknown-none-elf --release -Z build-std=core
+    cargo build -p rcore_kernel --target riscv64im-unknown-none-elf --release -Z build-std=core
+
+run-os *remu_cli_args:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    cd "{{ justfile_directory() }}"
+    cargo build -p remu_firmware --target riscv64im-unknown-none-elf --release -Z build-std=core
+    cargo build -p rcore_kernel --target riscv64im-unknown-none-elf --release -Z build-std=core
+    cargo run -p remu_cli --release -- \
+        --firmware target/riscv64im-unknown-none-elf/release/remu_firmware \
+        --elf target/riscv64im-unknown-none-elf/release/rcore_kernel \
+        --isa riscv64im --platform remu \
+        --batch --startup continue {{ remu_cli_args }}
+
 look:
     @cargo asm --release -p remu_cli run_steps
 

@@ -29,7 +29,9 @@ pub(crate) enum BreakpointState {
     Active,
 }
 
-/// Execution context for decode+execute: provides state, icache flush, and ebreak handling.
+/// Execution context for decode+execute: provides state, icache flush, and the
+/// `ebreak` hook that lets the instruction layer report it without knowing the
+/// simulator's breakpoint policy.
 pub(crate) trait ExecuteContext<P: StatePolicy> {
     fn state_mut(&mut self) -> &mut State<P>;
     #[inline]
