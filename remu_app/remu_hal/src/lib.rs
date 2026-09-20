@@ -1,9 +1,11 @@
 //! Hardware abstraction for remu apps — works on both bare-metal and hosted targets.
 //!
 //! On bare-metal targets (`target_os = "none"`, e.g. remu's riscv32/riscv64)
-//! it delegates to [`remu_hal_embedded`]. On hosted targets (`linux`, `macos`,
-//! `windows`, …, including a RISC-V host) it delegates to [`remu_hal_host`]
-//! (stdout, a window-backed display, mouse/keyboard) — same API on both.
+//! it delegates to [`remu_hal_embedded`]. On hosted targets (`any(unix, windows)`:
+//! linux, macos, windows, BSDs, …, including a RISC-V host) it delegates to
+//! [`remu_hal_host`] (stdout, a window-backed display, mouse/keyboard) — same
+//! API on both. Arms are selected by **positive** predicates; adding an
+//! environment (e.g. a future `target_os = "rcore"` arm) is purely additive.
 //!
 //! # Portable app pattern
 //!
@@ -115,7 +117,7 @@ pub use remu_hal_embedded::{
 #[cfg(target_os = "none")]
 pub use remu_hal_embedded::entry as rt_entry;
 
-#[cfg(not(target_os = "none"))]
+#[cfg(any(unix, windows))]
 pub use remu_hal_host::{MTIME_TICK_HZ, Stdout as Uart16550, read_mtime};
 
 // ── Display device (both backends; the hosted one uses a real window) ──
@@ -127,7 +129,7 @@ pub use remu_hal_embedded::{
     read_mouse, read_mouse_buttons, read_mouse_x, read_mouse_y,
 };
 
-#[cfg(not(target_os = "none"))]
+#[cfg(any(unix, windows))]
 pub use remu_hal_host::{
     DisplaySize, FB_HEIGHT, FB_WIDTH, KeyState, MouseState, display_alive, fb_base, frame_done,
     put_pixel, read_disp_h, read_disp_size, read_disp_w, read_key, read_key_buttons, read_key_code,
@@ -154,5 +156,5 @@ pub fn init() {
 }
 
 // ── Exit (hosted: process exit; the bare-metal counterparts live in remu_hal_embedded) ──
-#[cfg(not(target_os = "none"))]
+#[cfg(any(unix, windows))]
 pub use remu_hal_host::{exit_failure, exit_success};

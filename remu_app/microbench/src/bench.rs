@@ -64,7 +64,7 @@ pub(crate) fn now_usec() -> u64 {
     remu_hal::read_mtime() / 10
 }
 
-#[cfg(not(target_os = "none"))]
+#[cfg(any(unix, windows))]
 pub(crate) fn now_usec() -> u64 {
     static START: std::sync::LazyLock<std::time::Instant> =
         std::sync::LazyLock::new(std::time::Instant::now);

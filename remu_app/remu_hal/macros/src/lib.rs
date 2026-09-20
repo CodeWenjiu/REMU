@@ -22,7 +22,7 @@ pub fn entry(_attr: TokenStream, item: TokenStream) -> TokenStream {
         "#[cfg(target_os = \"none\")]\n\
          #[::remu_hal::rt_entry]\n\
          {item}\n\
-         #[cfg(not(target_os = \"none\"))]\n\
+         #[cfg(any(unix, windows))]\n\
          {item}"
     )
     .parse()

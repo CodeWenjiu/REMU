@@ -12,7 +12,7 @@ pub fn write_fmt(args: fmt::Arguments<'_>) {
         let mut uart = Uart16550::default_base();
         let _ = uart.write_fmt(args);
     }
-    #[cfg(not(target_os = "none"))]
+    #[cfg(any(unix, windows))]
     {
         use std::io::Write;
         let mut out = std::io::stdout();

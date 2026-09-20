@@ -11,7 +11,9 @@ embedded-io = "0.7.1"
 [target.'cfg(target_os = "none")'.dependencies]
 remu_hal_embedded = { path = "./embedded" }
 
-[target.'cfg(not(target_os = "none"))'.dependencies]
+# Hosted OS (linux/macos/windows/BSD…). Positive family gate (not a complement),
+# so a future `target_os = "rcore"` arm can be added additively.
+[target.'cfg(any(unix, windows))'.dependencies]
 remu_hal_host = { path = "./host" }
 
 [lints]

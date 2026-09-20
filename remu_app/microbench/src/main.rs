@@ -7,7 +7,7 @@ use bench::{Bench, Size};
 use benches::{bf, dinic, fib, lzip, md5, pz15, qsort, queen, sieve, ssort};
 
 fn get_size() -> Option<Size> {
-    #[cfg(not(target_os = "none"))]
+    #[cfg(any(unix, windows))]
     {
         let arg = std::env::args().nth(1).unwrap_or_default();
         Size::from_arg(&arg)
