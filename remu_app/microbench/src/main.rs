@@ -7,12 +7,12 @@ use bench::{Bench, Size};
 use benches::{bf, dinic, fib, lzip, md5, pz15, qsort, queen, sieve, ssort};
 
 fn get_size() -> Option<Size> {
-    #[cfg(not(any(target_arch = "riscv32", target_arch = "riscv64")))]
+    #[cfg(not(target_os = "none"))]
     {
         let arg = std::env::args().nth(1).unwrap_or_default();
         Size::from_arg(&arg)
     }
-    #[cfg(any(target_arch = "riscv32", target_arch = "riscv64"))]
+    #[cfg(target_os = "none")]
     {
         Size::from_arg(remu_hal::app_args())
     }

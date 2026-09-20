@@ -1,167 +1,24 @@
-//! Host (x86_64) equivalents of embedded HAL items.
+//! Lazily-started winit/softbuffer event-loop thread (the render backend).
+//!
+//! The thread blits the framebuffer to a window and feeds window-size, mouse
+//! and keyboard state back into [`Shared`]. It is started on first use
+//! (`shared()`), and `wake()` (called by `frame_done`) requests a redraw.
 
-use core::fmt;
 use std::sync::{
     Mutex, OnceLock,
     atomic::{AtomicBool, Ordering},
 };
 
-use crate::KeyKind;
-
-/// Map a winit logical key to the UI-agnostic [`KeyKind`] used by the keyboard
-/// device. Printable keys (and anything we don't model) map to [`KeyKind::None`].
-impl From<winit::keyboard::Key> for KeyKind {
-    fn from(key: winit::keyboard::Key) -> Self {
-        use winit::keyboard::NamedKey;
-        match key {
-            winit::keyboard::Key::Named(NamedKey::Enter) => KeyKind::Enter,
-            winit::keyboard::Key::Named(NamedKey::Escape) => KeyKind::Escape,
-            winit::keyboard::Key::Named(NamedKey::ArrowUp) => KeyKind::Up,
-            winit::keyboard::Key::Named(NamedKey::ArrowDown) => KeyKind::Down,
-            winit::keyboard::Key::Named(NamedKey::ArrowLeft) => KeyKind::Left,
-            winit::keyboard::Key::Named(NamedKey::ArrowRight) => KeyKind::Right,
-            winit::keyboard::Key::Named(NamedKey::Tab) => KeyKind::Tab,
-            winit::keyboard::Key::Named(NamedKey::Backspace) => KeyKind::Backspace,
-            winit::keyboard::Key::Named(NamedKey::Space) => KeyKind::Space,
-            winit::keyboard::Key::Named(NamedKey::Shift) => KeyKind::Shift,
-            winit::keyboard::Key::Named(NamedKey::Control) => KeyKind::Control,
-            winit::keyboard::Key::Named(NamedKey::Alt) => KeyKind::Alt,
-            winit::keyboard::Key::Named(NamedKey::Meta) => KeyKind::Meta,
-            _ => KeyKind::None,
-        }
-    }
-}
-
-/// Stdout writer, API-compatible with `Uart16550`.
-pub struct Stdout;
-
-impl Stdout {
-    #[inline]
-    pub const fn default_base() -> Self {
-        Stdout
-    }
-}
-
-impl fmt::Write for Stdout {
-    fn write_str(&mut self, s: &str) -> fmt::Result {
-        use std::io::Write;
-        std::io::stdout()
-            .write_all(s.as_bytes())
-            .map_err(|_| fmt::Error)
-    }
-}
-
-/// MTIME tick frequency (host: 1000 ticks/sec — `read_mtime` returns ms).
-pub const MTIME_TICK_HZ: u64 = 1000;
-
-/// Read CLINT mtime (host: milliseconds since process start).
-#[inline]
-pub fn read_mtime() -> u64 {
-    use std::sync::OnceLock;
-    use std::time::Instant;
-    // Monotonic ms since process start — good enough for animation timing.
-    static START: OnceLock<Instant> = OnceLock::new();
-    let _ = START.get_or_init(Instant::now);
-    START.get().unwrap().elapsed().as_millis() as u64
-}
-
-// ── Display device (host backend: a real softbuffer/winit window) ──
-//
-// The embedded app talks to the display via MMIO registers and a fixed
-// framebuffer region (`FB_BASE`). On host there is no MMIO, so we back those
-// same calls with:
-//   - a real `[u32; FB_WIDTH*FB_HEIGHT]` buffer (so `FB_BASE` is a genuine
-//     writable address and existing app code works unchanged),
-//   - a lazily-spawned winit event loop thread that blits the framebuffer to a
-//     window and feeds mouse/window-size state back to the app.
-//
-// Only the functions in this section are reachable by apps; everything below
-// is the render backend.
-
-/// Framebuffer capacity (matches the display device).
-pub const FB_WIDTH: usize = 2048;
-pub const FB_HEIGHT: usize = 2048;
-
-/// The host framebuffer backing store (heap-allocated, writable).
-/// The app writes through a raw pointer derived from `fb_base()`.
-pub(crate) static FRAMEBUFFER: OnceLock<Box<[u32]>> = OnceLock::new();
-
-/// Address of the host framebuffer (used as `fb_base`).
-#[inline]
-pub(crate) fn fb_addr() -> usize {
-    // Allocate on first use; never freed. The boxed slice is writable heap
-    // memory, so raw-pointer writes by the app are valid.
-    FRAMEBUFFER
-        .get_or_init(|| vec![0u32; FB_WIDTH * FB_HEIGHT].into_boxed_slice())
-        .as_ptr() as usize
-}
-
-/// Base address of the display framebuffer (canonical runtime API).
-#[inline]
-pub fn fb_base() -> usize {
-    fb_addr()
-}
-
-/// Write a single 0RGB pixel into the framebuffer (bounds-checked to capacity).
-///
-/// `v` is a 0RGB u32: 0x00RRGGBB (XRGB).
-#[inline]
-pub fn put_pixel(fb: *mut u32, x: usize, y: usize, v: u32) {
-    if x < FB_WIDTH && y < FB_HEIGHT {
-        unsafe {
-            *fb.add(y * FB_WIDTH + x) = v;
-        }
-    }
-}
-
-/// Active display resolution in framebuffer pixels.
-#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
-pub struct DisplaySize {
-    /// Width in framebuffer pixels.
-    pub width: usize,
-    /// Height in framebuffer pixels.
-    pub height: usize,
-}
-
-/// Mouse position (framebuffer pixels) and button state.
-#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
-pub struct MouseState {
-    /// Cursor X in framebuffer pixels.
-    pub x: usize,
-    /// Cursor Y in framebuffer pixels.
-    pub y: usize,
-    /// Button bitmask (bit 0=left, 1=right, 2=middle).
-    pub buttons: u32,
-}
-
-/// Key state (keycode + press/release + text char).
-#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
-pub struct KeyState {
-    /// Physical key code (winit `PhysicalKey::Code` value).
-    pub code: u32,
-    /// Whether the last event was a press (true) or release (false).
-    pub down: bool,
-    /// Last text character (if printable), else 0.
-    pub text: u32,
-    /// Logical key kind discriminant for non-printable keys (arrows, Enter,
-    /// Escape, ...); [`KeyKind::None`] for printable keys. The discriminant is
-    /// the Slint code point for the key, transferred over MMIO as a u32.
-    pub key_kind: u32,
-    /// Monotonic event sequence number, incremented on every key event. Lets a
-    /// poller distinguish a fresh press of the same key from a stale snapshot.
-    pub seq: u32,
-    /// Set once a key event has occurred.
-    pub valid: bool,
-    /// Live NES joypad button bitmask (render thread maintains).
-    pub buttons: u8,
-}
+use crate::display::{DisplaySize, FB_HEIGHT, FB_WIDTH, fb_base};
+use crate::keyboard::{KeyState, key_kind_from_winit, key_to_button};
+use crate::mouse::{MouseState, button_bit};
 
 /// Shared window state: resolution + mouse + keyboard. Written by the render
-/// thread, read by the app via the accessors below.
-struct Shared {
-    disp: Mutex<DisplaySize>,
-    mouse: Mutex<MouseState>,
-    keyboard: Mutex<KeyState>,
+/// thread, read by the app via the device accessors.
+pub(crate) struct Shared {
+    pub(crate) disp: Mutex<DisplaySize>,
+    pub(crate) mouse: Mutex<MouseState>,
+    pub(crate) keyboard: Mutex<KeyState>,
 }
 
 impl Shared {
@@ -185,6 +42,9 @@ struct Backend {
 }
 
 static BACKEND: OnceLock<Backend> = OnceLock::new();
+
+/// Proxy used to wake the render thread from `frame_done`.
+static PROXY: OnceLock<winit::event_loop::EventLoopProxy<()>> = OnceLock::new();
 
 /// Get the render backend, starting the window thread on first use.
 fn backend() -> &'static Backend {
@@ -211,122 +71,30 @@ fn backend() -> &'static Backend {
     })
 }
 
-/// Signal to the display device that the current frame is complete.
+/// The shared window state, starting the backend on first use.
 #[inline]
-pub fn frame_done() {
-    let b = backend();
-    if b.closed.load(Ordering::Relaxed) {
+pub(crate) fn shared() -> &'static Shared {
+    backend().shared
+}
+
+/// Wake the render thread so it blits the updated framebuffer. The proxy is
+/// registered in `render_loop`; if it isn't ready yet the send fails and we
+/// just skip this frame.
+#[inline]
+pub(crate) fn wake() {
+    if backend().closed.load(Ordering::Relaxed) {
         return;
     }
-    // Wake the render thread so it blits the updated framebuffer. The proxy is
-    // registered in `render_loop`; if it isn't ready yet the send fails and we
-    // just skip this frame.
     if let Some(proxy) = PROXY.get() {
         let _ = proxy.send_event(());
     }
 }
 
-/// Whether the display window is currently alive (host: not closed).
+/// Whether the window is currently alive (not closed yet).
 #[inline]
-pub fn display_alive() -> bool {
+pub(crate) fn alive() -> bool {
     !backend().closed.load(Ordering::Relaxed)
 }
-
-/// Read the current active display resolution (framebuffer pixels).
-#[inline]
-pub fn read_disp_size() -> DisplaySize {
-    *backend().shared.disp.lock().unwrap()
-}
-
-/// Read the current active display width (framebuffer pixels).
-#[inline]
-pub fn read_disp_w() -> usize {
-    read_disp_size().width
-}
-
-/// Read the current active display height (framebuffer pixels).
-#[inline]
-pub fn read_disp_h() -> usize {
-    read_disp_size().height
-}
-
-/// Read the mouse position and button state (framebuffer pixels).
-#[inline]
-pub fn read_mouse() -> MouseState {
-    *backend().shared.mouse.lock().unwrap()
-}
-
-/// Read the mouse X position (framebuffer pixels).
-#[inline]
-pub fn read_mouse_x() -> usize {
-    read_mouse().x
-}
-
-/// Read the mouse Y position (framebuffer pixels).
-#[inline]
-pub fn read_mouse_y() -> usize {
-    read_mouse().y
-}
-
-/// Read the mouse buttons bitmask (bit 0=left, 1=right, 2=middle).
-#[inline]
-pub fn read_mouse_buttons() -> u32 {
-    read_mouse().buttons
-}
-
-/// Read the keyboard state (keycode + press/release + text).
-#[inline]
-pub fn read_key() -> KeyState {
-    *backend().shared.keyboard.lock().unwrap()
-}
-
-/// Read the last key code (physical position).
-#[inline]
-pub fn read_key_code() -> u32 {
-    read_key().code
-}
-
-/// Read whether the last key event was a press (1) or release (0).
-#[inline]
-pub fn read_key_down() -> u32 {
-    read_key().down as u32
-}
-
-/// Read the last text character (ASCII), or 0 if non-printable.
-#[inline]
-pub fn read_key_text() -> u32 {
-    read_key().text
-}
-
-/// Read the logical key kind discriminant of the last key event ([`KeyKind::None`]
-/// for printable keys).
-#[inline]
-pub fn read_key_kind_raw() -> u32 {
-    read_key().key_kind
-}
-
-/// Read the monotonic key event sequence number.
-#[inline]
-pub fn read_key_seq() -> u32 {
-    read_key().seq
-}
-
-/// Read whether any key event has occurred yet (1) or not (0).
-#[inline]
-pub fn read_key_valid() -> u32 {
-    read_key().valid as u32
-}
-
-/// Read the live NES joypad button bitmask.
-#[inline]
-pub fn read_key_buttons() -> u32 {
-    read_key().buttons as u32
-}
-
-// ── Render backend (softbuffer + winit event loop) ──
-
-/// Proxy used to wake the render thread from `frame_done`.
-static PROXY: OnceLock<winit::event_loop::EventLoopProxy<()>> = OnceLock::new();
 
 fn render_loop(shared: &'static Shared) -> Result<(), Box<dyn std::error::Error>> {
     use std::num::NonZeroU32;
@@ -334,7 +102,7 @@ fn render_loop(shared: &'static Shared) -> Result<(), Box<dyn std::error::Error>
 
     use softbuffer::{Context, Surface};
     use winit::application::ApplicationHandler;
-    use winit::event::{ElementState, MouseButton, WindowEvent};
+    use winit::event::{ElementState, WindowEvent};
     use winit::event_loop::{ActiveEventLoop, ControlFlow, EventLoop, OwnedDisplayHandle};
     use winit::platform::wayland::EventLoopBuilderExtWayland as _;
     use winit::window::{Window, WindowId};
@@ -353,39 +121,6 @@ fn render_loop(shared: &'static Shared) -> Result<(), Box<dyn std::error::Error>
         window: Option<Rc<Window>>,
     }
 
-    /// Convert a winit button to our button-bitmask.
-    fn button_bit(b: MouseButton) -> u32 {
-        match b {
-            MouseButton::Left => 1,
-            MouseButton::Right => 2,
-            MouseButton::Middle => 4,
-            MouseButton::Back | MouseButton::Forward | MouseButton::Other(_) => 0,
-        }
-    }
-
-    /// Map a winit key event (physical code + text) to a NES joypad button
-    /// bit, or 0. Mirrors the embedded window host mapping.
-    fn key_to_button(code: u32, text: u32) -> u8 {
-        match text as u8 as char {
-            'z' | 'Z' => 1 << 0, // A
-            'x' | 'X' => 1 << 1, // B
-            'q' | 'Q' => 1 << 2, // SELECT
-            'w' | 'W' => 1 << 3, // START
-            // Vim-style d-pad (plus physical arrows below).
-            'h' | 'H' => 1 << 6, // LEFT
-            'j' | 'J' => 1 << 5, // DOWN
-            'k' | 'K' => 1 << 4, // UP
-            'l' | 'L' => 1 << 7, // RIGHT
-            _ => match code {
-                82 => 1 << 4, // UP
-                79 => 1 << 5, // DOWN
-                80 => 1 << 6, // LEFT
-                81 => 1 << 7, // RIGHT
-                _ => 0,
-            },
-        }
-    }
-
     impl App {
         /// Update the shared display resolution from the current window size.
         fn update_disp(&self) {
@@ -402,8 +137,8 @@ fn render_loop(shared: &'static Shared) -> Result<(), Box<dyn std::error::Error>
                 })
                 .unwrap_or((FB_WIDTH, FB_HEIGHT));
             let mut d = self.shared.disp.lock().unwrap();
-            d.width = wl.min(FB_WIDTH).max(1);
-            d.height = wh.min(FB_HEIGHT).max(1);
+            d.width = wl.clamp(1, FB_WIDTH);
+            d.height = wh.clamp(1, FB_HEIGHT);
         }
     }
 
@@ -527,11 +262,11 @@ fn render_loop(shared: &'static Shared) -> Result<(), Box<dyn std::error::Error>
                         PhysicalKey::Code(c) => c as u32,
                         PhysicalKey::Unidentified(_) => 0,
                     };
-                    // Model non-printable keys with a UI-agnostic `KeyKind`;
+                    // Model non-printable keys with the `key_kind` encoding;
                     // printable keys keep their character in `text`. Consumers
                     // (e.g. the Slint adapter) map `key_kind` to their own key
                     // encoding.
-                    let key_kind = KeyKind::from(logical_key);
+                    let key_kind = key_kind_from_winit(logical_key);
                     let mut kb = self.shared.keyboard.lock().unwrap();
                     kb.code = code;
                     kb.down = matches!(state, ElementState::Pressed);
@@ -539,7 +274,7 @@ fn render_loop(shared: &'static Shared) -> Result<(), Box<dyn std::error::Error>
                         .and_then(|t| t.chars().next())
                         .map(|c| c as u32)
                         .unwrap_or(0);
-                    kb.key_kind = key_kind as u32;
+                    kb.key_kind = key_kind;
                     // Only count presses; a release leaves `seq` unchanged so
                     // the snapshot reader sees exactly one event per tap.
                     if kb.down {

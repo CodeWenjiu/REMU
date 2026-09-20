@@ -8,8 +8,6 @@ remu_macro = { path = "../../remu_macro" }
 remu_hal = { path = "../remu_hal" }
 miniz_oxide = { version = "0.8", default-features = false, features = ["with-alloc"] }
 
-[target.'cfg(target_arch = "riscv32")'.dependencies]
-
 [lints]
 workspace = true
 

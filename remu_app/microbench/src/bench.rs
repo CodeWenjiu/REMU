@@ -59,12 +59,12 @@ pub(crate) fn score(ref_time_usec: u64, actual_usec: u64) -> u64 {
 }
 
 /// Platform-independent clock read. Returns microseconds elapsed since an arbitrary epoch.
-#[cfg(any(target_arch = "riscv32", target_arch = "riscv64"))]
+#[cfg(target_os = "none")]
 pub(crate) fn now_usec() -> u64 {
     remu_hal::read_mtime() / 10
 }
 
-#[cfg(not(any(target_arch = "riscv32", target_arch = "riscv64")))]
+#[cfg(not(target_os = "none"))]
 pub(crate) fn now_usec() -> u64 {
     static START: std::sync::LazyLock<std::time::Instant> =
         std::sync::LazyLock::new(std::time::Instant::now);

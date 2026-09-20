@@ -16,7 +16,7 @@
 //! apps only add a thin `slint.workspace = true` dependency for
 //! `include_modules!` to resolve.
 
-#![cfg_attr(any(target_arch = "riscv32", target_arch = "riscv64"), no_std)]
+#![cfg_attr(target_os = "none", no_std)]
 
 extern crate alloc;
 

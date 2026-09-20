@@ -5,14 +5,14 @@ use core::fmt;
 /// Write formatted output to the default output. Flushes on host.
 #[inline]
 pub fn write_fmt(args: fmt::Arguments<'_>) {
-    #[cfg(any(target_arch = "riscv32", target_arch = "riscv64"))]
+    #[cfg(target_os = "none")]
     {
         use crate::Uart16550;
         use core::fmt::Write;
         let mut uart = Uart16550::default_base();
         let _ = uart.write_fmt(args);
     }
-    #[cfg(not(any(target_arch = "riscv32", target_arch = "riscv64")))]
+    #[cfg(not(target_os = "none"))]
     {
         use std::io::Write;
         let mut out = std::io::stdout();

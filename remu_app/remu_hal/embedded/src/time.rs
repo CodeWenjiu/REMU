@@ -22,6 +22,8 @@ pub fn read_mtime() -> u64 {
             return ((hi1 as u64) << 32) | (lo as u64);
         }
     }
+    // Fallback for bare-metal arches other than riscv32/riscv64 (this HAL
+    // models those two device families only).
     #[cfg(not(any(target_arch = "riscv32", target_arch = "riscv64")))]
     {
         0

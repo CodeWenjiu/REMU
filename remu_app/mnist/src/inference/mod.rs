@@ -69,19 +69,19 @@ pub(crate) trait MnistInference {
 
         remu_hal::println!("Running benchmark...");
 
-        #[cfg(target_arch = "riscv32")]
+        #[cfg(target_os = "none")]
         let start_ticks = remu_hal::read_mtime();
         for _ in 0..BENCHMARK_ITERATIONS {
             let _ = self.infer(&image_data);
         }
-        #[cfg(target_arch = "riscv32")]
+        #[cfg(target_os = "none")]
         let end_ticks = remu_hal::read_mtime();
-        #[cfg(target_arch = "riscv32")]
+        #[cfg(target_os = "none")]
         let total_ticks = end_ticks.wrapping_sub(start_ticks);
 
-        #[cfg(target_arch = "riscv32")]
+        #[cfg(target_os = "none")]
         let ticks_per_inference = total_ticks / BENCHMARK_ITERATIONS as u64;
-        #[cfg(target_arch = "riscv32")]
+        #[cfg(target_os = "none")]
         let inferences_per_second = if total_ticks > 0 {
             (BENCHMARK_ITERATIONS as u128 * remu_hal::MTIME_TICK_HZ as u128 / total_ticks as u128)
                 as u64
@@ -90,7 +90,7 @@ pub(crate) trait MnistInference {
         };
 
         remu_hal::println!("=== BENCHMARK RESULTS ===");
-        #[cfg(target_arch = "riscv32")]
+        #[cfg(target_os = "none")]
         {
             remu_hal::println!("Total mtime ticks: {}", total_ticks);
             remu_hal::println!("Iterations completed: {}", BENCHMARK_ITERATIONS);
@@ -103,7 +103,7 @@ pub(crate) trait MnistInference {
         }
 
         remu_hal::println!("Performance classification:");
-        #[cfg(target_arch = "riscv32")]
+        #[cfg(target_os = "none")]
         {
             if ticks_per_inference < 10_000 {
                 remu_hal::println!("Excellent performance");

@@ -8,12 +8,11 @@ remu_macro = { path = "../../remu_macro" }
 remu_hal_macros = { path = "./macros" }
 embedded-io = "0.7.1"
 
-[target.'cfg(any(target_arch = "riscv32", target_arch = "riscv64"))'.dependencies]
+[target.'cfg(target_os = "none")'.dependencies]
 remu_hal_embedded = { path = "./embedded" }
 
-[target.'cfg(not(any(target_arch = "riscv32", target_arch = "riscv64")))'.dependencies]
-winit.workspace = true
-softbuffer.workspace = true
+[target.'cfg(not(target_os = "none"))'.dependencies]
+remu_hal_host = { path = "./host" }
 
 [lints]
 workspace = true
