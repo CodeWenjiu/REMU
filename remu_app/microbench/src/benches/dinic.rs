@@ -2,7 +2,6 @@
 
 use crate::bench::{Bench, Size};
 use alloc::vec::Vec;
-use core::fmt::Write;
 
 pub(crate) struct Dinic;
 
@@ -14,7 +13,7 @@ impl Bench for Dinic {
             _ => 0,
         }
     }
-    fn run<W: Write>(_w: &mut W, size: Size) -> bool {
+    fn run(size: Size) -> bool {
         let (n, checksum) = match size {
             Size::Test => (10, 0x0000019c),
             Size::Train => (80, 0x00004f99),

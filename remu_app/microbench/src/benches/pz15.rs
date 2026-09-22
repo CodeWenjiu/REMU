@@ -2,7 +2,6 @@
 
 use crate::bench::{Bench, Size};
 use alloc::vec::Vec;
-use core::fmt::Write;
 
 const N: usize = 4;
 const N2: usize = N * N;
@@ -300,7 +299,7 @@ impl Bench for Pz15 {
             _ => 0,
         }
     }
-    fn run<W: Write>(_w: &mut W, size: Size) -> bool {
+    fn run(size: Size) -> bool {
         let (idx, maxn, checksum) = match size {
             Size::Test => (0usize, 10usize, 0x00000006),
             Size::Train => (1, 2048, 0x0000b0df),

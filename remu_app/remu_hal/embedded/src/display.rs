@@ -88,8 +88,12 @@ pub struct KeyState {
 /// Write a single 0RGB pixel into the framebuffer (bounds-checked to capacity).
 ///
 /// `v` is a 0RGB u32: 0x00RRGGBB (XRGB, byte order `0x00RRGGBB`).
+///
+/// # Safety
+/// `fb` must point to a writable buffer of at least `FB_WIDTH * FB_HEIGHT`
+/// elements.
 #[inline]
-pub fn put_pixel(fb: *mut u32, x: usize, y: usize, v: u32) {
+pub unsafe fn put_pixel(fb: *mut u32, x: usize, y: usize, v: u32) {
     if x < FB_WIDTH && y < FB_HEIGHT {
         unsafe {
             *fb.add(y * FB_WIDTH + x) = v;

@@ -2,7 +2,6 @@
 
 use crate::bench::{Bench, Size};
 use alloc::vec::Vec;
-use core::fmt::Write;
 
 pub(crate) struct Lzip;
 
@@ -14,7 +13,7 @@ impl Bench for Lzip {
             _ => 0,
         }
     }
-    fn run<W: Write>(w: &mut W, size: Size) -> bool {
+    fn run(size: Size) -> bool {
         let n = match size {
             Size::Test => 128,
             Size::Train => 50000,
@@ -37,8 +36,7 @@ impl Bench for Lzip {
             compressed.as_ptr().add(compressed.len())
         });
         if cs != checksum {
-            let _ = writeln!(
-                w,
+            remu_hal::println!(
                 "lzip cs=0x{:08x} expected=0x{:08x} (raw={}, comp={})",
                 cs,
                 checksum,

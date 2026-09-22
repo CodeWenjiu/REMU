@@ -17,8 +17,8 @@ use alloc::rc::Rc;
 use core::cell::Cell;
 
 use remu_hal::{
-    Box, FmtWrite, MTIME_TICK_HZ, Uart16550, display_alive, exit_success, fb_base, read_disp_size,
-    read_key_kind, read_mtime,
+    Box, MTIME_TICK_HZ, display_alive, exit_success, fb_base, read_disp_size, read_key_kind,
+    read_mtime,
 };
 use remu_hal_slint::SlintApp;
 use runes_core::apu::{APU, Speaker};
@@ -40,19 +40,19 @@ impl Speaker for SilentSpeaker {
 }
 
 /// A single emulated game session. Returns when the user quits to the menu.
-fn run_game(idx: usize, uart: &mut Uart16550) {
-    let _ = writeln!(uart, "nes: launching {}", cart::rom_name(idx));
+fn run_game(idx: usize) {
+    remu_hal::println!("nes: launching {}", cart::rom_name(idx));
 
     // ── Cartridge + mapper ──
     let cart = cart::load_embedded_cart(idx);
     let mapper_id = cart::embedded_mapper_id(idx);
-    let _ = writeln!(uart, "nes: mapper {mapper_id}");
+    remu_hal::println!("nes: mapper {mapper_id}");
     let mut mapper_box: Box<dyn Mapper> = match mapper_id {
         0 | 2 => Box::new(mapper::Mapper2::new(cart)),
         1 => Box::new(mapper::Mapper1::new(cart)),
         4 => Box::new(mapper::Mapper4::new(cart)),
         _ => {
-            let _ = writeln!(uart, "nes: unsupported mapper {mapper_id}");
+            remu_hal::println!("nes: unsupported mapper {mapper_id}");
             return;
         }
     };
@@ -112,7 +112,7 @@ fn run_game(idx: usize, uart: &mut Uart16550) {
         // `KeyKind::Escape`.
         let esc_pressed = read_key_kind() == remu_hal::KeyKind::Escape;
         if esc_pressed && !esc_was_down {
-            let _ = writeln!(uart, "nes: quit to menu");
+            remu_hal::println!("nes: quit to menu");
             return;
         }
         esc_was_down = esc_pressed;
@@ -131,8 +131,7 @@ fn run_game(idx: usize, uart: &mut Uart16550) {
         // Report FPS once a second so we can confirm the render loop runs.
         fps = fps.wrapping_add(1);
         if now - fps_last >= 1000 {
-            let _ = writeln!(
-                uart,
+            remu_hal::println!(
                 "nes: {} fps (pc={:#06x}, sl={})",
                 fps,
                 cpu.get_pc(),
@@ -144,7 +143,7 @@ fn run_game(idx: usize, uart: &mut Uart16550) {
 
         // Detect window close.
         if !display_alive() {
-            let _ = writeln!(uart, "nes: window closed, exiting");
+            remu_hal::println!("nes: window closed, exiting");
             exit_success();
         }
     }
@@ -153,8 +152,7 @@ fn run_game(idx: usize, uart: &mut Uart16550) {
 #[remu_hal::entry]
 fn main() -> ! {
     remu_hal::init();
-    let mut uart = Uart16550::default_base();
-    let _ = writeln!(uart, "nes: booting (runes_core + slint menu)");
+    remu_hal::println!("nes: booting (runes_core + slint menu)");
 
     // Install the Slint platform once (process-wide). The launcher menu is
     // rendered through it; during gameplay we don't pump it, so it costs
@@ -196,14 +194,13 @@ fn main() -> ! {
     fn wait_for_selection(
         app: &mut SlintApp,
         chosen: &Rc<Cell<Option<usize>>>,
-        uart: &mut Uart16550,
         t0: u64,
         last: &mut u64,
     ) -> usize {
         loop {
             // Exit if the window is closed (closing the window quits the app).
             if !display_alive() {
-                let _ = writeln!(uart, "nes: exiting");
+                remu_hal::println!("nes: exiting");
                 exit_success();
             }
             app.update();
@@ -224,8 +221,8 @@ fn main() -> ! {
     // (user pressed Escape), the Slint renderer repaints the whole framebuffer
     // on the next `update`, covering the game's last frame.
     loop {
-        let idx = wait_for_selection(&mut app, &chosen, &mut uart, t0, &mut last);
-        run_game(idx, &mut uart);
+        let idx = wait_for_selection(&mut app, &chosen, t0, &mut last);
+        run_game(idx);
         // The game read the raw keyboard device directly (Escape to quit);
         // forget that state so it isn't re-delivered to the menu on the next
         // `app.update()`.

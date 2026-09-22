@@ -31,12 +31,16 @@ fn exit(code: u32) -> ! {
     unsafe {
         core::ptr::write_volatile(core::ptr::addr_of!(tohost) as *mut u64, htif);
     }
-    loop {}
+    loop {
+        core::hint::spin_loop()
+    }
 }
 
 #[cfg(not(platform_spike))]
 fn exit(code: u32) -> ! {
     // SiFive test finisher (remu, QEMU)
     unsafe { core::ptr::write_volatile(SIFIVE_TEST_FINISHER_BASE as *mut u32, code) };
-    loop {}
+    loop {
+        core::hint::spin_loop()
+    }
 }

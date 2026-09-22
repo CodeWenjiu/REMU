@@ -11,7 +11,7 @@ mod ui {
 }
 use ui::MainWindow;
 
-use remu_hal::{FmtWrite, MTIME_TICK_HZ, Uart16550, display_alive, exit_success, read_mtime};
+use remu_hal::{MTIME_TICK_HZ, display_alive, exit_success, read_mtime};
 use remu_hal_slint::SlintApp;
 use slint::ComponentHandle as _;
 
@@ -22,8 +22,7 @@ const FRAME_MS: u64 = 16;
 #[remu_hal::entry]
 fn main() -> ! {
     remu_hal::init();
-    let mut uart = Uart16550::default_base();
-    let _ = writeln!(uart, "slint: booting");
+    remu_hal::println!("slint: booting");
 
     // Install the software-renderer platform and create the app handle.
     let mut app = SlintApp::init();
@@ -57,7 +56,7 @@ fn main() -> ! {
 
         // Detect window close (host: user closes the window; embedded: n/a).
         if !display_alive() {
-            let _ = writeln!(uart, "slint: window closed, exiting");
+            remu_hal::println!("slint: window closed, exiting");
             exit_success();
         }
     }

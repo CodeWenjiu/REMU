@@ -1,24 +1,23 @@
-use remu_hal::{Box, FmtWrite, String, Uart16550, Vec, exit_success};
+use remu_hal::{Box, String, Vec, exit_success};
 
 #[remu_hal::entry]
 fn main() -> ! {
     remu_hal::init();
-    let mut uart = Uart16550::default_base();
-    let _ = writeln!(uart, "collection test");
+    remu_hal::println!("collection test");
 
     let mut v: Vec<u32> = Vec::new();
     v.push(1);
     v.push(2);
     v.push(3);
-    let _ = writeln!(uart, "Vec sum: {}", v.iter().sum::<u32>());
+    remu_hal::println!("Vec sum: {}", v.iter().sum::<u32>());
     v.extend([4, 5]);
-    let _ = writeln!(uart, "Vec len: {}", v.len());
+    remu_hal::println!("Vec len: {}", v.len());
 
     let s: String = String::from("hello");
-    let _ = writeln!(uart, "String: {}", s);
+    remu_hal::println!("String: {}", s);
 
     let b: Box<u32> = Box::new(42);
-    let _ = writeln!(uart, "Box: {}", *b);
+    remu_hal::println!("Box: {}", *b);
 
     exit_success()
 }

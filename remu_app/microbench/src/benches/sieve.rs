@@ -2,7 +2,6 @@
 
 use crate::bench::{Bench, Size};
 use alloc::vec::Vec;
-use core::fmt::Write;
 
 pub(crate) struct Sieve;
 
@@ -14,7 +13,7 @@ impl Bench for Sieve {
             _ => 0,
         }
     }
-    fn run<W: Write>(w: &mut W, size: Size) -> bool {
+    fn run(size: Size) -> bool {
         let (n, checksum) = match size {
             Size::Test => (100, 0x00000019),
             Size::Train => (200000, 0x00004640),
@@ -53,7 +52,7 @@ impl Bench for Sieve {
         }
 
         if ans != checksum {
-            let _ = writeln!(w, "sieve ans={} expected={}", ans, checksum);
+            remu_hal::println!("sieve ans={} expected={}", ans, checksum);
         }
         ans == checksum
     }

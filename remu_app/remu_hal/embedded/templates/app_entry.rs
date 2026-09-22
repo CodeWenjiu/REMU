@@ -16,6 +16,9 @@
 // comments (`//!`) cannot live in `main.rs` (it is `include!`d, so no inner
 // attributes or inner docs are permitted there); put crate-wide attributes
 // here instead.
-#![cfg_attr(target_os = "none", no_std, no_main)]
+#![cfg_attr(any(target_os = "none", target_os = "rcore"), no_std, no_main)]
+// `target_os = "rcore"` is a custom os value from rcore64.json; silence the
+// lint app-wide (each app's cfg guards use the value without declaring it).
+#![allow(unexpected_cfgs)]
 
 include!(concat!(env!("CARGO_MANIFEST_DIR"), "/src/main.rs"));

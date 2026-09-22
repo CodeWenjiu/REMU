@@ -13,8 +13,8 @@
 // 计算量极小（纯整数，无浮点），适合任何平台。
 
 use remu_hal::{
-    FB_HEIGHT, FB_WIDTH, FmtWrite, MTIME_TICK_HZ, Uart16550, display_alive, exit_success, fb_base,
-    frame_done, put_pixel, read_disp_size, read_mouse, read_mtime,
+    FB_HEIGHT, FB_WIDTH, MTIME_TICK_HZ, display_alive, exit_success, fb_base, frame_done,
+    put_pixel, read_disp_size, read_mouse, read_mtime,
 };
 
 /// 画布网格数（video.c 的 N）。
@@ -106,7 +106,9 @@ fn redraw(fb: *mut u32, disp_w: usize, disp_h: usize) {
             let (bx, by) = (x * w, y * h);
             for b in by..by + h {
                 for a in bx..bx + w {
-                    put_pixel(fb, a, b, col);
+                    // SAFETY: `fb` is the remu framebuffer base; the
+                    // coordinates are within the clamped display region.
+                    unsafe { put_pixel(fb, a, b, col) };
                 }
             }
         }
@@ -118,10 +120,9 @@ fn redraw(fb: *mut u32, disp_w: usize, disp_h: usize) {
 #[remu_hal::entry]
 fn main() -> ! {
     remu_hal::init();
-    let mut uart = Uart16550::default_base();
 
     let fb = fb_base() as *mut u32;
-    let _ = writeln!(uart, "display: AM video spiral test (0RGB)");
+    remu_hal::println!("display: AM video spiral test (0RGB)");
 
     let t0 = read_mtime();
     let mut tsc: u32 = 0;
@@ -162,14 +163,14 @@ fn main() -> ! {
             fps = fps.wrapping_add(1);
         }
         if upt - fps_last > 1000 {
-            let _ = writeln!(uart, "{}: FPS = {}", upt, fps);
+            remu_hal::println!("{}: FPS = {}", upt, fps);
             fps_last = upt;
             fps = 0;
         }
 
         // ── 窗口关闭感知：窗口没了就优雅退出，避免空转。──
         if !display_alive() {
-            let _ = writeln!(uart, "display: window closed, exiting");
+            remu_hal::println!("display: window closed, exiting");
             exit_success();
         }
     }

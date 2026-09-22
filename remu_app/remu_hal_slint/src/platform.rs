@@ -259,7 +259,9 @@ impl LineBufferProvider for FbLineBuffer {
             let g8 = (g * 255 + 31) / 63;
             let b8 = (b * 255 + 15) / 31;
             let pixel = (r8 << 16) | (g8 << 8) | b8;
-            put_pixel(fb, range.start + i, line, pixel);
+            // Safety: `fb` is the remu framebuffer base (valid, writable,
+            // bounds-checked by put_pixel); range is within the framebuffer.
+            unsafe { put_pixel(fb, range.start + i, line, pixel) };
         }
     }
 }

@@ -7,8 +7,8 @@
 // 分辨率自动跟随窗口大小（`read_disp_size`），并上采样 `UP` 倍。
 
 use remu_hal::{
-    FB_WIDTH, FmtWrite, MTIME_TICK_HZ, Uart16550, display_alive, exit_success, fb_base, frame_done,
-    put_pixel, read_disp_size, read_mtime,
+    FB_WIDTH, MTIME_TICK_HZ, display_alive, exit_success, fb_base, frame_done, put_pixel,
+    read_disp_size, read_mtime,
 };
 
 /// 渲染分辨率降低因子（上采样倍数）。越小越清晰但越慢。
@@ -106,7 +106,6 @@ fn isqrt(v: i64) -> i64 {
 #[remu_hal::entry]
 fn main() -> ! {
     remu_hal::init();
-    let mut uart = Uart16550::default_base();
 
     // SAFETY: 单线程启动，任何使用之前初始化。
     unsafe {
@@ -114,7 +113,7 @@ fn main() -> ! {
     }
 
     let fb = fb_base() as *mut u32;
-    let _ = writeln!(uart, "shader: 60-point orbital glow shader (0RGB)");
+    remu_hal::println!("shader: 60-point orbital glow shader (0RGB)");
 
     let t0 = read_mtime();
 
@@ -188,7 +187,9 @@ fn main() -> ! {
                 let (bx, by) = (rx * UP, ry * UP);
                 for b in by..by + UP {
                     for a in bx..bx + UP {
-                        put_pixel(fb, a, b, v);
+                        // SAFETY: `fb` is the remu framebuffer base; the
+                        // coordinates are within the clamped display region.
+                        unsafe { put_pixel(fb, a, b, v) };
                     }
                 }
             }
@@ -198,7 +199,7 @@ fn main() -> ! {
 
         // ── 窗口关闭感知：窗口没了就优雅退出，避免空转。──
         if !display_alive() {
-            let _ = writeln!(uart, "shader: window closed, exiting");
+            remu_hal::println!("shader: window closed, exiting");
             exit_success();
         }
     }

@@ -38,12 +38,12 @@ pub fn fb_base() -> usize {
 ///
 /// `v` is a 0RGB u32: 0x00RRGGBB (XRGB).
 ///
-/// Safe API by design (parity with the embedded twin in `remu_hal_embedded`):
-/// the caller contract is that `fb` comes from [`fb_base`], so the write lands
-/// in the leaked framebuffer, and the bounds check below keeps it in range.
-#[allow(clippy::not_unsafe_ptr_arg_deref)]
+/// # Safety
+/// `fb` must point to a writable buffer of at least `FB_WIDTH * FB_HEIGHT`
+/// elements. `put_pixel` bounds-checks the coordinates against the static
+/// framebuffer size; the caller is responsible for the pointer itself.
 #[inline]
-pub fn put_pixel(fb: *mut u32, x: usize, y: usize, v: u32) {
+pub unsafe fn put_pixel(fb: *mut u32, x: usize, y: usize, v: u32) {
     if x < FB_WIDTH && y < FB_HEIGHT {
         unsafe {
             *fb.add(y * FB_WIDTH + x) = v;

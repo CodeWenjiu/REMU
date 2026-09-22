@@ -2,7 +2,6 @@
 
 use crate::bench::{Bench, Size};
 use alloc::vec::Vec;
-use core::fmt::Write;
 
 pub(crate) struct Qsort;
 
@@ -14,7 +13,7 @@ impl Bench for Qsort {
             _ => 0,
         }
     }
-    fn run<W: Write>(w: &mut W, size: Size) -> bool {
+    fn run(size: Size) -> bool {
         let (n, checksum) = match size {
             Size::Test => (100, 0x08467105),
             Size::Train => (30000, 0xa3e99fe4),
@@ -33,7 +32,7 @@ impl Bench for Qsort {
             crate::bench::checksum(data.as_ptr() as *const u8, unsafe { data.as_ptr().add(n) }
                 as *const u8);
         if result != checksum {
-            let _ = writeln!(w, "qsort cs=0x{:08x} expected=0x{:08x}", result, checksum);
+            remu_hal::println!("qsort cs=0x{:08x} expected=0x{:08x}", result, checksum);
         }
         result == checksum
     }

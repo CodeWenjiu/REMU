@@ -1,5 +1,3 @@
-use core::fmt::Write;
-
 /// Reference score for the baseline CPU (i9-9900K).
 const REF_SCORE: u64 = 100_000;
 
@@ -46,7 +44,7 @@ pub(crate) trait Bench {
     /// Returns 0 for sizes that don't support scoring (test, train).
     fn ref_time_usec(size: Size) -> u64;
     /// Run this benchmark and return whether it passed.
-    fn run<W: Write>(w: &mut W, size: Size) -> bool;
+    fn run(size: Size) -> bool;
 }
 
 /// Calculate score: REF_SCORE * ref_time / actual_time_usec.

@@ -1,7 +1,6 @@
 //! N-Queens via bit manipulation.
 
 use crate::bench::{Bench, Size};
-use core::fmt::Write;
 
 pub(crate) struct Queen;
 
@@ -13,7 +12,7 @@ impl Bench for Queen {
             _ => 0,
         }
     }
-    fn run<W: Write>(_w: &mut W, size: Size) -> bool {
+    fn run(size: Size) -> bool {
         let (n, checksum) = match size {
             Size::Test => (8, 0x0000005c),
             Size::Train => (11, 0x00000a78),

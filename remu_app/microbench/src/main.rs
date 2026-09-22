@@ -63,10 +63,8 @@ fn main() -> ! {
 }
 
 fn run<B: Bench>(name: &str, size: Size, total_score: &mut u64, n_scored: &mut u64) {
-    let mut out = remu_hal::Uart16550::default_base();
-
     let t0 = bench::now_usec();
-    let passed = B::run(&mut out, size);
+    let passed = B::run(size);
     let usec = bench::now_usec() - t0;
 
     let ref_time = B::ref_time_usec(size);

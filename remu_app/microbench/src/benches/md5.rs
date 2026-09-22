@@ -2,7 +2,6 @@
 
 use crate::bench::{Bench, Size};
 use alloc::vec::Vec;
-use core::fmt::Write;
 
 pub(crate) struct Md5;
 
@@ -14,7 +13,7 @@ impl Bench for Md5 {
             _ => 0,
         }
     }
-    fn run<W: Write>(w: &mut W, size: Size) -> bool {
+    fn run(size: Size) -> bool {
         let (n, checksum) = match size {
             Size::Test => (100, 0xf902f28f),
             Size::Train => (200000, 0xd4f9bc6d),
@@ -34,7 +33,7 @@ impl Bench for Md5 {
 
         let cs = crate::bench::checksum(digest.as_ptr(), unsafe { digest.as_ptr().add(16) });
         if cs != checksum {
-            let _ = writeln!(w, "md5 cs=0x{:08x} expected=0x{:08x}", cs, checksum);
+            remu_hal::println!("md5 cs=0x{:08x} expected=0x{:08x}", cs, checksum);
         }
         cs == checksum
     }

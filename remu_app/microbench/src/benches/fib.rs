@@ -2,7 +2,6 @@
 
 use crate::bench::{Bench, Size};
 use alloc::vec::Vec;
-use core::fmt::Write;
 
 pub(crate) struct Fib;
 
@@ -14,7 +13,7 @@ impl Bench for Fib {
             _ => 0,
         }
     }
-    fn run<W: Write>(_w: &mut W, size: Size) -> bool {
+    fn run(size: Size) -> bool {
         let (m, checksum) = match size {
             Size::Test => (2, 0x7cfeddf0),
             Size::Train => (23, 0x94ad8800),

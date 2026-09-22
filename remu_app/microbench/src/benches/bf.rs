@@ -2,7 +2,6 @@
 
 use crate::bench::{Bench, Size};
 use alloc::vec::Vec;
-use core::fmt::Write;
 
 pub(crate) struct Bf;
 
@@ -14,7 +13,7 @@ impl Bench for Bf {
             _ => 0,
         }
     }
-    fn run<W: Write>(w: &mut W, size: Size) -> bool {
+    fn run(size: Size) -> bool {
         let (n, checksum) = match size {
             Size::Test => (2, 0xa6f0079e),
             Size::Train => (25, 0xa88f8a65),
@@ -40,7 +39,7 @@ impl Bench for Bf {
         let mut input_idx = 0usize;
 
         if compile(code, &mut prog, &mut stack).is_err() {
-            let _ = writeln!(w, "bf compile error");
+            remu_hal::println!("bf compile error");
             return false;
         }
 
@@ -74,25 +73,25 @@ impl Bench for Bf {
                     }
                 }
                 _ => {
-                    let _ = writeln!(w, "bf unknown op");
+                    remu_hal::println!("bf unknown op");
                     return false;
                 }
             }
             if ptr >= data_size {
-                let _ = writeln!(w, "bf ptr overflow");
+                remu_hal::println!("bf ptr overflow");
                 return false;
             }
             pc += 1;
         }
 
         if noutput != n {
-            let _ = writeln!(w, "bf noutput={} expected={}", noutput, n);
+            remu_hal::println!("bf noutput={} expected={}", noutput, n);
             return false;
         }
 
         let cs = crate::bench::checksum(output.as_ptr(), unsafe { output.as_ptr().add(noutput) });
         if cs != checksum {
-            let _ = writeln!(w, "bf cs=0x{:08x} expected=0x{:08x}", cs, checksum);
+            remu_hal::println!("bf cs=0x{:08x} expected=0x{:08x}", cs, checksum);
         }
         cs == checksum
     }

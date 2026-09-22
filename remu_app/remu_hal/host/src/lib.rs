@@ -2,7 +2,6 @@
 //!
 //! Mirrors the embedded API surface so apps compile unchanged on host targets:
 //!
-//! - `stdout` — `Stdout` (the host `Uart16550` equivalent).
 //! - `exit` — process exit via `std::process::exit`.
 //! - `time` — millisecond `mtime` (`MTIME_TICK_HZ = 1000`).
 //! - `display` — heap framebuffer (`fb_base`, `put_pixel`) + display accessors.
@@ -10,10 +9,13 @@
 //! - `window` — lazily-started winit/softbuffer event-loop thread that blits
 //!   the framebuffer and feeds display/mouse/keyboard state.
 //!
+//! Output goes through `remu_hal::println!` (writes to std stdout); there is
+//! no device object — see `remu_hal::print`.
+//!
 //! The façade `remu_hal` re-exports these items on host targets; apps depend
 //! only on `remu_hal`.
 
-remu_macro::mod_prv!(display, exit, keyboard, mouse, stdout, time, window);
+remu_macro::mod_prv!(display, exit, keyboard, mouse, time, window);
 
 pub use display::{
     DisplaySize, FB_HEIGHT, FB_WIDTH, display_alive, fb_base, frame_done, put_pixel, read_disp_h,
@@ -25,5 +27,4 @@ pub use keyboard::{
     read_key_seq, read_key_text, read_key_valid,
 };
 pub use mouse::{MouseState, read_mouse, read_mouse_buttons, read_mouse_x, read_mouse_y};
-pub use stdout::Stdout;
 pub use time::{MTIME_TICK_HZ, read_mtime};

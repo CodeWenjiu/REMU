@@ -8,6 +8,8 @@ fn main() {
     for p in xtask::Platform::names() {
         println!("cargo::rustc-check-cfg=cfg(platform_{p})");
     }
+    // Custom `target_os = "rcore"` (rcore64.json) used by U-mode user programs.
+    println!("cargo::rustc-check-cfg=cfg(target_os, values(\"rcore\"))");
 
     // Embed application arguments into the firmware binary.
     let app_args = std::env::var("REMU_APP_ARGS").unwrap_or_default();

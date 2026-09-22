@@ -2,7 +2,6 @@
 
 use crate::bench::{Bench, Size};
 use alloc::vec::Vec;
-use core::fmt::Write;
 
 pub(crate) struct Ssort;
 
@@ -14,7 +13,7 @@ impl Bench for Ssort {
             _ => 0,
         }
     }
-    fn run<W: Write>(w: &mut W, size: Size) -> bool {
+    fn run(size: Size) -> bool {
         let (n, checksum) = match size {
             Size::Test => (100, 0x4c555e09),
             Size::Train => (10000, 0x0db7909b),
@@ -35,7 +34,7 @@ impl Bench for Ssort {
         let cs = crate::bench::checksum(sa.as_ptr() as *const u8, unsafe { sa.as_ptr().add(n) }
             as *const u8);
         if cs != checksum {
-            let _ = writeln!(w, "ssort cs=0x{:08x} expected=0x{:08x}", cs, checksum);
+            remu_hal::println!("ssort cs=0x{:08x} expected=0x{:08x}", cs, checksum);
         }
         cs == checksum
     }
