@@ -5184,6 +5184,7 @@ dependencies = [
  "remu_hal_embedded",
  "remu_hal_host",
  "remu_hal_macros",
+ "remu_hal_rcore",
  "remu_macro",
 ]
 
@@ -5214,6 +5215,17 @@ dependencies = [
 [[package]]
 name = "remu_hal_macros"
 version = "0.1.0"
+dependencies = [
+ "quote",
+ "syn 2.0.117",
+]
+
+[[package]]
+name = "remu_hal_rcore"
+version = "0.1.0"
+dependencies = [
+ "remu_macro",
+]
 
 [[package]]
 name = "remu_hal_slint"

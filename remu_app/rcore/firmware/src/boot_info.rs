@@ -37,6 +37,8 @@ pub(crate) struct BootInfo {
     pub(crate) clint_base: u64,
     /// S-mode payload (kernel) entry point.
     pub(crate) kernel_entry: u64,
+    /// U-mode payload (user program) entry point, if one was loaded.
+    pub(crate) app_entry: u64,
 }
 
 /// Fetch the boot info written by the simulator, `None` if the pointer or

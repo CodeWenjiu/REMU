@@ -1,0 +1,22 @@
+[package]
+name = "remu_hal_rcore"
+version = "0.1.0"
+edition = "2024"
+description = "rcore U-mode arm of remu_hal: syscall-based entry, stdout, exit"
+
+# Workspace member, like the other arms. There is no *platform* conditional
+# compilation in the source (`target_os = "rcore"` is the only build — remu_hal
+# pulls this crate in only on its rcore target); the only `#[cfg]` remaining
+# are `target_arch = "riscv64"` guards around the RISC-V assembly itself, the
+# Rust-idiomatic way to write inline asm (host builds get a `-1` syscall stub
+# so `cargo check --workspace` stays green).
+#
+# NOTE: keeping this crate *out* of the workspace is not possible: cargo
+# force-members any package inside the workspace tree that a member depends
+# on (exclude cannot prevent it), so a host-visible stub form is required.
+
+[dependencies]
+remu_macro = { path = "../../../remu_macro" }
+
+[lints]
+workspace = true

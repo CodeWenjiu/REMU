@@ -27,7 +27,13 @@ run-app APP target="riscv32i" platform="remu" dev='' app_args='' *remu_cli_args:
     set -euo pipefail
     cd "{{ justfile_directory() }}"
     export REMU_APP_ARGS="{{ app_args }}"
-    if [ "{{ platform }}" = "host" ]; then
+    if [ "{{ platform }}" = "rcore" ]; then
+        # rcore: the app runs as a U-mode user program under the kernel;
+        # xtask injects firmware + kernel (M/S mode) and passes the app as
+        # `--app`. Only the remu backend is supported.
+        {{ if dev != '' { "export DEV=1;" } else { "" } }}
+        eval "$(cargo run -p xtask -- print run-app "{{ APP }}" "{{ target }}" --platform {{ platform }} -- {{ remu_cli_args }})"
+    elif [ "{{ platform }}" = "host" ]; then
         cargo run -p xtask -- print check-app "{{ APP }}" host
         cargo run --release -p "remu_app_{{ APP }}" -- {{ app_args }}
     elif [ "{{ platform }}" = "qemu" ]; then
@@ -48,26 +54,6 @@ run-app APP target="riscv32i" platform="remu" dev='' app_args='' *remu_cli_args:
 
 clean-app:
     @rm -rf "{{ justfile_directory() }}/target/app" "{{ justfile_directory() }}/target/app_zve32x"
-
-build-os:
-    #!/usr/bin/env bash
-    set -euo pipefail
-    cd "{{ justfile_directory() }}"
-    cargo build -p remu_firmware --target riscv64im-unknown-none-elf --release -Z build-std=core
-    cargo build -p rcore_kernel --target riscv64im-unknown-none-elf --release -Z build-std=core
-
-run-os *remu_cli_args:
-    #!/usr/bin/env bash
-    set -euo pipefail
-    cd "{{ justfile_directory() }}"
-    cargo build -p remu_firmware --target riscv64im-unknown-none-elf --release -Z build-std=core
-    cargo build -p rcore_kernel --target riscv64im-unknown-none-elf --release -Z build-std=core
-    cargo run -p remu_cli --release -- \
-        --firmware target/riscv64im-unknown-none-elf/release/remu_firmware \
-        --elf target/riscv64im-unknown-none-elf/release/rcore_kernel \
-        --isa riscv64im --platform remu \
-        --batch --startup continue {{ remu_cli_args }}
-
 look:
     @cargo asm --release -p remu_cli run_steps
 

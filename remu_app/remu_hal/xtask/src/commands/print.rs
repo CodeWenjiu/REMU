@@ -22,6 +22,130 @@ pub(crate) fn run(cmd: PrintCmd) -> ExitCode {
     }
 }
 
+// ── rcore platform (`just run-app … --platform rcore`) ───────────────────
+//
+// rcore is a *platform*, not an app: the M-mode firmware and S-mode kernel
+// are injected by these recipes; the app itself is an ordinary `remu_app_*`
+// package built as a U-mode program (its own linker.ld, base 0x8040_0000)
+// and passed to remu_cli via `--app`.
+
+/// True when the platform is rcore (firmware + kernel injected, app runs in
+/// U mode under the kernel).
+pub(crate) fn is_rcore_platform(p: &crate::platform::Platform) -> bool {
+    *p == crate::platform::Platform::Rcore
+}
+
+/// rcore OS images: kernel + firmware, both built for the built-in
+/// `riscv64im-unknown-none-elf` target; the user program uses the custom
+/// `rcore64.json` target (`target_os = "rcore"`) so the U-mode app does not
+/// drag in riscv-rt / remu_hal_embedded (M-mode runtime).
+const RCORE_TARGET: &str = "riscv64im-unknown-none-elf";
+const RCORE_CRATES: [&str; 2] = ["remu_firmware", "rcore_kernel"];
+/// Custom target for U-mode user programs (see remu_app/rcore/rcore64.json).
+const RCORE_USER_TARGET: &str = "rcore64";
+
+/// Build the two rcore platform images (firmware + kernel).
+fn print_rcore_builds(manifest_s: &str) {
+    for pkg in RCORE_CRATES {
+        println!(
+            "cargo build -p {} --target {RCORE_TARGET} --release -Z build-std=core --features bare-metal --manifest-path {manifest_s}",
+            shell_escape(pkg)
+        );
+    }
+}
+
+/// Path of the built user ELF for `app` (custom rcore target dir).
+fn rcore_app_elf(ws: &std::path::Path, app: &str) -> String {
+    let target_dir = ws.join("target").join(RCORE_USER_TARGET).join("release");
+    let elf = target_dir.join(format!("remu_app_{}", app));
+    shell_escape(elf.to_str().expect("utf-8"))
+}
+
+/// `just build-app APP riscv64im --platform rcore`: build firmware + kernel +
+/// the user program (as a U-mode image).
+fn print_build_rcore(app: &str) -> ExitCode {
+    let paths = Paths::from_env();
+    let ws = paths.workspace_canonical();
+    let manifest = ws.join("Cargo.toml");
+    let manifest_s = shell_escape(manifest.to_str().expect("utf-8"));
+    print_rcore_builds(&manifest_s);
+    // The user app builds for the custom rcore target (target_os = "rcore",
+    // its own linker.ld via remu_hal_rcore, base 0x8040_0000). This avoids
+    // riscv-rt entirely for U-mode apps; the `#[remu_hal::entry]` macro and
+    // the HAL's rcore arm take care of the rest.
+    let pkg = format!("remu_app_{}", app);
+    let user_target = ws
+        .join("remu_app/rcore")
+        .join(format!("{RCORE_USER_TARGET}.json"));
+    let user_target_s = shell_escape(user_target.to_str().expect("utf-8"));
+    println!(
+        "cargo build -p {} --target {user_target_s} --release -Z build-std=core,alloc -Z json-target-spec --manifest-path {manifest_s}",
+        shell_escape(&pkg)
+    );
+    let elf = rcore_app_elf(&ws, app);
+    println!("rust-objdump -d {elf} > {elf}.asm || true");
+    ExitCode::SUCCESS
+}
+
+/// `just run-app APP riscv64im --platform rcore`: build firmware + kernel +
+/// user app, then run remu_cli with `--firmware` + `--elf` + `--app` (the
+/// rcore boot flow).
+///
+/// Bare run drops into the interactive REPL (no `--startup`), for debugging;
+/// append `-- --batch --startup continue` for a non-interactive run.
+fn print_run_rcore(args: &RunAppArgs) -> ExitCode {
+    let paths = Paths::from_env();
+    let ws = paths.workspace_canonical();
+    let manifest = ws.join("Cargo.toml");
+    let manifest_s = shell_escape(manifest.to_str().expect("utf-8"));
+
+    print_rcore_builds(&manifest_s);
+    let pkg = format!("remu_app_{}", args.app);
+    let user_target = ws
+        .join("remu_app/rcore")
+        .join(format!("{RCORE_USER_TARGET}.json"));
+    let user_target_s = shell_escape(user_target.to_str().expect("utf-8"));
+    println!(
+        "cargo build -p {} --target {user_target_s} --release -Z build-std=core,alloc -Z json-target-spec --manifest-path {manifest_s}",
+        shell_escape(&pkg)
+    );
+
+    // The user program ELF lands under target/<rcore64>/release.
+    let target_dir = ws.join("target").join(RCORE_USER_TARGET).join("release");
+    let firmware = ws
+        .join("target")
+        .join(RCORE_TARGET)
+        .join("release")
+        .join("remu_firmware");
+    let kernel = ws
+        .join("target")
+        .join(RCORE_TARGET)
+        .join("release")
+        .join("rcore_kernel");
+    let firmware_s = shell_escape(firmware.to_str().expect("utf-8"));
+    let kernel_s = shell_escape(kernel.to_str().expect("utf-8"));
+    let app_s = shell_escape(
+        target_dir
+            .join(format!("remu_app_{}", args.app))
+            .to_str()
+            .expect("utf-8"),
+    );
+
+    let rel = remu_cli_cargo_release_suffix();
+    print!(
+        "cargo run -p remu_cli{rel} --manifest-path {manifest_s} -- --firmware {firmware_s} --elf {kernel_s} --app {app_s} --isa riscv64im --platform remu"
+    );
+    // `just` forwards the user's `--` separator verbatim into `remu_cli_args`;
+    // it is meaningless to remu_cli (each arg is already shell-delimited), so
+    // drop it before forwarding.
+    for arg in args.remu_cli_args.iter().filter(|a| a.as_str() != "--") {
+        print!(" {}", shell_escape(arg));
+    }
+    println!();
+
+    ExitCode::SUCCESS
+}
+
 /// Validation-only subcommand (prints nothing on success): usable from scripts
 /// that build without xtask, e.g. `just run-app --platform host`.
 fn print_check_app(args: CheckAppArgs) -> ExitCode {
@@ -36,7 +160,30 @@ fn print_check_app(args: CheckAppArgs) -> ExitCode {
     }
 }
 
+/// rcore runs the app in U mode under a `riscv64im` kernel+firmware; the
+/// user app itself must be a `remu_app_*` package and target riscv64im.
+fn check_rcore_platform(args: &RunAppArgs) -> Result<(), String> {
+    if args.target != RCORE_TARGET && args.target != "riscv64im" {
+        return Err(format!(
+            "xtask: rcore platform requires target `riscv64im` (got `{}`): \
+             the kernel/firmware are built for {RCORE_TARGET}",
+            args.target
+        ));
+    }
+    let paths = Paths::from_env();
+    let ws = paths.workspace_canonical();
+    crate::app_caps::validate_app_target(&ws, &args.app, "riscv64im")
+}
+
 fn print_run_app(args: RunAppArgs) -> ExitCode {
+    // rcore platform: firmware + kernel injected, app runs in U mode.
+    if is_rcore_platform(&args.platform) {
+        if let Err(e) = check_rcore_platform(&args) {
+            eprintln!("{e}");
+            return ExitCode::from(1);
+        }
+        return print_run_rcore(&args);
+    }
     let paths = Paths::from_env();
     let ws = paths.workspace_canonical();
     let resolved = match resolve_for_workspace_root(&ws, &args.target) {
@@ -125,6 +272,19 @@ fn print_run_app(args: RunAppArgs) -> ExitCode {
 }
 
 fn print_build_app(args: BuildAppArgs) -> ExitCode {
+    // rcore platform: firmware + kernel + user app (U mode) all built.
+    if is_rcore_platform(&args.platform) {
+        if let Err(e) = check_rcore_platform(&RunAppArgs {
+            app: args.app.clone(),
+            target: args.target.clone(),
+            platform: args.platform,
+            remu_cli_args: vec![],
+        }) {
+            eprintln!("{e}");
+            return ExitCode::from(1);
+        }
+        return print_build_rcore(&args.app);
+    }
     let paths = Paths::from_env();
     let hal_abs = paths.hal_canonical();
     let ws = paths.workspace_canonical();

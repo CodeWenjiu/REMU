@@ -1,34 +1,41 @@
-//! Hardware abstraction for remu apps — works on both bare-metal and hosted targets.
+//! Hardware abstraction for remu apps — works on every target platform.
 //!
 //! On bare-metal targets (`target_os = "none"`, e.g. remu's riscv32/riscv64)
 //! it delegates to [`remu_hal_embedded`]. On hosted targets (`any(unix, windows)`:
 //! linux, macos, windows, BSDs, …, including a RISC-V host) it delegates to
-//! [`remu_hal_host`] (stdout, a window-backed display, mouse/keyboard) — same
-//! API on both. Arms are selected by **positive** predicates; adding an
-//! environment (e.g. a future `target_os = "rcore"` arm) is purely additive.
+//! [`remu_hal_host`] (stdout, a window-backed display, mouse/keyboard). On
+//! rcore (`target_os = "rcore"`, U-mode programs under `rcore_kernel`) it
+//! delegates to [`remu_hal_rcore`] (syscall-based stdout/exit) — same API on
+//! all three. Arms are selected by **positive** predicates; adding another
+//! environment is purely additive.
 //!
 //! # Portable app pattern
 //!
 //! ```ignore
-//! use remu_hal::{FmtWrite, Uart16550, exit_success};
+//! use remu_hal::exit_success;
 //!
 //! #[remu_hal::entry]
 //! fn main() -> ! {
 //!     remu_hal::init();
-//!     let mut uart = Uart16550::default_base();
-//!     let _ = writeln!(uart, "hello");
+//!     remu_hal::println!("hello");
 //!     remu_hal::exit_success()
 //! }
 //! ```
 
-#![cfg_attr(target_os = "none", no_std)]
+#![cfg_attr(any(target_os = "none", target_os = "rcore"), no_std)]
+// `target_os = "rcore"` comes from the custom rcore64.json target (remu_app/rcore/…);
+// rustc has no built-in knowledge of that os value.
+#![allow(unexpected_cfgs)]
 
+// `extern crate alloc` + alloc re-exports: not available on rcore (U-mode
+// programs have no heap allocator; the kernel has no alloc syscall yet).
+#[cfg(not(target_os = "rcore"))]
 extern crate alloc;
 
 // ── Re-exports (all platforms) ──
 remu_macro::mod_prv!(print);
+#[cfg(not(target_os = "rcore"))]
 pub use alloc::{boxed::Box, string::String, vec::Vec};
-pub use core::fmt::Write as FmtWrite;
 pub use print::write_fmt;
 
 /// Logical key kind, UI-framework-agnostic.
@@ -100,25 +107,26 @@ pub fn key_kind_from_u32(v: u32) -> KeyKind {
     }
 }
 
-#[cfg(target_os = "none")]
-pub use embedded_io::Write;
-
 /// Platform-adaptive entry point: on bare-metal targets (`target_os = "none"`)
 /// this becomes `riscv_rt::entry` (bare-metal `_start`); on hosted targets
-/// the function is passed through untouched as a plain `std main`.
+/// the function is passed through untouched as a plain `std main`; on rcore
+/// it becomes the U-mode entry called by `remu_hal_rcore`'s `_start`.
 pub use remu_hal_macros::entry;
 
 #[cfg(target_os = "none")]
-pub use remu_hal_embedded::{
-    MTIME_TICK_HZ, Uart16550, app_args, exit_failure, exit_success, read_mtime,
-};
+pub use remu_hal_embedded::{MTIME_TICK_HZ, app_args, exit_failure, exit_success, read_mtime};
 
 /// Bare-metal entry delegate used by [`entry`]'s cfg-guarded embedded copy.
 #[cfg(target_os = "none")]
 pub use remu_hal_embedded::entry as rt_entry;
 
 #[cfg(any(unix, windows))]
-pub use remu_hal_host::{MTIME_TICK_HZ, Stdout as Uart16550, read_mtime};
+pub use remu_hal_host::{MTIME_TICK_HZ, read_mtime};
+
+/// rcore arm (U-mode user programs): the same API, served by syscalls. No
+/// display/input devices until the kernel grows those syscalls.
+#[cfg(target_os = "rcore")]
+pub use remu_hal_rcore::{exit_failure, exit_success};
 
 // ── Display device (both backends; the hosted one uses a real window) ──
 #[cfg(target_os = "none")]
@@ -138,6 +146,10 @@ pub use remu_hal_host::{
 };
 
 /// Read the logical key kind of the last key event, mapped to [`KeyKind`].
+///
+/// Not available on rcore (user programs have no MMIO keyboard; they can only
+/// use syscalls).
+#[cfg(any(target_os = "none", unix, windows))]
 #[inline]
 pub fn read_key_kind() -> KeyKind {
     key_kind_from_u32(read_key_kind_raw())

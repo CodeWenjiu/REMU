@@ -6,6 +6,11 @@ edition = "2024"
 # Deliberately zero dependencies: the kernel owns its runtime (entry, stack,
 # linker layout) and talks to the M-mode firmware via SBI. See
 # remu_app/rcore/README.md for the layering rationale.
+# `bare-metal` gates the binary via `required-features`, so hosted builds
+# (`cargo check --workspace`) never compile it — no host stub. The rcore
+# build recipes (xtask) pass `--features bare-metal` explicitly.
+[features]
+bare-metal = []
 
 [lints]
 workspace = true
@@ -13,3 +18,4 @@ workspace = true
 [[bin]]
 name = "rcore_kernel"
 path = "src/main.rs"
+required-features = ["bare-metal"]

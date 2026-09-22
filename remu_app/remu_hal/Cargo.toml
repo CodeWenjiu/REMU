@@ -16,5 +16,10 @@ remu_hal_embedded = { path = "./embedded" }
 [target.'cfg(any(unix, windows))'.dependencies]
 remu_hal_host = { path = "./host" }
 
+# rcore user programs (U mode under rcore_kernel, custom rcore64.json target).
+# Built only for `target_os = "rcore"`; never coexists with riscv-rt.
+[target.'cfg(target_os = "rcore")'.dependencies]
+remu_hal_rcore = { path = "./rcore" }
+
 [lints]
 workspace = true

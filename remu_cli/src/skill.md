@@ -75,7 +75,7 @@ just run-app microbench riscv32im --platform spike
 |-----|---------|-------------|
 | `APP` | required | App name: hello_world, collection, mnist, microbench |
 | `target` | `riscv32i` | ISA target: riscv32i, riscv32im, riscv32imac |
-| `--platform` | `remu` | Runtime: remu, qemu, spike, host |
+| `--platform` | `remu` | Runtime: remu, qemu, spike, host, rcore |
 | `--dev` | false | Debug build (faster compile, slower run) |
 | `--app-args ARGS` | none | Arguments passed to the embedded app |
 | `-- …` | — | All remaining args forwarded to `remu_cli` after `--` |
@@ -122,6 +122,8 @@ cargo run -p remu_cli --release -- \
 | Option | Default | Description |
 |--------|---------|-------------|
 | `--elf PATH` | required | ELF file to load (alias: `--bin`) |
+| `--firmware PATH` | none | Extra M-mode firmware image; its entry becomes the reset PC |
+| `--app PATH` | none | Extra user image; its entry is published in the boot info (`app_entry`) |
 | `--isa SPEC` | `riscv32i` | ISA spec: riscv32i, riscv32im, etc. |
 | `--platform PLATFORM` | `remu` | Simulator backend: remu, spike, nzea |
 | `--difftest REF` | none | Difftest reference: remu, spike |

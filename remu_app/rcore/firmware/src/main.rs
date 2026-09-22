@@ -13,35 +13,29 @@
 //! firmware hardcodes no device addresses, matching the project rule that the
 //! device map is runtime configuration.
 //!
-//! This crate is a bare-metal binary for `riscv64im-unknown-none-elf`. It is
-//! a workspace member so `-p` builds and shared lints work uniformly; on
-//! hosted targets (e.g. `cargo check --workspace`) everything but a
-//! diagnostic stub compiles out.
+//! This crate is a bare-metal binary for `riscv64im-unknown-none-elf`, gated
+//! behind the `bare-metal` feature (see Cargo.toml): hosted builds
+//! (`cargo check --workspace`) skip the binary entirely, so there is no
+//! conditional compilation here — `target_os = "none"` is the only build.
 
-#![cfg_attr(target_os = "none", no_std, no_main)]
+#![no_std]
+#![no_main]
 
-#[cfg(target_os = "none")]
 mod boot_info;
-#[cfg(target_os = "none")]
 mod trap;
 
-#[cfg(target_os = "none")]
 use core::arch::global_asm;
-#[cfg(target_os = "none")]
 use core::panic::PanicInfo;
 
 /// Firmware stack, 16 KiB (trap frames are 288 bytes; the kernel runs on its
 /// own stack once handed over).
-#[cfg(target_os = "none")]
 const BOOT_STACK_SIZE: usize = 16 * 1024;
 
 /// Boot-info pointer handed over in `a1` at reset; stashed by `_start`. Read
 /// (never written again) by the trap handler.
-#[cfg(target_os = "none")]
 #[unsafe(no_mangle)]
 static mut BOOT_INFO_ADDR: usize = 0;
 
-#[cfg(target_os = "none")]
 global_asm!(
     ".section .bss.stack",
     ".globl _boot_stack_bottom",
@@ -54,7 +48,6 @@ global_asm!(
 
 // _start: stack up, stash a1 (boot info), install mtvec, then hand over to
 // the S-mode kernel (MEPC = kernel entry, MPP = S, mret).
-#[cfg(target_os = "none")]
 global_asm!(
     ".section .text.entry",
     ".globl _start",
@@ -87,7 +80,6 @@ global_asm!(
     magic = const boot_info::MAGIC as u64,
 );
 
-#[cfg(target_os = "none")]
 #[panic_handler]
 fn panic(info: &PanicInfo) -> ! {
     if let Some(msg) = info.message().as_str() {
@@ -97,16 +89,4 @@ fn panic(info: &PanicInfo) -> ! {
     loop {
         core::hint::spin_loop();
     }
-}
-
-/// Host-check stub: the firmware cannot run on a hosted target. Exists so
-/// `cargo check --workspace` stays green and a mis-targeted `cargo run` fails
-/// with a pointer to the right command.
-#[cfg(not(target_os = "none"))]
-fn main() {
-    eprintln!(
-        "remu_firmware is a bare-metal binary (riscv64im-unknown-none-elf); \
-         build/run it with `just build-os` / `just run-os`"
-    );
-    std::process::exit(1);
 }

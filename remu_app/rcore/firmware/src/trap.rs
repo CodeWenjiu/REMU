@@ -13,7 +13,6 @@
 
 use crate::boot_info::{self, BootInfo};
 
-#[cfg(target_os = "none")]
 use core::arch::global_asm;
 
 /// Trap frame pushed by `_trap_entry`; `mepc` may be modified by the handler
@@ -27,7 +26,6 @@ pub(crate) struct TrapFrame {
     pub(crate) mtval: u64,
 }
 
-#[cfg(target_os = "none")]
 global_asm!(
     ".section .text",
     ".globl _trap_entry",
@@ -116,7 +114,6 @@ global_asm!(
 /// SBI call service: `a0` = first arg / return, `a7` = extension ID.
 /// The trap frame GPRs are indexed as x1..x31, so x10 = frame.gpr[9] (a0),
 /// x17 = frame.gpr[16] (a7).
-#[cfg(target_os = "none")]
 #[unsafe(no_mangle)]
 extern "C" fn trap_handler(frame: &mut TrapFrame) {
     let cause = frame.mcause & 0x7FFF_FFFF;
@@ -136,7 +133,6 @@ extern "C" fn trap_handler(frame: &mut TrapFrame) {
 }
 
 /// Serve one SBI call per the legacy spec; returns the value for `a0`.
-#[cfg(target_os = "none")]
 fn serve_sbi(frame: &TrapFrame) -> u64 {
     let eid = frame.gpr[16]; // x17 = a7
     let info = boot_info::boot_info();
@@ -156,7 +152,6 @@ fn serve_sbi(frame: &TrapFrame) -> u64 {
 
 /// Write one character to the UART THR (0 = base). No-op if the boot info
 /// carries no UART.
-#[cfg(target_os = "none")]
 fn uart_putchar(info: BootInfo, ch: u8) {
     if info.uart_base != 0 {
         // Safety: the UART base comes from the simulator's device map and is
@@ -166,7 +161,6 @@ fn uart_putchar(info: BootInfo, ch: u8) {
 }
 
 /// Write the finisher register; never returns on a real exit.
-#[cfg(target_os = "none")]
 fn finisher_exit(info: BootInfo, fail: bool) -> u64 {
     let code: u32 = if fail { 0x3333 } else { 0x5555 };
     if info.finisher_base != 0 {
@@ -182,8 +176,7 @@ fn finisher_exit(info: BootInfo, fail: bool) -> u64 {
     boot_info::SBI_ERR_NOT_SUPPORTED
 }
 
-/// Best-effort panic print to the UART (used by the kernel panic handler).
-#[cfg(target_os = "none")]
+/// Best-effort panic print to the UART (used by the panic handler).
 pub(crate) fn panic_print(msg: &str) {
     if let Some(info) = boot_info::boot_info() {
         for b in msg.bytes() {
@@ -191,7 +184,3 @@ pub(crate) fn panic_print(msg: &str) {
         }
     }
 }
-
-/// Host-check stub: `trap_handler` compiles out on hosted targets.
-#[cfg(not(target_os = "none"))]
-pub(crate) fn panic_print(_msg: &str) {}
