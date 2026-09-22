@@ -1,4 +1,4 @@
-use remu_isa::isa::reg::Mcause;
+use remu_isa::isa::reg::{Mcause, PrivMode};
 use remu_isa::{WordOps, Xlen};
 use remu_state::{State, StatePolicy};
 
@@ -18,6 +18,29 @@ pub(crate) fn trap<P: StatePolicy>(
     state.reg.csr.mstatus_apply_trap_entry();
     <<P as remu_state::StatePolicy>::ISA as remu_isa::isa::RvIsa>::XLEN::from_u64(
         state.reg.csr.mtvec_base() as u64,
+    )
+}
+
+/// Enter an S-mode trap (ch2: user programs trap into the kernel): save
+/// `pc`/`cause`, clear `stval`, record the previous mode in `sstatus.SPP`,
+/// and return the (direct-mode) `stvec` PC.
+#[inline(always)]
+pub(crate) fn trap_s<P: StatePolicy>(
+    state: &mut State<P>,
+    pc: <P::ISA as remu_isa::isa::RvIsa>::XLEN,
+    cause: Mcause,
+) -> <P::ISA as remu_isa::isa::RvIsa>::XLEN {
+    state.reg.csr.sepc = pc.to_u32();
+    state.reg.csr.scause = cause.to_u32();
+    state.reg.csr.stval = 0;
+    // SPP = the mode we trap from (U for ch2 user programs).
+    state
+        .reg
+        .csr
+        .set_sstatus_spp(state.reg.csr.priv_mode() == PrivMode::Supervisor);
+    state.reg.csr.priv_mode = PrivMode::Supervisor;
+    <<P as remu_state::StatePolicy>::ISA as remu_isa::isa::RvIsa>::XLEN::from_u64(
+        state.reg.csr.stvec_base() as u64,
     )
 }
 

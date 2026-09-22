@@ -14,6 +14,19 @@ pub struct Csr<C: CsrConfig> {
     pub mtval: u32,
     pub mip: u32,
 
+    // Supervisor Trap Setup / Handling (ch2: U/S-mode switching).
+    // `sstatus` is a *view* of `mstatus` (its low bits); we store the same
+    // bits separately so S-mode CSR reads/writes work without touching the
+    // full mstatus value (remu has no virtualization, so no shadowing needed).
+    pub sstatus: u32,
+    pub sie: u32,
+    pub stvec: u32,
+    pub sscratch: u32,
+    pub sepc: u32,
+    pub scause: u32,
+    pub stval: u32,
+    pub sip: u32,
+
     /// Current privilege mode (not a CSR; tracked alongside the trap CSRs).
     pub priv_mode: PrivMode,
 
@@ -33,6 +46,14 @@ impl<C: CsrConfig> Default for Csr<C> {
             mcause: 0,
             mtval: 0,
             mip: 0,
+            sstatus: 0,
+            sie: 0,
+            stvec: 0,
+            sscratch: 0,
+            sepc: 0,
+            scause: 0,
+            stval: 0,
+            sip: 0,
             priv_mode: PrivMode::Machine,
             vector: C::VectorCsrState::default(),
         }
@@ -50,6 +71,14 @@ impl<C: CsrConfig> std::fmt::Debug for Csr<C> {
             .field("mcause", &self.mcause)
             .field("mtval", &self.mtval)
             .field("mip", &self.mip)
+            .field("sstatus", &self.sstatus)
+            .field("sie", &self.sie)
+            .field("stvec", &self.stvec)
+            .field("sscratch", &self.sscratch)
+            .field("sepc", &self.sepc)
+            .field("scause", &self.scause)
+            .field("stval", &self.stval)
+            .field("sip", &self.sip)
             .field("priv_mode", &self.priv_mode)
             .field("vector", &self.vector)
             .finish()
@@ -171,6 +200,66 @@ impl<C: CsrConfig> Csr<C> {
         self.mtvec & !3u32
     }
 
+    #[inline(always)]
+    pub fn stvec_base(&self) -> u32 {
+        self.stvec & !3u32
+    }
+
+    /// `sstatus` is the S-mode view of `mstatus`: bits SIE(1), SPIE(5),
+    /// SPP(8). Reading/writing keeps the S-mode CSR in sync with mstatus.
+    /// (remu does not model UXL/SUM/MXR etc.; masks below match Spike's
+    /// `MSTATUS_SSTATUS_MASK` low word.)
+    const SSTATUS_MASK: u32 = 0x8000_0000 | 0x0000_0122; // SD | SPP | SPIE | SIE
+
+    #[inline(always)]
+    pub fn sstatus_read(&self) -> u32 {
+        self.mstatus & Self::SSTATUS_MASK
+    }
+
+    #[inline(always)]
+    pub fn sstatus_write(&mut self, value: u32) {
+        let mask = Self::SSTATUS_MASK & !0x8000_0000; // SD is read-only
+        self.mstatus = (self.mstatus & !mask) | (value & mask);
+    }
+
+    /// S-mode SPP = 1 means *trap from S*, 0 = from U.
+    #[inline(always)]
+    pub fn sstatus_spp(&self) -> bool {
+        (self.mstatus & (1 << 8)) != 0
+    }
+
+    #[inline(always)]
+    pub fn set_sstatus_spp(&mut self, v: bool) {
+        if v {
+            self.mstatus |= 1 << 8;
+        } else {
+            self.mstatus &= !(1 << 8);
+        }
+    }
+
+    /// `sret`: return to `sstatus.SPP`, restart interrupts from `SPIE`, set
+    /// `SPIE`, and clear `SPP` (back to U). The actual privilege switch is
+    /// applied by the caller via [`priv_mode`](Self::priv_mode).
+    #[inline(always)]
+    pub fn sstatus_apply_sret(&mut self) {
+        let spp = self.sstatus_spp();
+        let spie = (self.mstatus >> 5) & 1 == 1; // SPIE
+        // SIE <- SPIE
+        if spie {
+            self.mstatus |= 1 << 1;
+        } else {
+            self.mstatus &= !(1 << 1);
+        }
+        // SPIE <- 1, SPP <- 0 (U)
+        self.mstatus |= 1 << 5;
+        self.mstatus &= !(1 << 8);
+        self.priv_mode = if spp {
+            PrivMode::Supervisor
+        } else {
+            PrivMode::User
+        };
+    }
+
     pub fn read(&self, reg: CsrKind) -> u32 {
         match reg {
             CsrKind::Mstatus => self.mstatus,
@@ -181,6 +270,14 @@ impl<C: CsrConfig> Csr<C> {
             CsrKind::Mcause => self.mcause,
             CsrKind::Mtval => self.mtval,
             CsrKind::Mip => self.mip,
+            CsrKind::Sstatus => self.sstatus_read(),
+            CsrKind::Sie => self.mie & 0x222, // S-mode view of mie (SSIE/STIE/SEIE)
+            CsrKind::Stvec => self.stvec,
+            CsrKind::Sscratch => self.sscratch,
+            CsrKind::Sepc => self.sepc,
+            CsrKind::Scause => self.scause,
+            CsrKind::Stval => self.stval,
+            CsrKind::Sip => self.mip & 0x222, // S-mode view of mip
             CsrKind::Vstart => self.vector.vstart(),
             CsrKind::Vxsat => self.vector.vxsat() & 1,
             CsrKind::Vxrm => self.vector.vxrm() & 3,
@@ -205,6 +302,14 @@ impl<C: CsrConfig> Csr<C> {
             CsrKind::Mcause => self.mcause = value,
             CsrKind::Mtval => self.mtval = value,
             CsrKind::Mip => self.mip = value,
+            CsrKind::Sstatus => self.sstatus_write(value),
+            CsrKind::Sie => self.mie = (self.mie & !0x222) | (value & 0x222),
+            CsrKind::Stvec => self.stvec = value,
+            CsrKind::Sscratch => self.sscratch = value,
+            CsrKind::Sepc => self.sepc = value,
+            CsrKind::Scause => self.scause = value,
+            CsrKind::Stval => self.stval = value,
+            CsrKind::Sip => self.mip = (self.mip & !0x222) | (value & 0x222),
             CsrKind::Vstart => self.vector.set_vstart(value),
             CsrKind::Vxsat => self.vector.set_vxsat(value & 1),
             CsrKind::Vxrm => self.vector.set_vxrm(value & 3),

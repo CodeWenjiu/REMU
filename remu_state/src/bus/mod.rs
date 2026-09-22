@@ -150,7 +150,6 @@ impl<I: RvIsa, O: BusObserver> Bus<I, O> {
             (true, Some(entry)) => Some(entry as usize),
             _ => None,
         };
-        let program_entry = entries.get(1).copied().flatten().map(|e| e as usize);
 
         // Write app args to known address (top of RAM - 4 KiB). Shared with
         // reference simulators (e.g. spike) so the ref sees the same payload.
@@ -173,7 +172,7 @@ impl<I: RvIsa, O: BusObserver> Bus<I, O> {
         }
 
         let boot_info_addr = if firmware_entry.is_some() {
-            write_boot_info(&mut memory, &devices, program_entry, &tracer)
+            write_boot_info(&mut memory, &devices, &entries, &tracer)
         } else {
             None
         };
@@ -361,8 +360,9 @@ pub(crate) const BOOT_INFO_MAGIC: u32 = 0x5245_4D55;
 pub(crate) const BOOT_INFO_VERSION: u32 = 1;
 
 /// Boot-info handed to a loaded firmware in `a1`: the resolved device map
-/// (addresses come from the user configuration, never hardcoded) and the
-/// handover target the firmware jumps to after it finishes.
+/// (addresses come from the user configuration, never hardcoded), the
+/// handover target the firmware jumps to after it finishes, and (ch2) the
+/// user-program entry the kernel is expected to run.
 ///
 /// Fields are u64 (XLEN-independent so RV32/RV64 firmwares share the layout);
 /// the struct is written as raw bytes, so it must stay `repr(C)` and the
@@ -380,6 +380,8 @@ pub(crate) struct BootInfo {
     pub(crate) clint_base: u64,
     /// S-mode payload (kernel) entry point.
     pub(crate) kernel_entry: u64,
+    /// U-mode payload (user program) entry point, if one was loaded.
+    pub(crate) app_entry: u64,
 }
 
 /// Write the [`BootInfo`] block at [`BOOT_INFO_BASE`]; returns its address
@@ -387,7 +389,7 @@ pub(crate) struct BootInfo {
 fn write_boot_info(
     memory: &mut Memory,
     devices: &[(DeviceConfig, Box<dyn DeviceAccess>)],
-    kernel_entry: Option<usize>,
+    images: &[Option<u64>],
     tracer: &remu_types::TracerDyn,
 ) -> Option<usize> {
     let find_addr = |kind: DeviceKind| {
@@ -403,7 +405,10 @@ fn write_boot_info(
         uart_base: find_addr(DeviceKind::Uart16550),
         finisher_base: find_addr(DeviceKind::SifiveTestFinisher),
         clint_base: find_addr(DeviceKind::Clint),
-        kernel_entry: kernel_entry.unwrap_or(0) as u64,
+        // Image columns: [firmware, kernel, app]. Firmware needs only the
+        // kernel entry; the kernel reads `app_entry` for the user program.
+        kernel_entry: images.get(1).copied().flatten().unwrap_or(0),
+        app_entry: images.get(2).copied().flatten().unwrap_or(0),
     };
     let bytes = unsafe {
         core::slice::from_raw_parts(

@@ -93,6 +93,24 @@ pub enum Csr {
     #[strum(to_string = "minstreth", serialize = "minstreth")]
     Minstreth = 0xB82,
 
+    // Supervisor Trap Setup / Handling (ch2: U/S-mode switching)
+    #[strum(to_string = "sstatus", serialize = "sstatus")]
+    Sstatus = 0x100,
+    #[strum(to_string = "sie", serialize = "sie")]
+    Sie = 0x104,
+    #[strum(to_string = "stvec", serialize = "stvec")]
+    Stvec = 0x105,
+    #[strum(to_string = "sscratch", serialize = "sscratch")]
+    Sscratch = 0x140,
+    #[strum(to_string = "sepc", serialize = "sepc")]
+    Sepc = 0x141,
+    #[strum(to_string = "scause", serialize = "scause")]
+    Scause = 0x142,
+    #[strum(to_string = "stval", serialize = "stval")]
+    Stval = 0x143,
+    #[strum(to_string = "sip", serialize = "sip")]
+    Sip = 0x144,
+
     // Vector (Zve32x) CSRs
     #[strum(to_string = "vstart", serialize = "vstart")]
     Vstart = 0x008,
@@ -127,8 +145,8 @@ impl Csr {
     pub fn csrs_with_state() -> &'static [Csr] {
         use Csr::*;
         const CSRS: &[Csr] = &[
-            Mstatus, Mie, Mtvec, Mscratch, Mepc, Mcause, Mtval, Mip, Vstart, Vxsat, Vxrm, Vcsr, Vl,
-            Vtype,
+            Mstatus, Mie, Mtvec, Mscratch, Mepc, Mcause, Mtval, Mip, Sstatus, Sie, Stvec, Sscratch,
+            Sepc, Scause, Stval, Sip, Vstart, Vxsat, Vxrm, Vcsr, Vl, Vtype,
         ];
         CSRS
     }
@@ -161,6 +179,18 @@ impl Csr {
                 0x0000_1E88
             }
             Misa | Mie | Mtvec | Mscratch | Mepc | Mcause | Mtval | Mip => 0xFFFF_FFFF,
+            // S-mode CSRs. NOTE: not in `CSRS_FOR_DIFFTEST_BASE` today: the
+            // difftest reference (Spike) is configured with a pure-M ISA
+            // (`rv32im`/`rv64im`), where Spike's sstatus view excludes the
+            // SIE/SPIE/SPP bits (its `sstatus_write_mask` is gated on
+            // `extension_enabled('S')`), so these are not comparable until the
+            // reference runs with S — then these masks are the contract:
+            // sstatus compares only the S-mode fields (SD is implementation-
+            // summarized, like mstatus), sie/sip their view bits.
+            Sstatus => 0x0000_0122,
+            Sie => 0x0000_0222,
+            Sip => 0x0000_0222,
+            Stvec | Sscratch | Sepc | Scause | Stval => 0xFFFF_FFFF,
             Medeleg | Mideleg | Mcounteren => 0,
             Mcycle | Minstret | Mcycleh | Minstreth => 0,
             Vstart | Vl | Vtype => 0xFFFF_FFFF,
@@ -177,6 +207,9 @@ impl Csr {
 use Csr::*;
 
 /// Base CSRs for difftest (all ISAs): Misa + machine trap/state. Always included.
+/// S-mode CSRs are deliberately *not* here: the difftest reference (Spike) is
+/// configured with a pure-M ISA, where its sstatus/sie/sip views differ from
+/// remu's U/S-mode views (see `diff_mask()`). M-mode apps never touch them.
 pub const CSRS_FOR_DIFFTEST_BASE: &[Csr] = &[
     Misa, Mstatus, Mie, Mtvec, Mscratch, Mepc, Mcause, Mtval, Mip,
 ];

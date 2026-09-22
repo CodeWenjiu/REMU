@@ -62,6 +62,12 @@ pub struct BusOption {
     #[arg(long = "firmware", value_name = "PATH", value_parser = file_exists, value_hint = ValueHint::FilePath)]
     pub firmware: Option<PathBuf>,
 
+    /// Extra user-program image (ch2: the rcore app) loaded **in addition to**
+    /// `--firmware` and `--elf`. Its ELF entry is published in the boot info
+    /// (`app_entry`) for the kernel to run. Optional.
+    #[arg(long = "app", value_name = "PATH", value_parser = file_exists, value_hint = ValueHint::FilePath)]
+    pub app: Option<PathBuf>,
+
     /// Application arguments written to 0x87FF_F000 before boot.
     #[arg(long = "app-args", value_name = "ARGS")]
     pub app_args: Option<String>,
@@ -69,10 +75,14 @@ pub struct BusOption {
 
 impl BusOption {
     /// Images to load into RAM, in load order: the firmware (if any) first, so
-    /// it can claim the reset region, then the program image. Both are plain
-    /// ELFs loaded at their own link addresses.
+    /// it can claim the reset region, then the program image, then the extra
+    /// app image. All are plain ELFs loaded at their own link addresses.
     pub fn images(&self) -> Vec<&PathBuf> {
-        self.firmware.iter().chain(self.elf.iter()).collect()
+        self.firmware
+            .iter()
+            .chain(self.elf.iter())
+            .chain(self.app.iter())
+            .collect()
     }
 
     /// Resolve the full memory region list: base (file or built-in default),

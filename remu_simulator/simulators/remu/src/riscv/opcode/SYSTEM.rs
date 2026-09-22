@@ -35,6 +35,7 @@ pub(crate) enum SystemInst {
     Ecall,
     Ebreak,
     Mret,
+    Sret,
     Csrrw,
     Csrrs,
     Csrrc,
@@ -51,6 +52,7 @@ pub(crate) fn decode<P: remu_state::StatePolicy>(inst: u32) -> DecodedInst {
             0 => SystemInst::Ecall,
             1 => SystemInst::Ebreak,
             0x302 => SystemInst::Mret,
+            0x102 => SystemInst::Sret,
             _ => return DecodedInst::default(),
         },
         func3::CSRRW => SystemInst::Csrrw,
@@ -119,24 +121,39 @@ pub(crate) fn execute<P: remu_state::StatePolicy, C: crate::ExecuteContext<P>>(
     let Inst::System(sys) = decoded.inst else {
         unreachable!()
     };
-    // `ecall` traps through the shared machine-trap path; `ebreak` is reported
-    // to the context (breakpoint policy); the CSR arms only need the state
-    // borrow.
+    // `ecall` routes by privilege: U traps into the S-mode kernel (`stvec`),
+    // S traps into the M-mode firmware (`mtvec`); `ebreak` is reported to the
+    // context (breakpoint policy); the CSR arms only need the state borrow.
     let csr_inst = match sys {
         SystemInst::Ecall => {
             let state = ctx.state_mut();
-            let cause = match state.reg.csr.priv_mode() {
-                PrivMode::User => Mcause::EnvCallFromU,
-                PrivMode::Supervisor => Mcause::EnvCallFromS,
-                PrivMode::Machine => Mcause::EnvCallFromM,
-            };
-            return Ok(UNKNOWN::trap(state, pc, cause));
+            match state.reg.csr.priv_mode() {
+                PrivMode::User => {
+                    return Ok(UNKNOWN::trap_s(state, pc, Mcause::EnvCallFromU));
+                }
+                PrivMode::Supervisor => {
+                    return Ok(UNKNOWN::trap(state, pc, Mcause::EnvCallFromS));
+                }
+                PrivMode::Machine => {
+                    return Ok(UNKNOWN::trap(state, pc, Mcause::EnvCallFromM));
+                }
+            }
         }
         SystemInst::Ebreak => return ctx.on_ebreak(pc),
         SystemInst::Mret => {
             let state = ctx.state_mut();
             let new_pc = state.reg.csr.mepc;
             state.reg.csr.mstatus_apply_mret();
+            return Ok(
+                <<P as remu_state::StatePolicy>::ISA as remu_isa::isa::RvIsa>::XLEN::from_u64(
+                    new_pc as u64,
+                ),
+            );
+        }
+        SystemInst::Sret => {
+            let state = ctx.state_mut();
+            let new_pc = state.reg.csr.sepc;
+            state.reg.csr.sstatus_apply_sret();
             return Ok(
                 <<P as remu_state::StatePolicy>::ISA as remu_isa::isa::RvIsa>::XLEN::from_u64(
                     new_pc as u64,
@@ -168,7 +185,9 @@ pub(crate) fn execute<P: remu_state::StatePolicy, C: crate::ExecuteContext<P>>(
         SystemInst::Csrrwi => decoded.rs1 as u32,
         SystemInst::Csrrsi => old | (decoded.rs1 as u32),
         SystemInst::Csrrci => old & !(decoded.rs1 as u32),
-        SystemInst::Ecall | SystemInst::Ebreak | SystemInst::Mret => unreachable!(),
+        SystemInst::Ecall | SystemInst::Ebreak | SystemInst::Mret | SystemInst::Sret => {
+            unreachable!()
+        }
     };
     do_csr(state, decoded, k, old, new_val, pc)
 }
