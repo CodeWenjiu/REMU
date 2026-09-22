@@ -8,11 +8,19 @@ codegen-backend = "cranelift"
 codegen-backend = "llvm"
 
 [target.'cfg(target_os = "linux")']
-rustflags = [
-    "-Zshare-generics=y",
-]
+# NOTE: `-Zshare-generics=y` used to live here but broke release linking on
+# recent nightlies (undefined hidden `core::ptr::drop_glue` for std deps);
+# removed — the flag is only a build-speed hint, not a correctness feature.
 
 [target.'cfg(all(any(target_arch = "riscv32", target_arch = "riscv64"), target_os = "none"))']
 linker = "rust-lld"
 rustflags = ["-C", "link-arg=-Tlink.x"]
 runner = "remu_app/remu_hal/scripts/remu-cargo-runner.sh"
+
+# rcore user programs (custom rcore64.json target, target_os = "rcore"):
+# same link.x mechanism as the bare-metal targets — remu_hal_rcore's build.rs
+# publishes the user linker script as link.x. build scripts are host-target
+# and do not see these flags.
+[target.'cfg(all(any(target_arch = "riscv32", target_arch = "riscv64"), target_os = "rcore"))']
+linker = "rust-lld"
+rustflags = ["-C", "link-arg=-Tlink.x"]
