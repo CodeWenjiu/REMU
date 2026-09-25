@@ -4440,18 +4440,18 @@ dependencies = [
 
 [[package]]
 name = "reedline"
-version = "0.48.0"
+version = "0.51.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "201e8e0160cbe7bb5eb2caccf281e178e77fac95115ab31a2c29edc5593603c8"
+checksum = "d010acf9ed312cbc737e5f9064c375a7093975b0c25568337f0c24148f46540d"
 dependencies = [
  "chrono",
  "crossterm",
  "fd-lock",
- "itertools 0.13.0",
+ "itertools 0.15.0",
  "nu-ansi-term",
  "serde",
  "strip-ansi-escapes",
- "strum 0.27.2",
+ "strum 0.28.0",
  "thiserror 2.0.21",
  "unicase",
  "unicode-segmentation",
@@ -5509,9 +5509,6 @@ name = "strum"
 version = "0.27.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "af23d6f6c1a224baef9d3f61e287d2761385a5b88fdab4eb4c6f11aeb54c4bcf"
-dependencies = [
- "strum_macros 0.27.2",
-]
 
 [[package]]
 name = "strum"

@@ -1,5 +1,5 @@
 use petgraph::graph::{Graph, NodeIndex};
-use reedline::{Completer, Span, Suggestion};
+use reedline::{Completer, CompletionResult, Span, Suggestion};
 
 #[derive(Clone)]
 pub(crate) struct RemuCompleter {
@@ -215,7 +215,7 @@ impl RemuCompleter {
 }
 
 impl Completer for RemuCompleter {
-    fn complete(&mut self, line: &str, pos: usize) -> Vec<Suggestion> {
+    fn complete(&mut self, line: &str, pos: usize) -> CompletionResult {
         // If the cursor is inside a complete `{ ... }` block, complete within that scope.
         if let Some((inner, inner_pos, base)) = Self::current_brace_scope(line, pos) {
             let mut out = self.complete_within_graph(inner, inner_pos);
@@ -225,16 +225,55 @@ impl Completer for RemuCompleter {
                 s.span = Span::new(base + s.span.start, base + s.span.end);
             }
 
-            return out;
+            return CompletionResult::fresh(out);
         }
 
         // Outside of braces, try structural completions first (and/or + {}).
         let structural = self.complete_structural_outside_braces(line, pos);
         if !structural.is_empty() {
-            return structural;
+            return CompletionResult::fresh(structural);
         }
 
         // Otherwise, fall back to normal single-command completion on the whole line.
-        self.complete_within_graph(line, pos)
+        CompletionResult::fresh(self.complete_within_graph(line, pos))
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn values(result: &CompletionResult) -> Vec<&str> {
+        result
+            .suggestions()
+            .iter()
+            .map(|s| s.value.as_str())
+            .collect()
+    }
+
+    #[test]
+    fn completes_command_prefix_at_root() {
+        let (graph, root) = remu_debugger::get_command_graph();
+        let mut completer = RemuCompleter::new(graph, root);
+        let result = completer.complete("cont", 4);
+        assert!(
+            values(&result).contains(&"continue"),
+            "got {:?}",
+            values(&result)
+        );
+    }
+
+    #[test]
+    fn completes_inside_braces_with_remapped_span() {
+        let (graph, root) = remu_debugger::get_command_graph();
+        let mut completer = RemuCompleter::new(graph, root);
+        let line = "{ cont";
+        let result = completer.complete(line, line.len());
+        let suggestion = result
+            .suggestions()
+            .iter()
+            .find(|s| s.value == "continue")
+            .expect("continue suggested inside the block");
+        assert_eq!((suggestion.span.start, suggestion.span.end), (2, 6));
     }
 }
