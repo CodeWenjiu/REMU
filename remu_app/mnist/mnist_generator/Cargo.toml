@@ -4,9 +4,19 @@ version = "0.1.0"
 edition = "2024"
 
 [dependencies]
-eframe = { version = "0.36.0", default-features = false, features = ["accesskit", "default_fonts", "wayland", "web_screen_reader", "wgpu_no_default_features", "x11", "__screenshot"] }
-wgpu = { version = "30", features = ["vulkan"] }
+# Hosted GUI: the same Slint as the rest of the tree, plus the winit backend so
+# it can open a real window. The workspace feature set already selects the
+# software renderer (no GPU stack), and `backend-winit` brings in `std` —
+# without a backend Slint has nothing to create a window with on the host.
+slint = { workspace = true, features = ["backend-winit"] }
 env_logger = "0.11.11"
+
+[build-dependencies]
+slint-build.workspace = true
+
+# Host-only dev tool: run via `just run-app mnist_generator <any> --platform host`.
+[package.metadata.remu]
+isas = ["host"]
 
 [lints]
 workspace = true

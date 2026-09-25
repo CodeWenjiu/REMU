@@ -1,42 +1,141 @@
 //! Draw digits on a 28x28 canvas; save as `.txt` + `.bin` matching `remu_app/mnist/test_images` samples.
 //! `.bin` layout matches `Inference::parse_image_binary`: 8 reserved bytes, byte `[8]` = label, `[9..793]` row-major pixels.
+//!
+//! The UI is Slint (`ui/mnist_draw.slint`); this file owns the pixels and the
+//! file formats, and maps pointer positions onto grid cells.
 
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 #![expect(rustdoc::missing_crate_level_docs)]
 
-use std::fs::{self, File};
-use std::io::Write;
+use std::cell::RefCell;
+use std::fmt::Write as _;
+use std::fs;
 use std::path::{Path, PathBuf};
+use std::rc::Rc;
 
-use eframe::egui::{self, Color32, PointerButton, Pos2, Rect, Sense, Stroke, StrokeKind, vec2};
-use eframe::{Renderer, egui_wgpu, wgpu};
+use slint::{ComponentHandle as _, Model as _, ModelRc, VecModel};
+
+#[allow(unreachable_pub)]
+mod ui {
+    slint::include_modules!();
+}
+use ui::MnistDraw;
 
 const GRID: usize = 28;
-const BIN_LEN: usize = 8 + 1 + GRID * GRID; // 793
+const CELLS: usize = GRID * GRID;
+const BIN_LEN: usize = 8 + 1 + CELLS; // 793
+/// One paint pass over a cell; a second pass on the same cell adds up to white.
+const INK_STEP: u8 = 85;
+/// Erasing removes slightly more than one pass paints.
+const ERASE_STEP: u8 = 96;
 
-fn main() -> eframe::Result {
+fn main() -> Result<(), slint::PlatformError> {
     env_logger::init();
 
-    let mut wgpu_setup = egui_wgpu::WgpuSetupCreateNew::without_display_handle();
-    wgpu_setup.instance_descriptor.flags |=
-        wgpu::InstanceFlags::ALLOW_UNDERLYING_NONCOMPLIANT_ADAPTER;
+    let ui = MnistDraw::new()?;
+    // The canvas renders from this model; `App::pixels` stays the source of truth.
+    let gray = Rc::new(VecModel::from(vec![0i32; CELLS]));
+    ui.set_pixels(ModelRc::from(gray.clone()));
 
-    let wgpu_options = egui_wgpu::WgpuConfiguration {
-        wgpu_setup: egui_wgpu::WgpuSetup::CreateNew(wgpu_setup),
-        ..Default::default()
-    };
+    let app = Rc::new(RefCell::new(App {
+        pixels: [0u8; CELLS],
+        gray,
+        cell: ui.get_cell_size(),
+    }));
 
-    let options = eframe::NativeOptions {
-        renderer: Renderer::Wgpu,
-        wgpu_options,
-        viewport: egui::ViewportBuilder::default().with_inner_size([560.0, 720.0]),
-        ..Default::default()
-    };
-    eframe::run_native(
-        "MNIST digit capture",
-        options,
-        Box::new(|_cc| Ok(Box::<MnistDrawApp>::default())),
-    )
+    {
+        let app = Rc::clone(&app);
+        let weak = ui.as_weak();
+        ui.on_paint(move |x, y, ink| {
+            let Some(ui) = weak.upgrade() else { return };
+            let radius = ui.get_brush_radius().round() as i32;
+            app.borrow_mut().paint(x, y, ink, radius);
+        });
+    }
+    {
+        let app = Rc::clone(&app);
+        ui.on_clear_canvas(move || app.borrow_mut().clear());
+    }
+    {
+        let app = Rc::clone(&app);
+        let weak = ui.as_weak();
+        ui.on_save_image(move || {
+            let Some(ui) = weak.upgrade() else { return };
+            let label = ui.get_label().clamp(0, 9) as u8;
+            let status = match save_pair(&app.borrow().pixels, label, &test_images_dir()) {
+                Ok(msg) => msg,
+                Err(e) => format!("Save failed: {e}"),
+            };
+            ui.set_status(status.into());
+        });
+    }
+
+    ui.run()
+}
+
+/// Canvas pixels plus the gray-level model the UI renders from.
+struct App {
+    pixels: [u8; CELLS],
+    gray: Rc<VecModel<i32>>,
+    /// Canvas cell size in logical pixels (declared by the `.slint`).
+    cell: f32,
+}
+
+impl App {
+    fn paint(&mut self, x: f32, y: f32, ink: bool, radius: i32) {
+        let Some((gx, gy)) = cell_of(x, y, self.cell) else {
+            return;
+        };
+        let touched = paint_stamp(&mut self.pixels, gx, gy, radius, ink);
+        for i in touched {
+            self.gray.set_row_data(i, self.pixels[i] as i32);
+        }
+    }
+
+    fn clear(&mut self) {
+        self.pixels.fill(0);
+        for i in 0..CELLS {
+            self.gray.set_row_data(i, 0);
+        }
+    }
+}
+
+/// Canvas-relative logical pixels → grid cell, or `None` outside the canvas.
+fn cell_of(x: f32, y: f32, cell: f32) -> Option<(i32, i32)> {
+    if !(0.0..GRID as f32 * cell).contains(&x) || !(0.0..GRID as f32 * cell).contains(&y) {
+        return None;
+    }
+    Some(((x / cell).floor() as i32, (y / cell).floor() as i32))
+}
+
+/// Paint (or erase) a filled disc of `radius` around a cell; returns the touched
+/// row-major indices so only those cells are refreshed in the view.
+fn paint_stamp(pixels: &mut [u8; CELLS], cx: i32, cy: i32, radius: i32, ink: bool) -> Vec<usize> {
+    let mut touched = Vec::new();
+    for dy in -radius..=radius {
+        for dx in -radius..=radius {
+            if dx * dx + dy * dy > radius * radius {
+                continue;
+            }
+            let x = cx + dx;
+            let y = cy + dy;
+            if !(0..GRID as i32).contains(&x) || !(0..GRID as i32).contains(&y) {
+                continue;
+            }
+            let i = y as usize * GRID + x as usize;
+            let value = if ink {
+                // Saturates at 255, so repeated passes reach at most white.
+                pixels[i].saturating_add(INK_STEP)
+            } else {
+                pixels[i].saturating_sub(ERASE_STEP)
+            };
+            if value != pixels[i] {
+                pixels[i] = value;
+                touched.push(i);
+            }
+        }
+    }
+    touched
 }
 
 fn test_images_dir() -> PathBuf {
@@ -56,191 +155,130 @@ fn next_save_index(dir: &Path) -> u32 {
     let mut max_ix: Option<u32> = None;
     if let Ok(entries) = fs::read_dir(dir) {
         for ent in entries.flatten() {
-            if let Some(name) = ent.file_name().to_str() {
-                if let Some(n) = parse_saved_index(name) {
-                    max_ix = Some(max_ix.map_or(n, |m| m.max(n)));
-                }
+            if let Some(name) = ent.file_name().to_str()
+                && let Some(n) = parse_saved_index(name)
+            {
+                max_ix = Some(max_ix.map_or(n, |m| m.max(n)));
             }
         }
     }
     max_ix.map_or(0, |m| m.saturating_add(1))
 }
 
-fn write_txt(
-    path: &Path,
-    image_index: u32,
-    label: u8,
-    pixels: &[u8; GRID * GRID],
-) -> std::io::Result<()> {
-    let mut f = File::create(path)?;
-    writeln!(f, "Image Index: {}", image_index)?;
-    writeln!(f, "True Label: {}", label)?;
-    writeln!(f, "Image Data (28x28):")?;
+/// The `.txt` sample format: header lines plus 28 rows of `{:>3}` values.
+fn encode_txt(image_index: u32, label: u8, pixels: &[u8; CELLS]) -> String {
+    let mut out = String::new();
+    let _ = writeln!(out, "Image Index: {}", image_index);
+    let _ = writeln!(out, "True Label: {}", label);
+    let _ = writeln!(out, "Image Data (28x28):");
     for row in 0..GRID {
         for col in 0..GRID {
-            let v = pixels[row * GRID + col];
-            write!(f, "{:>3}", v)?;
+            let _ = write!(out, "{:>3}", pixels[row * GRID + col]);
             if col + 1 < GRID {
-                f.write_all(b" ")?;
+                out.push(' ');
             }
         }
-        writeln!(f)?;
+        out.push('\n');
     }
-    Ok(())
+    out
 }
 
-fn write_bin(path: &Path, label: u8, pixels: &[u8; GRID * GRID]) -> std::io::Result<()> {
+/// The `.bin` sample format: 8 reserved bytes, label, then row-major pixels.
+fn encode_bin(label: u8, pixels: &[u8; CELLS]) -> [u8; BIN_LEN] {
     let mut buf = [0u8; BIN_LEN];
     buf[8] = label;
     buf[9..].copy_from_slice(pixels);
-    fs::write(path, &buf)
+    buf
 }
 
-fn paint_stamp(pixels: &mut [u8; GRID * GRID], cx: i32, cy: i32, radius: i32, ink: bool) {
-    for dy in -radius..=radius {
-        for dx in -radius..=radius {
-            if dx * dx + dy * dy > radius * radius {
-                continue;
-            }
-            let x = cx + dx;
-            let y = cy + dy;
-            if (0..GRID as i32).contains(&x) && (0..GRID as i32).contains(&y) {
-                let i = (y as usize) * GRID + (x as usize);
-                if ink {
-                    pixels[i] = (pixels[i].saturating_add(85)).min(255);
-                } else {
-                    pixels[i] = pixels[i].saturating_sub(96);
-                }
-            }
+fn save_pair(pixels: &[u8; CELLS], label: u8, dir: &Path) -> Result<String, String> {
+    fs::create_dir_all(dir).map_err(|e| e.to_string())?;
+
+    let ix = next_save_index(dir);
+    let base = format!("saved_image_{:05}", ix);
+    let txt_path = dir.join(format!("{base}.txt"));
+    let bin_path = dir.join(format!("{base}.bin"));
+
+    fs::write(&txt_path, encode_txt(ix, label, pixels)).map_err(|e| e.to_string())?;
+    fs::write(&bin_path, encode_bin(label, pixels)).map_err(|e| e.to_string())?;
+
+    Ok(format!(
+        "Saved: {} and {} (index={}, label={})",
+        txt_path.display(),
+        bin_path.display(),
+        ix,
+        label
+    ))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn bin_matches_the_inference_layout() {
+        let mut pixels = [0u8; CELLS];
+        pixels[0] = 200;
+        pixels[CELLS - 1] = 7;
+
+        let bin = encode_bin(9, &pixels);
+
+        assert_eq!(bin.len(), BIN_LEN);
+        assert_eq!(&bin[..8], &[0u8; 8]);
+        assert_eq!(bin[8], 9);
+        assert_eq!(&bin[9..], &pixels[..]);
+    }
+
+    #[test]
+    fn txt_has_three_header_lines_and_28_rows() {
+        let mut pixels = [0u8; CELLS];
+        pixels[0] = 255;
+
+        let txt = encode_txt(3, 5, &pixels);
+
+        assert!(txt.starts_with("Image Index: 3\nTrue Label: 5\nImage Data (28x28):\n"));
+        assert_eq!(txt.lines().count(), 3 + GRID);
+        let mut first_row = String::from("255");
+        for _ in 1..GRID {
+            first_row.push_str("   0");
         }
+        assert_eq!(txt.lines().nth(3), Some(first_row.as_str()));
     }
-}
 
-fn pointer_to_cell(pos: Pos2, rect: Rect) -> Option<(i32, i32)> {
-    if !rect.contains(pos) {
-        return None;
+    #[test]
+    fn paint_accumulates_and_erase_removes_more_than_one_pass() {
+        let mut pixels = [0u8; CELLS];
+        let i = 5 * GRID + 5;
+
+        assert_eq!(paint_stamp(&mut pixels, 5, 5, 0, true), vec![i]);
+        assert_eq!(pixels[i], INK_STEP);
+        let _ = paint_stamp(&mut pixels, 5, 5, 0, true);
+        let _ = paint_stamp(&mut pixels, 5, 5, 0, true);
+        assert_eq!(pixels[i], 255);
+
+        let _ = paint_stamp(&mut pixels, 5, 5, 0, false);
+        assert_eq!(pixels[i], 255 - ERASE_STEP);
     }
-    let w = rect.width() / GRID as f32;
-    let h = rect.height() / GRID as f32;
-    let gx = ((pos.x - rect.min.x) / w).floor() as i32;
-    let gy = ((pos.y - rect.min.y) / h).floor() as i32;
-    if (0..GRID as i32).contains(&gx) && (0..GRID as i32).contains(&gy) {
-        Some((gx, gy))
-    } else {
-        None
+
+    #[test]
+    fn brush_stamps_a_clipped_disc() {
+        let mut pixels = [0u8; CELLS];
+
+        // Radius 1 at the top-left corner clips to the three in-grid cells of
+        // the disc: the neighbours stay outside (dx²+dy² = 2 > 1).
+        let touched = paint_stamp(&mut pixels, 0, 0, 1, true);
+        assert_eq!(touched, vec![0, 1, GRID]);
     }
-}
 
-struct MnistDrawApp {
-    pixels: [u8; GRID * GRID],
-    label: u8,
-    brush_radius: i32,
-    status: String,
-    canvas_size: f32,
-}
-
-impl Default for MnistDrawApp {
-    fn default() -> Self {
-        Self {
-            pixels: [0u8; GRID * GRID],
-            label: 0,
-            brush_radius: 1,
-            status: "Hold left button to draw, right to erase. Save writes to remu_app/mnist/test_images/.".into(),
-            canvas_size: 560.0,
-        }
-    }
-}
-
-impl eframe::App for MnistDrawApp {
-    fn ui(&mut self, ui: &mut egui::Ui, _frame: &mut eframe::Frame) {
-        egui::Panel::top("toolbar").show(ui, |ui| {
-            ui.horizontal(|ui| {
-                ui.label("Label (0-9):");
-                ui.add(
-                    egui::DragValue::new(&mut self.label)
-                        .range(0..=9)
-                        .speed(0.2),
-                );
-                ui.separator();
-                ui.label("Brush radius:");
-                ui.add(egui::Slider::new(&mut self.brush_radius, 0..=3));
-                ui.separator();
-                if ui.button("Clear canvas").clicked() {
-                    self.pixels.fill(0);
-                    self.status = "Canvas cleared.".into();
-                }
-                if ui.button("Save to test_images").clicked() {
-                    self.status = match self.save_pair() {
-                        Ok(msg) => msg,
-                        Err(e) => format!("Save failed: {e}"),
-                    };
-                }
-            });
-        });
-
-        egui::CentralPanel::default().show(ui, |ui| {
-            ui.label(&self.status);
-            ui.add_space(8.0);
-
-            let size = egui::vec2(self.canvas_size, self.canvas_size);
-            let (response, painter) = ui.allocate_painter(size, Sense::click_and_drag());
-            let rect = response.rect;
-
-            for row in 0..GRID {
-                for col in 0..GRID {
-                    let v = self.pixels[row * GRID + col];
-                    let cell = Rect::from_min_size(
-                        rect.min + vec2(col as f32 * rect.width() / GRID as f32, row as f32 * rect.height() / GRID as f32),
-                        vec2(rect.width() / GRID as f32, rect.height() / GRID as f32),
-                    );
-                    painter.rect_filled(cell, 0.0, Color32::from_gray(v));
-                }
-            }
-            painter.rect_stroke(rect, 0.0, Stroke::new(1.0_f32, Color32::GRAY), StrokeKind::Inside);
-
-            if let Some(pos) = response.interact_pointer_pos() {
-                let primary = ui.ctx().input(|i| i.pointer.button_down(PointerButton::Primary));
-                let secondary = ui.ctx().input(|i| i.pointer.button_down(PointerButton::Secondary));
-                if primary {
-                    if let Some((gx, gy)) = pointer_to_cell(pos, rect) {
-                        paint_stamp(&mut self.pixels, gx, gy, self.brush_radius, true);
-                    }
-                }
-                if secondary {
-                    if let Some((gx, gy)) = pointer_to_cell(pos, rect) {
-                        paint_stamp(&mut self.pixels, gx, gy, self.brush_radius, false);
-                    }
-                }
-            }
-
-            ui.add_space(8.0);
-            ui.label("Tip: MNIST-style light strokes on dark background; draw multiple passes to thicken. Save writes matching .txt and .bin; rebuild the mnist app to embed new .bin files.");
-        });
-
-        ui.ctx()
-            .request_repaint_after(std::time::Duration::from_millis(32));
-    }
-}
-
-impl MnistDrawApp {
-    fn save_pair(&self) -> Result<String, String> {
-        let dir = test_images_dir();
-        fs::create_dir_all(&dir).map_err(|e| e.to_string())?;
-
-        let ix = next_save_index(&dir);
-        let base = format!("saved_image_{:05}", ix);
-        let txt_path = dir.join(format!("{base}.txt"));
-        let bin_path = dir.join(format!("{base}.bin"));
-
-        write_txt(&txt_path, ix, self.label, &self.pixels).map_err(|e| e.to_string())?;
-        write_bin(&bin_path, self.label, &self.pixels).map_err(|e| e.to_string())?;
-
-        Ok(format!(
-            "Saved: {} and {} (index={}, label={})",
-            txt_path.display(),
-            bin_path.display(),
-            ix,
-            self.label
-        ))
+    #[test]
+    fn pointer_maps_to_cells_and_clips_outside() {
+        let cell = 18.0;
+        assert_eq!(cell_of(0.0, 0.0, cell), Some((0, 0)));
+        assert_eq!(cell_of(17.9, 17.9, cell), Some((0, 0)));
+        assert_eq!(cell_of(18.0, 0.0, cell), Some((1, 0)));
+        assert_eq!(cell_of(503.9, 503.9, cell), Some((27, 27)));
+        assert_eq!(cell_of(504.0, 10.0, cell), None);
+        assert_eq!(cell_of(10.0, 504.0, cell), None);
+        assert_eq!(cell_of(-1.0, 0.0, cell), None);
     }
 }

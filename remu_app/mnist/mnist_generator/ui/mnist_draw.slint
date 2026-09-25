@@ -1,0 +1,149 @@
+// MNIST digit capture: a 28x28 paint grid plus label/brush controls.
+//
+// The Rust side owns the pixels and the file formats (`src/main.rs`); this file
+// only renders the grid and reports pointer input. Positions cross the boundary
+// in logical pixels, so the cell mapping lives in Rust alongside its tests.
+
+import { Button, Slider, SpinBox } from "std-widgets.slint";
+
+export component MnistDraw inherits Window {
+    title: "MNIST digit capture";
+    width: 560px;
+    height: 720px;
+    background: white;
+    default-font-family: "DejaVu Sans";
+
+    // 784 gray levels (0..255), row-major: pixel(row, col) = pixels[row * 28 + col].
+    in property <[int]> pixels;
+    in-out property <int> label: 0;
+    in-out property <float> brush-radius: 1;
+    in-out property <string> status: "Hold left button to draw, right to erase. Save writes to remu_app/mnist/test_images/.";
+
+    // Canvas geometry; the Rust side reads this to map pointer positions.
+    out property <length> cell-size: 18px;
+
+    // Canvas-relative pointer position in logical pixels, plus whether to paint
+    // (true) or erase (false).
+    callback paint(float, float, bool);
+    callback clear-canvas();
+    callback save-image();
+
+    VerticalLayout {
+        padding: 12px;
+        spacing: 8px;
+
+        HorizontalLayout {
+            spacing: 8px;
+            Text {
+                text: "Label (0-9):";
+                vertical-alignment: center;
+                color: black;
+            }
+            SpinBox {
+                value <=> root.label;
+                minimum: 0;
+                maximum: 9;
+                width: 96px;
+            }
+            Text {
+                text: "Brush radius:";
+                vertical-alignment: center;
+                color: black;
+            }
+            Slider {
+                value <=> root.brush-radius;
+                minimum: 0;
+                maximum: 3;
+                step: 1;
+                width: 140px;
+            }
+            Button {
+                text: "Clear canvas";
+                clicked => { root.clear-canvas(); }
+            }
+            Button {
+                text: "Save to test_images";
+                clicked => { root.save-image(); }
+            }
+        }
+
+        Text {
+            text: root.status;
+            wrap: word-wrap;
+            color: black;
+        }
+
+        HorizontalLayout {
+            alignment: center;
+
+            // 1px outline: the wrapper's background stays visible around the
+            // canvas, so the grid itself is never overlapped or inset.
+            Rectangle {
+                width: root.cell-size * 28 + 2px;
+                height: root.cell-size * 28 + 2px;
+                background: #808080;
+
+                canvas := Rectangle {
+                    x: 1px;
+                    y: 1px;
+                    width: root.cell-size * 28;
+                    height: root.cell-size * 28;
+                    background: black;
+
+                    for i in 784 : Rectangle {
+                        x: root.cell-size * Math.mod(i, 28);
+                        y: root.cell-size * (i / 28);
+                        width: root.cell-size;
+                        height: root.cell-size;
+                        background: rgba(root.pixels[i], root.pixels[i], root.pixels[i], 1.0);
+                    }
+
+                    // Painting. The pointer-event payload carries the button and
+                    // the kind only; the position comes from mouse-x / mouse-y.
+                    touch := TouchArea {
+                        x: 0px;
+                        y: 0px;
+                        width: 100%;
+                        height: 100%;
+
+                        // 0 = idle, 1 = painting, 2 = erasing.
+                        property <int> stroke: 0;
+
+                        pointer-event(event) => {
+                            if (event.kind == PointerEventKind.down) {
+                                if (event.button == PointerEventButton.left) {
+                                    touch.stroke = 1;
+                                } else if (event.button == PointerEventButton.right) {
+                                    touch.stroke = 2;
+                                } else {
+                                    touch.stroke = 0;
+                                }
+                                touch.paint-at-cursor();
+                            } else if (event.kind == PointerEventKind.move) {
+                                if (touch.stroke != 0) {
+                                    touch.paint-at-cursor();
+                                }
+                            } else {
+                                // up / cancel
+                                touch.stroke = 0;
+                            }
+                        }
+
+                        function paint-at-cursor() {
+                            root.paint(
+                                self.mouse-x / 1px,
+                                self.mouse-y / 1px,
+                                touch.stroke == 1);
+                        }
+                    }
+                }
+            }
+        }
+
+        Text {
+            text: "Tip: MNIST-style light strokes on dark background; draw multiple passes to thicken. Save writes matching .txt and .bin; rebuild the mnist app to embed new .bin files.";
+            wrap: word-wrap;
+            color: black;
+        }
+    }
+}
