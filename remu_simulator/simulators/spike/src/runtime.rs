@@ -319,10 +319,10 @@ impl StepSpinner {
         self.handle
             .update(format!("[{}/{}] {}", self.step, self.total, msg.into()));
     }
-    fn done(&mut self) {
+    fn done(self) {
         self.handle.stop();
     }
-    fn fail(&mut self, msg: impl Into<String>) {
+    fn fail(self, msg: impl Into<String>) {
         self.handle.stop();
         eprintln!("{}", msg.into());
     }

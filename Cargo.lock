@@ -3414,9 +3414,9 @@ dependencies = [
 
 [[package]]
 name = "nanospinner"
-version = "0.1.2"
+version = "0.3.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "9b5011c0b3dff9c3cfaf38c17159c82343d7baf0ced2611937262b6b2c2ca13c"
+checksum = "189900f581af8fe6a8e02d4a31aecffbebcdb7a0266a7aed3c35f14fc4ca6bf8"
 
 [[package]]
 name = "natord"
