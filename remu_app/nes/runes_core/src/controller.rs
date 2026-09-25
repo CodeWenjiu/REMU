@@ -15,7 +15,7 @@ pub mod stdctl {
     use core::cell::Cell;
 
     use crate::controller::{Controller, InputPoller};
-    use crate::utils::{load_prefix, save_prefix, Read, Write};
+    use crate::utils::{Read, Write, load_prefix, save_prefix};
 
     pub const A: u8 = 1 << 0;
     pub const B: u8 = 1 << 1;

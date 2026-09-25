@@ -17,18 +17,8 @@ pub enum BankType {
 
 pub trait Cartridge {
     fn get_size(&self, kind: BankType) -> usize;
-    fn get_bank<'a>(
-        &self,
-        base: usize,
-        size: usize,
-        kind: BankType,
-    ) -> &'a [u8];
-    fn get_bank_mut<'a>(
-        &mut self,
-        base: usize,
-        size: usize,
-        kind: BankType,
-    ) -> &'a mut [u8];
+    fn get_bank<'a>(&self, base: usize, size: usize, kind: BankType) -> &'a [u8];
+    fn get_bank_mut<'a>(&mut self, base: usize, size: usize, kind: BankType) -> &'a mut [u8];
     fn get_mirror_type(&self) -> MirrorType;
     fn set_mirror_type(&mut self, mt: MirrorType);
     fn load(&mut self, reader: &mut dyn Read) -> bool;

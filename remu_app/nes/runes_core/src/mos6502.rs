@@ -3,7 +3,7 @@
 use core::mem::size_of;
 
 use crate::memory::{CPUMemory, VMem};
-use crate::utils::{load_prefix, save_prefix, Read, Write};
+use crate::utils::{Read, Write, load_prefix, save_prefix};
 
 pub const CPU_FREQ: u32 = 1789773;
 
@@ -36,69 +36,56 @@ macro_rules! make_optable {
 macro_rules! make_addrtable {
     ($x:ident, $t: ty) => {
         pub const $x: [$t; 0x100] = [
-            nil, xin, nil, xin, zpg, zpg, zpg, zpg, nil, imm, acc, imm, abs,
-            abs, abs, abs, rel, iny, nil, iny, zpx, zpx, zpx, zpx, nil, aby,
-            nil, aby, abx, abx, abx, abx, abs, xin, nil, xin, zpg, zpg, zpg,
-            zpg, nil, imm, acc, imm, abs, abs, abs, abs, rel, iny, nil, iny,
-            zpx, zpx, zpx, zpx, nil, aby, nil, aby, abx, abx, abx, abx, nil,
-            xin, nil, xin, zpg, zpg, zpg, zpg, nil, imm, acc, imm, abs, abs,
-            abs, abs, rel, iny, nil, iny, zpx, zpx, zpx, zpx, nil, aby, nil,
-            aby, abx, abx, abx, abx, nil, xin, nil, xin, zpg, zpg, zpg, zpg,
-            nil, imm, acc, imm, ind, abs, abs, abs, rel, iny, nil, iny, zpx,
-            zpx, zpx, zpx, nil, aby, nil, aby, abx, abx, abx, abx, imm, xin,
-            imm, xin, zpg, zpg, zpg, zpg, nil, imm, nil, imm, abs, abs, abs,
-            abs, rel, iny, nil, iny, zpx, zpx, zpy, zpy, nil, aby, nil, aby,
-            abx, abx, aby, aby, imm, xin, imm, xin, zpg, zpg, zpg, zpg, nil,
-            imm, nil, imm, abs, abs, abs, abs, rel, iny, nil, iny, zpx, zpx,
-            zpy, zpy, nil, aby, nil, aby, abx, abx, aby, aby, imm, xin, imm,
-            xin, zpg, zpg, zpg, zpg, nil, imm, nil, imm, abs, abs, abs, abs,
-            rel, iny, nil, iny, zpx, zpx, zpx, zpx, nil, aby, nil, aby, abx,
-            abx, abx, abx, imm, xin, imm, xin, zpg, zpg, zpg, zpg, nil, imm,
-            nil, imm, abs, abs, abs, abs, rel, iny, nil, iny, zpx, zpx, zpx,
-            zpx, nil, aby, nil, aby, abx, abx, abx, abx,
+            nil, xin, nil, xin, zpg, zpg, zpg, zpg, nil, imm, acc, imm, abs, abs, abs, abs, rel,
+            iny, nil, iny, zpx, zpx, zpx, zpx, nil, aby, nil, aby, abx, abx, abx, abx, abs, xin,
+            nil, xin, zpg, zpg, zpg, zpg, nil, imm, acc, imm, abs, abs, abs, abs, rel, iny, nil,
+            iny, zpx, zpx, zpx, zpx, nil, aby, nil, aby, abx, abx, abx, abx, nil, xin, nil, xin,
+            zpg, zpg, zpg, zpg, nil, imm, acc, imm, abs, abs, abs, abs, rel, iny, nil, iny, zpx,
+            zpx, zpx, zpx, nil, aby, nil, aby, abx, abx, abx, abx, nil, xin, nil, xin, zpg, zpg,
+            zpg, zpg, nil, imm, acc, imm, ind, abs, abs, abs, rel, iny, nil, iny, zpx, zpx, zpx,
+            zpx, nil, aby, nil, aby, abx, abx, abx, abx, imm, xin, imm, xin, zpg, zpg, zpg, zpg,
+            nil, imm, nil, imm, abs, abs, abs, abs, rel, iny, nil, iny, zpx, zpx, zpy, zpy, nil,
+            aby, nil, aby, abx, abx, aby, aby, imm, xin, imm, xin, zpg, zpg, zpg, zpg, nil, imm,
+            nil, imm, abs, abs, abs, abs, rel, iny, nil, iny, zpx, zpx, zpy, zpy, nil, aby, nil,
+            aby, abx, abx, aby, aby, imm, xin, imm, xin, zpg, zpg, zpg, zpg, nil, imm, nil, imm,
+            abs, abs, abs, abs, rel, iny, nil, iny, zpx, zpx, zpx, zpx, nil, aby, nil, aby, abx,
+            abx, abx, abx, imm, xin, imm, xin, zpg, zpg, zpg, zpg, nil, imm, nil, imm, abs, abs,
+            abs, abs, rel, iny, nil, iny, zpx, zpx, zpx, zpx, nil, aby, nil, aby, abx, abx, abx,
+            abx,
         ];
     };
 }
 pub const INST_LENGTH: [u8; 0x100] = [
-    1, 2, 0, 0, 2, 2, 2, 0, 1, 2, 1, 0, 3, 3, 3, 0, 2, 2, 0, 0, 2, 2, 2, 0, 1,
-    3, 1, 0, 3, 3, 3, 0, 3, 2, 0, 0, 2, 2, 2, 0, 1, 2, 1, 0, 3, 3, 3, 0, 2, 2,
-    0, 0, 2, 2, 2, 0, 1, 3, 1, 0, 3, 3, 3, 0, 1, 2, 0, 0, 2, 2, 2, 0, 1, 2, 1,
-    0, 3, 3, 3, 0, 2, 2, 0, 0, 2, 2, 2, 0, 1, 3, 1, 0, 3, 3, 3, 0, 1, 2, 0, 0,
-    2, 2, 2, 0, 1, 2, 1, 0, 3, 3, 3, 0, 2, 2, 0, 0, 2, 2, 2, 0, 1, 3, 1, 0, 3,
-    3, 3, 0, 2, 2, 0, 0, 2, 2, 2, 0, 1, 0, 1, 0, 3, 3, 3, 0, 2, 2, 0, 0, 2, 2,
-    2, 0, 1, 3, 1, 0, 0, 3, 0, 0, 2, 2, 2, 0, 2, 2, 2, 0, 1, 2, 1, 0, 3, 3, 3,
-    0, 2, 2, 0, 0, 2, 2, 2, 0, 1, 3, 1, 0, 3, 3, 3, 0, 2, 2, 0, 0, 2, 2, 2, 0,
-    1, 2, 1, 0, 3, 3, 3, 0, 2, 2, 0, 0, 2, 2, 2, 0, 1, 3, 1, 0, 3, 3, 3, 0, 2,
-    2, 0, 0, 2, 2, 2, 0, 1, 2, 1, 0, 3, 3, 3, 0, 2, 2, 0, 0, 2, 2, 2, 0, 1, 3,
-    1, 0, 3, 3, 3, 0,
+    1, 2, 0, 0, 2, 2, 2, 0, 1, 2, 1, 0, 3, 3, 3, 0, 2, 2, 0, 0, 2, 2, 2, 0, 1, 3, 1, 0, 3, 3, 3, 0,
+    3, 2, 0, 0, 2, 2, 2, 0, 1, 2, 1, 0, 3, 3, 3, 0, 2, 2, 0, 0, 2, 2, 2, 0, 1, 3, 1, 0, 3, 3, 3, 0,
+    1, 2, 0, 0, 2, 2, 2, 0, 1, 2, 1, 0, 3, 3, 3, 0, 2, 2, 0, 0, 2, 2, 2, 0, 1, 3, 1, 0, 3, 3, 3, 0,
+    1, 2, 0, 0, 2, 2, 2, 0, 1, 2, 1, 0, 3, 3, 3, 0, 2, 2, 0, 0, 2, 2, 2, 0, 1, 3, 1, 0, 3, 3, 3, 0,
+    2, 2, 0, 0, 2, 2, 2, 0, 1, 0, 1, 0, 3, 3, 3, 0, 2, 2, 0, 0, 2, 2, 2, 0, 1, 3, 1, 0, 0, 3, 0, 0,
+    2, 2, 2, 0, 2, 2, 2, 0, 1, 2, 1, 0, 3, 3, 3, 0, 2, 2, 0, 0, 2, 2, 2, 0, 1, 3, 1, 0, 3, 3, 3, 0,
+    2, 2, 0, 0, 2, 2, 2, 0, 1, 2, 1, 0, 3, 3, 3, 0, 2, 2, 0, 0, 2, 2, 2, 0, 1, 3, 1, 0, 3, 3, 3, 0,
+    2, 2, 0, 0, 2, 2, 2, 0, 1, 2, 1, 0, 3, 3, 3, 0, 2, 2, 0, 0, 2, 2, 2, 0, 1, 3, 1, 0, 3, 3, 3, 0,
 ];
 
 const INST_CYCLE: [u8; 0x100] = [
-    7, 6, 2, 8, 3, 3, 5, 5, 3, 2, 2, 2, 4, 4, 6, 6, 2, 5, 2, 8, 4, 4, 6, 6, 2,
-    4, 2, 7, 4, 4, 7, 7, 6, 6, 2, 8, 3, 3, 5, 5, 4, 2, 2, 2, 4, 4, 6, 6, 2, 5,
-    2, 8, 4, 4, 6, 6, 2, 4, 2, 7, 4, 4, 7, 7, 6, 6, 2, 8, 3, 3, 5, 5, 3, 2, 2,
-    2, 3, 4, 6, 6, 2, 5, 2, 8, 4, 4, 6, 6, 2, 4, 2, 7, 4, 4, 7, 7, 6, 6, 2, 8,
-    3, 3, 5, 5, 4, 2, 2, 2, 5, 4, 6, 6, 2, 5, 2, 8, 4, 4, 6, 6, 2, 4, 2, 7, 4,
-    4, 7, 7, 2, 6, 2, 6, 3, 3, 3, 3, 2, 2, 2, 2, 4, 4, 4, 4, 2, 6, 2, 6, 4, 4,
-    4, 4, 2, 5, 2, 5, 5, 5, 5, 5, 2, 6, 2, 6, 3, 3, 3, 3, 2, 2, 2, 2, 4, 4, 4,
-    4, 2, 5, 2, 5, 4, 4, 4, 4, 2, 4, 2, 4, 4, 4, 4, 4, 2, 6, 2, 8, 3, 3, 5, 5,
-    2, 2, 2, 2, 4, 4, 6, 6, 2, 5, 2, 8, 4, 4, 6, 6, 2, 4, 2, 7, 4, 4, 7, 7, 2,
-    6, 2, 8, 3, 3, 5, 5, 2, 2, 2, 2, 4, 4, 6, 6, 2, 5, 2, 8, 4, 4, 6, 6, 2, 4,
-    2, 7, 4, 4, 7, 7,
+    7, 6, 2, 8, 3, 3, 5, 5, 3, 2, 2, 2, 4, 4, 6, 6, 2, 5, 2, 8, 4, 4, 6, 6, 2, 4, 2, 7, 4, 4, 7, 7,
+    6, 6, 2, 8, 3, 3, 5, 5, 4, 2, 2, 2, 4, 4, 6, 6, 2, 5, 2, 8, 4, 4, 6, 6, 2, 4, 2, 7, 4, 4, 7, 7,
+    6, 6, 2, 8, 3, 3, 5, 5, 3, 2, 2, 2, 3, 4, 6, 6, 2, 5, 2, 8, 4, 4, 6, 6, 2, 4, 2, 7, 4, 4, 7, 7,
+    6, 6, 2, 8, 3, 3, 5, 5, 4, 2, 2, 2, 5, 4, 6, 6, 2, 5, 2, 8, 4, 4, 6, 6, 2, 4, 2, 7, 4, 4, 7, 7,
+    2, 6, 2, 6, 3, 3, 3, 3, 2, 2, 2, 2, 4, 4, 4, 4, 2, 6, 2, 6, 4, 4, 4, 4, 2, 5, 2, 5, 5, 5, 5, 5,
+    2, 6, 2, 6, 3, 3, 3, 3, 2, 2, 2, 2, 4, 4, 4, 4, 2, 5, 2, 5, 4, 4, 4, 4, 2, 4, 2, 4, 4, 4, 4, 4,
+    2, 6, 2, 8, 3, 3, 5, 5, 2, 2, 2, 2, 4, 4, 6, 6, 2, 5, 2, 8, 4, 4, 6, 6, 2, 4, 2, 7, 4, 4, 7, 7,
+    2, 6, 2, 8, 3, 3, 5, 5, 2, 2, 2, 2, 4, 4, 6, 6, 2, 5, 2, 8, 4, 4, 6, 6, 2, 4, 2, 7, 4, 4, 7, 7,
 ];
 
 const INST_EXTRA_CYCLE: [u8; 0x100] = [
-    0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 0, 0, 0, 0, 0, 0, 0,
-    1, 0, 0, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1,
-    0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-    0, 0, 0, 0, 0, 1, 1, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 1, 1, 0, 0, 0, 0, 0, 0,
-    0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 1,
-    1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0,
-    0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-    0, 1, 1, 0, 1, 0, 0, 0, 0, 0, 1, 0, 1, 1, 1, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0,
-    0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 1, 1, 0, 0, 0,
-    0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 0, 0, 0, 0, 0, 0, 0, 1,
-    0, 0, 1, 1, 0, 0,
+    0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 1, 1, 0, 0,
+    0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 1, 1, 0, 0,
+    0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 1, 1, 0, 0,
+    0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 1, 1, 0, 0,
+    0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+    0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 0, 1, 0, 0, 0, 0, 0, 1, 0, 1, 1, 1, 1, 1,
+    0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 1, 1, 0, 0,
+    0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 1, 1, 0, 0,
 ];
 
 const NMI_VECTOR: u16 = 0xfffa;
@@ -169,14 +156,11 @@ mod ops {
         let opr1 = cpu.a as u16;
         let opr2 = cpu.mem.read(cpu.ea) as u16;
         let res = opr1 + opr2 + (cpu.get_carry() as u16);
-        let mut status =
-            cpu.status & !(CARRY_FLAG | ZERO_FLAG | OVER_FLAG | NEG_FLAG);
+        let mut status = cpu.status & !(CARRY_FLAG | ZERO_FLAG | OVER_FLAG | NEG_FLAG);
         cpu.a = res as u8;
         status |= (res > 0xff) as u8; /* carry flag */
         check_zero!(status, res);
-        status |= ((((opr1 ^ opr2) as u8 & 0x80) ^ 0x80) &
-            ((opr1 ^ res) as u8 & 0x80)) >>
-            1; /* over flag */
+        status |= ((((opr1 ^ opr2) as u8 & 0x80) ^ 0x80) & ((opr1 ^ res) as u8 & 0x80)) >> 1; /* over flag */
         check_neg!(status, res);
         cpu.status = status;
     }
@@ -185,13 +169,11 @@ mod ops {
         let opr1 = cpu.a as u16;
         let opr2 = cpu.mem.read(cpu.ea) as u16;
         let res = opr1 + (0xff - opr2) + (cpu.get_carry() as u16);
-        let mut status =
-            cpu.status & !(CARRY_FLAG | ZERO_FLAG | OVER_FLAG | NEG_FLAG);
+        let mut status = cpu.status & !(CARRY_FLAG | ZERO_FLAG | OVER_FLAG | NEG_FLAG);
         cpu.a = res as u8;
         status |= (res > 0xff) as u8; /* carry flag */
         check_zero!(status, res);
-        status |=
-            (((opr1 ^ opr2) as u8 & 0x80) & ((opr1 ^ res) as u8 & 0x80)) >> 1; /* over flag */
+        status |= (((opr1 ^ opr2) as u8 & 0x80) & ((opr1 ^ res) as u8 & 0x80)) >> 1; /* over flag */
         check_neg!(status, res);
         cpu.status = status;
     }
@@ -202,8 +184,7 @@ mod ops {
                 let opr1 = cpu.$r as u16;
                 let opr2 = cpu.mem.read(cpu.ea) as u16;
                 let res = opr1.wrapping_sub(opr2);
-                let mut status =
-                    cpu.status & !(CARRY_FLAG | ZERO_FLAG | NEG_FLAG);
+                let mut status = cpu.status & !(CARRY_FLAG | ZERO_FLAG | NEG_FLAG);
                 status |= (res < 0x100) as u8; /* if opr1 >= opr2 */
                 check_zero!(status, res);
                 check_neg!(status, res);
@@ -324,8 +305,7 @@ mod ops {
                 t
             }
             false => {
-                let t = ((cpu.mem.read(cpu.ea) as u16) << 1) |
-                    (cpu.get_carry() as u16);
+                let t = ((cpu.mem.read(cpu.ea) as u16) << 1) | (cpu.get_carry() as u16);
                 cpu.mem.write(cpu.ea, t as u8);
                 t
             }
@@ -366,8 +346,7 @@ mod ops {
             fn $f(cpu: &mut CPU) {
                 match cpu.$e() {
                     0 => {
-                        cpu.cycle +=
-                            1 + ((cpu.pc >> 8) != (cpu.ea >> 8)) as u32;
+                        cpu.cycle += 1 + ((cpu.pc >> 8) != (cpu.ea >> 8)) as u32;
                         cpu.pc = cpu.ea;
                     }
                     _ => (),
@@ -382,8 +361,7 @@ mod ops {
                 match cpu.$e() {
                     0 => (),
                     _ => {
-                        cpu.cycle +=
-                            1 + ((cpu.pc >> 8) != (cpu.ea >> 8)) as u32;
+                        cpu.cycle += 1 + ((cpu.pc >> 8) != (cpu.ea >> 8)) as u32;
                         cpu.pc = cpu.ea;
                     }
                 }
@@ -797,12 +775,12 @@ impl<'a> CPU<'a> {
                 Some(IntType::NMI) => {
                     self.nmi();
                     self.int = None;
-                    return
+                    return;
                 }
                 Some(IntType::IRQ) => {
                     self.irq();
                     self.int = None;
-                    return
+                    return;
                 }
                 Some(IntType::DelayedNMI) => self.trigger_nmi(),
                 _ => (),
@@ -819,8 +797,7 @@ impl<'a> CPU<'a> {
         self.acc = false;
         self.cycle += INST_CYCLE[opcode] as u32;
         self.cycle -= 0xff;
-        self.cycle +=
-            (addr::ADDR_MODES[opcode](self) * INST_EXTRA_CYCLE[opcode]) as u32;
+        self.cycle += (addr::ADDR_MODES[opcode](self) * INST_EXTRA_CYCLE[opcode]) as u32;
         /* execute the inst */
         ops::OPS[opcode](self);
         //(self.cycle - cycle0) as u8

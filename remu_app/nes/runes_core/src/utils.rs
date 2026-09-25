@@ -62,15 +62,11 @@ pub trait Write {
     fn write(&mut self, buf: &[u8]) -> Option<usize>;
 }
 
-pub fn load_prefix<T>(
-    obj: &mut T,
-    ignored: usize,
-    reader: &mut dyn Read,
-) -> bool {
+pub fn load_prefix<T>(obj: &mut T, ignored: usize, reader: &mut dyn Read) -> bool {
     let len = size_of::<T>() - ignored;
-    match reader.read(unsafe {
-        from_raw_parts_mut(transmute::<*mut T, *mut u8>(obj as *mut T), len)
-    }) {
+    match reader
+        .read(unsafe { from_raw_parts_mut(transmute::<*mut T, *mut u8>(obj as *mut T), len) })
+    {
         Some(x) => x == len,
         None => false,
     }
@@ -78,9 +74,9 @@ pub fn load_prefix<T>(
 
 pub fn save_prefix<T>(obj: &T, ignored: usize, writer: &mut dyn Write) -> bool {
     let len = size_of::<T>() - ignored;
-    match writer.write(unsafe {
-        from_raw_parts(transmute::<*const T, *const u8>(obj as *const T), len)
-    }) {
+    match writer
+        .write(unsafe { from_raw_parts(transmute::<*const T, *const u8>(obj as *const T), len) })
+    {
         Some(x) => x == len,
         None => false,
     }
