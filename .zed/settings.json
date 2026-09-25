@@ -6,4 +6,20 @@
             },
         },
     },
+    // No C/C++ is developed here, and clangd can only be noise: the one file we
+    // own (`nzea/c_src/nzea_wrapper.cpp`) is Verilator glue that compiles only
+    // with the per-(target, isa) `-D NZEA_MODEL_*` defines and the generated
+    // model headers, and the rest of the C/C++ tree is the vendored spike
+    // submodule. Disable the language server for both C and C++ instead.
+    "languages": {
+        "C": {
+            "enable_language_server": false,
+        },
+        "C++": {
+            "enable_language_server": false,
+        },
+        "Python": {
+            "enable_language_server": false,
+        }
+    },
 }
