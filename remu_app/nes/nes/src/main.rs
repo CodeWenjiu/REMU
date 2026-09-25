@@ -93,6 +93,9 @@ fn run_game(idx: usize) {
         let mut guard = 0u32;
         let mut frame_rendered = false;
         while !frame_rendered && guard < 300_000 {
+            // `CPUBus::tick` takes `&self` and decrements `cpu.cycle` through
+            // the raw pointer it holds, so the mutation is invisible to clippy.
+            #[allow(clippy::while_immutable_condition)]
             while cpu.cycle > 0 {
                 cpu.mem.bus.tick();
             }

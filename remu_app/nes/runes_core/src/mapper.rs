@@ -1,20 +1,8 @@
 use core::cell::UnsafeCell;
-use core::mem::MaybeUninit;
 
 use crate::cartridge::{BankType, Cartridge, MirrorType};
 use crate::memory::{CPUBus, VMem};
 use crate::utils::{Read, Write, load_prefix, save_prefix};
-
-/// A non-null empty `&mut [u8]` placeholder. Vendored `runes` used
-/// `from_raw_parts_mut(null_mut(), 0)` as a stand-in for fields that are
-/// overwritten immediately after construction; that is UB on current nightly,
-/// so we use a real (zero-length) static slice instead.
-fn empty_slice_mut() -> &'static mut [u8] {
-    static mut EMPTY: [u8; 0] = [];
-    // SAFETY: `EMPTY` is a `static mut` never accessed through safe code; the
-    // only use is producing a zero-length mutable slice, which does not alias.
-    unsafe { core::slice::from_raw_parts_mut(core::ptr::addr_of_mut!(EMPTY).cast::<u8>(), 0) }
-}
 
 pub trait Mapper: VMem {
     fn get_cart(&self) -> &dyn Cartridge;
@@ -110,31 +98,29 @@ impl<'a, C> Mapper1<'a, C>
 where
     C: Cartridge,
 {
-    pub fn new(cart: C) -> Self {
+    pub fn new(mut cart: C) -> Self {
         let prg_nbank = cart.get_size(BankType::PrgRom) >> 14;
         let chr_nbank = cart.get_size(BankType::ChrRom) >> 13;
-        unsafe {
-            let mut m = Mapper1 {
-                cart,
-                prg_nbank,
-                chr_nbank,
-                load_reg: 0x10,
-                ctl_reg: 0x0c,
-                prg_banks: MaybeUninit::uninit().assume_init(),
-                chr_banks: MaybeUninit::uninit().assume_init(),
-                sram: empty_slice_mut(),
-            };
-            let c = &mut m.cart;
-            m.prg_banks = [
-                c.get_bank(0, 0x4000, BankType::PrgRom),
-                c.get_bank((prg_nbank - 1) << 14, 0x4000, BankType::PrgRom),
-            ];
-            m.chr_banks = [
-                c.get_bank_mut(0, 0x1000, BankType::ChrRom),
-                c.get_bank_mut(0x1000, 0x1000, BankType::ChrRom),
-            ];
-            m.sram = c.get_bank_mut(0, 0x2000, BankType::Sram);
-            m
+        // The banks point into the cart's own ROM buffers, so fill them before
+        // the cart is moved into the struct field.
+        let prg_banks = [
+            cart.get_bank(0, 0x4000, BankType::PrgRom),
+            cart.get_bank((prg_nbank - 1) << 14, 0x4000, BankType::PrgRom),
+        ];
+        let chr_banks = [
+            cart.get_bank_mut(0, 0x1000, BankType::ChrRom),
+            cart.get_bank_mut(0x1000, 0x1000, BankType::ChrRom),
+        ];
+        let sram = cart.get_bank_mut(0, 0x2000, BankType::Sram);
+        Mapper1 {
+            cart,
+            prg_nbank,
+            chr_nbank,
+            load_reg: 0x10,
+            ctl_reg: 0x0c,
+            prg_banks,
+            chr_banks,
+            sram,
         }
     }
 
@@ -339,24 +325,20 @@ impl<'a, C> Mapper2<'a, C>
 where
     C: Cartridge,
 {
-    pub fn new(cart: C) -> Self {
+    pub fn new(mut cart: C) -> Self {
         let nbank = cart.get_size(BankType::PrgRom) >> 14;
-        unsafe {
-            let mut m = Mapper2 {
-                cart,
-                prg_nbank: nbank,
-                prg_banks: MaybeUninit::uninit().assume_init(),
-                chr_bank: empty_slice_mut(),
-                sram: empty_slice_mut(),
-            };
-            let c = &mut m.cart;
-            m.prg_banks = [
-                c.get_bank(0, 0x4000, BankType::PrgRom),
-                c.get_bank((nbank - 1) << 14, 0x4000, BankType::PrgRom),
-            ];
-            m.chr_bank = c.get_bank_mut(0, 0x2000, BankType::ChrRom);
-            m.sram = c.get_bank_mut(0, 0x2000, BankType::Sram);
-            m
+        let prg_banks = [
+            cart.get_bank(0, 0x4000, BankType::PrgRom),
+            cart.get_bank((nbank - 1) << 14, 0x4000, BankType::PrgRom),
+        ];
+        let chr_bank = cart.get_bank_mut(0, 0x2000, BankType::ChrRom);
+        let sram = cart.get_bank_mut(0, 0x2000, BankType::Sram);
+        Mapper2 {
+            cart,
+            prg_nbank: nbank,
+            prg_banks,
+            chr_bank,
+            sram,
         }
     }
 }
@@ -584,44 +566,34 @@ where
         };
     }
 
-    pub fn new(cart: C) -> Self {
+    pub fn new(mut cart: C) -> Self {
         let prg_nbank = cart.get_size(BankType::PrgRom) >> 13;
         let chr_nbank = cart.get_size(BankType::ChrRom) >> 10;
-        unsafe {
-            let mut m = Mapper4 {
-                cart,
-                prg_nbank,
-                chr_nbank,
-                prg_mode: 0,
-                chr_inv: 0,
-                reg_idx: 0,
-                regs: [0; 8],
-                prg_banks: MaybeUninit::uninit().assume_init(),
-                chr_banks: MaybeUninit::uninit().assume_init(),
-                sram: empty_slice_mut(),
-                irq_reload: 0,
-                irq_counter: 0,
-                irq_enable: false,
-            };
-            m.prg_banks = [
-                m.get_prgbank(0),
-                m.get_prgbank(1),
-                m.get_prgbank((prg_nbank - 2) as u8),
-                m.get_prgbank((prg_nbank - 1) as u8),
-            ];
-            m.chr_banks = [
-                m.get_chrbank(0),
-                m.get_chrbank(0),
-                m.get_chrbank(0),
-                m.get_chrbank(0),
-                m.get_chrbank(0),
-                m.get_chrbank(0),
-                m.get_chrbank(0),
-                m.get_chrbank(0),
-            ];
-            let c = &mut m.cart;
-            m.sram = c.get_bank_mut(0, 0x2000, BankType::Sram);
-            m
+        let prg_banks = [
+            cart.get_bank(0, 0x2000, BankType::PrgRom),
+            cart.get_bank(0x2000, 0x2000, BankType::PrgRom),
+            cart.get_bank(0x2000 * (prg_nbank - 2), 0x2000, BankType::PrgRom),
+            cart.get_bank(0x2000 * (prg_nbank - 1), 0x2000, BankType::PrgRom),
+        ];
+        // All eight slots start out on the first CHR bank; `update_banks`
+        // rewrites them on the first register write.
+        let chr_banks: [&'a mut [u8]; 8] =
+            core::array::from_fn(|_| cart.get_bank_mut(0, 0x400, BankType::ChrRom));
+        let sram = cart.get_bank_mut(0, 0x2000, BankType::Sram);
+        Mapper4 {
+            cart,
+            prg_nbank,
+            chr_nbank,
+            prg_mode: 0,
+            chr_inv: 0,
+            reg_idx: 0,
+            regs: [0; 8],
+            prg_banks,
+            chr_banks,
+            sram,
+            irq_reload: 0,
+            irq_counter: 0,
+            irq_enable: false,
         }
     }
 }
