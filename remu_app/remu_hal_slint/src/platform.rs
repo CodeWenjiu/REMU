@@ -156,21 +156,21 @@ impl SlintApp {
                     let text: slint::SharedString = c.to_string().into();
                     let _ = self
                         .window
-                        .try_dispatch_event(WindowEvent::KeyPressed { text });
+                        .dispatch_event_with_result(WindowEvent::KeyPressed { text });
                 }
             } else {
                 // Non-printable key we don't model: deliver an empty press.
-                let _ = self.window.try_dispatch_event(WindowEvent::KeyPressed {
+                let _ = self.window.dispatch_event_with_result(WindowEvent::KeyPressed {
                     text: slint::SharedString::default(),
                 });
             }
         } else if key.valid && key.down && !self.last_key_down {
             // Fallback: a down edge we did catch (rare on host).
-            let _ = self.window.try_dispatch_event(WindowEvent::KeyPressed {
+            let _ = self.window.dispatch_event_with_result(WindowEvent::KeyPressed {
                 text: slint::SharedString::default(),
             });
         } else if key.valid && !key.down && self.last_key_down {
-            let _ = self.window.try_dispatch_event(WindowEvent::KeyReleased {
+            let _ = self.window.dispatch_event_with_result(WindowEvent::KeyReleased {
                 text: slint::SharedString::default(),
             });
         }
@@ -181,17 +181,17 @@ impl SlintApp {
         let pos = slint::LogicalPosition::new(mouse.x as f32, mouse.y as f32);
         let _ = self
             .window
-            .try_dispatch_event(WindowEvent::PointerMoved { position: pos });
+            .dispatch_event_with_result(WindowEvent::PointerMoved { position: pos });
         let left = mouse.buttons & 1 != 0;
         if left && !self.last_left {
-            let _ = self.window.try_dispatch_event(WindowEvent::PointerPressed {
+            let _ = self.window.dispatch_event_with_result(WindowEvent::PointerPressed {
                 position: pos,
                 button: slint::platform::PointerEventButton::Left,
             });
         } else if !left && self.last_left {
             let _ = self
                 .window
-                .try_dispatch_event(WindowEvent::PointerReleased {
+                .dispatch_event_with_result(WindowEvent::PointerReleased {
                     position: pos,
                     button: slint::platform::PointerEventButton::Left,
                 });

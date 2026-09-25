@@ -67,19 +67,19 @@ debug = 1
 strip = "none"
 
 [workspace.dependencies]
-thiserror = "2.0.18"
+thiserror = "2.0.21"
 miette = "7.6.0"
-anyhow = "1.0.102"
+anyhow = "1.0.104"
 
 tracing = "0.1.44"
 
 petgraph = "0.8.3"
 
-clap = "4.6.1"
-winnow = "1.0.3"
+clap = "4.6.7"
+winnow = "1.0.4"
 toml = "1.1"
 
-rand = "0.10.1"
+rand = "0.10.3"
 nanospinner = "0.1"
 libloading = "0.9"
 
@@ -88,5 +88,5 @@ softbuffer = "0.4.8"
 
 # Slint UI toolkit. Default-features off + software renderer: renders into the
 # remu_hal framebuffer on both host and embedded (no winit/femtovg system deps).
-slint = { version = "1.17", default-features = false, features = ["compat-1-2", "unsafe-single-threaded", "libm", "renderer-software"] }
-slint-build = "1.17"
+slint = { version = "1.18", default-features = false, features = ["compat-1-2", "unsafe-single-threaded", "libm", "renderer-software"] }
+slint-build = "1.18"
