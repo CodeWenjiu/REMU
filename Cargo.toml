@@ -14,31 +14,36 @@ members = [
     "remu_harness",
 
     "remu_simulator",
-    "remu_simulator/simulators/remu",
-    "remu_simulator/simulators/spike",
-    "remu_simulator/simulators/nzea",
+    "remu_simulator/simulators/*",
 
     "remu_state",
 
-    "remu_app/remu_hal",
-    "remu_app/remu_hal/embedded",
-    "remu_app/remu_hal/host",
-    "remu_app/remu_hal/rcore",
-    "remu_app/remu_hal/macros",
-    "remu_app/remu_hal/xtask",
-    "remu_app/remu_hal_slint",
-    "remu_app/hello_world",
-    "remu_app/collection",
-    "remu_app/display",
-    "remu_app/shader",
-    "remu_app/microbench",
-    "remu_app/riscv_only",
-    "remu_app/mnist", "remu_app/mnist/mnist_generator",
-    "remu_app/nes/runes_core", "remu_app/nes/nes",
-    "remu_app/slint",
+    # Crate collections: a directory under these becomes a member on its own, so
+    # a new backend or app needs no edit here. Two rules of `members` globs:
+    # a matched *directory* must contain a Cargo.toml (matched plain files are
+    # ignored), and `*` covers one level — dot-directories included, so a stray
+    # `.direnv`/scratch directory here breaks the workspace until excluded.
+    "remu_app/*",
+
+    # Crates one level below a group directory that is not itself a package
+    # (`remu_app/nes`, `remu_app/rcore` — see `exclude`). They must stay
+    # explicit: a path reached *through* a glob is dropped by `exclude`, an
+    # explicit entry is not.
+    "remu_app/nes/nes",
+    "remu_app/nes/runes_core",
     "remu_app/rcore/kernel",
     "remu_app/rcore/firmware",
+    "remu_app/mnist/mnist_generator",
+    "remu_app/remu_hal/embedded",
+    "remu_app/remu_hal/host",
+    "remu_app/remu_hal/macros",
+    "remu_app/remu_hal/rcore",
+    "remu_app/remu_hal/xtask",
 ]
+
+# Group directories: not packages themselves, so `remu_app/*` must not take
+# them as members; the crates under them are listed above.
+exclude = ["remu_app/nes", "remu_app/rcore"]
 
 [workspace.lints.rust]
 unreachable_pub = "warn"
