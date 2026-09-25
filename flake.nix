@@ -44,7 +44,7 @@
         # the local checkout (no re-clone, no network). Note: it must use an
         # absolute path — within a flake, `./…` resolves to the flake's own
         # store copy, which never contains submodule content.
-        spikeSrc = builtins.fetchGit {
+        spikeSrc = fetchGit {
           url = "/home/wenjiu/project/chip-dev/remu/remu_simulator/simulators/spike/spike";
           rev = "c09c0cce98696f52abe0fe8c11f93f9ed74dc2bb";
         };
@@ -127,6 +127,9 @@
           python3
           zlib
           lz4
+          # Slint's host font stack (fontique -> yeslogic-fontconfig-sys) links
+          # libfontconfig; the shell needs its pkg-config file to build.
+          fontconfig
 
           gource
         ])
