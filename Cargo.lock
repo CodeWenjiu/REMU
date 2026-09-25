@@ -4667,7 +4667,6 @@ dependencies = [
  "clap",
  "colored",
  "ctrlc",
- "miette",
  "nu-ansi-term",
  "petgraph",
  "reedline",
@@ -4681,7 +4680,6 @@ dependencies = [
  "remu_simulator_nzea",
  "remu_types",
  "tabled",
- "tracing",
  "winnow 1.0.4",
 ]
 
@@ -4697,10 +4695,8 @@ dependencies = [
  "remu_harness",
  "remu_isa",
  "remu_macro",
- "remu_state",
  "remu_types",
  "thiserror 2.0.21",
- "tracing",
  "winnow 1.0.4",
 ]
 
@@ -4715,9 +4711,7 @@ dependencies = [
  "capstone",
  "remu_isa",
  "remu_macro",
- "remu_types",
  "thiserror 2.0.21",
- "tracing",
  "winnow 1.0.4",
 ]
 
@@ -4737,9 +4731,7 @@ dependencies = [
 name = "remu_hal_embedded"
 version = "0.1.0"
 dependencies = [
- "critical-section",
  "embedded-alloc",
- "embedded-hal",
  "embedded-io",
  "panic-halt",
  "remu_macro",
@@ -4795,7 +4787,6 @@ dependencies = [
  "remu_state",
  "remu_types",
  "thiserror 2.0.21",
- "tracing",
 ]
 
 [[package]]
@@ -4811,7 +4802,6 @@ name = "remu_logger"
 version = "0.1.0"
 dependencies = [
  "anyhow",
- "remu_macro",
  "tracing",
  "tracing-appender",
  "tracing-subscriber",
@@ -4832,7 +4822,6 @@ dependencies = [
  "remu_state",
  "remu_types",
  "thiserror 2.0.21",
- "tracing",
 ]
 
 [[package]]
@@ -4847,9 +4836,7 @@ dependencies = [
  "remu_state",
  "remu_types",
  "sha2",
- "thiserror 2.0.21",
  "toml",
- "tracing",
  "winnow 1.0.4",
 ]
 
@@ -4857,15 +4844,12 @@ dependencies = [
 name = "remu_simulator_remu"
 version = "0.1.0"
 dependencies = [
- "clap",
  "rand 0.10.3",
  "remu_isa",
  "remu_macro",
  "remu_simulator",
  "remu_state",
  "remu_types",
- "thiserror 2.0.21",
- "tracing",
 ]
 
 [[package]]
@@ -4904,9 +4888,6 @@ version = "0.1.0"
 dependencies = [
  "remu_isa",
  "remu_macro",
- "strum 0.28.0",
- "thiserror 2.0.21",
- "tracing",
 ]
 
 [[package]]
@@ -7629,7 +7610,6 @@ dependencies = [
  "clap",
  "remu_isa",
  "remu_macro",
- "remu_types",
  "strum 0.28.0",
  "toml",
  "winnow 1.0.4",

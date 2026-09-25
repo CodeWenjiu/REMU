@@ -7,7 +7,7 @@ use winnow::combinator::{alt, preceded};
 use winnow::prelude::*;
 use winnow::token::literal;
 
-/// A named extension segment after `_`, not representable as one MISA letter (cf. `ExtensionSpec` in remu_types).
+/// A named extension segment after `_`, not representable as one MISA letter (cf. `ExtensionSpec` in remu_isa).
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub(crate) enum NamedExtension {
     Zve32xZvl128b,

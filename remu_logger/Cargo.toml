@@ -4,7 +4,6 @@ version = "0.1.0"
 edition = "2024"
 
 [dependencies]
-remu_macro = { path = "../remu_macro" }
 anyhow.workspace = true
 
 tracing.workspace = true

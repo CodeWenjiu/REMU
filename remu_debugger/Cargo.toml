@@ -8,7 +8,6 @@ remu_isa = { path = "../remu_isa" }
 remu_fmt = { path = "../remu_fmt" }
 remu_harness = { path = "../remu_harness" }
 remu_macro = { path = "../remu_macro" }
-remu_state = { path = "../remu_state" }
 remu_types = { path = "../remu_types" }
 
 clap = { workspace = true, features = [ "derive", "color" ] }
@@ -16,8 +15,6 @@ clap = { workspace = true, features = [ "derive", "color" ] }
 thiserror.workspace = true
 anyhow.workspace = true
 miette = { workspace = true, features = ["fancy"] }
-
-tracing.workspace = true
 
 petgraph.workspace = true
 winnow.workspace = true

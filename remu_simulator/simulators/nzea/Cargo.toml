@@ -10,9 +10,7 @@ remu_simulator = { path = "../.." }
 remu_types = { path = "../../../remu_types" }
 remu_state = { path = "../../../remu_state" }
 
-thiserror.workspace = true
 toml.workspace = true
-tracing.workspace = true
 libloading.workspace = true
 sha2 = "0.10"
 nanospinner.workspace = true
