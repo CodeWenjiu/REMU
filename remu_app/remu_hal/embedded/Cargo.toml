@@ -6,7 +6,10 @@ edition = "2024"
 [build-dependencies]
 xtask = { path = "../xtask" }
 
-[dependencies]
+# This crate is bare metal only (`#![cfg(target_os = "none")]` in lib.rs): off
+# such targets it is an empty shell, and riscv-rt/riscv stop being dragged into
+# host builds.
+[target.'cfg(target_os = "none")'.dependencies]
 remu_macro = { path = "../../../remu_macro" }
 embedded-hal = "1.0.0"
 embedded-io = "0.7.1"

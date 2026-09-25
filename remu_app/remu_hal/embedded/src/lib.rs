@@ -6,6 +6,7 @@
 //! Only compiles for `riscv32*` / `riscv64*` targets; for host support
 //! use the parent [`remu_hal`] crate which wraps this one.
 
+#![cfg(target_os = "none")]
 #![allow(dead_code, unreachable_pub)]
 #![no_std]
 #![feature(alloc_error_handler)]
