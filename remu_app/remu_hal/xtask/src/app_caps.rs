@@ -58,13 +58,25 @@ fn classify(key: &str) -> Option<Cap> {
 }
 
 /// Locate the app manifest. App crates live under `remu_app/`, either directly
-/// (`remu_app/<name>/`) or nested one level (`remu_app/nes/nes/`). A candidate
-/// is kept only if its `package.name` matches `remu_app_<name>`; unknown layouts
-/// fall through to `None` (fail-open).
+/// (`remu_app/<name>/`), nested one level (`remu_app/nes/nes/`), or under a
+/// group directory (`remu_app/mnist/mnist_generator/`). A candidate is kept only
+/// if its `package.name` matches `remu_app_<name>`; unknown layouts fall through
+/// to `None` (fail-open).
 fn app_manifest(workspace_root: &Path, app: &str) -> Option<PathBuf> {
-    let base = workspace_root.join("remu_app").join(app);
+    let remu_app = workspace_root.join("remu_app");
+    let base = remu_app.join(app);
     let want = format!("remu_app_{app}");
-    [base.join("Cargo.toml"), base.join(app).join("Cargo.toml")]
+    let mut candidates = vec![base.join("Cargo.toml"), base.join(app).join("Cargo.toml")];
+    // Group layout: `remu_app/<group>/<name>/` (the group name is not part of
+    // the target vocabulary, so every top-level directory is worth a look).
+    if let Ok(entries) = std::fs::read_dir(&remu_app) {
+        candidates.extend(
+            entries
+                .flatten()
+                .map(|e| e.path().join(app).join("Cargo.toml")),
+        );
+    }
+    candidates
         .into_iter()
         .filter(|c| c.is_file())
         .find(|c| read_package_name(c).as_deref() == Some(want.as_str()))
@@ -268,6 +280,25 @@ mod tests {
         assert!(err.contains("remu_app/x/Cargo.toml"), "{err}");
         // Foreign / undeterminable targets still fail open.
         assert!(validate_app_target(&ws, "x", "foo.json").is_ok());
+        cleanup(ws);
+    }
+
+    #[test]
+    fn validate_finds_group_layout() {
+        // remu_app/mnist/mnist_generator/ pattern: the group directory is not
+        // named after the app, so it needs its own candidate path.
+        let ws = tempdir("group");
+        let app_dir = ws.join("remu_app").join("group").join("x");
+        std::fs::create_dir_all(&app_dir).unwrap();
+        std::fs::write(
+            app_dir.join("Cargo.toml"),
+            "[package]\nname = \"remu_app_x\"\n[package.metadata.remu]\nisas = [\"host\"]\n",
+        )
+        .unwrap();
+        assert!(validate_app_target(&ws, "x", "host").is_ok());
+        let err = validate_app_target(&ws, "x", "riscv32i").unwrap_err();
+        assert!(err.contains("supported: host"), "{err}");
+        assert!(err.contains("remu_app/group/x/Cargo.toml"), "{err}");
         cleanup(ws);
     }
 
