@@ -10,7 +10,7 @@ remu_simulator = { path = "../.." }
 remu_state = { path = "../../../remu_state" }
 remu_types = { path = "../../../remu_types" }
 libloading.workspace = true
-sha2 = "0.10"
+sha2 = "0.11"
 nanospinner.workspace = true
 
 [lints]

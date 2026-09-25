@@ -87,7 +87,11 @@ fn hash_sources() -> String {
         }
     }
 
-    format!("{:x}", hasher.finalize())
+    hasher
+        .finalize()
+        .iter()
+        .map(|b| format!("{b:02x}"))
+        .collect::<String>()
 }
 
 fn hash_dir(hasher: &mut Sha256, dir: &Path, base: &Path) -> io::Result<()> {

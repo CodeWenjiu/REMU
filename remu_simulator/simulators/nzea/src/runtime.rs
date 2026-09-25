@@ -109,7 +109,11 @@ fn hash_nzea_sources(target: &str, isa: &str) -> String {
     hasher.update(target.as_bytes());
     hasher.update(isa.as_bytes());
 
-    format!("{:x}", hasher.finalize())
+    hasher
+        .finalize()
+        .iter()
+        .map(|b| format!("{b:02x}"))
+        .collect::<String>()
 }
 
 fn hash_scala_files(hasher: &mut Sha256, dir: &Path) -> io::Result<()> {
