@@ -22,8 +22,8 @@ use libloading::Library;
 use nanospinner::Spinner;
 use sha2::{Digest, Sha256};
 
-use crate::nzea_ffi::NzeaFns;
 use crate::NzeaTarget;
+use crate::nzea_ffi::NzeaFns;
 
 // ---------------------------------------------------------------------------
 // Paths
@@ -68,7 +68,7 @@ fn stamp_path(target: &str, isa: &str) -> PathBuf {
     so_dir(target, isa).join("libnzea.stamp")
 }
 
-fn verilog_dir(target: &str, isa: &str) -> PathBuf {
+pub(crate) fn verilog_dir(target: &str, isa: &str) -> PathBuf {
     so_dir(target, isa).join(format!("nzea-verilog/{target}/{isa}"))
 }
 

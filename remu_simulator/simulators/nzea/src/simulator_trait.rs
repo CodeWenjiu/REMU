@@ -10,18 +10,19 @@ use remu_types::{ExitCode, TraceFlags, TraceKind, TracerDyn};
 
 use remu_simulator::{
     BreakpointErrorKind, SimulatorCore, SimulatorDut, SimulatorInnerError, SimulatorOption,
-    SimulatorPolicy, StatEntry, StatFilter, from_state_error,
+    SimulatorPolicy, StatCmd, StatEntry, from_state_error,
 };
 
 use remu_state::bus::ObserverEvent;
 
 use crate::NzeaIsa;
 use crate::Watchdog;
+use crate::stat_schema::StatSchema;
 use crate::{CommitMsg, NzeaDpi, clear_nzea, set_nzea};
 use crate::{ensure_nzea_loaded, get_nzea_fns};
-use remu_isa::isa::reg::{Csr as CsrKind, RegAccess};
 use remu_isa::WordOps;
 use remu_isa::Xlen;
+use remu_isa::isa::reg::{Csr as CsrKind, RegAccess};
 
 /// True after the first time wavetrace is enabled in this process; then we do not open trace.fst again,
 /// so a later run with wavetrace off does not overwrite the file.
@@ -29,24 +30,30 @@ static WAVETRACE_FILE_OPENED: AtomicBool = AtomicBool::new(false);
 
 /// Collects nzea RTL stat_* counters streamed from `nzea_iter_stats` via callback.
 #[derive(Default)]
-pub(crate) struct StatCollector {
-    /// Raw signal name → value (for derived-rule lookups and display).
-    pub raw: std::collections::HashMap<String, u64>,
+struct StatCollector {
+    /// Signal name → assembled value (for derived-rule lookups and display).
+    raw: std::collections::HashMap<String, u64>,
+    /// Signal name → actual RTL width, cross-checked against the schema.
+    width: std::collections::HashMap<String, u32>,
 }
 
 /// C callback: record one stat_* counter into the [`StatCollector`] behind `userdata`.
 /// # Safety
 /// `userdata` must point to a live `StatCollector` for the duration of the enumeration.
-pub(crate) unsafe extern "C" fn collect_stat_cb(
+unsafe extern "C" fn collect_stat_cb(
     name: *const std::ffi::c_char,
-    value: u32,
+    lo: u32,
+    hi: u32,
+    width: u32,
     userdata: *mut std::ffi::c_void,
 ) {
     let collector = unsafe { &mut *(userdata as *mut StatCollector) };
     let name = unsafe { std::ffi::CStr::from_ptr(name) }
         .to_string_lossy()
         .into_owned();
-    collector.raw.insert(name, value as u64);
+    let value = crate::assemble_stat_value(lo, hi, width);
+    collector.raw.insert(name.clone(), value);
+    collector.width.insert(name, width);
 }
 
 pub struct SimulatorNzea<P, const IS_DUT: bool>
@@ -75,6 +82,11 @@ where
     pending_exit_code: Option<ExitCode>,
     /// Total clock cycles executed (each cycle() = one clock).
     cycle_count: u64,
+    /// The RTL's stats declaration (`<Design>.stats.toml` next to `filelist.f`),
+    /// loaded once per model build/load. `Ok(None)` = this build exposes no
+    /// stats; `Err` = the file is present but unusable. Both are reported when
+    /// statistics are requested, never at startup.
+    schema: Result<Option<StatSchema>, String>,
 }
 
 impl<P, const IS_DUT: bool> SimulatorCore<P> for SimulatorNzea<P, IS_DUT>
@@ -124,6 +136,12 @@ where
         let state = State::new(opt.state.clone(), tracer.clone(), IS_DUT);
         let watchdog = Watchdog::from_spec(watchdog_spec, Arc::clone(&interrupt))
             .unwrap_or_else(|e| panic!("invalid --sim-opt for nzea: {e}"));
+        // The RTL's stats declaration is written by the same dump that produced
+        // the model, next to `filelist.f`. Load it once here (handoff R1).
+        let schema = StatSchema::load(
+            &crate::verilog_dir(target.as_str(), isa_str),
+            target.top_module(),
+        );
         Self {
             state,
             sim_ptr,
@@ -138,6 +156,7 @@ where
             breakpoint_apply_next: false,
             pending_exit_code: None,
             cycle_count: 0,
+            schema,
         }
     }
 
@@ -309,11 +328,61 @@ where
             }
         }
         if msg.gpr_addr < 32 && msg.gpr_addr != 0 {
-            self.state.reg.gpr.raw_write(
-                msg.gpr_addr as usize,
-                Xlen::from_u64(msg.gpr_data as u64),
+            self.state
+                .reg
+                .gpr
+                .raw_write(msg.gpr_addr as usize, Xlen::from_u64(msg.gpr_data as u64));
+        }
+    }
+
+    /// Read every `stat_*` signal the RTL exposes — assembled value plus actual
+    /// width — and check it against the schema. A declared counter that the RTL
+    /// does not expose, or exposes at a different width, is a build mismatch;
+    /// an exposed signal the schema does not declare is ignored with a warning
+    /// (the schema is the contract).
+    fn sample_counters(&self, schema: &StatSchema) -> Result<StatCollector, String> {
+        let mut collector = StatCollector::default();
+        let n = unsafe {
+            (self.fns.iter_stats)(
+                self.sim_ptr,
+                Some(collect_stat_cb),
+                &mut collector as *mut _ as *mut std::ffi::c_void,
+            )
+        };
+        if n < 0 {
+            return Err("nzea_iter_stats failed: VPI unavailable (is --vpi enabled?)".to_string());
+        }
+
+        for c in &schema.counters {
+            let Some(actual) = collector.width.get(&c.name) else {
+                return Err(format!(
+                    "schema declares counter `{}` but the RTL exposes no such signal (build mismatch)",
+                    c.name
+                ));
+            };
+            if *actual != c.width {
+                return Err(format!(
+                    "schema declares counter `{}` as {}-bit but the RTL exposes it as {}-bit (build mismatch)",
+                    c.name, c.width, actual
+                ));
+            }
+        }
+
+        // The collector hands them out in hash order, so sort: warnings must not
+        // reorder between runs.
+        let mut undeclared: Vec<&str> = collector
+            .raw
+            .keys()
+            .map(String::as_str)
+            .filter(|n| schema.counter_index(n).is_none())
+            .collect();
+        undeclared.sort_unstable();
+        for name in undeclared {
+            eprintln!(
+                "warning: nzea RTL exposes `{name}` but the schema does not declare it; ignoring"
             );
         }
+        Ok(collector)
     }
 }
 
@@ -364,66 +433,87 @@ where
         self.tracer.borrow().breakpoint_print(&self.breakpoints);
     }
 
-    fn platform_stats(&self, filter: &StatFilter) -> Vec<StatEntry> {
-        // nzea RTL stat_* counters via VPI callback enumeration (dynamic — nzea
-        // adds new counters without remu changes). Signals exist only in
-        // sim=true RTL; on FPGA builds nzea_iter_stats returns -1 and no
-        // entries are added.
-        let mut collector = crate::StatCollector::default();
-        let _n = unsafe {
-            (self.fns.iter_stats)(
-                self.sim_ptr,
-                Some(crate::collect_stat_cb),
-                &mut collector as *mut _ as *mut std::ffi::c_void,
-            )
+    /// Schema-backed statistics: the RTL declares counters, regions and derived
+    /// expressions; remu reads them, evaluates them and renders them. Nothing
+    /// here is hardcoded — the schema is the contract.
+    fn platform_stats(&self, cmd: &StatCmd) -> Result<Vec<StatEntry>, String> {
+        let schema = match &self.schema {
+            Ok(Some(s)) => s,
+            Ok(None) => {
+                return Err(
+                    "this build exposes no stats (no <Design>.stats.toml next to filelist.f)"
+                        .to_string(),
+                );
+            }
+            Err(e) => return Err(e.clone()),
         };
-        // Which raw signals to show: all of them (All/Raw), or only those a
-        // group's derive rules depend on (Group).
-        let group_rules: Vec<&crate::stat_derive::StatDeriveRule> = match filter {
-            StatFilter::Group(name) => crate::stat_derive::NZEA_DERIVE_RULES
-                .iter()
-                .filter(|r| r.group == name)
-                .collect(),
-            _ => vec![],
+        let counters = self.sample_counters(schema)?;
+
+        // Derived values: evaluated once, in file order (references only point
+        // upwards, so a single pass resolves every entry).
+        let values = schema.eval_derived(&counters.raw);
+        let counter_entry = |i: usize| StatEntry::Named {
+            name: schema.counters[i].name.clone(),
+            value: counters.raw[&schema.counters[i].name].to_string(),
         };
-        let show_all_raw = !matches!(filter, StatFilter::Group(_));
-        let group_deps: std::collections::HashSet<&str> = group_rules
-            .iter()
-            .flat_map(|r| r.deps.iter().copied())
-            .collect();
-        // Raw counters: one Named entry per selected signal, keeping the
-        // platform-given signal name.
-        let mut v = Vec::new();
-        for (name, value) in &collector.raw {
-            if show_all_raw || group_deps.contains(name.as_str()) {
-                v.push(StatEntry::Named {
-                    name: name.clone(),
-                    value: value.to_string(),
-                });
+        let derived_entry = |i: usize| StatEntry::Derived {
+            name: schema.derived[i].name.clone(),
+            value: schema.derived[i].render(&values[i]),
+        };
+
+        // Display order is the declaration order (R4); a query resolves an
+        // exact entry name first, then a region name (R6/R7).
+        let mut out = Vec::new();
+        match cmd {
+            StatCmd::Raw => {
+                for i in 0..schema.counters.len() {
+                    out.push(counter_entry(i));
+                }
+            }
+            StatCmd::All => {
+                for i in 0..schema.counters.len() {
+                    out.push(counter_entry(i));
+                }
+                for i in 0..schema.derived.len() {
+                    out.push(derived_entry(i));
+                }
+            }
+            StatCmd::Query(q) => {
+                if let Some(i) = schema.counter_index(q) {
+                    out.push(counter_entry(i));
+                } else if let Some(i) = schema.derived_index(q) {
+                    // A single entry focuses its transitive dependencies too, so
+                    // `stat ipc` shows the counters it is computed from.
+                    let (counter_set, derived_set) = schema.dependency_closure(i);
+                    for (j, keep) in counter_set.iter().enumerate() {
+                        if *keep {
+                            out.push(counter_entry(j));
+                        }
+                    }
+                    for (j, keep) in derived_set.iter().enumerate() {
+                        if *keep {
+                            out.push(derived_entry(j));
+                        }
+                    }
+                } else if schema.has_region(q) {
+                    for (i, c) in schema.counters.iter().enumerate() {
+                        if c.region == *q {
+                            out.push(counter_entry(i));
+                        }
+                    }
+                    for (i, d) in schema.derived.iter().enumerate() {
+                        if d.region == *q {
+                            out.push(derived_entry(i));
+                        }
+                    }
+                } else {
+                    return Err(format!(
+                        "unknown statistic `{q}`; available — {}",
+                        schema.available_names()
+                    ));
+                }
             }
         }
-        // Derived entries: table-driven semantics (see stat_derive.rs).
-        for rule in crate::stat_derive::NZEA_DERIVE_RULES {
-            let in_group = match filter {
-                StatFilter::All => true,
-                StatFilter::Raw => false,
-                StatFilter::Group(name) => rule.group == name,
-            };
-            if !in_group {
-                continue;
-            }
-            let deps: Option<Vec<u64>> = rule
-                .deps
-                .iter()
-                .map(|d| collector.raw.get(*d).copied())
-                .collect();
-            if let Some(deps) = deps {
-                v.push(StatEntry::Derived {
-                    name: rule.name.to_string(),
-                    value: (rule.derive)(&deps),
-                });
-            }
-        }
-        v
+        Ok(out)
     }
 }

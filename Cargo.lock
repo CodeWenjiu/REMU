@@ -5303,6 +5303,7 @@ dependencies = [
  "remu_types",
  "sha2",
  "thiserror 2.0.18",
+ "toml",
  "tracing",
  "winnow 1.0.3",
 ]

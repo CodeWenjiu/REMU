@@ -15,6 +15,11 @@ pub enum HarnessError {
     #[error("interrupted")]
     Interrupted,
 
+    /// Statistics could not be produced (unknown query, no stats in this build,
+    /// schema/RTL mismatch). The message is the user-facing diagnostic.
+    #[error("{0}")]
+    Stat(String),
+
     #[error(transparent)]
     Simulator(#[from] SimulatorError),
 }
@@ -23,7 +28,7 @@ impl HarnessError {
     #[inline(always)]
     pub fn backtrace(&self) -> Option<&std::backtrace::Backtrace> {
         match self {
-            HarnessError::Interrupted => None,
+            HarnessError::Interrupted | HarnessError::Stat(_) => None,
             HarnessError::Simulator(e) => e.backtrace(),
         }
     }
@@ -32,7 +37,7 @@ impl HarnessError {
     /// difftest mismatches need full diagnostics; traps and exits are one-liners.
     pub fn style(&self) -> ErrorStyle {
         match self {
-            HarnessError::Interrupted => ErrorStyle::Trap,
+            HarnessError::Interrupted | HarnessError::Stat(_) => ErrorStyle::Trap,
             HarnessError::Simulator(e) => match e {
                 SimulatorError::Dut(inner) | SimulatorError::Ref(inner) => match inner {
                     SimulatorInnerError::StateAccessError(_)

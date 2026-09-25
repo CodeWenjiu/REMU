@@ -1,21 +1,10 @@
-//! Unified statistics interface: common stats (e.g. inst count) + platform-specific (e.g. cycle count, IPC).
+//! Unified statistics interface: platform-declared counters + derived values.
+//!
+//! The platform owns what it measures, how derived values are computed and how
+//! they are ordered/classified; the layers above only render what it returns.
+//! For nzea that declaration is the RTL's stats schema (`*.stats.toml`).
 
-use clap::Subcommand;
 use remu_types::StatKind;
-
-/// Which statistics the caller wants to see. Filtering is applied by the
-/// platform implementation (it owns the raw signals and derived rules).
-#[derive(Debug, Clone)]
-pub enum StatFilter {
-    /// Everything: all raw counters plus all derived entries.
-    All,
-    /// Raw counters only.
-    Raw,
-    /// A derived group: the group's dependency counters plus its derived
-    /// entries (group names come from the platform's derive-rule table,
-    /// e.g. "ipc", "bp").
-    Group(String),
-}
 
 #[derive(Debug, Clone)]
 pub enum StatEntry {
@@ -48,25 +37,29 @@ impl StatEntry {
     }
 }
 
-#[derive(Debug, Subcommand)]
+/// The `stat` command: what to select out of the platform's declaration. Like
+/// [`StateCmd`](remu_state::StateCmd), it is handed to the platform as-is; the
+/// platform owns filtering and ordering.
+#[derive(Debug, Clone)]
 pub enum StatCmd {
-    /// Print all statistics (raw counters + derived entries)
-    Print,
-    /// Print raw counters only
+    /// Everything: every counter, then every derived entry, declaration order
+    /// (default, also spelled `stat print`).
+    All,
+    /// Raw counters only, declaration order.
     Raw,
-    /// Print IPC statistics (inst/cycle counters + derived IPC)
-    Ipc,
-    /// Print branch-predictor statistics (branch/mispred counters + derived rate)
-    Bp,
+    /// A query against the platform's declaration: an exact counter or derived
+    /// entry name, else a region name (resolution order: entry, then region).
+    Query(String),
 }
 
 impl StatCmd {
-    /// The derive-rule group this subcommand focuses on, if any.
-    pub fn group(&self) -> Option<&'static str> {
-        match self {
-            Self::Ipc => Some("ipc"),
-            Self::Bp => Some("bp"),
-            Self::Print | Self::Raw => None,
+    /// Parse the `stat` argument: `None`/`print` → everything, `raw` → counters
+    /// only, anything else → a query resolved against the platform's declaration.
+    pub fn from_query(query: Option<&str>) -> Self {
+        match query {
+            None | Some("print") => StatCmd::All,
+            Some("raw") => StatCmd::Raw,
+            Some(q) => StatCmd::Query(q.to_string()),
         }
     }
 }

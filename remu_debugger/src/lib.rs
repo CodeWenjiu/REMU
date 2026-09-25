@@ -16,6 +16,7 @@ pub use flow::option::DebuggerOption;
 
 pub use remu_harness::ErrorStyle;
 use remu_harness::Harness;
+use remu_harness::StatCmd;
 pub use remu_harness::{PlatformConfig, RunOutcome};
 pub use remu_types::ExitCode;
 use remu_types::TracerDyn;
@@ -153,10 +154,11 @@ impl<C: PlatformConfig> Debugger<C> {
                     Ok(RunOutcome::Done)
                 }
             },
-            Command::Stat { subcmd } => {
-                self.harness.stat_exec(subcmd);
-                Ok(RunOutcome::Done)
-            }
+            Command::Stat { query } => self
+                .harness
+                .stat_exec(&StatCmd::from_query(query.as_deref()))
+                .map_err(DebuggerError::CommandExec)
+                .map(|()| RunOutcome::Done),
             Command::Quit => Err(DebuggerError::ExitRequested),
         }
     }

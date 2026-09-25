@@ -17,9 +17,7 @@ pub use run_state::{RunOutcome, RunState};
 use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, Ordering};
 
-use remu_simulator::{
-    DifftestMismatchList, SimulatorError, SimulatorInnerError, StatFilter, TraceCmd,
-};
+use remu_simulator::{DifftestMismatchList, SimulatorError, SimulatorInnerError, TraceCmd};
 use remu_state::bus::ObserverEvent;
 use remu_types::{StatKind, TraceKind, TracerDyn};
 
@@ -124,22 +122,17 @@ impl<C: PlatformConfig> Harness<C> {
         self.dut_model.print_breakpoints();
     }
 
-    pub fn stat_exec(&mut self, subcmd: &StatCmd) {
-        let filter = match subcmd.group() {
-            Some(group) => StatFilter::Group(group.to_string()),
-            None => match subcmd {
-                StatCmd::Print => StatFilter::All,
-                StatCmd::Raw => StatFilter::Raw,
-                _ => unreachable!(),
-            },
-        };
-        let entries: Vec<(String, String, StatKind)> = self
+    pub fn stat_exec(&mut self, subcmd: &StatCmd) -> Result<(), HarnessError> {
+        let entries = self
             .dut_model
-            .platform_stats(&filter)
-            .into_iter()
-            .map(|e| (e.name().to_string(), e.format(), e.kind()))
+            .platform_stats(subcmd)
+            .map_err(HarnessError::Stat)?;
+        let rows: Vec<(String, String, StatKind)> = entries
+            .iter()
+            .map(|e| (e.name(), e.format(), e.kind()))
             .collect();
-        self.tracer.borrow().stat_print(&entries);
+        self.tracer.borrow().stat_print(&rows);
+        Ok(())
     }
 
     pub fn run_steps(&mut self, max_steps: Option<usize>) -> Result<RunOutcome, HarnessError> {

@@ -139,8 +139,35 @@ void nzea_trace_close(void* sim) {
 // VPI signal query
 // ---------------------------------------------------------------------------
 
-// Callback invoked for each stat_* counter: leaf name (NUL-terminated) + value.
-typedef void (*nzea_stat_callback)(const char* name, uint32_t value, void* userdata);
+// Callback invoked for each stat_* counter: leaf name (NUL-terminated), the raw
+// VPI words (`lo` first) and the signal's actual width in bits. Assembling the
+// words into a u64 is left to the consumer, where it can be unit-tested.
+typedef void (*nzea_stat_callback)(const char* name, uint32_t lo, uint32_t hi, uint32_t width,
+                                   void* userdata);
+
+// Read a counter's raw words at its actual width. Verilator quirk: the first
+// vpi_get_value after a scan returns 0, so read twice. Registers up to 32 bits
+// use the plain integer form; wider ones (up to 64 bits) are read as bit
+// vectors (least-significant word first).
+static void read_stat_value(vpiHandle h, int width, uint32_t* lo, uint32_t* hi) {
+    s_vpi_value val;
+    *lo = 0;
+    *hi = 0;
+    if (width <= 32) {
+        val.format = vpiIntVal;
+        vpi_get_value(h, &val);  // Verilator quirk: first read returns 0
+        vpi_get_value(h, &val);
+        *lo = static_cast<uint32_t>(val.value.integer);
+    } else {
+        val.format = vpiVectorVal;
+        vpi_get_value(h, &val);  // Verilator quirk: first read returns 0
+        vpi_get_value(h, &val);
+        if (val.value.vector) {
+            *lo = static_cast<uint32_t>(val.value.vector[0].aval);
+            *hi = static_cast<uint32_t>(val.value.vector[1].aval);
+        }
+    }
+}
 
 // Recursively walk module hierarchy, invoking cb for every reg whose leaf name
 // starts with "stat_". Returns the number of signals visited in this scope.
@@ -154,18 +181,16 @@ static int collect_stat_signals(vpiHandle scope, nzea_stat_callback cb, void* us
             if (!nm || std::strncmp(nm, "stat_", 5) != 0) {
                 continue;
             }
-            uint32_t value = 0;
+            const int width = vpi_get(vpiSize, reg);
+            uint32_t lo = 0;
+            uint32_t hi = 0;
             const char* full = vpi_get_str(vpiFullName, reg);
             vpiHandle h =
                 full ? vpi_handle_by_name(const_cast<char*>(full), nullptr) : nullptr;
             if (h) {
-                s_vpi_value val;
-                val.format = vpiIntVal;
-                vpi_get_value(h, &val);  // Verilator quirk: first read returns 0
-                vpi_get_value(h, &val);
-                value = static_cast<uint32_t>(val.value.integer);
+                read_stat_value(h, width, &lo, &hi);
             }
-            cb(nm, value, userdata);
+            cb(nm, lo, hi, static_cast<uint32_t>(width), userdata);
             count++;
         }
     }
