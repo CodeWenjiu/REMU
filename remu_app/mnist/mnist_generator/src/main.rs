@@ -153,7 +153,7 @@ impl Default for MnistDrawApp {
 
 impl eframe::App for MnistDrawApp {
     fn ui(&mut self, ui: &mut egui::Ui, _frame: &mut eframe::Frame) {
-        egui::Panel::top("toolbar").show_inside(ui, |ui| {
+        egui::Panel::top("toolbar").show(ui, |ui| {
             ui.horizontal(|ui| {
                 ui.label("Label (0-9):");
                 ui.add(
@@ -178,7 +178,7 @@ impl eframe::App for MnistDrawApp {
             });
         });
 
-        egui::CentralPanel::default().show_inside(ui, |ui| {
+        egui::CentralPanel::default().show(ui, |ui| {
             ui.label(&self.status);
             ui.add_space(8.0);
 
