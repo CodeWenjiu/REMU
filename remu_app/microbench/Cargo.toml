@@ -6,7 +6,7 @@ edition = "2024"
 [dependencies]
 remu_macro = { path = "../../remu_macro" }
 remu_hal = { path = "../remu_hal" }
-miniz_oxide = { version = "0.8", default-features = false, features = ["with-alloc"] }
+miniz_oxide = { version = "0.9", default-features = false, features = ["with-alloc"] }
 
 [lints]
 workspace = true
