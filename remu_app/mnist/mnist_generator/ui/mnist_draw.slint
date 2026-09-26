@@ -4,20 +4,24 @@
 // only renders the grid and reports pointer input. Positions cross the boundary
 // in logical pixels, so the cell mapping lives in Rust alongside its tests.
 
-import { Button, Slider, SpinBox } from "std-widgets.slint";
+import { Button, Palette, Slider, SpinBox } from "std-widgets.slint";
 
 export component MnistDraw inherits Window {
     title: "MNIST digit capture";
-    width: 560px;
-    height: 720px;
-    background: white;
+    width: 620px;
+    height: 780px;
+    background: #15171b;
     default-font-family: "DejaVu Sans";
+
+    // Pin the dark color scheme so the std-widgets match the window.
+    init => { Palette.color-scheme = ColorScheme.dark; }
 
     // 784 gray levels (0..255), row-major: pixel(row, col) = pixels[row * 28 + col].
     in property <[int]> pixels;
     in-out property <int> label: 0;
+    // Brush radius in cells; fractional values stamp a partially covered disc edge.
     in-out property <float> brush-radius: 1;
-    in-out property <string> status: "Hold left button to draw, right to erase. Save writes to remu_app/mnist/test_images/.";
+    in-out property <string> status: "Left button draws, right button erases.";
 
     // Canvas geometry; the Rust side reads this to map pointer positions.
     out property <length> cell-size: 18px;
@@ -25,76 +29,121 @@ export component MnistDraw inherits Window {
     // Canvas-relative pointer position in logical pixels, plus whether to paint
     // (true) or erase (false).
     callback paint(float, float, bool);
+    // Pointer released: the next `paint` starts a new stroke.
+    callback stroke-end();
     callback clear-canvas();
     callback save-image();
 
     VerticalLayout {
-        padding: 12px;
-        spacing: 8px;
+        padding: 18px;
+        spacing: 12px;
 
-        HorizontalLayout {
-            spacing: 8px;
-            Text {
-                text: "Label (0-9):";
-                vertical-alignment: center;
-                color: black;
-            }
-            SpinBox {
-                value <=> root.label;
-                minimum: 0;
-                maximum: 9;
-                width: 96px;
-            }
-            Text {
-                text: "Brush radius:";
-                vertical-alignment: center;
-                color: black;
-            }
-            Slider {
-                value <=> root.brush-radius;
-                minimum: 0;
-                maximum: 3;
-                step: 1;
-                width: 140px;
-            }
-            Button {
-                text: "Clear canvas";
-                clicked => { root.clear-canvas(); }
-            }
-            Button {
-                text: "Save to test_images";
-                clicked => { root.save-image(); }
+        Text {
+            text: "MNIST digit capture";
+            font-size: 21px;
+            font-weight: 700;
+            color: #eef1f5;
+        }
+        Text {
+            text: "Draw a digit on the 28x28 canvas, pick its label, then save it into remu_app/mnist/test_images/.";
+            font-size: 13px;
+            color: #98a1ac;
+            wrap: word-wrap;
+        }
+
+        // Controls.
+        Rectangle {
+            border-radius: 10px;
+            background: #1e2126;
+            border-width: 1px;
+            border-color: #2b3038;
+
+            HorizontalLayout {
+                padding: 10px;
+                spacing: 10px;
+
+                Text {
+                    text: "Label";
+                    font-size: 13px;
+                    color: #c8cdd4;
+                    vertical-alignment: center;
+                }
+                SpinBox {
+                    value <=> root.label;
+                    minimum: 0;
+                    maximum: 9;
+                    width: 92px;
+                }
+                Text {
+                    text: "Brush";
+                    font-size: 13px;
+                    color: #c8cdd4;
+                    vertical-alignment: center;
+                }
+                Slider {
+                    value <=> root.brush-radius;
+                    minimum: 0;
+                    maximum: 3;
+                    horizontal-stretch: 1;
+                }
+                Text {
+                    text: "\{(root.brush-radius).to-fixed(1)}";
+                    font-size: 13px;
+                    color: #c8cdd4;
+                    vertical-alignment: center;
+                    horizontal-alignment: right;
+                    min-width: 28px;
+                }
+                Button {
+                    text: "Clear canvas";
+                    clicked => { root.clear-canvas(); }
+                }
+                Button {
+                    text: "Save sample";
+                    primary: true;
+                    clicked => { root.save-image(); }
+                }
             }
         }
 
         Text {
             text: root.status;
+            font-size: 13px;
+            color: #60cdff;
             wrap: word-wrap;
-            color: black;
+            // Reserved height keeps the canvas from jumping when a save message appears.
+            min-height: 34px;
+            vertical-alignment: top;
         }
 
+        // Canvas: a dark card whose cells are inset by the grid gap, so the
+        // outermost margin matches the grid lines. Uniform 2px gaps stay crisp
+        // even when the canvas lands on a fractional pixel offset.
         HorizontalLayout {
             alignment: center;
+            vertical-stretch: 1;
 
-            // 1px outline: the wrapper's background stays visible around the
-            // canvas, so the grid itself is never overlapped or inset.
             Rectangle {
-                width: root.cell-size * 28 + 2px;
-                height: root.cell-size * 28 + 2px;
-                background: #808080;
+                width: root.cell-size * 28 + 4px;
+                height: root.cell-size * 28 + 4px;
+                background: #262a33;
+                border-radius: 10px;
+                drop-shadow-color: #000000a6;
+                drop-shadow-blur: 18px;
+                drop-shadow-offset-y: 4px;
 
-                canvas := Rectangle {
-                    x: 1px;
-                    y: 1px;
+                Rectangle {
+                    x: 2px;
+                    y: 2px;
                     width: root.cell-size * 28;
                     height: root.cell-size * 28;
-                    background: black;
+                    clip: true;
 
                     for i in 784 : Rectangle {
                         x: root.cell-size * Math.mod(i, 28);
                         y: root.cell-size * (i / 28);
-                        width: root.cell-size;
-                        height: root.cell-size;
+                        width: root.cell-size - 2px;
+                        height: root.cell-size - 2px;
                         background: rgba(root.pixels[i], root.pixels[i], root.pixels[i], 1.0);
                     }
 
@@ -126,6 +175,7 @@ export component MnistDraw inherits Window {
                             } else {
                                 // up / cancel
                                 touch.stroke = 0;
+                                root.stroke-end();
                             }
                         }
 
@@ -136,14 +186,27 @@ export component MnistDraw inherits Window {
                                 touch.stroke == 1);
                         }
                     }
+
+                    // Brush preview: the disc the next stamp covers. The Rust side
+                    // paints every cell whose center the disc reaches.
+                    if touch.has-hover : Rectangle {
+                        width: root.cell-size * (2 * root.brush-radius + 1);
+                        height: root.cell-size * (2 * root.brush-radius + 1);
+                        border-radius: self.width / 2;
+                        border-width: 1px;
+                        border-color: #ffffffcc;
+                        x: touch.mouse-x - self.width / 2;
+                        y: touch.mouse-y - self.height / 2;
+                    }
                 }
             }
         }
 
         Text {
-            text: "Tip: MNIST-style light strokes on dark background; draw multiple passes to thicken. Save writes matching .txt and .bin; rebuild the mnist app to embed new .bin files.";
+            text: "Drag to draw; the right button erases. The saved .txt/.bin pair is embedded by the mnist app on its next build.";
+            font-size: 12px;
+            color: #79828d;
             wrap: word-wrap;
-            color: black;
         }
     }
 }
