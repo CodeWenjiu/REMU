@@ -139,9 +139,12 @@ export component MnistDraw inherits Window {
                     height: root.cell-size * 28;
                     clip: true;
 
+                    // Slint's `/` on integers is a float division, so the row
+                    // needs the floor: otherwise every column lands at a
+                    // fractionally different y and the grid comes out sheared.
                     for i in 784 : Rectangle {
                         x: root.cell-size * Math.mod(i, 28);
-                        y: root.cell-size * (i / 28);
+                        y: root.cell-size * Math.floor(i / 28);
                         width: root.cell-size - 2px;
                         height: root.cell-size - 2px;
                         background: rgba(root.pixels[i], root.pixels[i], root.pixels[i], 1.0);
