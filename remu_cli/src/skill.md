@@ -20,7 +20,9 @@ When working with remu as an AI agent, **always** apply these rules:
 2. **Always enable the watchdog** — append `--sim-opt watchdog=5` when
    using nzea backend. Without it, a deadlocked program will hang indefinitely.
    Format: `MxN` where M = consecutive misses (default 3), N = check interval in seconds.
-   Use `watchdog=10` for programs expected to run long between I/O.
+   The watchdog is fed by *commits*: it trips when the core retires no instruction
+   for `M × N` seconds. Use `watchdog=10` for programs whose steps are expected to
+   take long (e.g. a slow access) between commits.
 
 3. **Check the exit code** — `GOOD EXIT` means success, `BAD EXIT` means the
    program terminated abnormally. Any other output on stderr is an error.
@@ -158,12 +160,13 @@ or pass multiple pairs space-separated.
 > software platforms (`remu` / `qemu` / `spike` / `host`): `ref` takes
 > about an hour on RTL.
 >
-> The watchdog fires when no sim cycles are fed for `misses × interval`,
-> but the feed only happens at 1024-cycle boundaries inside a `step_once`
-> loop. With a fast DUT whose commits return from `step_once` before that
-> boundary (e.g. the in-order engine at ~7 cycles/commit), the watchdog is
-> never fed and interrupts a healthy run; use `--sim-opt watchdog=off` for
-> such runs and keep the default only for long deadlock-prone programs.
+> The watchdog trips when the core commits nothing for `misses × interval`
+> (it is fed per committed instruction, not per cycle), and it is what turns a
+> deadlocked DUT into a diagnosable failure: it prints the last commit cycle and
+> the run fails as `stalled: no architectural progress` instead of `interrupted`
+> (Ctrl+C). If a legitimate workload can go that long without committing —
+> e.g. a memory access that takes ages — raise `misses`/`interval`
+> (`--sim-opt watchdog=3x30`) rather than disabling it.
 
 ### Automation
 

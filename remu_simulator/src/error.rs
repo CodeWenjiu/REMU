@@ -50,6 +50,12 @@ pub enum SimulatorInnerError {
     #[error("interrupted")]
     Interrupted,
 
+    /// The model stopped making architectural progress: the backend is blocked in a
+    /// step that never completes (deadlock, a handshake that never arrives). The
+    /// backend that detected it printed the details; there is nothing to add here.
+    #[error("stalled: no architectural progress")]
+    Stalled,
+
     #[error("breakpoint: {0}")]
     BreakpointError(BreakpointErrorKind),
 
@@ -66,6 +72,7 @@ impl SimulatorInnerError {
             SimulatorInnerError::RefError(_)
             | SimulatorInnerError::ProgramExit(_)
             | SimulatorInnerError::Interrupted
+            | SimulatorInnerError::Stalled
             | SimulatorInnerError::BreakpointError(_)
             | SimulatorInnerError::BreakpointHit(_) => None,
         }

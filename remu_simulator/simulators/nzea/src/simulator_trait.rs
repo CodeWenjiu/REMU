@@ -72,7 +72,7 @@ where
     interrupt: Arc<std::sync::atomic::AtomicBool>,
     /// Whether the last committed instruction accessed an MMIO device.
     last_commit_is_mmio: bool,
-    /// Optional deadlock watchdog; fed every 1024 cycles with the current cycle count.
+    /// Optional deadlock watchdog; fed on every committed instruction.
     watchdog: Option<Watchdog>,
     /// Breakpoint PCs; no duplicates.
     breakpoints: Vec<u32>,
@@ -209,15 +209,17 @@ where
             }
             self.cycle::<TRACE>();
             cycle_count += 1;
-            if cycle_count % 1024 == 0 {
-                if let Some(ref wd) = self.watchdog {
-                    wd.feed(self.cycle_count);
-                }
-                if self.interrupt.load(Ordering::Relaxed) {
-                    self.interrupt.store(false, Ordering::Relaxed);
-                    return Err(remu_simulator::SimulatorInnerError::Interrupted);
-                }
+            if cycle_count.is_multiple_of(1024)
+                && let Some(err) = self.take_stop()
+            {
+                return Err(err);
             }
+        }
+        // The core retired an instruction: it is alive, so feed the watchdog. A core
+        // that stops committing (deadlock, or an access that never completes) stops
+        // feeding it, and the trip is what turns the stall into `Stalled`.
+        if let Some(ref wd) = self.watchdog {
+            wd.feed(self.cycle_count);
         }
         if let Some(ec) = self.pending_exit_code.take() {
             return Err(SimulatorInnerError::ProgramExit(ec));
@@ -270,6 +272,21 @@ where
     /// Push a commit from DPI; used by dpi_commit_trace.
     pub(crate) fn push_commit_impl(&mut self, msg: CommitMsg) {
         self.commit_buffer.push(msg);
+    }
+
+    /// Poll the run's stop signal: the watchdog's trip outranks a plain interrupt, so
+    /// a deadlock is reported as `Stalled` (the watchdog already printed the details)
+    /// and Ctrl+C as `Interrupted`.
+    fn take_stop(&self) -> Option<SimulatorInnerError> {
+        if self.watchdog.as_ref().is_some_and(Watchdog::tripped) {
+            // The trip printed its own diagnostic; nothing else to say here. Clear the
+            // flag the watchdog raised so the harness does not report it as Ctrl+C.
+            self.interrupt.store(false, Ordering::Relaxed);
+            return Some(SimulatorInnerError::Stalled);
+        }
+        self.interrupt
+            .swap(false, Ordering::Relaxed)
+            .then_some(SimulatorInnerError::Interrupted)
     }
 
     /// Set by dpi_write_32 when sifive_test_finisher is written; consumed by step_once.
