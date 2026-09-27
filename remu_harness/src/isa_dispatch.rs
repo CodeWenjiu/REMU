@@ -9,8 +9,6 @@ use remu_isa::isa::{ExtensionSpec, IsaBase, IsaKind, IsaSpec};
 pub enum RemuIsaKind {
     Rv32I,
     Rv32Im,
-    Rv32IWjCus0,
-    Rv32ImWjCus0,
     Rv32IZve32xZvl128b,
     Rv32ImZve32xZvl128b,
     Rv64I,
@@ -23,8 +21,6 @@ impl IsaKind for RemuIsaKind {
         match (spec.base, spec.extensions) {
             (Rv32I, ExtensionSpec::None) => Self::Rv32I,
             (Rv32Im, ExtensionSpec::None) => Self::Rv32Im,
-            (Rv32I, ExtensionSpec::WjCus0) => Self::Rv32IWjCus0,
-            (Rv32Im, ExtensionSpec::WjCus0) => Self::Rv32ImWjCus0,
             (Rv32I, ExtensionSpec::Zve32xZvl128b) => Self::Rv32IZve32xZvl128b,
             (Rv32Im, ExtensionSpec::Zve32xZvl128b) => Self::Rv32ImZve32xZvl128b,
             (Rv64I, ExtensionSpec::None) => Self::Rv64I,

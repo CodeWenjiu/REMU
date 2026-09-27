@@ -1,8 +1,8 @@
 #![allow(dead_code)]
 use std::path::Path;
 
-use std::str::FromStr;
 use remu_isa::isa::IsaSpec;
+use std::str::FromStr;
 
 use crate::isa_shorthand::{self, NamedExtension, ParsedAppShorthand};
 
@@ -17,9 +17,6 @@ pub(crate) const CARGO_TARGET_RUSTFLAGS_RV32IM_ENV: &str =
 pub(crate) const CARGO_TARGET_DIR_SUBDIR_APP: &str = "app";
 pub(crate) const CARGO_TARGET_DIR_SUBDIR_ZVE: &str = "app_zve32x";
 pub(crate) const REMU_ISA_ENV: &str = "REMU_ISA";
-/// When set (value ignored), `print run-remu` appends `WJ_CUS0_ISA_SUFFIX` (`_wjCus0`) to `--isa`.
-pub(crate) const EXISA0_ENV: &str = "EXISA0";
-pub(crate) const WJ_CUS0_ISA_SUFFIX: &str = "_wjCus0";
 /// When set (value ignored), `print run-remu` omits `--release` for **host** `cargo run -p remu_cli` only.
 /// Embedded `remu_app_*` builds always use `--release` (see `print run-app` / `print build-app`).
 pub(crate) const DEV_ENV: &str = "DEV";
@@ -75,13 +72,9 @@ impl CargoTarget {
                 let isa = format!("{}_zve32x_zvl128b", parsed.base_prefix);
                 (true, Some(env), Some(isa))
             }
-            [NamedExtension::WjCus0] => {
-                let isa = format!("{}_wjCus0", parsed.base_prefix);
-                (false, None, Some(isa))
-            }
             _ => {
                 return Err(format!(
-                    "xtask: app target base {:?} with extensions {:?}: only one named extension is allowed (_zve32x_zvl128b or _wjCus0); combining them is not supported by remu yet",
+                    "xtask: app target base {:?} with extensions {:?}: only one named extension is allowed (_zve32x_zvl128b)",
                     parsed.base_prefix, parsed.extensions
                 ));
             }
@@ -124,7 +117,10 @@ pub(crate) fn cargo_target_dir_subdir(zve: bool) -> &'static str {
     }
 }
 
-pub(crate) fn resolve_for_workspace_root(workspace_root: &Path, key: &str) -> Result<CargoTarget, String> {
+pub(crate) fn resolve_for_workspace_root(
+    workspace_root: &Path,
+    key: &str,
+) -> Result<CargoTarget, String> {
     if key.ends_with(".json") {
         let s = resolve_json_path(workspace_root, key);
         return Ok(CargoTarget {
@@ -224,21 +220,13 @@ mod tests {
     use super::*;
 
     #[test]
-    fn wj_shorthand_to_cargo_target() {
-        let parsed = isa_shorthand::parse_riscv_app_shorthand("riscv32im_wjCus0")
+    fn zve_shorthand_to_cargo_target() {
+        let parsed = isa_shorthand::parse_riscv_app_shorthand("riscv32im_zve32x_zvl128b")
             .unwrap()
             .unwrap();
         let ct = CargoTarget::try_from_parsed(parsed).unwrap();
         assert_eq!(ct.triple_or_json, "riscv32im-unknown-none-elf");
-        assert!(!ct.zve);
-        assert_eq!(ct.remu_isa.as_deref(), Some("riscv32im_wjCus0"));
-    }
-
-    #[test]
-    fn zve_wj_combo_rejected() {
-        let parsed = isa_shorthand::parse_riscv_app_shorthand("riscv32im_zve32x_zvl128b_wjCus0")
-            .unwrap()
-            .unwrap();
-        assert!(CargoTarget::try_from_parsed(parsed).is_err());
+        assert!(ct.zve);
+        assert_eq!(ct.remu_isa.as_deref(), Some("riscv32im_zve32x_zvl128b"));
     }
 }

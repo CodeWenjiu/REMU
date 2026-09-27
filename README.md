@@ -55,15 +55,14 @@ This layout keeps the UI and debugging workflow stable while you swap or combine
 
 **RV32** (default `--isa riscv32i`):
 
-| `--isa` example | M | Vector (Zve32x, VLEN 128) | wjCus0 (custom) |
-|-----------------|---|---------------------------|-----------------|
-| `riscv32i` / `rv32i` | | | |
-| `riscv32im` / `rv32im` | ✓ | | |
-| `rv32i_zve32x_zvl128b` | | ✓ | |
-| `rv32im_zve32x_zvl128b` | ✓ | ✓ | |
-| `riscv32i_wjCus0` / `riscv32im_wjCus0` | (im has ✓) | | ✓ |
+| `--isa` example | M | Vector (Zve32x, VLEN 128) |
+|-----------------|---|---------------------------|
+| `riscv32i` / `rv32i` | | |
+| `riscv32im` / `rv32im` | ✓ | |
+| `rv32i_zve32x_zvl128b` | | ✓ |
+| `rv32im_zve32x_zvl128b` | ✓ | ✓ |
 
-The `wjCus0` variants enable a custom coprocessor extension used by the MNIST app. Full matrix details and target-string handling live in [`remu_hal/README-targets.md`](remu_hal/README-targets.md).
+Full matrix details and target-string handling live in [`remu_hal/README-targets.md`](remu_hal/README-targets.md).
 
 ---
 

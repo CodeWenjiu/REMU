@@ -10,11 +10,6 @@ Multi-segment ISA strings (anything that is **not** a single standard RISC-V let
 
 Adding another named extension: extend **`NamedExtension`**, **`named_extension_segment`**, and the match in **`CargoTarget::try_from_parsed`** (and add **`ExtensionSpec`** in `remu_types` if the simulator should understand it).
 
-### wjCus0 (`riscv32im_wjCus0`, `riscv32i_wjCus0`)
-
-- **`--target`** is the usual base triple (`riscv32im-unknown-none-elf`, etc.).
-- **`print run-app`** sets **`REMU_ISA`** to the full shorthand (e.g. `riscv32im_wjCus0`) so `remu_cli --isa` matches the ELF. You can still use **`EXISA0=1`** with a plain base target if you prefer; it appends `_wjCus0` in `print run-remu` when **`REMU_ISA`** is not already suffixed.
-
 ### Zve shorthand (`riscv32im_zve32x_zvl128b`, `riscv32i_zve32x_zvl128b`)
 
 Handled entirely in **xtask** (no Zve JSON in-tree):
@@ -24,17 +19,13 @@ Handled entirely in **xtask** (no Zve JSON in-tree):
 - **`REMU_ISA`** is set to e.g. **`riscv32im_zve32x_zvl128b`** on `print run-app` so `run-remu` matches remu.
 - **`CARGO_TARGET_DIR`** uses **`target/app_zve32x`** instead of **`target/app`** so Zve and plain RV32IM builds do not overwrite each other.
 
-**Note:** Combining **`_zve32x_zvl128b`** with **`_wjCus0`** in one shorthand is rejected by xtask until remu supports that ISA matrix.
-
 Optional **`remu_hal/<name>.json`** targets still work; printed commands add **`-Z json-target-spec`**.
 
 ### `xtask print` (stdout; `eval` at repo root)
 
 ```bash
 eval "$(cargo run -p xtask -- print run-app <name> riscv32im_zve32x_zvl128b)"
-eval "$(cargo run -p xtask -- print run-app <name> riscv32im_wjCus0)"
 eval "$(cargo run -p xtask -- print build-app <name> riscv32im_zve32x_zvl128b)"
-eval "$(cargo run -p xtask -- print build-app <name> riscv32im_wjCus0)"
 ```
 
 `just build-app` / `just run-app` wrap the above. `clean-app` removes `target/app` and `target/app_zve32x`.
@@ -48,7 +39,7 @@ Apps may **opt in** to a restricted target list by adding a `package.metadata.re
 isas = ["riscv32im", "riscv32im_zve32x_zvl128b", "host"]
 ```
 
-Entries use the same vocabulary as xtask target arguments (`riscv32i` / `riscv32im` / `riscv32imac` / `riscv64*`, plus `_zve32x_zvl128b` / `_wjCus0` suffixes when needed) and the special token `host`. Apps **without** the section keep supporting every target.
+Entries use the same vocabulary as xtask target arguments (`riscv32i` / `riscv32im` / `riscv32imac` / `riscv64*`, plus `_zve32x_zvl128b` suffix when needed) and the special token `host`. Apps **without** the section keep supporting every target.
 
 When the requested target is not in the list, `xtask print run-app` / `build-app` (and therefore `just run-app` / `just build-app`) fail **before** invoking cargo with a message listing the supported targets. `xtask print check-app <name> <target>` is a validation-only variant used by the host branch of `just run-app`.
 

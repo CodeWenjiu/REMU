@@ -9,13 +9,13 @@ description: Add a new ISA variant (e.g., RV64I, RV32IMF) to the project. Covers
 
 Add a row to `for_each_isa!`:
 ```
-$cb!(RV64I, u64, -, -, NoV, -, 0x80...0100, "rv64i", i, none, R);
+$cb!(RV64I, u64, -, -, NoV, 0x80...0100, "rv64i", i, none, R);
 ```
-Columns: `Name, XLEN_type, has_M(+/-), has_F(+/-), VConfig_type, has_WJ(+/-), MISA_value, ISA_string, base_arch(i/im/ia/imac), ext_spec(none/wj/zve), platforms(R/N/RN)`
+Columns: `Name, XLEN_type, has_M(+/-), has_F(+/-), VConfig_type, MISA_value, ISA_string, base_arch(i/im/ia/imac), ext_spec(none/zve), platforms(R/N/RN)`
 
 The `gen_isa_type!` macro auto-generates the struct + `RvIsa` impl. No manual code needed.
 
-Update `gen_isa_type!` 8 arms if the new ISA uses a new combination of `+`/`-` (e.g., adding an F-enabled variant when none existed before requires 4 new arms).
+Update `gen_isa_type!` 4 arms if the new ISA uses a new combination of `+`/`-` (e.g., adding an F-enabled variant when none existed before requires 2 new arms).
 
 ### 2. Platform IsaKind enums
 

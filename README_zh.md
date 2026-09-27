@@ -55,15 +55,14 @@ remu 将 **调试器 / CLI（前端）与执行引擎（后端）分离**：
 
 仅 **RV32**（默认 `--isa riscv32i`）：
 
-| `--isa` 示例 | M | 向量（Zve32x，VLEN 128） | wjCus0（自定义） |
-|-------------|---|-------------------------|-----------------|
-| `riscv32i` / `rv32i` | | | |
-| `riscv32im` / `rv32im` | ✓ | | |
-| `rv32i_zve32x_zvl128b` | | ✓ | |
-| `rv32im_zve32x_zvl128b` | ✓ | ✓ | |
-| `riscv32i_wjCus0` / `riscv32im_wjCus0` | （im 版带 ✓） | | ✓ |
+| `--isa` 示例 | M | 向量（Zve32x，VLEN 128） |
+|-------------|---|-------------------------|
+| `riscv32i` / `rv32i` | | |
+| `riscv32im` / `rv32im` | ✓ | |
+| `rv32i_zve32x_zvl128b` | | ✓ |
+| `rv32im_zve32x_zvl128b` | ✓ | ✓ |
 
-`wjCus0` 变体启用 MNIST 应用使用的自定义协处理器扩展。完整矩阵与 target 字符串处理见 [`remu_hal/README-targets.md`](remu_hal/README-targets.md)。
+完整矩阵与 target 字符串处理见 [`remu_hal/README-targets.md`](remu_hal/README-targets.md)。
 
 ---
 

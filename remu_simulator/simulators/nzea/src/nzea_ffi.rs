@@ -5,7 +5,7 @@ use std::ffi::{c_char, c_void};
 
 use libloading::Library;
 
-use remu_isa::isa::extension_enum::{RV32I, RV32I_wjCus0, RV32IM, RV32IM_wjCus0};
+use remu_isa::isa::extension_enum::{RV32I, RV32IM};
 
 /// Callback invoked by `nzea_iter_stats` for each stat_* counter: the leaf name
 /// (NUL-terminated), the raw VPI words (`lo` first) and the signal's actual
@@ -86,14 +86,6 @@ impl NzeaIsa for RV32I {
 
 impl NzeaIsa for RV32IM {
     const NZEA_ISA_STR: &'static str = "riscv32im";
-}
-
-impl NzeaIsa for RV32I_wjCus0 {
-    const NZEA_ISA_STR: &'static str = "riscv32i_wjCus0";
-}
-
-impl NzeaIsa for RV32IM_wjCus0 {
-    const NZEA_ISA_STR: &'static str = "riscv32im_wjCus0";
 }
 
 #[cfg(test)]

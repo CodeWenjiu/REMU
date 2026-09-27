@@ -1,5 +1,5 @@
 //! Parse `riscv32*` app target shorthands: base arch + optional **named** extensions
-//! (`_zve32x_zvl128b`, `_wjCus0`, …). Single-letter RISC-V names in a triple are handled by
+//! (`_zve32x_zvl128b`, …). Single-letter RISC-V names in a triple are handled by
 //! Rust's built-in targets (`riscv32im-unknown-none-elf`); here we only handle **multi-token**
 //! extension suffixes joined with `_`.
 
@@ -11,7 +11,6 @@ use winnow::token::literal;
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub(crate) enum NamedExtension {
     Zve32xZvl128b,
-    WjCus0,
 }
 
 impl NamedExtension {
@@ -20,7 +19,6 @@ impl NamedExtension {
     pub(crate) fn as_str(self) -> &'static str {
         match self {
             Self::Zve32xZvl128b => "zve32x_zvl128b",
-            Self::WjCus0 => "wjCus0",
         }
     }
 }
@@ -51,20 +49,9 @@ fn underscore_zve32x_zvl128b(input: &mut &str) -> ModalResult<NamedExtension> {
         .parse_next(input)
 }
 
-/// Matches `_wjCus0` (ASCII case variations; aligned with `ExtensionSpec::WjCus0` parsing).
-fn underscore_wj_cus0(input: &mut &str) -> ModalResult<NamedExtension> {
-    preceded(
-        '_',
-        alt((literal("wjCus0"), literal("wjcus0"), literal("WJCUS0"))),
-    )
-    .void()
-    .value(NamedExtension::WjCus0)
-    .parse_next(input)
-}
-
 fn named_extension_segment(input: &mut &str) -> ModalResult<NamedExtension> {
     // Longest literal first when adding more `alt` arms.
-    alt((underscore_zve32x_zvl128b, underscore_wj_cus0)).parse_next(input)
+    alt((underscore_zve32x_zvl128b,)).parse_next(input)
 }
 
 /// If `key` does not start with a known `riscv*` base, returns `Ok(None)` so callers can fall back
@@ -84,7 +71,7 @@ pub(crate) fn parse_riscv_app_shorthand(key: &str) -> Result<Option<ParsedAppSho
             .parse_next(&mut input)
             .map_err(|_| {
                 format!(
-                    "invalid app target shorthand {key:?}: expected a known named extension after {:?} (e.g. _zve32x_zvl128b, _wjCus0)",
+                    "invalid app target shorthand {key:?}: expected a known named extension after {:?} (e.g. _zve32x_zvl128b)",
                     base
                 )
             })?;
@@ -115,24 +102,6 @@ mod tests {
     }
 
     #[test]
-    fn riscv32im_wj_cus0() {
-        let p = parse_riscv_app_shorthand("riscv32im_wjCus0")
-            .unwrap()
-            .unwrap();
-        assert_eq!(p.base_prefix, "riscv32im");
-        assert_eq!(p.extensions, vec![NamedExtension::WjCus0]);
-    }
-
-    #[test]
-    fn riscv32i_wj_cus0_case_insensitive() {
-        let p = parse_riscv_app_shorthand("riscv32i_WJCUS0")
-            .unwrap()
-            .unwrap();
-        assert_eq!(p.base_prefix, "riscv32i");
-        assert_eq!(p.extensions, vec![NamedExtension::WjCus0]);
-    }
-
-    #[test]
     fn zve_shorthand() {
         let p = parse_riscv_app_shorthand("riscv32im_zve32x_zvl128b")
             .unwrap()
@@ -149,14 +118,6 @@ mod tests {
     #[test]
     fn non_riscv_fallback_none() {
         assert!(parse_riscv_app_shorthand("foo").unwrap().is_none());
-    }
-
-    #[test]
-    fn zve_then_wj_parses_two_segments() {
-        let p = parse_riscv_app_shorthand("riscv32im_zve32x_zvl128b_wjCus0")
-            .unwrap()
-            .unwrap();
-        assert_eq!(p.extensions.len(), 2);
     }
 }
 

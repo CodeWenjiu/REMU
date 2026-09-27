@@ -8,8 +8,7 @@ use remu_debugger::{DebuggerOption, DebuggerRunner};
 use remu_harness::RemuIsaKind;
 use remu_isa::isa::IsaKind;
 use remu_isa::isa::extension_enum::{
-    RV32I, RV32I_wjCus0, RV32I_zve32x_zvl128b, RV32IM, RV32IM_wjCus0, RV32IM_zve32x_zvl128b, RV64I,
-    RV64IM,
+    RV32I, RV32I_zve32x_zvl128b, RV32IM, RV32IM_zve32x_zvl128b, RV64I, RV64IM,
 };
 use remu_simulator_nzea::NzeaIsaKind;
 use remu_types::{DifftestRef, Platform};
@@ -21,12 +20,6 @@ macro_rules! dispatch_remu {
         match $kind {
             RemuIsaKind::Rv32I => $runner.run_with_config::<$Config<RV32I>>($opt, $irq),
             RemuIsaKind::Rv32Im => $runner.run_with_config::<$Config<RV32IM>>($opt, $irq),
-            RemuIsaKind::Rv32IWjCus0 => {
-                $runner.run_with_config::<$Config<RV32I_wjCus0>>($opt, $irq)
-            }
-            RemuIsaKind::Rv32ImWjCus0 => {
-                $runner.run_with_config::<$Config<RV32IM_wjCus0>>($opt, $irq)
-            }
             RemuIsaKind::Rv32IZve32xZvl128b => {
                 $runner.run_with_config::<$Config<RV32I_zve32x_zvl128b>>($opt, $irq)
             }
@@ -44,12 +37,6 @@ macro_rules! dispatch_nzea {
         match $kind {
             NzeaIsaKind::Rv32I => $runner.run_with_config::<$Config<RV32I>>($opt, $irq),
             NzeaIsaKind::Rv32Im => $runner.run_with_config::<$Config<RV32IM>>($opt, $irq),
-            NzeaIsaKind::Rv32IWjCus0 => {
-                $runner.run_with_config::<$Config<RV32I_wjCus0>>($opt, $irq)
-            }
-            NzeaIsaKind::Rv32ImWjCus0 => {
-                $runner.run_with_config::<$Config<RV32IM_wjCus0>>($opt, $irq)
-            }
         }
     };
 }

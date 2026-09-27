@@ -13,8 +13,8 @@ pub(crate) use bytes::{
 };
 
 use crate::riscv::opcode::{
-    AUIPC, BRANCH, CUS0, JAL, JALR, LOAD, LOAD_FP, LUI, MISC_MEM, OP, OP_IMM, OP_V, STORE,
-    STORE_FP, SYSTEM, UNKNOWN,
+    AUIPC, BRANCH, JAL, JALR, LOAD, LOAD_FP, LUI, MISC_MEM, OP, OP_IMM, OP_V, STORE, STORE_FP,
+    SYSTEM, UNKNOWN,
 };
 
 /// Instruction kind: variant per concrete instruction (sub-enums flattened so
@@ -80,7 +80,6 @@ pub(crate) enum Inst {
     MiscMem(MISC_MEM::MiscMemInst),
     System(SYSTEM::SystemInst),
     V(OP_V::VInst),
-    Cus0(CUS0::Cus0Inst),
     // RV64 word ops (opcodes 0x1b / 0x3b)
     Addiw,
     Slliw,
@@ -157,13 +156,6 @@ pub(crate) fn decode<P: StatePolicy>(inst: u32) -> DecodedInst {
                 UNKNOWN::decode::<P>(inst)
             }
         }
-        CUS0::OPCODE => {
-            if <P::ISA as RvIsa>::HAS_WJ_CUS0 {
-                CUS0::decode::<P>(inst)
-            } else {
-                UNKNOWN::decode::<P>(inst)
-            }
-        }
         _ => UNKNOWN::decode::<P>(inst),
     }
 }
@@ -235,13 +227,6 @@ pub(crate) fn execute<P: StatePolicy, C: crate::ExecuteContext<P>>(
                 OP_V::execute(ctx, decoded, pc)
             } else {
                 unsafe { core::hint::unreachable_unchecked() }
-            }
-        }
-        Inst::Cus0(..) => {
-            if <P::ISA as RvIsa>::HAS_WJ_CUS0 {
-                CUS0::execute(ctx, decoded, pc)
-            } else {
-                UNKNOWN::execute(ctx, decoded, pc)
             }
         }
         Inst::Addiw if rv64::<P>() => OP_IMM::execute_addiw(ctx, decoded, pc),
@@ -338,6 +323,5 @@ pub(crate) const RV32_INSTRUCTION_MIX: &[(u32, u32)] = &[
     (STORE_FP::OPCODE, STORE_FP::INSTRUCTION_MIX),
     (SYSTEM::OPCODE, SYSTEM::INSTRUCTION_MIX),
     (OP_V::OPCODE, OP_V::INSTRUCTION_MIX),
-    (CUS0::OPCODE, CUS0::INSTRUCTION_MIX),
     (UNKNOWN::OPCODE, UNKNOWN::INSTRUCTION_MIX),
 ];

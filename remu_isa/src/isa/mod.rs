@@ -44,7 +44,6 @@ pub trait RvIsa: 'static + Copy {
     const MISA: u32 = 0x4000_0100;
     const HAS_M: bool = false;
     const HAS_F: bool = false;
-    const HAS_WJ_CUS0: bool = false;
 
     /// CSRs to compare in difftest, as segments: base segment(s) + optional extension segment(s).
     /// Default: base only. Override when V is present (e.g. [`CSRS_FOR_DIFFTEST_V`](crate::isa::reg::CSRS_FOR_DIFFTEST_V)).
@@ -64,9 +63,6 @@ pub enum ExtensionSpec {
     None,
     /// Zve32x + Zvl128b (V extension, VLENB=16).
     Zve32xZvl128b,
-    /// **wjCus0** custom opcode set (MNIST / accelerator); not a standard RISC-V letter.
-    /// ISA strings: `riscv32i_wjCus0`, `riscv32im_wjCus0`.
-    WjCus0,
 }
 
 impl FromStr for ExtensionSpec {
@@ -79,7 +75,6 @@ impl FromStr for ExtensionSpec {
         }
         match to_ascii_lowercase(s).as_str() {
             "zve32x_zvl128b" => Ok(ExtensionSpec::Zve32xZvl128b),
-            "wjcus0" => Ok(ExtensionSpec::WjCus0),
             _ => Err(format!("Unrecognized extension spec: '{}'", s)),
         }
     }
@@ -189,10 +184,6 @@ mod tests {
 
     #[test]
     fn names_extension_suffix() {
-        let spec = parsed("riscv32im_wjCus0");
-        assert_eq!(spec.base, IsaBase::Rv32Im);
-        assert_eq!(spec.extensions, ExtensionSpec::WjCus0);
-
         let spec = parsed("riscv32i_zve32x_zvl128b");
         assert_eq!(spec.base, IsaBase::Rv32I);
         assert_eq!(spec.extensions, ExtensionSpec::Zve32xZvl128b);
@@ -223,7 +214,7 @@ mod tests {
 
     #[test]
     fn rejects_bad_suffix() {
-        assert!(IsaSpec::from_str("riscv32im_wjCus0_zve32x_zvl128b").is_err());
+        assert!(IsaSpec::from_str("riscv32im_zve32x_zvl128b_extra").is_err());
         assert!(IsaSpec::from_str("riscv64im_foo").is_err());
     }
 }

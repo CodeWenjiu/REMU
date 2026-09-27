@@ -8,8 +8,8 @@
 //! do not go through xtask (e.g. the `just run-app --platform host` branch).
 //!
 //! Declared entries use the xtask target vocabulary (`riscv32im`, `riscv32i`,
-//! `riscv32imac`, `riscv64*`, with `_zve32x_zvl128b` / `_wjCus0` suffixes when
-//! needed) plus the special token `host`.
+//! `riscv32imac`, `riscv64*`, with `_zve32x_zvl128b` suffixes when needed) plus
+//! the special token `host`.
 
 use std::path::{Path, PathBuf};
 
@@ -201,10 +201,6 @@ mod tests {
         assert_eq!(
             requested_cap("riscv32im_zve32x_zvl128b"),
             requested_cap("riscv32im_zve32x_zvl128b-unknown-none-elf")
-        );
-        assert_eq!(
-            requested_cap("riscv64im_wjCus0"),
-            requested_cap("riscv64im_WJCUS0")
         );
         assert_eq!(requested_cap("foo.json"), Cap::Other);
         assert_eq!(requested_cap("x86_64-unknown-linux-gnu"), Cap::Other);

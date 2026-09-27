@@ -1,11 +1,11 @@
-//! MNIST inference backends: [`MnistInference`] implemented by
-//! [`WeightedInference`] (embedded INT8 weights) and [`Cus0Inference`] (CUS0 custom ISA only).
+//! MNIST inference backend: [`MnistInference`] implemented by
+//! [`WeightedInference`] (embedded INT8 weights).
 
-remu_macro::mod_prv!(cus0, cus0_asm, weighted);
+remu_macro::mod_prv!(weighted);
 
 use remu_hal::Vec;
 
-pub(crate) use cus0::Cus0Inference;
+pub(crate) use weighted::WeightedInference;
 
 include!(concat!(env!("OUT_DIR"), "/embedded_images.rs"));
 
@@ -134,7 +134,7 @@ pub(crate) trait MnistInference {
         remu_hal::println!("Use this as baseline for optimization comparisons");
     }
 
-    /// Per-layer micro-benchmarks; default is a no-op (e.g. CUS0 has no CPU weights).
+    /// Per-layer micro-benchmarks; default is a no-op.
     fn detailed_performance_analysis(&self) {
         remu_hal::println!("=== DETAILED PERFORMANCE ANALYSIS ===");
         remu_hal::println!("(not implemented for this backend)");

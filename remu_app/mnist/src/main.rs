@@ -7,8 +7,8 @@ use remu_hal::exit_success;
 
 use crate::inference::MnistInference;
 
-/// Switch backend: [`crate::inference::WeightedInference`] (CPU + weights) or [`crate::inference::Cus0Inference`].
-type Engine = crate::inference::Cus0Inference;
+/// Inference backend: [`crate::inference::WeightedInference`] (CPU + embedded weights).
+type Engine = crate::inference::WeightedInference;
 
 static BENCHMARK_MODE: bool = false;
 
