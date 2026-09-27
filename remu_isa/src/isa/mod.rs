@@ -7,6 +7,7 @@ use std::str::FromStr;
 use core::ops::{Deref, DerefMut, Index};
 
 use crate::Xlen;
+use crate::isa::extension_enum::Isa;
 use crate::isa::reg::CSRS_FOR_DIFFTEST_BASE;
 
 pub trait RvIsa: 'static + Copy {
@@ -36,6 +37,10 @@ pub trait RvIsa: 'static + Copy {
 
     /// V extension options. Use [`NoV`](crate::isa::extension_v::NoV) when disabled.
     type VConfig: crate::isa::extension_v::VExtensionConfig;
+
+    /// Value-level identity of this ISA: the same attributes as the type-level
+    /// pieces above, for consumers that do not carry the ISA as a type.
+    const ISA: Isa;
 
     const ISA_STR: &'static str = "rv32i";
     /// Low 32 bits of the `misa` CSR. The MXL field lives in bits [63:62] and
