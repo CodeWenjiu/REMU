@@ -24,8 +24,10 @@ When working with remu as an AI agent, **always** apply these rules:
    for `M × N` seconds. Use `watchdog=10` for programs whose steps are expected to
    take long (e.g. a slow access) between commits.
 
-3. **Check the exit code** — `GOOD EXIT` means success, `BAD EXIT` means the
-   program terminated abnormally. Any other output on stderr is an error.
+3. **Check the exit code** — in `--batch` mode the process status is the signal:
+   0 means the run finished, non-zero means failure (a startup command failed, or
+   the program reported a failing exit); the reason is on stderr. At the
+   interactive prompt the same outcomes print as `GOOD EXIT` / `BAD EXIT`.
 
 4. **`--batch` runs `--startup` then `quit`s, no implicit `continue`** — the
    startup script must end with `continue` or `step N` to drive program
@@ -221,7 +223,10 @@ value prints `n/a (reason)` instead of a fabricated number.
 
 ### Exit Codes
 
-- `GOOD EXIT`: program terminated via sifive_test_finisher with code 0x5555
-- `BAD EXIT`: program terminated with other finisher code
+- `GOOD EXIT` / `BAD EXIT`: printed at the interactive prompt when the program
+  terminates (finisher code 0x5555 vs anything else). `--batch` prints neither and
+  signals through the process status instead
 - Error output: difftest mismatches, state access errors, deadlock detection
-- exit code 0: success; non-zero: failure (check stderr for details)
+- exit code 0: success; non-zero: failure (check stderr for details) —
+  `startup failed` for a failing startup command, `program exited with failure`
+  for a program that reported `BAD EXIT`

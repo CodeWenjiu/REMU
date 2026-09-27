@@ -107,7 +107,12 @@ impl DebuggerRunner for APPRunner {
 
         // Run startup commands; the decision is made inside run_startup based on --batch.
         match debugger.run_startup(&option) {
-            StartupDecision::ExitOk => {
+            StartupDecision::Exit(outcome) => {
+                // A program that reported failure has no other signal in batch mode:
+                // the REPL-flavoured `BAD EXIT` line is not printed there.
+                if outcome == RunOutcome::ProgramExit(ExitCode::Bad) {
+                    return Err(anyhow::anyhow!("program exited with failure"));
+                }
                 return Ok(());
             }
             StartupDecision::ExitErr => {

@@ -25,8 +25,9 @@ use remu_types::TracerDyn;
 pub enum StartupDecision {
     /// Enter the interactive REPL (non-batch mode).
     EnterRepl,
-    /// Exit successfully (batch mode, startup ran without error).
-    ExitOk,
+    /// Leave the run (batch mode), reporting what the startup left behind so the
+    /// frontend can turn a failing program exit into a non-zero status.
+    Exit(RunOutcome),
     /// Exit with failure (batch mode, startup command failed; detail already printed).
     ExitErr,
 }
@@ -54,10 +55,10 @@ impl<C: PlatformConfig> Debugger<C> {
         let startup = crate::compound_command::startup_to_expr(&opt.startup);
         let result = self.execute_command_expr(&startup);
         if matches!(result, Err(DebuggerError::ExitRequested)) {
-            return StartupDecision::ExitOk;
+            return StartupDecision::Exit(RunOutcome::Done);
         }
         let batch_decision = match &result {
-            Ok(_) => StartupDecision::ExitOk,
+            Ok(outcome) => StartupDecision::Exit(*outcome),
             Err(e) => {
                 eprintln!("startup execution error: {}", e);
                 StartupDecision::ExitErr
