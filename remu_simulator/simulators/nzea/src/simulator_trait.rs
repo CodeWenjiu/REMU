@@ -18,10 +18,11 @@ use remu_state::bus::ObserverEvent;
 use crate::NzeaIsa;
 use crate::Watchdog;
 use crate::stat_schema::StatSchema;
-use crate::{CommitMsg, NzeaDpi, clear_nzea, set_nzea};
+use crate::{CommitMsg, clear_nzea, set_nzea};
 use crate::{ensure_nzea_loaded, get_nzea_fns};
 use remu_isa::WordOps;
 use remu_isa::Xlen;
+use remu_isa::isa::RvIsa;
 use remu_isa::isa::reg::{Csr as CsrKind, RegAccess};
 
 /// True after the first time wavetrace is enabled in this process; then we do not open trace.fst again,
@@ -68,7 +69,8 @@ where
     /// Function table loaded from libnzea.so
     fns: &'static crate::NzeaFns,
     tracer: TracerDyn,
-    commit_buffer: Vec<CommitMsg>,
+    /// Commits streamed from the RTL, typed by the ISA word (`u32`/`u64`).
+    commit_buffer: Vec<CommitMsg<<P::ISA as RvIsa>::XLEN>>,
     interrupt: Arc<std::sync::atomic::AtomicBool>,
     /// Whether the last committed instruction accessed an MMIO device.
     last_commit_is_mmio: bool,
@@ -118,7 +120,8 @@ where
         let model_c = CString::new(model_key.as_str()).expect("nzea model key contains null");
 
         let isa_str = <P::ISA as NzeaIsa>::NZEA_ISA_STR;
-        if let Err(e) = ensure_nzea_loaded(&target, isa_str) {
+        let xlen_bits = <<P::ISA as RvIsa>::XLEN as Xlen>::BITS;
+        if let Err(e) = ensure_nzea_loaded(&target, isa_str, xlen_bits) {
             panic!(
                 "nzea .so load failed for {}:{}: {e}",
                 target.as_str(),
@@ -161,9 +164,7 @@ where
     }
 
     fn init(&mut self) {
-        unsafe {
-            set_nzea(self as *mut Self as *mut dyn NzeaDpi);
-        }
+        set_nzea(self as *mut Self);
         let model_ptr = self.model_c.as_ptr();
         unsafe {
             (self.fns.set_reset)(self.sim_ptr, model_ptr, 1);
@@ -199,9 +200,7 @@ where
         // NZEA must be updated before each step: when set_nzea runs in init(), dut_model is still
         // a local in Harness::new; it is then moved into the Harness struct and the old address
         // becomes invalid. In step_once, self is the final location, so we must set it again.
-        unsafe {
-            set_nzea(self as *mut Self as *mut dyn NzeaDpi);
-        }
+        set_nzea(self as *mut Self);
         let mut cycle_count: u64 = 0;
         while self.commit_buffer.is_empty() {
             if let Some(ec) = self.pending_exit_code.take() {
@@ -225,11 +224,14 @@ where
             return Err(SimulatorInnerError::ProgramExit(ec));
         }
         let msg = self.commit_buffer.remove(0);
-        if IS_DUT && self.breakpoints.contains(&msg.next_pc) {
+        // Breakpoints are kept as 32-bit addresses for now; RV64 PCs above 4 GiB
+        // cannot match one (see RV64-ABI.md, remu-side follow-ups).
+        let next_pc32 = msg.next_pc.to_u32();
+        if IS_DUT && self.breakpoints.contains(&next_pc32) {
             if !self.breakpoint_apply_next {
                 self.breakpoint_apply_next = true;
                 self.commit_buffer.insert(0, msg);
-                return Err(SimulatorInnerError::BreakpointHit(msg.next_pc));
+                return Err(SimulatorInnerError::BreakpointHit(next_pc32));
             }
             self.breakpoint_apply_next = false;
         }
@@ -270,7 +272,7 @@ where
     P::ISA: NzeaIsa,
 {
     /// Push a commit from DPI; used by dpi_commit_trace.
-    pub(crate) fn push_commit_impl(&mut self, msg: CommitMsg) {
+    pub(crate) fn push_commit_impl(&mut self, msg: CommitMsg<<P::ISA as RvIsa>::XLEN>) {
         self.commit_buffer.push(msg);
     }
 
@@ -336,19 +338,21 @@ where
     }
 
     /// Apply a commit to state (for difftest).
-    fn apply_commit(&mut self, msg: CommitMsg) {
+    fn apply_commit(&mut self, msg: CommitMsg<<P::ISA as RvIsa>::XLEN>) {
         self.last_commit_is_mmio = msg.is_mmio;
-        *self.state.reg.pc = <<<P as remu_state::StatePolicy>::ISA as remu_isa::isa::RvIsa>::XLEN as Xlen>::from_u64(msg.next_pc as u64).into();
-        if msg.csr_valid {
-            if let Some(csr) = CsrKind::from_repr(msg.csr_addr as u16) {
-                self.state.reg.csr.write(csr, msg.csr_data);
-            }
+        *self.state.reg.pc = msg.next_pc;
+        if msg.csr_valid
+            && let Some(csr) = CsrKind::from_repr(msg.csr_addr)
+        {
+            // remu's CSR model is 32-bit wide (the difftest CSR protocol is);
+            // an RV64 CSR value keeps its low word here.
+            self.state.reg.csr.write(csr, msg.csr_data.to_u32());
         }
         if msg.gpr_addr < 32 && msg.gpr_addr != 0 {
             self.state
                 .reg
                 .gpr
-                .raw_write(msg.gpr_addr as usize, Xlen::from_u64(msg.gpr_data as u64));
+                .raw_write(msg.gpr_addr as usize, msg.gpr_data);
         }
     }
 
@@ -411,7 +415,7 @@ where
     fn drop(&mut self) {
         unsafe {
             (self.fns.destroy)(self.sim_ptr, self.model_c.as_ptr());
-            clear_nzea();
+            clear_nzea::<P, IS_DUT>();
         }
     }
 }

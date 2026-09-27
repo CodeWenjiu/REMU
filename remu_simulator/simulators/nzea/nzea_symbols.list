@@ -1,1 +1,1 @@
-{ bus_read; bus_write; commit_trace; };
+{ nzea_dpi_read32; nzea_dpi_write32; nzea_dpi_commit32; nzea_dpi_read64; nzea_dpi_write64; nzea_dpi_commit64; };

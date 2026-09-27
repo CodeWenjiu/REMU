@@ -37,6 +37,8 @@ macro_rules! dispatch_nzea {
         match $kind {
             NzeaIsaKind::Rv32I => $runner.run_with_config::<$Config<RV32I>>($opt, $irq),
             NzeaIsaKind::Rv32Im => $runner.run_with_config::<$Config<RV32IM>>($opt, $irq),
+            NzeaIsaKind::Rv64I => $runner.run_with_config::<$Config<RV64I>>($opt, $irq),
+            NzeaIsaKind::Rv64Im => $runner.run_with_config::<$Config<RV64IM>>($opt, $irq),
         }
     };
 }

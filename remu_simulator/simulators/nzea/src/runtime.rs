@@ -141,7 +141,7 @@ fn hash_scala_files(hasher: &mut Sha256, dir: &Path) -> io::Result<()> {
 // Build libnzea.so for one (target, isa)
 // ---------------------------------------------------------------------------
 
-fn build_nzea_so(target: &NzeaTarget, isa_str: &str) -> Result<(), String> {
+fn build_nzea_so(target: &NzeaTarget, isa_str: &str, xlen: u32) -> Result<(), String> {
     let t = target.as_str();
     let top_module = target.top_module();
     let nzea = nzea_dir();
@@ -249,7 +249,8 @@ fn build_nzea_so(target: &NzeaTarget, isa_str: &str) -> Result<(), String> {
         .arg("-Wno-sign-compare")
         .arg(format!("-DNZEA_MODEL_H=\"{prefix}.h\""))
         .arg(format!("-DNZEA_MODEL_TYPE={prefix}"))
-        .arg(format!("-DNZEA_MODEL_KEY=\"{t}:{isa_str}\""));
+        .arg(format!("-DNZEA_MODEL_KEY=\"{t}:{isa_str}\""))
+        .arg(format!("-DNZEA_XLEN={xlen}"));
 
     run_silent(&mut wcmd, &format!("wrapper compile {t}:{isa_str}"))?;
     spinner.inc(format!("linking {t}:{isa_str}..."));
@@ -286,7 +287,11 @@ fn build_nzea_so(target: &NzeaTarget, isa_str: &str) -> Result<(), String> {
 static NZEA_CACHE: Mutex<Option<HashMap<String, NzeaFns>>> = Mutex::new(None);
 
 /// Ensure the nzea .so for the given combination is built and loaded.
-pub(crate) fn ensure_nzea_loaded(target: &NzeaTarget, isa_str: &str) -> Result<(), String> {
+pub(crate) fn ensure_nzea_loaded(
+    target: &NzeaTarget,
+    isa_str: &str,
+    xlen: u32,
+) -> Result<(), String> {
     let key = format!("{}:{}", target.as_str(), isa_str);
     let mut cache = NZEA_CACHE.lock().map_err(|e| format!("lock: {e}"))?;
     if cache.is_none() {
@@ -306,7 +311,7 @@ pub(crate) fn ensure_nzea_loaded(target: &NzeaTarget, isa_str: &str) -> Result<(
         };
 
         if !fresh {
-            build_nzea_so(target, isa_str)?;
+            build_nzea_so(target, isa_str, xlen)?;
         }
 
         let lib =

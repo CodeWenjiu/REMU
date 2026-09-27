@@ -16,7 +16,7 @@ pub use simulator_trait::SimulatorNzea;
 pub use supported_isa::NzeaIsaKind;
 
 // Internal cross-module access
-pub(crate) use dpi::{CommitMsg, NzeaDpi, clear_nzea, set_nzea};
+pub(crate) use dpi::{CommitMsg, clear_nzea, set_nzea};
 pub(crate) use nzea_ffi::{NzeaFns, NzeaIsa, assemble_stat_value};
 pub(crate) use nzea_target::NzeaTarget;
 pub(crate) use runtime::{ensure_nzea_loaded, get_nzea_fns, verilog_dir};

@@ -1,6 +1,64 @@
+use remu_isa::Xlen;
 use remu_isa::isa::RvIsa;
 
 use crate::bus::{Bus, BusError, BusObserver};
+
+/// XLEN-wide bus word: maps one bus word (`u32` or `u64`) onto the concrete
+/// access width. Backends whose bus width follows XLEN (e.g. the nzea DPI
+/// boundary) read/write through [`Bus::read_word`] / [`Bus::write_word_masked`]
+/// instead of branching on `XLEN::BITS`.
+pub trait BusWord: Xlen {
+    fn read_bus<I: RvIsa, O: BusObserver>(
+        bus: &mut Bus<I, O>,
+        addr: usize,
+    ) -> Result<Self, BusError>;
+    fn write_bus_masked<I: RvIsa, O: BusObserver>(
+        bus: &mut Bus<I, O>,
+        addr: usize,
+        data: Self,
+        wstrb: u32,
+    ) -> Result<(), BusError>;
+}
+
+impl BusWord for u32 {
+    #[inline(always)]
+    fn read_bus<I: RvIsa, O: BusObserver>(
+        bus: &mut Bus<I, O>,
+        addr: usize,
+    ) -> Result<Self, BusError> {
+        bus.read_32(addr)
+    }
+
+    #[inline(always)]
+    fn write_bus_masked<I: RvIsa, O: BusObserver>(
+        bus: &mut Bus<I, O>,
+        addr: usize,
+        data: Self,
+        wstrb: u32,
+    ) -> Result<(), BusError> {
+        bus.write_32_masked(addr, data, wstrb)
+    }
+}
+
+impl BusWord for u64 {
+    #[inline(always)]
+    fn read_bus<I: RvIsa, O: BusObserver>(
+        bus: &mut Bus<I, O>,
+        addr: usize,
+    ) -> Result<Self, BusError> {
+        bus.read_64(addr)
+    }
+
+    #[inline(always)]
+    fn write_bus_masked<I: RvIsa, O: BusObserver>(
+        bus: &mut Bus<I, O>,
+        addr: usize,
+        data: Self,
+        wstrb: u32,
+    ) -> Result<(), BusError> {
+        bus.write_64_masked(addr, data, wstrb)
+    }
+}
 
 impl<I: RvIsa, O: BusObserver> Bus<I, O> {
     /// Fast path: only the RAM dcache hit. Returns `Some(v)` on hit, `None` on
@@ -373,6 +431,37 @@ impl<I: RvIsa, O: BusObserver> Bus<I, O> {
             }
         }
         self.write_32(addr, merged)
+    }
+
+    /// Write 64-bit with byte mask. Reads current value (no observer), merges in masked bytes, writes once.
+    #[inline(always)]
+    pub fn write_64_masked(&mut self, addr: usize, data: u64, wstrb: u32) -> Result<(), BusError> {
+        let old = self.read_64_impl::<false>(addr).unwrap_or(0);
+        let mut merged = old;
+        for i in 0..8 {
+            if (wstrb & (1 << i)) != 0 {
+                let mask = 0xffu64 << (i * 8);
+                merged = (merged & !mask) | (data & mask);
+            }
+        }
+        self.write_64(addr, merged)
+    }
+
+    /// Read one XLEN-wide bus word; the width follows `W` (`u32`/`u64`) at compile time.
+    #[inline(always)]
+    pub fn read_word<W: BusWord>(&mut self, addr: usize) -> Result<W, BusError> {
+        W::read_bus(self, addr)
+    }
+
+    /// Masked write of one XLEN-wide bus word; the width follows `W` at compile time.
+    #[inline(always)]
+    pub fn write_word_masked<W: BusWord>(
+        &mut self,
+        addr: usize,
+        data: W,
+        wstrb: u32,
+    ) -> Result<(), BusError> {
+        W::write_bus_masked(self, addr, data, wstrb)
     }
 
     /// Fast path: write to RAM (dcache hit). See `write_8_fast`.

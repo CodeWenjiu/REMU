@@ -4,6 +4,7 @@ remu_macro::mod_prv!(error, parse, access, observer);
 
 use std::{marker::PhantomData, ops::Range, sync::Arc};
 
+pub use access::BusWord;
 pub use device::DeviceKind;
 pub use error::BusError;
 pub use flow::{BusCmd, BusOption, ReadArgs, ReadCommand, WriteCommand};

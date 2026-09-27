@@ -5,7 +5,7 @@ use std::ffi::{c_char, c_void};
 
 use libloading::Library;
 
-use remu_isa::isa::extension_enum::{RV32I, RV32IM};
+use remu_isa::isa::extension_enum::{RV32I, RV32IM, RV64I, RV64IM};
 
 /// Callback invoked by `nzea_iter_stats` for each stat_* counter: the leaf name
 /// (NUL-terminated), the raw VPI words (`lo` first) and the signal's actual
@@ -75,8 +75,11 @@ impl NzeaFns {
 // ISA string mapping
 // ---------------------------------------------------------------------------
 
-/// ISA string for nzea DPI; must match nzea `just dump --isa <str>`.
-pub trait NzeaIsa: remu_isa::isa::RvIsa {
+/// ISA string for nzea DPI; must match nzea `just dump --isa <str>`. The
+/// associated type bound ties the ISA's XLEN to the machine words the DPI
+/// boundary has a channel for (`u32`/`u64`): an ISA whose XLEN is neither is
+/// rejected when it tries to implement this trait, not at runtime.
+pub trait NzeaIsa: remu_isa::isa::RvIsa<XLEN: crate::dpi::DpiChannel> {
     const NZEA_ISA_STR: &'static str;
 }
 
@@ -86,6 +89,14 @@ impl NzeaIsa for RV32I {
 
 impl NzeaIsa for RV32IM {
     const NZEA_ISA_STR: &'static str = "riscv32im";
+}
+
+impl NzeaIsa for RV64I {
+    const NZEA_ISA_STR: &'static str = "riscv64i";
+}
+
+impl NzeaIsa for RV64IM {
+    const NZEA_ISA_STR: &'static str = "riscv64im";
 }
 
 #[cfg(test)]
