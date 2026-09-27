@@ -53,16 +53,20 @@ impl<C: PlatformConfig> Debugger<C> {
     pub fn run_startup(&mut self, opt: &DebuggerOption) -> StartupDecision {
         let startup = crate::compound_command::startup_to_expr(&opt.startup);
         let result = self.execute_command_expr(&startup);
-        if !opt.batch {
-            return StartupDecision::EnterRepl;
+        if matches!(result, Err(DebuggerError::ExitRequested)) {
+            return StartupDecision::ExitOk;
         }
-        match result {
-            Err(DebuggerError::ExitRequested) => StartupDecision::ExitOk,
+        let batch_decision = match &result {
+            Ok(_) => StartupDecision::ExitOk,
             Err(e) => {
                 eprintln!("startup execution error: {}", e);
                 StartupDecision::ExitErr
             }
-            Ok(_) => StartupDecision::ExitOk,
+        };
+        if opt.batch {
+            batch_decision
+        } else {
+            StartupDecision::EnterRepl
         }
     }
 

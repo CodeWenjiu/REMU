@@ -108,7 +108,6 @@ impl DebuggerRunner for APPRunner {
         // Run startup commands; the decision is made inside run_startup based on --batch.
         match debugger.run_startup(&option) {
             StartupDecision::ExitOk => {
-                println!("{}", "Quiting...".cyan());
                 return Ok(());
             }
             StartupDecision::ExitErr => {
@@ -120,7 +119,9 @@ impl DebuggerRunner for APPRunner {
         let mut line_editor = get_editor(option.platform);
         let prompt = get_prompt(option.platform);
 
-        hello();
+        if option.startup.is_empty() {
+            hello();
+        }
 
         loop {
             let sig = line_editor.read_line(&prompt);
