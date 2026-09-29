@@ -15,8 +15,10 @@ use std::path::{Path, PathBuf};
 use super::Unavailable;
 use super::expr::{Node, eval, parse};
 
-/// Schema format version this remu understands. Unknown versions fail loudly.
-const SUPPORTED_SCHEMA: i64 = 1;
+/// The only schema format version this remu understands. v2 adds a required
+/// `source` (the declaring block) on counters and derived entries; any other
+/// version fails loudly.
+const SUPPORTED_SCHEMA: i64 = 2;
 
 /// Largest counter width that fits the u64 C callback.
 const MAX_COUNTER_WIDTH: i64 = 64;
@@ -35,6 +37,8 @@ pub(crate) struct Region {
 #[derive(Debug)]
 pub(crate) struct Counter {
     pub(crate) name: String,
+    /// Declaring block (schema v2).
+    pub(crate) source: String,
     /// Declared RTL width. Cross-checked against VPI's actual width when the
     /// counters are read; a mismatch is a build mismatch (like a missing one).
     pub(crate) width: u32,
@@ -148,6 +152,7 @@ impl StatSchema {
         for (i, c) in entries(table, "counter", path)?.into_iter().enumerate() {
             let loc = format!("counter[{i}]");
             let name = str_key(c, "name", path, &loc)?;
+            let source = source_key(c, path, &loc, &name)?;
             let width = int_key(c, "width", path, &loc)?;
             let region = str_key(c, "region", path, &loc)?;
             let doc = str_key(c, "doc", path, &loc)?;
@@ -177,6 +182,7 @@ impl StatSchema {
             }
             counters.push(Counter {
                 name,
+                source,
                 width: width as u32,
                 region,
                 doc,
@@ -187,6 +193,9 @@ impl StatSchema {
         for (i, d) in entries(table, "derived", path)?.into_iter().enumerate() {
             let loc = format!("derived[{i}]");
             let name = str_key(d, "name", path, &loc)?;
+            // Required and validated (schema v2); not retained — no consumer for
+            // a derived entry's `source` yet.
+            source_key(d, path, &loc, &name)?;
             let expr = str_key(d, "expr", path, &loc)?;
             let region = str_key(d, "region", path, &loc)?;
             let unit = str_key(d, "unit", path, &loc)?;
@@ -321,6 +330,24 @@ impl StatSchema {
     }
 }
 
+/// `source` (schema v2): the block that declares the entry — a short lowercase
+/// identifier, not an instance path. Unknown values are fine; the set grows
+/// with the design, there is no whitelist.
+fn source_key(value: &toml::Value, path: &Path, loc: &str, entry: &str) -> Result<String, String> {
+    let s = str_key(value, "source", path, loc)?;
+    let head_ok = s.chars().next().is_some_and(|c| c.is_ascii_lowercase());
+    let tail_ok = s
+        .chars()
+        .all(|c| c.is_ascii_lowercase() || c.is_ascii_digit() || c == '_');
+    if !(head_ok && tail_ok) {
+        return Err(format!(
+            "{}: {loc}: `{entry}` declares invalid source `{s}` (expected [a-z][a-z0-9_]*)",
+            path.display()
+        ));
+    }
+    Ok(s)
+}
+
 /// Locate the schema file: `<design>.stats.toml`, else the single
 /// `*.stats.toml` in the directory, else nothing.
 fn find_schema_file(dir: &Path, design: &str) -> Result<Option<PathBuf>, String> {
@@ -382,9 +409,10 @@ fn int_key(v: &toml::Value, key: &str, path: &Path, loc: &str) -> Result<i64, St
 #[cfg(test)]
 mod tests {
     use super::*;
-    /// The real NzeaCore schema, as emitted by nzea's dump.
+    /// The NzeaCore schema (v2 shape): the v1 entries plus their declaring
+    /// blocks (`source`).
     const CORE_SCHEMA: &str = r#"
-schema = 1
+schema = 2
 design = "NzeaCore"
 
 [[region]]
@@ -398,36 +426,42 @@ doc = "Branch prediction"
 [[counter]]
 name = "stat_cycle"
 width = 64
+source = "middle"
 region = "throughput"
 doc = "core clock cycles"
 
 [[counter]]
 name = "stat_inst_commit"
 width = 64
+source = "middle"
 region = "throughput"
 doc = "retired instructions"
 
 [[counter]]
 name = "stat_bp_branch"
 width = 32
+source = "bru"
 region = "bp"
 doc = "resolved branches"
 
 [[counter]]
 name = "stat_bp_mispred"
 width = 32
+source = "bru"
 region = "bp"
 doc = "branches whose prediction was wrong"
 
 [[counter]]
 name = "stat_bp_actual_taken"
 width = 32
+source = "bru"
 region = "bp"
 doc = "branches actually taken"
 
 [[derived]]
 name = "ipc"
 expr = "stat_inst_commit / stat_cycle"
+source = "middle"
 region = "throughput"
 unit = ""
 digits = 4
@@ -436,6 +470,7 @@ doc = "instructions per cycle"
 [[derived]]
 name = "cpi"
 expr = "1 / ipc"
+source = "middle"
 region = "throughput"
 unit = ""
 digits = 4
@@ -444,6 +479,7 @@ doc = "cycles per instruction"
 [[derived]]
 name = "mispredict_rate"
 expr = "stat_bp_mispred / stat_bp_branch * 100"
+source = "bru"
 region = "bp"
 unit = "%"
 digits = 2
@@ -452,6 +488,7 @@ doc = "share of resolved branches predicted wrongly"
 [[derived]]
 name = "taken_rate"
 expr = "stat_bp_actual_taken / stat_bp_branch * 100"
+source = "bru"
 region = "bp"
 unit = "%"
 digits = 2
@@ -553,23 +590,78 @@ doc = "share of resolved branches actually taken"
     }
 
     #[test]
+    fn source_is_retained() {
+        let s = core_schema();
+        assert_eq!(s.counters[0].source, "middle");
+        assert_eq!(s.counters[2].source, "bru");
+    }
+
+    #[test]
+    fn source_is_required() {
+        let text = CORE_SCHEMA.replacen("source = \"middle\"\n", "", 1);
+        let table: toml::Table = text.parse().expect("toml");
+        let err = StatSchema::from_table(Path::new("NzeaCore.stats.toml"), &table).unwrap_err();
+        assert!(err.contains("counter[0]"), "{err}");
+        assert!(err.contains("missing or invalid key `source`"), "{err}");
+        // The requirement covers derived entries as well.
+        let text = CORE_SCHEMA.replacen(
+            "expr = \"stat_inst_commit / stat_cycle\"\nsource = \"middle\"\n",
+            "expr = \"stat_inst_commit / stat_cycle\"\n",
+            1,
+        );
+        let table: toml::Table = text.parse().expect("toml");
+        let err = StatSchema::from_table(Path::new("NzeaCore.stats.toml"), &table).unwrap_err();
+        assert!(err.contains("derived[0]"), "{err}");
+        assert!(err.contains("missing or invalid key `source`"), "{err}");
+    }
+
+    #[test]
+    fn invalid_source_is_rejected() {
+        for bad_source in ["Middle", "1middle", "_middle", "mid-dle", ""] {
+            for pattern in [
+                "width = 64\nsource = \"middle\"",
+                "expr = \"stat_inst_commit / stat_cycle\"\nsource = \"middle\"",
+            ] {
+                let text = CORE_SCHEMA.replacen(
+                    pattern,
+                    &pattern.replace("source = \"middle\"", &format!("source = \"{bad_source}\"")),
+                    1,
+                );
+                let table: toml::Table = text.parse().expect("toml");
+                let err =
+                    StatSchema::from_table(Path::new("NzeaCore.stats.toml"), &table).unwrap_err();
+                assert!(
+                    err.contains("invalid source"),
+                    "{bad_source:?} in {pattern:?}: {err}"
+                );
+            }
+        }
+    }
+
+    #[test]
     fn schema_validation_errors() {
         let bad = |text: &str| {
             let table: toml::Table = text.parse().expect("toml");
             StatSchema::from_table(Path::new("NzeaCore.stats.toml"), &table).unwrap_err()
         };
         assert!(
-            bad("schema = 2\ndesign = \"NzeaCore\"\n").contains("unsupported schema version 2")
+            bad("schema = 3\ndesign = \"NzeaCore\"\n").contains("unsupported schema version 3")
         );
         assert!(bad("design = \"NzeaCore\"\n").contains("`schema`"));
-        assert!(bad("schema = 1\ndesign = \"Other\"\n").contains("does not match the file name"));
+        // v1 dumps are rejected loudly: the reader supports schema 2 only.
+        assert!(
+            bad("schema = 1\ndesign = \"NzeaCore\"\n")
+                .contains("unsupported schema version 1 (this remu supports 2)")
+        );
+        assert!(bad("schema = 2\ndesign = \"Other\"\n").contains("does not match the file name"));
         assert!(
             bad(r#"
-schema = 1
+schema = 2
 design = "NzeaCore"
 [[counter]]
 name = "stat_wide"
 width = 128
+source = "x"
 region = "r"
 doc = "x"
 [[region]]
@@ -580,7 +672,7 @@ doc = "x"
         );
         assert!(
             bad(r#"
-schema = 1
+schema = 2
 design = "NzeaCore"
 [[region]]
 name = "r"
@@ -588,6 +680,7 @@ doc = "x"
 [[derived]]
 name = "rate"
 expr = "nosuch / stat_a"
+source = "x"
 region = "r"
 unit = ""
 digits = 2
@@ -597,7 +690,7 @@ doc = "x"
         );
         assert!(
             bad(r#"
-schema = 1
+schema = 2
 design = "NzeaCore"
 [[region]]
 name = "r"
@@ -605,6 +698,7 @@ doc = "x"
 [[counter]]
 name = "stat_a"
 width = 32
+source = "x"
 region = "nowhere"
 doc = "x"
 "#)
@@ -612,7 +706,7 @@ doc = "x"
         );
         assert!(
             bad(r#"
-schema = 1
+schema = 2
 design = "NzeaCore"
 [[region]]
 name = "r"
@@ -620,6 +714,7 @@ doc = "x"
 [[derived]]
 name = "rate"
 expr = "1 +"
+source = "x"
 region = "r"
 unit = ""
 digits = 2

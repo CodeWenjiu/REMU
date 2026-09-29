@@ -392,14 +392,14 @@ where
         for c in &schema.counters {
             let Some(actual) = collector.width.get(&c.name) else {
                 return Err(format!(
-                    "schema declares counter `{}` but the RTL exposes no such signal (build mismatch)",
-                    c.name
+                    "schema declares counter `{}` (source `{}`) but the RTL exposes no such signal (build mismatch)",
+                    c.name, c.source
                 ));
             };
             if *actual != c.width {
                 return Err(format!(
-                    "schema declares counter `{}` as {}-bit but the RTL exposes it as {}-bit (build mismatch)",
-                    c.name, c.width, actual
+                    "schema declares counter `{}` (source `{}`) as {}-bit but the RTL exposes it as {}-bit (build mismatch)",
+                    c.name, c.source, c.width, actual
                 ));
             }
         }

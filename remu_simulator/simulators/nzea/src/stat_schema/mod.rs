@@ -1,6 +1,7 @@
 //! Stat schema: the RTL declares what it measures, remu reads the declaration,
 //! evaluates it and renders it. No metric, region or format string is known to
-//! remu any more (see the nzea handoff document, schema = 1).
+//! remu any more (see the nzea handoff documents, schema = 2: every counter and
+//! derived entry declares the `source` block that owns it).
 //!
 //! The schema file is `<verilog_dir>/<Design>.stats.toml`, emitted by nzea's
 //! dump next to `filelist.f`: the `schema` module parses and validates it, the
