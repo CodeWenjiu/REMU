@@ -52,6 +52,16 @@ pub(crate) trait DeviceAccess: Send + Sync {
     fn name(&self) -> &str;
     fn size(&self) -> usize;
 
+    /// Widest single access this device implements. An XLEN-wide access that
+    /// starts inside the window is folded down to this width: a masked 64-bit
+    /// write to a 32-bit device becomes per-4-byte-group read-modify-writes (the
+    /// byte strobes are honoured), and a 64-bit read composes the covered 32-bit
+    /// groups. Default 32 (plain registers); a device with real 64-bit registers
+    /// (CLINT) raises it so those accesses stay atomic.
+    fn access_width(&self) -> usize {
+        32
+    }
+
     /// Extra memory regions this device requires (e.g. a framebuffer). These are
     /// appended to the bus memory map before `Bus::new` builds `Memory`.
     /// Default: none.

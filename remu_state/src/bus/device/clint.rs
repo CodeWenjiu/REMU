@@ -10,7 +10,7 @@
 
 use std::time::Instant;
 
-use crate::bus::{device::DeviceAccess, BusError};
+use crate::bus::{BusError, device::DeviceAccess};
 
 /// CLINT size per RISC-V platform spec (e.g. SiFive).
 const CLINT_SIZE: usize = 0xC000;
@@ -63,6 +63,10 @@ impl DeviceAccess for Clint {
 
     fn size(&self) -> usize {
         CLINT_SIZE
+    }
+
+    fn access_width(&self) -> usize {
+        64
     }
 
     fn read_32(&mut self, offset: usize) -> Result<u32, BusError> {

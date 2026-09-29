@@ -46,20 +46,27 @@ where
 {
     #[inline(always)]
     fn dpi_read(&mut self, addr: usize) -> W {
-        self.state_mut()
-            .bus
-            .read_word::<W>(addr)
-            .unwrap_or_default()
+        match self.state_mut().bus.read_word::<W>(addr) {
+            Ok(v) => v,
+            Err(e) => {
+                // A read the bus rejects (unmapped, unsupported width) must fail
+                // the run instead of reading as zero; `step_once` reports it.
+                self.set_pending_bus_error(e);
+                W::default()
+            }
+        }
     }
 
     #[inline(always)]
     fn dpi_write(&mut self, addr: usize, data: W, wstrb: u32) {
-        let res = self
+        match self
             .state_mut()
             .bus
-            .write_word_masked::<W>(addr, data, wstrb);
-        if let Err(BusError::ProgramExit(ec)) = res {
-            self.set_pending_exit_code(ec);
+            .write_word_masked::<W>(addr, data, wstrb)
+        {
+            Ok(()) => {}
+            Err(BusError::ProgramExit(ec)) => self.set_pending_exit_code(ec),
+            Err(e) => self.set_pending_bus_error(e),
         }
     }
 

@@ -235,14 +235,13 @@ int nzea_iter_stats(void* sim, nzea_stat_callback cb, void* userdata) {
 // ---------------------------------------------------------------------------
 //
 // The RTL's DPI imports (see the generated `*__Dpi.h`) are XLEN-wide: an RV32
-// model calls `bus_read(unsigned int, unsigned int*)`, an RV64 model calls
-// `bus_read(unsigned long long, unsigned long long*)`. nzea generates those
-// unsigned fixed-width types explicitly (see RV64-ABI.md); `int` shares the same
-// ABI, so models built before that change still link and run.
-//
-// These shims are compiled per model width (NZEA_XLEN) and forward **same-width**
-// to the Rust entry points (`nzea_dpi_*32/64`, exported by the host through
-// `--dynamic-list`); nothing is widened or narrowed here.
+// model calls `bus_read(int, int*)`, an RV64 model calls
+// `bus_read(long long, long long*)` (CIRCT emits signed `int` / `longint`, and
+// `bit` for the two 1-bit flags). These shims are spelled exactly like those
+// declarations and forward **same-width** to the Rust entry points
+// (`nzea_dpi_*32/64`, exported by the host through `--dynamic-list`); the
+// static_casts only restore the unsigned semantics remu uses internally — no
+// value is widened or narrowed.
 
 void nzea_dpi_read32(uint32_t addr, uint32_t* rdata);
 void nzea_dpi_write32(uint32_t addr, uint32_t wdata, uint32_t wstrb);
@@ -257,18 +256,17 @@ void nzea_dpi_commit64(uint64_t next_pc, unsigned char csr_valid, uint32_t csr_a
 
 #if NZEA_XLEN == 64
 
-extern "C" void bus_read(unsigned long long addr, unsigned long long* rdata) {
+extern "C" void bus_read(long long addr, long long* rdata) {
     nzea_dpi_read64(static_cast<uint64_t>(addr), reinterpret_cast<uint64_t*>(rdata));
 }
 
-extern "C" void bus_write(unsigned long long addr, unsigned long long wdata, unsigned int wstrb) {
+extern "C" void bus_write(long long addr, long long wdata, int wstrb) {
     nzea_dpi_write64(static_cast<uint64_t>(addr), static_cast<uint64_t>(wdata),
                      static_cast<uint32_t>(wstrb));
 }
 
-extern "C" void commit_trace(unsigned long long next_pc, unsigned char csr_valid,
-                             unsigned int csr_addr, unsigned long long csr_data,
-                             unsigned int gpr_addr, unsigned long long gpr_data,
+extern "C" void commit_trace(long long next_pc, unsigned char csr_valid, int csr_addr,
+                             long long csr_data, int gpr_addr, long long gpr_data,
                              unsigned char is_mmio) {
     nzea_dpi_commit64(static_cast<uint64_t>(next_pc), csr_valid, static_cast<uint32_t>(csr_addr),
                       static_cast<uint64_t>(csr_data), static_cast<uint32_t>(gpr_addr),
@@ -277,18 +275,17 @@ extern "C" void commit_trace(unsigned long long next_pc, unsigned char csr_valid
 
 #else
 
-extern "C" void bus_read(unsigned int addr, unsigned int* rdata) {
+extern "C" void bus_read(int addr, int* rdata) {
     nzea_dpi_read32(static_cast<uint32_t>(addr), reinterpret_cast<uint32_t*>(rdata));
 }
 
-extern "C" void bus_write(unsigned int addr, unsigned int wdata, unsigned int wstrb) {
+extern "C" void bus_write(int addr, int wdata, int wstrb) {
     nzea_dpi_write32(static_cast<uint32_t>(addr), static_cast<uint32_t>(wdata),
                      static_cast<uint32_t>(wstrb));
 }
 
-extern "C" void commit_trace(unsigned int next_pc, unsigned char csr_valid, unsigned int csr_addr,
-                             unsigned int csr_data, unsigned int gpr_addr, unsigned int gpr_data,
-                             unsigned char is_mmio) {
+extern "C" void commit_trace(int next_pc, unsigned char csr_valid, int csr_addr, int csr_data,
+                             int gpr_addr, int gpr_data, unsigned char is_mmio) {
     nzea_dpi_commit32(static_cast<uint32_t>(next_pc), csr_valid, static_cast<uint32_t>(csr_addr),
                       static_cast<uint32_t>(csr_data), static_cast<uint32_t>(gpr_addr),
                       static_cast<uint32_t>(gpr_data), is_mmio);

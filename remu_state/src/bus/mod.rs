@@ -250,6 +250,20 @@ impl<I: RvIsa, O: BusObserver> Bus<I, O> {
         None
     }
 
+    /// Device whose window contains `addr` (the first byte of an access). Unlike
+    /// [`find_device_mut`](Self::find_device_mut) this does not require the whole
+    /// access to fit: an XLEN-wide access may start inside a narrower device
+    /// window, and the bus folds it to the device's `access_width`.
+    fn find_device_at(&mut self, addr: usize) -> Option<(usize, &mut Box<dyn DeviceAccess>)> {
+        for (cfg, device) in self.device.iter_mut() {
+            if addr >= cfg.start && addr < cfg.start + device.size() {
+                return Some((cfg.start, device));
+            }
+        }
+
+        None
+    }
+
     /// Start address of the first device of `kind`, if it is mapped.
     /// Lets the boot-info writer (`--firmware` setup) resolve the device map
     /// without duplicating it; the address comes from the same configuration

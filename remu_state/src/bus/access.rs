@@ -60,6 +60,32 @@ impl BusWord for u64 {
     }
 }
 
+/// Merge masked bytes into `old` (little-endian byte lanes: strobe bit i enables byte i).
+#[inline(always)]
+fn merge_masked_32(old: u32, data: u32, wstrb: u32) -> u32 {
+    let mut merged = old;
+    for i in 0..4 {
+        if (wstrb & (1 << i)) != 0 {
+            let mask = 0xffu32 << (i * 8);
+            merged = (merged & !mask) | (data & mask);
+        }
+    }
+    merged
+}
+
+/// 64-bit counterpart of [`merge_masked_32`].
+#[inline(always)]
+fn merge_masked_64(old: u64, data: u64, wstrb: u32) -> u64 {
+    let mut merged = old;
+    for i in 0..8 {
+        if (wstrb & (1 << i)) != 0 {
+            let mask = 0xffu64 << (i * 8);
+            merged = (merged & !mask) | (data & mask);
+        }
+    }
+    merged
+}
+
 impl<I: RvIsa, O: BusObserver> Bus<I, O> {
     /// Fast path: only the RAM dcache hit. Returns `Some(v)` on hit, `None` on
     /// miss with **no refill side-effect** (see `Memory::read_8_hit`). Inlined
@@ -204,8 +230,21 @@ impl<I: RvIsa, O: BusObserver> Bus<I, O> {
             return Ok(v);
         }
 
-        if let Some(d) = self.find_device_mut(addr..addr + 8) {
-            let val = d.1.read_64(addr - d.0)?;
+        // A 64-bit access may start inside a narrower device window: read the
+        // 32-bit groups the window covers and zero the rest of the word.
+        if let Some((base, dev)) = self.find_device_at(addr) {
+            let off = addr - base;
+            let val = if dev.access_width() >= 64 && off + 8 <= dev.size() {
+                dev.read_64(off)?
+            } else {
+                let lo = dev.read_32(off)?;
+                let hi = if off + 8 <= dev.size() {
+                    dev.read_32(off + 4)?
+                } else {
+                    0
+                };
+                u64::from(lo) | (u64::from(hi) << 32)
+            };
             if O::ENABLED && NOTIFY_OBSERVER {
                 self.observer.on_mmio_read_64(addr, val);
             }
@@ -423,28 +462,51 @@ impl<I: RvIsa, O: BusObserver> Bus<I, O> {
     #[inline(always)]
     pub fn write_32_masked(&mut self, addr: usize, data: u32, wstrb: u32) -> Result<(), BusError> {
         let old = self.read_32_impl::<false>(addr).unwrap_or(0);
-        let mut merged = old;
-        for i in 0..4 {
-            if (wstrb & (1 << i)) != 0 {
-                let mask = 0xff << (i * 8);
-                merged = (merged & !mask) | (data & mask);
-            }
-        }
-        self.write_32(addr, merged)
+        self.write_32(addr, merge_masked_32(old, data, wstrb))
     }
 
-    /// Write 64-bit with byte mask. Reads current value (no observer), merges in masked bytes, writes once.
+    /// Write 64-bit with byte mask. RAM: read-modify-write, one store. Device:
+    /// folded to the device's `access_width`; a strobed byte outside the device
+    /// window is `unmapped`.
     #[inline(always)]
     pub fn write_64_masked(&mut self, addr: usize, data: u64, wstrb: u32) -> Result<(), BusError> {
-        let old = self.read_64_impl::<false>(addr).unwrap_or(0);
-        let mut merged = old;
-        for i in 0..8 {
-            if (wstrb & (1 << i)) != 0 {
-                let mask = 0xffu64 << (i * 8);
-                merged = (merged & !mask) | (data & mask);
-            }
+        if let Some(old) = self.memory.read_64(addr) {
+            return self.write_64(addr, merge_masked_64(old, data, wstrb));
         }
-        self.write_64(addr, merged)
+
+        if let Some((base, dev)) = self.find_device_at(addr) {
+            let off = addr - base;
+            if dev.access_width() >= 64 && off + 8 <= dev.size() {
+                let old = dev.read_64(off).unwrap_or(0);
+                dev.write_64(off, merge_masked_64(old, data, wstrb))?;
+            } else {
+                // Narrow device: one read-modify-write per 32-bit group the
+                // strobes hit; groups outside the window are an error.
+                if wstrb & 0x0F != 0 {
+                    if off + 4 > dev.size() {
+                        return Err(BusError::unmapped(addr));
+                    }
+                    let old = dev.read_32(off).unwrap_or(0);
+                    dev.write_32(off, merge_masked_32(old, data as u32, wstrb & 0x0F))?;
+                }
+                if wstrb & 0xF0 != 0 {
+                    if off + 8 > dev.size() {
+                        return Err(BusError::unmapped(addr + 4));
+                    }
+                    let old = dev.read_32(off + 4).unwrap_or(0);
+                    dev.write_32(
+                        off + 4,
+                        merge_masked_32(old, (data >> 32) as u32, (wstrb >> 4) & 0x0F),
+                    )?;
+                }
+            }
+            if O::ENABLED {
+                self.observer.on_mmio_write_64(addr, data);
+            }
+            return Ok(());
+        }
+
+        Err(BusError::unmapped(addr))
     }
 
     /// Read one XLEN-wide bus word; the width follows `W` (`u32`/`u64`) at compile time.

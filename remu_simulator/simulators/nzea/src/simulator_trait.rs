@@ -5,7 +5,7 @@ use std::ffi::{CString, c_void};
 use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, Ordering};
 
-use remu_state::{State, StateCmd};
+use remu_state::{State, StateCmd, StateError};
 use remu_types::{ExitCode, TraceFlags, TraceKind, TracerDyn};
 
 use remu_simulator::{
@@ -13,7 +13,7 @@ use remu_simulator::{
     SimulatorPolicy, StatCmd, StatEntry, from_state_error,
 };
 
-use remu_state::bus::ObserverEvent;
+use remu_state::bus::{BusError, ObserverEvent};
 
 use crate::NzeaIsa;
 use crate::Watchdog;
@@ -82,6 +82,9 @@ where
     breakpoint_apply_next: bool,
     /// Set when DPI bus_write hits sifive_test_finisher; consumed by step_once.
     pending_exit_code: Option<ExitCode>,
+    /// Set when a DPI access fails for a reason other than program exit (unmapped
+    /// MMIO, unsupported width); consumed by step_once and reported, never dropped.
+    pending_bus_error: Option<Box<BusError>>,
     /// Total clock cycles executed (each cycle() = one clock).
     cycle_count: u64,
     /// The RTL's stats declaration (`<Design>.stats.toml` next to `filelist.f`),
@@ -158,6 +161,7 @@ where
             breakpoints: Vec::new(),
             breakpoint_apply_next: false,
             pending_exit_code: None,
+            pending_bus_error: None,
             cycle_count: 0,
             schema,
         }
@@ -206,6 +210,9 @@ where
             if let Some(ec) = self.pending_exit_code.take() {
                 return Err(SimulatorInnerError::ProgramExit(ec));
             }
+            if let Some(e) = self.pending_bus_error.take() {
+                return Err(from_state_error(StateError::BusError(e)));
+            }
             self.cycle::<TRACE>();
             cycle_count += 1;
             if cycle_count.is_multiple_of(1024)
@@ -222,6 +229,9 @@ where
         }
         if let Some(ec) = self.pending_exit_code.take() {
             return Err(SimulatorInnerError::ProgramExit(ec));
+        }
+        if let Some(e) = self.pending_bus_error.take() {
+            return Err(from_state_error(StateError::BusError(e)));
         }
         let msg = self.commit_buffer.remove(0);
         // Breakpoints are kept as 32-bit addresses for now; RV64 PCs above 4 GiB
@@ -291,7 +301,12 @@ where
             .then_some(SimulatorInnerError::Interrupted)
     }
 
-    /// Set by dpi_write_32 when sifive_test_finisher is written; consumed by step_once.
+    /// Set by the DPI bus path when an access fails; consumed by step_once.
+    pub(crate) fn set_pending_bus_error(&mut self, e: BusError) {
+        self.pending_bus_error.get_or_insert_with(|| Box::new(e));
+    }
+
+    /// Set by dpi_write when sifive_test_finisher is written; consumed by step_once.
     pub(crate) fn set_pending_exit_code(&mut self, ec: ExitCode) {
         self.pending_exit_code = Some(ec);
     }
