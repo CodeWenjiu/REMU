@@ -10,7 +10,7 @@ use remu_types::{ExitCode, TraceFlags, TraceKind, TracerDyn};
 
 use remu_simulator::{
     BreakpointErrorKind, SimulatorCore, SimulatorDut, SimulatorInnerError, SimulatorOption,
-    SimulatorPolicy, StatCmd, StatEntry, from_state_error,
+    SimulatorPolicy, StatCmd, StatEntry, StatGroup, from_state_error,
 };
 
 use remu_state::bus::{BusError, ObserverEvent};
@@ -472,7 +472,7 @@ where
     /// Schema-backed statistics: the RTL declares counters, regions and derived
     /// expressions; remu reads them, evaluates them and renders them. Nothing
     /// here is hardcoded — the schema is the contract.
-    fn platform_stats(&self, cmd: &StatCmd) -> Result<Vec<StatEntry>, String> {
+    fn platform_stats(&self, cmd: &StatCmd) -> Result<Vec<StatGroup>, String> {
         let schema = match &self.schema {
             Ok(Some(s)) => s,
             Ok(None) => {
@@ -497,58 +497,23 @@ where
             value: schema.derived[i].render(&values[i]),
         };
 
-        // Display order is the declaration order (R4); a query resolves an
-        // exact entry name first, then a region name (R6/R7).
+        // The schema owns selection, grouping and order (`plan`); remu renders
+        // each group as one titled display block.
         let mut out = Vec::new();
-        match cmd {
-            StatCmd::Raw => {
-                for i in 0..schema.counters.len() {
-                    out.push(counter_entry(i));
-                }
+        for p in schema.plan(cmd)? {
+            let region = &schema.regions[p.region];
+            let mut entries = Vec::new();
+            for i in p.counters {
+                entries.push(counter_entry(i));
             }
-            StatCmd::All => {
-                for i in 0..schema.counters.len() {
-                    out.push(counter_entry(i));
-                }
-                for i in 0..schema.derived.len() {
-                    out.push(derived_entry(i));
-                }
+            for i in p.derived {
+                entries.push(derived_entry(i));
             }
-            StatCmd::Query(q) => {
-                if let Some(i) = schema.counter_index(q) {
-                    out.push(counter_entry(i));
-                } else if let Some(i) = schema.derived_index(q) {
-                    // A single entry focuses its transitive dependencies too, so
-                    // `stat ipc` shows the counters it is computed from.
-                    let (counter_set, derived_set) = schema.dependency_closure(i);
-                    for (j, keep) in counter_set.iter().enumerate() {
-                        if *keep {
-                            out.push(counter_entry(j));
-                        }
-                    }
-                    for (j, keep) in derived_set.iter().enumerate() {
-                        if *keep {
-                            out.push(derived_entry(j));
-                        }
-                    }
-                } else if schema.has_region(q) {
-                    for (i, c) in schema.counters.iter().enumerate() {
-                        if c.region == *q {
-                            out.push(counter_entry(i));
-                        }
-                    }
-                    for (i, d) in schema.derived.iter().enumerate() {
-                        if d.region == *q {
-                            out.push(derived_entry(i));
-                        }
-                    }
-                } else {
-                    return Err(format!(
-                        "unknown statistic `{q}`; available — {}",
-                        schema.available_names()
-                    ));
-                }
-            }
+            out.push(StatGroup {
+                name: region.name.clone(),
+                doc: region.doc.clone(),
+                entries,
+            });
         }
         Ok(out)
     }

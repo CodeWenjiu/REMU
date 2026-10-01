@@ -10,7 +10,7 @@ use crate::SimulatorInnerError;
 use crate::SimulatorOption;
 use crate::SimulatorPolicy;
 use crate::StatCmd;
-use crate::StatEntry;
+use crate::StatGroup;
 
 pub trait SimulatorCore<P: StatePolicy> {
     fn new(opt: SimulatorOption, tracer: TracerDyn, interrupt: Arc<AtomicBool>) -> Self;
@@ -110,10 +110,10 @@ pub trait SimulatorDut: SimulatorCore<<Self as SimulatorDut>::Policy> {
     /// Platform-specific statistics (e.g. counter readout, IPC). Each platform
     /// owns its own counters and derived values (nzea: the RTL's stats schema;
     /// remu: none — the default returns nothing). Filtering, evaluation and
-    /// ordering are applied by the platform implementation; `Err` carries a
-    /// user-facing message (unknown query, missing schema, build mismatch).
+    /// grouping/order are applied by the platform implementation; `Err` carries
+    /// a user-facing message (unknown query, missing schema, build mismatch).
     #[inline(always)]
-    fn platform_stats(&self, _cmd: &StatCmd) -> Result<Vec<StatEntry>, String> {
+    fn platform_stats(&self, _cmd: &StatCmd) -> Result<Vec<StatGroup>, String> {
         Ok(vec![])
     }
 }

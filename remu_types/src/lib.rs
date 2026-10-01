@@ -1,10 +1,18 @@
 remu_macro::mod_pub!(prelude);
-remu_macro::mod_prv!(difftest, exit_code, platform, stat_kind, trace_flags);
+remu_macro::mod_prv!(
+    difftest,
+    exit_code,
+    platform,
+    stat_kind,
+    stat_section,
+    trace_flags
+);
 
 pub use difftest::{DifftestGroup, DifftestMismatchItem, DifftestRef, DifftestRegGroup};
 pub use exit_code::ExitCode;
 pub use platform::Platform;
 pub use stat_kind::StatKind;
+pub use stat_section::StatSection;
 pub use trace_flags::{TraceFlags, TraceKind};
 
 // Re-export from remu_isa (backward compat; new code should use remu_isa directly)
@@ -50,7 +58,7 @@ pub trait Tracer {
         let _ = addrs;
     }
 
-    fn stat_print(&self, _entries: &[(String, String, StatKind)]) {}
+    fn stat_print(&self, _sections: &[StatSection]) {}
 }
 
 pub type TracerDyn = Rc<RefCell<dyn Tracer>>;

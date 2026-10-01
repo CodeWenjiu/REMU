@@ -12,6 +12,8 @@
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 
+use remu_simulator::StatCmd;
+
 use super::Unavailable;
 use super::expr::{Node, eval, parse};
 
@@ -29,8 +31,7 @@ const MAX_DIGITS: i64 = 30;
 #[derive(Debug)]
 pub(crate) struct Region {
     pub(crate) name: String,
-    /// Retained for display (handoff R13); not used by the evaluation path.
-    #[allow(dead_code)]
+    /// One-line help; shown as the section title by `stat`.
     pub(crate) doc: String,
 }
 
@@ -82,6 +83,16 @@ pub(crate) struct StatSchema {
     pub(crate) regions: Vec<Region>,
     pub(crate) counters: Vec<Counter>,
     pub(crate) derived: Vec<Derived>,
+}
+
+/// One region's slice of a `stat` selection: entry indices into the schema's
+/// `counters`/`derived` vectors, in display order within the region.
+#[derive(Debug)]
+pub(crate) struct RegionPlan {
+    /// Index into [`StatSchema::regions`] (the group's declaration position).
+    pub(crate) region: usize,
+    pub(crate) counters: Vec<usize>,
+    pub(crate) derived: Vec<usize>,
 }
 
 impl StatSchema {
@@ -327,6 +338,59 @@ impl StatSchema {
             join(self.derived.iter().map(|d| d.name.as_str()).collect()),
             join(self.regions.iter().map(|r| r.name.as_str()).collect()),
         )
+    }
+
+    /// Which entries a `stat` command selects, grouped by region in declaration
+    /// order (counters before derived within a region). Groups with no selected
+    /// entry are dropped; an unknown query is an error naming the alternatives.
+    pub(crate) fn plan(&self, cmd: &StatCmd) -> Result<Vec<RegionPlan>, String> {
+        let (counter_sel, derived_sel) = match cmd {
+            StatCmd::Raw => (
+                vec![true; self.counters.len()],
+                vec![false; self.derived.len()],
+            ),
+            StatCmd::All => (
+                vec![true; self.counters.len()],
+                vec![true; self.derived.len()],
+            ),
+            StatCmd::Query(q) => {
+                if let Some(i) = self.counter_index(q) {
+                    let mut sel = vec![false; self.counters.len()];
+                    sel[i] = true;
+                    (sel, vec![false; self.derived.len()])
+                } else if let Some(i) = self.derived_index(q) {
+                    self.dependency_closure(i)
+                } else if self.has_region(q) {
+                    (
+                        self.counters.iter().map(|c| c.region == *q).collect(),
+                        self.derived.iter().map(|d| d.region == *q).collect(),
+                    )
+                } else {
+                    return Err(format!(
+                        "unknown statistic `{q}`; available — {}",
+                        self.available_names()
+                    ));
+                }
+            }
+        };
+
+        let mut out = Vec::new();
+        for (ri, r) in self.regions.iter().enumerate() {
+            let counters: Vec<usize> = (0..self.counters.len())
+                .filter(|&i| counter_sel[i] && self.counters[i].region == r.name)
+                .collect();
+            let derived: Vec<usize> = (0..self.derived.len())
+                .filter(|&i| derived_sel[i] && self.derived[i].region == r.name)
+                .collect();
+            if !(counters.is_empty() && derived.is_empty()) {
+                out.push(RegionPlan {
+                    region: ri,
+                    counters,
+                    derived,
+                });
+            }
+        }
+        Ok(out)
     }
 }
 
@@ -722,5 +786,55 @@ doc = "x"
 "#)
             .contains("unexpected end of expression")
         );
+    }
+
+    #[test]
+    fn plan_groups_by_region_with_counters_first() {
+        let s = core_schema();
+        let plan = s.plan(&StatCmd::All).expect("plan");
+        let name = |p: &RegionPlan| s.regions[p.region].name.as_str();
+        assert_eq!(plan.len(), 2);
+        assert_eq!(name(&plan[0]), "throughput");
+        assert_eq!(plan[0].counters, [0, 1]);
+        assert_eq!(plan[0].derived, [0, 1]);
+        assert_eq!(name(&plan[1]), "bp");
+        assert_eq!(plan[1].counters, [2, 3, 4]);
+        assert_eq!(plan[1].derived, [2, 3]);
+    }
+
+    #[test]
+    fn plan_raw_keeps_counters_only() {
+        let s = core_schema();
+        let plan = s.plan(&StatCmd::Raw).expect("plan");
+        assert_eq!(plan.len(), 2);
+        assert_eq!(plan[0].counters, [0, 1]);
+        assert!(plan.iter().all(|p| p.derived.is_empty()));
+    }
+
+    #[test]
+    fn plan_region_query_is_one_group() {
+        let s = core_schema();
+        let plan = s.plan(&StatCmd::Query("bp".to_string())).expect("plan");
+        assert_eq!(plan.len(), 1);
+        assert_eq!(s.regions[plan[0].region].name, "bp");
+        assert_eq!(plan[0].counters, [2, 3, 4]);
+        assert_eq!(plan[0].derived, [2, 3]);
+    }
+
+    #[test]
+    fn plan_entry_query_groups_its_dependencies() {
+        let s = core_schema();
+        let plan = s.plan(&StatCmd::Query("ipc".to_string())).expect("plan");
+        assert_eq!(plan.len(), 1);
+        assert_eq!(s.regions[plan[0].region].name, "throughput");
+        assert_eq!(plan[0].counters, [0, 1]);
+        assert_eq!(plan[0].derived, [0]);
+    }
+
+    #[test]
+    fn plan_unknown_query_is_an_error() {
+        let s = core_schema();
+        let err = s.plan(&StatCmd::Query("nosuch".to_string())).unwrap_err();
+        assert!(err.contains("unknown statistic"), "{err}");
     }
 }

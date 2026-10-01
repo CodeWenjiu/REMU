@@ -19,7 +19,7 @@ use std::sync::atomic::{AtomicBool, Ordering};
 
 use remu_simulator::{DifftestMismatchList, SimulatorError, SimulatorInnerError, TraceCmd};
 use remu_state::bus::ObserverEvent;
-use remu_types::{StatKind, TraceKind, TracerDyn};
+use remu_types::{StatSection, TraceKind, TracerDyn};
 
 pub struct Harness<C: PlatformConfig> {
     dut_model: <C as PlatformConfig>::Dut,
@@ -123,15 +123,19 @@ impl<C: PlatformConfig> Harness<C> {
     }
 
     pub fn stat_exec(&mut self, subcmd: &StatCmd) -> Result<(), HarnessError> {
-        let entries = self
+        let groups = self
             .dut_model
             .platform_stats(subcmd)
             .map_err(HarnessError::Stat)?;
-        let rows: Vec<(String, String, StatKind)> = entries
+        let sections: Vec<StatSection> = groups
             .iter()
-            .map(|e| (e.name(), e.format(), e.kind()))
+            .map(|g| StatSection {
+                name: g.name.clone(),
+                doc: g.doc.clone(),
+                rows: g.entries.iter().map(|e| (e.name(), e.format())).collect(),
+            })
             .collect();
-        self.tracer.borrow().stat_print(&rows);
+        self.tracer.borrow().stat_print(&sections);
         Ok(())
     }
 

@@ -6,7 +6,7 @@ use remu_isa::isa::{
     IsaSpec,
     reg::{Fpr, Gpr},
 };
-use remu_types::{AllUsize, DynDiagError, StatKind, Tracer};
+use remu_types::{AllUsize, DynDiagError, StatSection, Tracer};
 use tabled::{
     Table, Tabled,
     settings::{Color, Style, object::Columns},
@@ -349,8 +349,8 @@ impl Tracer for CLITracer {
         println!("{table}");
     }
 
-    fn stat_print(&self, entries: &[(String, String, StatKind)]) {
-        if entries.is_empty() {
+    fn stat_print(&self, sections: &[StatSection]) {
+        if sections.is_empty() {
             println!("{}", "no statistics".yellow());
             return;
         }
@@ -359,12 +359,21 @@ impl Tracer for CLITracer {
             name: String,
             value: String,
         }
-        let print_section = |title: &str, section: &[(String, String)]| {
-            if section.is_empty() {
-                return;
+        for section in sections {
+            if section.rows.is_empty() {
+                continue;
             }
-            println!("{}", title.cyan().bold());
+            // Title: `name — doc`; either half may be absent.
+            let title = match (section.name.is_empty(), section.doc.is_empty()) {
+                (true, _) => None,
+                (false, true) => Some(section.name.clone()),
+                (false, false) => Some(format!("{} — {}", section.name, section.doc)),
+            };
+            if let Some(title) = title {
+                println!("{}", title.cyan().bold());
+            }
             let rows: Vec<StatRow> = section
+                .rows
                 .iter()
                 .map(|(name, value)| StatRow {
                     name: name.clone(),
@@ -376,19 +385,7 @@ impl Tracer for CLITracer {
             table.modify(Columns::one(0), Color::FG_YELLOW);
             table.modify(Columns::one(1), Color::FG_CYAN);
             println!("{table}");
-        };
-        let raw: Vec<(String, String)> = entries
-            .iter()
-            .filter(|(_, _, k)| *k == StatKind::Raw)
-            .map(|(n, v, _)| (n.clone(), v.clone()))
-            .collect();
-        let derived: Vec<(String, String)> = entries
-            .iter()
-            .filter(|(_, _, k)| *k == StatKind::Derived)
-            .map(|(n, v, _)| (n.clone(), v.clone()))
-            .collect();
-        print_section("raw counters", &raw);
-        print_section("derived", &derived);
+        }
     }
 }
 
