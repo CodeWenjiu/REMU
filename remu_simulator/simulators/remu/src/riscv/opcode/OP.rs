@@ -333,11 +333,12 @@ pub(crate) fn decode_w<P: remu_state::StatePolicy>(inst: u32) -> DecodedInst {
             func3::SR => Inst::Sraw,
             _ => return DecodedInst::default(),
         },
-        // RV64W M funct3 is NOT the RV32 M table: MULW=000, DIVW=001,
-        // DIVUW=101, REMW=110, REMUW=111.
+        // RV64W M funct3 keeps the RV32 M keys where a word form exists:
+        // MULW=000, DIVW=100, DIVUW=101, REMW=110, REMUW=111 (the mulh
+        // family 001–011 has no word form).
         func7::MAD if P::ISA::HAS_M => match f3 {
             func3::MUL => Inst::Mulw,
-            func3::MULH => Inst::Divw,
+            func3::DIV => Inst::Divw,
             func3::DIVU => Inst::Divuw,
             func3::REM => Inst::Remw,
             func3::REMU => Inst::Remuw,
@@ -382,7 +383,7 @@ mod tests {
     #[test]
     fn decode_w_m_ext() {
         check(0x02a7053b, Inst::Mulw); // mulw a0, a4, a0 (funct3=000)
-        check(0x02a7153b, Inst::Divw); // divw a0, a4, a0 (funct3=001)
+        check(0x02a7453b, Inst::Divw); // divw a0, a4, a0 (funct3=100)
         check(0x02a7553b, Inst::Divuw); // divuw a0, a4, a0 (funct3=101)
         check(0x02a7653b, Inst::Remw); // remw a0, a4, a0 (funct3=110)
         check(0x02a7753b, Inst::Remuw); // remuw a0, a4, a0 (funct3=111)
@@ -401,6 +402,11 @@ mod tests {
         // funct3=010 (SLT) has no W variant
         assert_eq!(
             core::mem::discriminant(&decode_w::<P>(0x00a7253b).inst),
+            core::mem::discriminant(&Inst::Unknown)
+        );
+        // funct3=001 is RV32's MULH key; the mulh family has no word form
+        assert_eq!(
+            core::mem::discriminant(&decode_w::<P>(0x02a7153b).inst),
             core::mem::discriminant(&Inst::Unknown)
         );
         // funct7=0b1100000 is a reserved (non-NORMAL/ALT/MAD) value
