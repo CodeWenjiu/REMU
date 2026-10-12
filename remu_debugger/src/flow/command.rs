@@ -72,7 +72,7 @@ pub enum Command {
         subcmd: StateCmd,
     },
 
-    /// Reference model state (Spike): same subcommands as `state`, executed on the ref simulator
+    /// Reference model state
     RefState {
         #[command(subcommand)]
         subcmd: StateCmd,
