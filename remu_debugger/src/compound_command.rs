@@ -51,42 +51,22 @@ impl fmt::Display for CommandExpr {
 
 #[derive(Debug, Error, Diagnostic)]
 pub enum ParseError {
-    #[error("parse error: {0}")]
+    #[error("{0}")]
     Winnow(String),
-
-    #[error("parse error (handled)")]
-    WinnowHandled,
 
     #[error("invalid quoting inside block")]
     InvalidQuoting,
 }
 
-/// Parses a command expression, printing any parse error to stderr.
-pub fn parse_expression(input: &str) -> Result<CommandExpr, ParseError> {
-    match parse_expression_quiet(input) {
-        Ok(expr) => Ok(expr),
-        Err(e) => {
-            let _ = eprintln!("{}", e);
-            Err(ParseError::WinnowHandled)
-        }
-    }
-}
-
 /// Builds a `CommandExpr` from CLI startup tokens (e.g. from `--startup '{' state reg pc '}'`).
-/// Tokens are joined with spaces and parsed; on parse error returns empty expr and prints to stderr.
-pub fn startup_to_expr(tokens: &[String]) -> CommandExpr {
+pub fn startup_to_expr(tokens: &[String]) -> Result<CommandExpr, ParseError> {
     if tokens.is_empty() {
-        return CommandExpr::default();
+        return Ok(CommandExpr::default());
     }
-    let s = tokens.join(" ");
-    parse_expression_quiet(&s).unwrap_or_else(|e| {
-        eprintln!("startup: parse error: {}", e);
-        CommandExpr::default()
-    })
+    parse_expression(&tokens.join(" "))
 }
 
-/// Parses a command expression without printing on error (e.g. for FromStr / clap).
-pub fn parse_expression_quiet(input: &str) -> Result<CommandExpr, ParseError> {
+pub fn parse_expression(input: &str) -> Result<CommandExpr, ParseError> {
     let mut s = input;
 
     // Equivalent to the pest grammar:
@@ -245,9 +225,18 @@ impl FromStr for CommandExpr {
     type Err = ParseError;
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
-        parse_expression_quiet(s).map_err(|e| {
-            let _ = eprintln!("{}", e);
-            ParseError::WinnowHandled
-        })
+        parse_expression(s)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn parse_error_carries_the_diagnostic() {
+        let err = parse_expression("{ continue").unwrap_err();
+        assert!(matches!(err, ParseError::Winnow(_)), "{err}");
+        assert!(!err.to_string().is_empty());
     }
 }

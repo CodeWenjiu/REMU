@@ -1,3 +1,4 @@
+use std::io::IsTerminal;
 use std::sync::Arc;
 
 use clap::Parser;
@@ -6,9 +7,7 @@ remu_macro::mod_pub!(prelude);
 remu_macro::mod_pub!(crate, flow);
 remu_macro::mod_prv!(error, compound_command);
 
-pub use compound_command::{
-    CommandExpr, Op, ParseError, parse_expression, parse_expression_quiet, startup_to_expr,
-};
+pub use compound_command::{CommandExpr, Op, ParseError, parse_expression, startup_to_expr};
 pub use error::DebuggerError;
 pub use flow::command::{BreakpointCmd, Command, DebuggerCommand, get_command_graph};
 pub use flow::generic::DebuggerRunner;
@@ -52,8 +51,9 @@ impl<C: PlatformConfig> Debugger<C> {
     /// Error detail is consumed (printed) inside this method; callers only see
     /// the decision.
     pub fn run_startup(&mut self, opt: &DebuggerOption) -> StartupDecision {
-        let startup = crate::compound_command::startup_to_expr(&opt.startup);
-        let result = self.execute_command_expr(&startup);
+        let result = crate::compound_command::startup_to_expr(&opt.startup)
+            .map_err(DebuggerError::from)
+            .and_then(|expr| self.execute_command_expr(&expr));
         if matches!(result, Err(DebuggerError::ExitRequested)) {
             return StartupDecision::Exit(RunOutcome::Done);
         }
@@ -82,40 +82,35 @@ impl<C: PlatformConfig> Debugger<C> {
     ) -> Result<RunOutcome, DebuggerError> {
         let CommandExpr { first, tail } = expr;
 
-        let blocks_iter = std::iter::once(first.clone()).chain(tail.iter().map(|(_, b)| b.clone()));
-
-        let mut parsed = Vec::new();
-        for block in blocks_iter {
+        let mut commands = Vec::new();
+        for block in std::iter::once(first).chain(tail.iter().map(|(_, b)| b)) {
             if block.is_empty() {
                 continue;
             }
-            parsed.push(self.parse_block(block)?);
+            if let BlockAction::Run(cmd) = self.parse_block(block)? {
+                commands.push(cmd);
+            }
         }
 
-        let mut parsed_iter = parsed.into_iter();
-        let first_cmd = match parsed_iter.next() {
-            Some(cmd) => cmd,
-            None => return Ok(RunOutcome::Done),
-        };
-
-        let mut outcome = self.execute_parsed(&first_cmd.command)?;
-        for (_, cmd_wrapper) in tail.iter().zip(parsed_iter) {
-            outcome = outcome.or_else(self.execute_parsed(&cmd_wrapper.command)?);
+        let mut outcome = RunOutcome::Done;
+        for cmd in &commands {
+            outcome = outcome.or_else(self.execute_parsed(&cmd.command)?);
         }
         Ok(outcome)
     }
 
-    fn parse_block(&self, mut tokens: Vec<String>) -> Result<DebuggerCommand, DebuggerError> {
-        let mut commands = Vec::with_capacity(tokens.len() + 1);
-        commands.push(env!("CARGO_PKG_NAME").to_string());
-        commands.append(&mut tokens);
+    fn parse_block(&self, tokens: &[String]) -> Result<BlockAction, DebuggerError> {
+        let mut argv = Vec::with_capacity(tokens.len() + 1);
+        argv.push(env!("CARGO_PKG_NAME").to_string());
+        argv.extend_from_slice(tokens);
 
-        match DebuggerCommand::try_parse_from(commands) {
-            Ok(v) => Ok(v),
-            Err(e) => {
+        match DebuggerCommand::try_parse_from(argv) {
+            Ok(v) => Ok(BlockAction::Run(v)),
+            Err(e) if is_display_request(&e) => {
                 let _ = e.print();
-                Err(DebuggerError::CommandExprHandled)
+                Ok(BlockAction::Displayed)
             }
+            Err(e) => Err(DebuggerError::CommandParse(render_clap_error(&e))),
         }
     }
 
@@ -166,5 +161,45 @@ impl<C: PlatformConfig> Debugger<C> {
                 .map(|()| RunOutcome::Done),
             Command::Quit => Err(DebuggerError::ExitRequested),
         }
+    }
+}
+
+enum BlockAction {
+    Run(DebuggerCommand),
+    Displayed,
+}
+
+fn is_display_request(e: &clap::Error) -> bool {
+    use clap::error::ErrorKind::*;
+    matches!(
+        e.kind(),
+        DisplayHelp | DisplayHelpOnMissingArgumentOrSubcommand | DisplayVersion
+    )
+}
+
+fn render_clap_error(e: &clap::Error) -> String {
+    let no_color = std::env::var_os("NO_COLOR").is_some_and(|v| !v.is_empty());
+    let rendered = if !no_color && std::io::stderr().is_terminal() {
+        e.render().ansi().to_string()
+    } else {
+        e.render().to_string()
+    };
+    rendered.trim_end().to_string()
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn help_is_a_display_request_not_a_failure() {
+        let e = DebuggerCommand::try_parse_from(["remu_debugger", "help"]).unwrap_err();
+        assert!(is_display_request(&e), "{e}");
+    }
+
+    #[test]
+    fn unknown_command_is_a_real_failure() {
+        let e = DebuggerCommand::try_parse_from(["remu_debugger", "frobnicate"]).unwrap_err();
+        assert!(!is_display_request(&e), "{e}");
     }
 }

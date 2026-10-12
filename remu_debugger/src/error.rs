@@ -11,8 +11,9 @@ pub enum DebuggerError {
     #[diagnostic(transparent)]
     CommandExpr(#[from] ParseError),
 
-    #[error("Command expression parse error (handled)")]
-    CommandExprHandled,
+    /// clap's rendered message for the failed block.
+    #[error("{0}")]
+    CommandParse(String),
 
     #[error("Command execution error: {0}")]
     CommandExec(HarnessError),
