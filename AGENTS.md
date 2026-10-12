@@ -100,9 +100,13 @@ Rules:
 
 This section records smaller architectural choices that guide day-to-day implementation. Unlike the Module Declaration Constitution, these are not enforced by macros — they are conventions to follow when writing new code.
 
+### Minimal diffs
+
+The smaller the change, the better: touch only what the task needs. No drive-by reformatting, renaming or restructuring, no unrequested abstractions, types or options. Prefer the smallest fix that solves the problem; leave unrelated issues for a separate change.
+
 ### Comment philosophy
 
-Do not add verbose comments on business logic. Comments are only warranted on complex generics or `unsafe` blocks (with `// Safety:` justification).
+Write almost no comments. Business logic is explained by the code itself, not by prose. A `//` comment is warranted only for a genuinely complex generic or an `unsafe` block (`// Safety:` justification); a doc comment only where the contract is not evident from the signature. The why of a change belongs in the commit message, not in the code.
 
 ### Performance-first architecture
 
