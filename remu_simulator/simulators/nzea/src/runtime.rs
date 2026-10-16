@@ -2,7 +2,7 @@
 //!
 //! Each combination has its own hash, build artifact directory, and .so.
 //! The .so is built on first use and cached; subsequent calls with the same
-//! (platform, isa) reuse the cached function table.
+//! (platform, isa) reuse the cached library handle + symbol table.
 //!
 //! Directory layout:
 //!   target/remu-so/nzea/<platform>/<isa>/libnzea.so
@@ -18,12 +18,12 @@ use std::path::{Path, PathBuf};
 use std::process::Command;
 use std::sync::Mutex;
 
-use libloading::Library;
+use dlopen2::wrapper::Container;
 use nanospinner::Spinner;
 use sha2::{Digest, Sha256};
 
 use crate::NzeaTarget;
-use crate::nzea_ffi::NzeaFns;
+use crate::nzea_ffi::NzeaApi;
 
 // ---------------------------------------------------------------------------
 // Paths
@@ -281,10 +281,10 @@ fn build_nzea_so(target: &NzeaTarget, isa_str: &str, xlen: u32) -> Result<(), St
 }
 
 // ---------------------------------------------------------------------------
-// Cache: one (target, isa) → NzeaFns
+// Cache: one (target, isa) → NzeaApi (Container keeps .so + symbols together)
 // ---------------------------------------------------------------------------
 
-static NZEA_CACHE: Mutex<Option<HashMap<String, NzeaFns>>> = Mutex::new(None);
+static NZEA_CACHE: Mutex<Option<HashMap<String, Box<Container<NzeaApi>>>>> = Mutex::new(None);
 
 /// Ensure the nzea .so for the given combination is built and loaded.
 pub(crate) fn ensure_nzea_loaded(
@@ -314,10 +314,9 @@ pub(crate) fn ensure_nzea_loaded(
             build_nzea_so(target, isa_str, xlen)?;
         }
 
-        let lib =
-            unsafe { Library::new(&so).map_err(|e| format!("dlopen {}: {e}", so.display())) }?;
-        let fns = NzeaFns::from_library(lib)?;
-        map.insert(key.clone(), fns);
+        let cont =
+            unsafe { Container::load(&so).map_err(|e| format!("dlopen {}: {e}", so.display()))? };
+        map.insert(key.clone(), Box::new(cont));
     }
 
     Ok(())
@@ -325,12 +324,14 @@ pub(crate) fn ensure_nzea_loaded(
 
 /// Get the cached function table for a combination.
 /// Panics if `ensure_nzea_loaded` wasn't called first.
-pub(crate) fn get_nzea_fns(target: &str, isa_str: &str) -> &'static NzeaFns {
+pub(crate) fn get_nzea_fns(target: &str, isa_str: &str) -> &'static Container<NzeaApi> {
     let key = format!("{}:{}", target, isa_str);
     let cache = NZEA_CACHE.lock().expect("nzea cache lock");
     let map = cache.as_ref().expect("nzea cache not initialized");
-    // Safety: the HashMap is never freed (static Mutex), so references are 'static
-    let ptr: *const NzeaFns = map.get(&key).expect("nzea not loaded for this combination");
+    // Safety: entries are boxed (a rehash cannot move them) and the map is
+    // never freed (static Mutex), so references are 'static.
+    let ptr: *const Container<NzeaApi> =
+        &**map.get(&key).expect("nzea not loaded for this combination");
     unsafe { &*ptr }
 }
 

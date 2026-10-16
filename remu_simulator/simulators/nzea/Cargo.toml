@@ -11,7 +11,7 @@ remu_types = { path = "../../../remu_types" }
 remu_state = { path = "../../../remu_state" }
 
 toml.workspace = true
-libloading.workspace = true
+dlopen2.workspace = true
 sha2 = "0.11"
 nanospinner.workspace = true
 winnow.workspace = true

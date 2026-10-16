@@ -81,7 +81,7 @@ toml = "1.1"
 
 rand = "0.10.3"
 nanospinner = "0.3"
-libloading = "0.9"
+dlopen2 = { version = "0.9", default-features = false, features = ["wrapper", "derive"] }
 
 winit = "0.30.13"
 softbuffer = "0.4.8"

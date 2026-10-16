@@ -5,6 +5,8 @@ use std::ffi::{CString, c_void};
 use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, Ordering};
 
+use dlopen2::wrapper::Container;
+
 use remu_state::{State, StateCmd, StateError};
 use remu_types::{ExitCode, TraceFlags, TraceKind, TracerDyn};
 
@@ -15,6 +17,7 @@ use remu_simulator::{
 
 use remu_state::bus::{BusError, ObserverEvent};
 
+use crate::NzeaApi;
 use crate::NzeaIsa;
 use crate::Watchdog;
 use crate::stat_schema::StatSchema;
@@ -67,7 +70,7 @@ where
     /// C string for model key (`core|tile` + ISA); kept alive for FFI calls.
     model_c: CString,
     /// Function table loaded from libnzea.so
-    fns: &'static crate::NzeaFns,
+    fns: &'static Container<NzeaApi>,
     tracer: TracerDyn,
     /// Commits streamed from the RTL, typed by the ISA word (`u32`/`u64`).
     commit_buffer: Vec<CommitMsg<<P::ISA as RvIsa>::XLEN>>,
@@ -132,7 +135,7 @@ where
             );
         }
         let fns = get_nzea_fns(target.as_str(), isa_str);
-        let sim_ptr = unsafe { (fns.create)(model_c.as_ptr() as *const i8) };
+        let sim_ptr = unsafe { fns.create(model_c.as_ptr() as *const i8) };
         assert!(
             !sim_ptr.is_null(),
             "nzea_create failed for model {}",
@@ -171,14 +174,14 @@ where
         set_nzea(self as *mut Self);
         let model_ptr = self.model_c.as_ptr();
         unsafe {
-            (self.fns.set_reset)(self.sim_ptr, model_ptr, 1);
+            self.fns.set_reset(self.sim_ptr, model_ptr, 1);
             for _ in 0..100 {
-                (self.fns.set_clock)(self.sim_ptr, model_ptr, 0);
-                (self.fns.eval)(self.sim_ptr, model_ptr);
-                (self.fns.set_clock)(self.sim_ptr, model_ptr, 1);
-                (self.fns.eval)(self.sim_ptr, model_ptr);
+                self.fns.set_clock(self.sim_ptr, model_ptr, 0);
+                self.fns.eval(self.sim_ptr, model_ptr);
+                self.fns.set_clock(self.sim_ptr, model_ptr, 1);
+                self.fns.eval(self.sim_ptr, model_ptr);
             }
-            (self.fns.set_reset)(self.sim_ptr, model_ptr, 0);
+            self.fns.set_reset(self.sim_ptr, model_ptr, 0);
         }
         // Waveform file is opened in on_trace_change() when Wavetrace is first enabled,
         // so a run with wavetrace disabled does not overwrite an existing trace.fst.
@@ -270,7 +273,8 @@ where
             let trace_path = Self::trace_path();
             let path_c = CString::new(trace_path.to_string_lossy().as_ref()).unwrap();
             unsafe {
-                (self.fns.trace_open)(self.sim_ptr, self.model_c.as_ptr(), path_c.as_ptr());
+                self.fns
+                    .trace_open(self.sim_ptr, self.model_c.as_ptr(), path_c.as_ptr());
             }
         }
     }
@@ -316,15 +320,15 @@ where
         self.cycle_count += 1;
         let model_ptr = self.model_c.as_ptr();
         unsafe {
-            (self.fns.set_clock)(self.sim_ptr, model_ptr, 0);
-            (self.fns.eval)(self.sim_ptr, model_ptr);
+            self.fns.set_clock(self.sim_ptr, model_ptr, 0);
+            self.fns.eval(self.sim_ptr, model_ptr);
             if TraceFlags::waveform(TRACE_CYCLE) && IS_DUT {
-                (self.fns.trace_dump)(self.sim_ptr);
+                self.fns.trace_dump(self.sim_ptr);
             }
-            (self.fns.set_clock)(self.sim_ptr, model_ptr, 1);
-            (self.fns.eval)(self.sim_ptr, model_ptr);
+            self.fns.set_clock(self.sim_ptr, model_ptr, 1);
+            self.fns.eval(self.sim_ptr, model_ptr);
             if TraceFlags::waveform(TRACE_CYCLE) && IS_DUT {
-                (self.fns.trace_dump)(self.sim_ptr);
+                self.fns.trace_dump(self.sim_ptr);
             }
         }
     }
@@ -379,7 +383,7 @@ where
     fn sample_counters(&self, schema: &StatSchema) -> Result<StatCollector, String> {
         let mut collector = StatCollector::default();
         let n = unsafe {
-            (self.fns.iter_stats)(
+            self.fns.iter_stats(
                 self.sim_ptr,
                 Some(collect_stat_cb),
                 &mut collector as *mut _ as *mut std::ffi::c_void,
@@ -429,7 +433,7 @@ where
 {
     fn drop(&mut self) {
         unsafe {
-            (self.fns.destroy)(self.sim_ptr, self.model_c.as_ptr());
+            self.fns.destroy(self.sim_ptr, self.model_c.as_ptr());
             clear_nzea::<P, IS_DUT>();
         }
     }

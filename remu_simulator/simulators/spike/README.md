@@ -4,7 +4,7 @@
 
 Spike 以**库模式**（`libspike.so`）运行：与 remu 同一进程，通过 FFI 调用。
 `libspike.so` 由 Rust 侧在运行时按需构建（源文件 hash 检查 + 懒加载，见
-`src/runtime.rs`），通过 `libloading` 加载符号表（见 `src/ffi.rs`）。
+`src/runtime.rs`），通过 `dlopen2` 加载符号表（见 `src/ffi.rs`）。
 
 寄存器与内存在两侧各自持有：
 

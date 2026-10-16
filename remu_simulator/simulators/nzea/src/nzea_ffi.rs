@@ -3,7 +3,7 @@
 
 use std::ffi::{c_char, c_void};
 
-use libloading::Library;
+use dlopen2::wrapper::WrapperApi;
 
 use remu_isa::isa::extension_enum::{RV32I, RV32IM, RV64I, RV64IM};
 
@@ -27,48 +27,40 @@ pub(crate) fn assemble_stat_value(lo: u32, hi: u32, width: u32) -> u64 {
 }
 
 // ---------------------------------------------------------------------------
-// Function pointer table
+// Function table: the field (method) names are the short names used by the
+// simulator; `#[dlopen2_name]` maps them to the exported C symbols. Loading
+// happens once in `Container::load` (see runtime.rs).
 // ---------------------------------------------------------------------------
 
-#[allow(non_camel_case_types)]
-pub(crate) struct NzeaFns {
-    pub create: unsafe extern "C" fn(model: *const i8) -> *mut c_void,
-    pub destroy: unsafe extern "C" fn(sim: *mut c_void, model: *const i8),
-    pub set_clock: unsafe extern "C" fn(sim: *mut c_void, model: *const i8, val: i32),
-    pub set_reset: unsafe extern "C" fn(sim: *mut c_void, model: *const i8, val: i32),
-    pub eval: unsafe extern "C" fn(sim: *mut c_void, model: *const i8),
-    pub trace_open: unsafe extern "C" fn(sim: *mut c_void, model: *const i8, filename: *const i8),
-    pub trace_dump: unsafe extern "C" fn(sim: *mut c_void),
-    pub iter_stats: unsafe extern "C" fn(
+#[derive(WrapperApi)]
+pub(crate) struct NzeaApi {
+    #[dlopen2_name = "nzea_create"]
+    create: unsafe extern "C" fn(model: *const i8) -> *mut c_void,
+
+    #[dlopen2_name = "nzea_destroy"]
+    destroy: unsafe extern "C" fn(sim: *mut c_void, model: *const i8),
+
+    #[dlopen2_name = "nzea_set_clock"]
+    set_clock: unsafe extern "C" fn(sim: *mut c_void, model: *const i8, val: i32),
+
+    #[dlopen2_name = "nzea_set_reset"]
+    set_reset: unsafe extern "C" fn(sim: *mut c_void, model: *const i8, val: i32),
+
+    #[dlopen2_name = "nzea_eval"]
+    eval: unsafe extern "C" fn(sim: *mut c_void, model: *const i8),
+
+    #[dlopen2_name = "nzea_trace_open"]
+    trace_open: unsafe extern "C" fn(sim: *mut c_void, model: *const i8, filename: *const i8),
+
+    #[dlopen2_name = "nzea_trace_dump"]
+    trace_dump: unsafe extern "C" fn(sim: *mut c_void),
+
+    #[dlopen2_name = "nzea_iter_stats"]
+    iter_stats: unsafe extern "C" fn(
         sim: *mut c_void,
         cb: Option<NzeaStatCallback>,
         userdata: *mut c_void,
     ) -> i32,
-}
-
-impl NzeaFns {
-    pub(crate) fn from_library(lib: Library) -> Result<NzeaFns, String> {
-        macro_rules! load {
-            ($lib:ident, $name:literal) => {
-                *$lib
-                    .get::<unsafe extern "C" fn()>($name.as_bytes())
-                    .map_err(|e| format!("symbol {}: {e}", $name))?
-            };
-        }
-
-        Ok(unsafe {
-            NzeaFns {
-                create: std::mem::transmute(load!(lib, "nzea_create")),
-                destroy: std::mem::transmute(load!(lib, "nzea_destroy")),
-                set_clock: std::mem::transmute(load!(lib, "nzea_set_clock")),
-                set_reset: std::mem::transmute(load!(lib, "nzea_set_reset")),
-                eval: std::mem::transmute(load!(lib, "nzea_eval")),
-                trace_open: std::mem::transmute(load!(lib, "nzea_trace_open")),
-                trace_dump: std::mem::transmute(load!(lib, "nzea_trace_dump")),
-                iter_stats: std::mem::transmute(load!(lib, "nzea_iter_stats")),
-            }
-        })
-    }
 }
 
 // ---------------------------------------------------------------------------

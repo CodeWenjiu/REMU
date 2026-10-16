@@ -2,6 +2,8 @@ use std::ffi::CString;
 use std::marker::PhantomData;
 use std::os::raw::c_uint;
 
+use dlopen2::wrapper::Container;
+
 use remu_isa::isa::RvIsa;
 use remu_isa::isa::extension_v::VExtensionConfig;
 use remu_isa::isa::reg::IntoAllUsize;
@@ -17,11 +19,11 @@ use remu_simulator::{
     SimulatorRef,
 };
 
-use crate::ffi::{DifftestMemLayout, DifftestRegs, SpikeDifftestCtx};
+use crate::ffi::{DifftestMemLayout, DifftestRegs, SpikeApi, SpikeDifftestCtx};
 use crate::runtime::ensure_spike_loaded;
 
 #[inline]
-fn get_spike_fns() -> &'static crate::ffi::SpikeFns {
+fn get_spike_fns() -> &'static Container<SpikeApi> {
     ensure_spike_loaded().expect("spike .so not loaded")
 }
 
@@ -91,7 +93,7 @@ impl<P: SimulatorPolicy> SimulatorCore<P> for SimulatorSpike<P> {
         let xlen: c_uint = <<P::ISA as RvIsa>::XLEN as Xlen>::BITS;
 
         let ctx = unsafe {
-            (spike_fns.init)(
+            spike_fns.init(
                 layout.as_ptr(),
                 layout.len(),
                 init_pc as u64,
@@ -108,13 +110,13 @@ impl<P: SimulatorPolicy> SimulatorCore<P> for SimulatorSpike<P> {
             for m in &memory {
                 let (base, ptr, size) = m.difftest_raw_region_read();
                 unsafe {
-                    (spike_fns.copy_mem)(ctx.unwrap(), base, ptr, size);
+                    spike_fns.copy_mem(ctx.unwrap(), base, ptr, size);
                 }
             }
             let expected_vlenb =
                 <<<P::ISA as RvIsa>::VConfig as VExtensionConfig>::VrState as VrStateTrait>::VLENB
                     as usize;
-            let spike_vlenb = unsafe { (spike_fns.get_vlenb)(ctx.unwrap()) };
+            let spike_vlenb = unsafe { spike_fns.get_vlenb(ctx.unwrap()) };
             assert!(
                 spike_vlenb == expected_vlenb,
                 "Spike VLENB mismatch: Spike has {}, we expect {} (ISA: {})",
@@ -148,7 +150,7 @@ impl<P: SimulatorPolicy> SimulatorCore<P> for SimulatorSpike<P> {
         };
 
         let fns = get_spike_fns();
-        let ret = unsafe { (fns.step)(ctx) };
+        let ret = unsafe { fns.step(ctx) };
 
         match ret {
             0 => Ok(()),
@@ -161,7 +163,7 @@ impl<P: SimulatorPolicy> SimulatorCore<P> for SimulatorSpike<P> {
         let fns = get_spike_fns();
         let regs = reg_to_difftest_regs::<P>(reg);
         if let Some(ctx) = self.ctx {
-            unsafe { (fns.sync_regs_to_spike)(ctx, &regs) };
+            unsafe { fns.sync_regs_to_spike(ctx, &regs) };
         }
 
         let vlenb =
@@ -170,7 +172,7 @@ impl<P: SimulatorPolicy> SimulatorCore<P> for SimulatorSpike<P> {
         if vlenb > 0 {
             if let Some(ctx) = self.ctx {
                 let bytes = reg.vr.raw_bytes();
-                unsafe { (fns.sync_vr_to_spike)(ctx, bytes.as_ptr(), bytes.len()) };
+                unsafe { fns.sync_vr_to_spike(ctx, bytes.as_ptr(), bytes.len()) };
             }
         }
     }
@@ -181,8 +183,8 @@ impl<P: SimulatorPolicy> SimulatorCore<P> for SimulatorSpike<P> {
         };
 
         let fns = get_spike_fns();
-        let pc_ptr = unsafe { (fns.get_pc_ptr)(ctx) };
-        let gpr_ptr = unsafe { (fns.get_gpr_ptr)(ctx) };
+        let pc_ptr = unsafe { fns.get_pc_ptr(ctx) };
+        let gpr_ptr = unsafe { fns.get_gpr_ptr(ctx) };
         if pc_ptr.is_null() || gpr_ptr.is_null() {
             return vec![];
         }
@@ -223,7 +225,7 @@ impl<P: SimulatorPolicy> SimulatorCore<P> for SimulatorSpike<P> {
 
         if P::ISA::HAS_F {
             for i in 0..32 {
-                let r = unsafe { (fns.get_fpr)(ctx, i) };
+                let r = unsafe { fns.get_fpr(ctx, i) };
                 let d = dut_reg.fpr.raw_read(i);
                 if r != d {
                     let name = Fpr::from_repr(i)
@@ -245,7 +247,7 @@ impl<P: SimulatorPolicy> SimulatorCore<P> for SimulatorSpike<P> {
                 if mask == 0 {
                     continue;
                 }
-                let ref_val = unsafe { (fns.get_csr)(ctx, csr.addr()) };
+                let ref_val = unsafe { fns.get_csr(ctx, csr.addr()) };
                 let dut_val = dut_reg.read_csr(*csr);
                 if (ref_val & mask) != (dut_val & mask) {
                     out.push(DifftestMismatchItem {
@@ -262,7 +264,7 @@ impl<P: SimulatorPolicy> SimulatorCore<P> for SimulatorSpike<P> {
             <<<P::ISA as RvIsa>::VConfig as VExtensionConfig>::VrState as VrStateTrait>::VLENB
                 as usize;
         if vlenb > 0 {
-            let vr_ptr = unsafe { (fns.get_vr_ptr)(ctx) };
+            let vr_ptr = unsafe { fns.get_vr_ptr(ctx) };
             if !vr_ptr.is_null() {
                 for i in 0..32 {
                     let ref_slice =
@@ -298,7 +300,7 @@ impl<P: SimulatorPolicy> SimulatorCore<P> for SimulatorSpike<P> {
     fn mem_compare(&mut self, addr: usize, dut_data: &[u8]) -> Option<Box<[u8]>> {
         let ctx = self.ctx?;
         let mut buf = vec![0u8; dut_data.len()];
-        if unsafe { (get_spike_fns().read_mem)(ctx, addr, buf.as_mut_ptr(), buf.len()) } != 0 {
+        if unsafe { get_spike_fns().read_mem(ctx, addr, buf.as_mut_ptr(), buf.len()) } != 0 {
             return None;
         }
         if buf == dut_data {
@@ -332,7 +334,7 @@ impl<P: SimulatorPolicy> SimulatorRef<P> for SimulatorSpike<P> {
 impl<P: SimulatorPolicy> Drop for SimulatorSpike<P> {
     fn drop(&mut self) {
         if let Some(ctx) = self.ctx.take() {
-            unsafe { (get_spike_fns().fini)(ctx) };
+            unsafe { get_spike_fns().fini(ctx) };
         }
     }
 }
@@ -355,8 +357,8 @@ fn state_exec_reg(
 ) -> Result<(), SimulatorInnerError> {
     use remu_state::reg::{CsrRegCmd, FprRegCmd, PcRegCmd, VrRegCmd};
 
-    let pc_ptr = unsafe { (get_spike_fns().get_pc_ptr)(ctx) };
-    let gpr_ptr = unsafe { (get_spike_fns().get_gpr_ptr)(ctx) };
+    let pc_ptr = unsafe { get_spike_fns().get_pc_ptr(ctx) };
+    let gpr_ptr = unsafe { get_spike_fns().get_gpr_ptr(ctx) };
     if pc_ptr.is_null() || gpr_ptr.is_null() {
         return Err(SimulatorInnerError::RefError(RefErrorKind::NullPtr));
     }
@@ -376,7 +378,7 @@ fn state_exec_reg(
                     pc: *value as u64,
                     gpr: new_gpr,
                 };
-                unsafe { (get_spike_fns().sync_regs_to_spike)(ctx, &new_regs) };
+                unsafe { get_spike_fns().sync_regs_to_spike(ctx, &new_regs) };
             }
         },
         remu_state::reg::RegCmd::Gpr { subcmd } => match subcmd {
@@ -403,7 +405,7 @@ fn state_exec_reg(
                     new_gpr[index.idx()] = *value as u64;
                 }
                 let new_regs = DifftestRegs { pc, gpr: new_gpr };
-                unsafe { (get_spike_fns().sync_regs_to_spike)(ctx, &new_regs) };
+                unsafe { get_spike_fns().sync_regs_to_spike(ctx, &new_regs) };
             }
         },
         remu_state::reg::RegCmd::Fpr { subcmd } => match subcmd {
@@ -418,8 +420,8 @@ fn state_exec_reg(
             FprRegCmd::Write { .. } => { /* Spike difftest has no FPR write; ignore */ }
         },
         remu_state::reg::RegCmd::Vr { subcmd } => {
-            let vlenb = unsafe { (get_spike_fns().get_vlenb)(ctx) };
-            let vr_ptr = unsafe { (get_spike_fns().get_vr_ptr)(ctx) };
+            let vlenb = unsafe { get_spike_fns().get_vlenb(ctx) };
+            let vr_ptr = unsafe { get_spike_fns().get_vr_ptr(ctx) };
             let has_vr = !vr_ptr.is_null() && vlenb > 0;
 
             match subcmd {
@@ -458,7 +460,7 @@ fn state_exec_reg(
                         let n = merged.len().min(vlenb);
                         buf[..n].copy_from_slice(&merged[..n]);
                         unsafe {
-                            (get_spike_fns().write_vr_reg)(ctx, *index, buf.as_ptr(), buf.len());
+                            get_spike_fns().write_vr_reg(ctx, *index, buf.as_ptr(), buf.len());
                         }
                     }
                 }
@@ -495,7 +497,7 @@ fn state_exec_bus(
             let mut buf = [0u8; 16];
             let buf_slice = &mut buf[..width];
             let result =
-                if unsafe { (get_spike_fns().read_mem)(ctx, addr, buf_slice.as_mut_ptr(), width) }
+                if unsafe { get_spike_fns().read_mem(ctx, addr, buf_slice.as_mut_ptr(), width) }
                     == 0
                 {
                     let v = match width {
@@ -524,7 +526,7 @@ fn state_exec_bus(
             let mut buf = [0u8; PRINT_BUF_SIZE];
             let buf_slice = &mut buf[..count];
             let result =
-                if unsafe { (get_spike_fns().read_mem)(ctx, *addr, buf_slice.as_mut_ptr(), count) }
+                if unsafe { get_spike_fns().read_mem(ctx, *addr, buf_slice.as_mut_ptr(), count) }
                     == 0
                 {
                     Ok(())
@@ -537,7 +539,7 @@ fn state_exec_bus(
         remu_state::bus::BusCmd::Write { subcmd } => match subcmd {
             WriteCommand::U8 { addr, value } => {
                 let bytes = value.to_le_bytes();
-                if unsafe { (get_spike_fns().write_mem)(ctx, *addr, bytes.as_ptr(), bytes.len()) }
+                if unsafe { get_spike_fns().write_mem(ctx, *addr, bytes.as_ptr(), bytes.len()) }
                     != 0
                 {
                     return Err(SimulatorInnerError::RefError(
@@ -547,7 +549,7 @@ fn state_exec_bus(
             }
             WriteCommand::U16 { addr, value } => {
                 let bytes = value.to_le_bytes();
-                if unsafe { (get_spike_fns().write_mem)(ctx, *addr, bytes.as_ptr(), bytes.len()) }
+                if unsafe { get_spike_fns().write_mem(ctx, *addr, bytes.as_ptr(), bytes.len()) }
                     != 0
                 {
                     return Err(SimulatorInnerError::RefError(
@@ -557,7 +559,7 @@ fn state_exec_bus(
             }
             WriteCommand::U32 { addr, value } => {
                 let bytes = value.to_le_bytes();
-                if unsafe { (get_spike_fns().write_mem)(ctx, *addr, bytes.as_ptr(), bytes.len()) }
+                if unsafe { get_spike_fns().write_mem(ctx, *addr, bytes.as_ptr(), bytes.len()) }
                     != 0
                 {
                     return Err(SimulatorInnerError::RefError(
@@ -567,7 +569,7 @@ fn state_exec_bus(
             }
             WriteCommand::U64 { addr, value } => {
                 let bytes = value.to_le_bytes();
-                if unsafe { (get_spike_fns().write_mem)(ctx, *addr, bytes.as_ptr(), bytes.len()) }
+                if unsafe { get_spike_fns().write_mem(ctx, *addr, bytes.as_ptr(), bytes.len()) }
                     != 0
                 {
                     return Err(SimulatorInnerError::RefError(
@@ -577,7 +579,7 @@ fn state_exec_bus(
             }
             WriteCommand::U128 { addr, value } => {
                 let bytes = value.to_le_bytes();
-                if unsafe { (get_spike_fns().write_mem)(ctx, *addr, bytes.as_ptr(), bytes.len()) }
+                if unsafe { get_spike_fns().write_mem(ctx, *addr, bytes.as_ptr(), bytes.len()) }
                     != 0
                 {
                     return Err(SimulatorInnerError::RefError(
@@ -592,8 +594,7 @@ fn state_exec_bus(
                 if chunk.is_empty() {
                     continue;
                 }
-                if unsafe { (get_spike_fns().write_mem)(ctx, addr, chunk.as_ptr(), chunk.len()) }
-                    != 0
+                if unsafe { get_spike_fns().write_mem(ctx, addr, chunk.as_ptr(), chunk.len()) } != 0
                 {
                     return Err(SimulatorInnerError::RefError(
                         RefErrorKind::WriteMemFailed { addr: addr as u64 },

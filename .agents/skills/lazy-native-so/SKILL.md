@@ -13,9 +13,9 @@ Use this skill when a crate needs to link against a heavy native library (C/C++/
 crate/
 ├── build.rs              ← empty (or finds compile-time paths like zlib)
 ├── src/
-│   ├── runtime.rs        ← hash-based freshness + build + libloading
-│   ├── ffi.rs            ← function pointer table (SpikeFns / NzeaFns)
-│   └── lib.rs            ← mod_flat!(ffi, runtime, ...)
+│   ├── runtime.rs        ← hash-based freshness + build + dlopen2 load
+│   ├── ffi.rs            ← API table (dlopen2 `WrapperApi` struct)
+│   └── lib.rs            ← mod_prv!(ffi, runtime, ...)
 ```
 
 ## Runtime Module (`src/runtime.rs`)
@@ -53,36 +53,48 @@ spinner.fail("reason");
 
 All build commands should use `run_silent()` (success = quiet, failure = print last 20 lines of stderr).
 
-### 4. Loading with libloading
+### 4. Loading with dlopen2
 
-Use a static `OnceLock<Result<Fns, String>>` to cache the loaded library.
-Define a function pointer struct and load symbols with `lib.get()` + transmute.
+Cache the loaded library in a static. `Container` keeps the library handle and
+the symbol table together, so symbols can never outlive the library:
 
 ```rust
-static LIBS: OnceLock<Result<MyFns, String>> = OnceLock::new();
+static LIBS: OnceLock<Result<Container<MyApi>, String>> = OnceLock::new();
 
-pub(crate) fn ensure_loaded() -> Result<&'static MyFns, String> {
+pub(crate) fn ensure_loaded() -> Result<&'static Container<MyApi>, String> {
     LIBS.get_or_init(|| {
         if !fresh { build_so()?; }
-        let lib = unsafe { Library::new(&so_path())? };
-        MyFns::from_library(lib)
+        let cont = unsafe { Container::load(so_path()) }
+            .map_err(|e| format!("dlopen {}: {e}", so_path().display()))?;
+        Ok(cont)
     }).as_ref().map_err(|e| e.clone())
 }
 ```
 
+Hand the container out to callers (`&'static Container<MyApi>`); method calls go
+through its `Deref` to the API struct (`api.step(ctx)`). If entries live in a
+map, box them so a rehash cannot move them (nzea does).
+
 ## FFI Module (`src/ffi.rs`)
 
-Replace `extern "C"` blocks with a function pointer struct loaded via libloading:
+Describe the C ABI as a `#[derive(WrapperApi)]` (dlopen2) struct. The derive
+requires fields to be private and fn-pointer parameters to be named; the field
+name is the symbol name unless `#[dlopen2_name = "..."]` maps it to an exported
+symbol. `Option<fn>` fields are optional symbols (`None` when absent):
 
 ```rust
-pub(crate) struct MyFns {
-    pub init: unsafe extern "C" fn(...) -> *mut c_void,
-    pub step: unsafe extern "C" fn(...) -> c_int,
-}
-impl MyFns {
-    pub(crate) fn from_library(lib: Library) -> Result<Self, String> { /* ... */ }
+#[derive(WrapperApi)]
+pub(crate) struct MyApi {
+    #[dlopen2_name = "spike_difftest_init"]
+    init: unsafe extern "C" fn(ctx: *mut c_void) -> *mut c_void,
+    step: unsafe extern "C" fn(ctx: *mut c_void) -> c_int,
+    optional_probe: Option<unsafe extern "C" fn() -> c_int>,
 }
 ```
+
+The derive generates methods named after the fields (`api.init(ctx)`), mirroring
+the fn pointer's unsafety; loading happens once in `Container::load` and fails
+fast on a missing required symbol.
 
 ## Reference implementations
 

@@ -2,8 +2,8 @@
 //!
 //! On first use, hashes spike source files; if the hash changed or the .so
 //! is missing, runs configure + make + g++ -shared to produce a fresh
-//! libspike.so.  Then dlopen's it via libloading and caches the function
-//! pointers in a static OnceLock.
+//! libspike.so. Then dlopen's it via dlopen2 and caches the library handle +
+//! symbol table (one `Container`) in a static OnceLock.
 
 use std::env;
 use std::fs;
@@ -12,11 +12,11 @@ use std::path::{Path, PathBuf};
 use std::process::Command;
 use std::sync::OnceLock;
 
-use libloading::Library;
+use dlopen2::wrapper::Container;
 use nanospinner::Spinner;
 use sha2::{Digest, Sha256};
 
-use crate::ffi::SpikeFns;
+use crate::ffi::SpikeApi;
 
 // ---------------------------------------------------------------------------
 // Paths
@@ -260,12 +260,12 @@ fn build_spike_so() -> Result<(), String> {
 // Load & global cache
 // ---------------------------------------------------------------------------
 
-static SPIKE_FNS: OnceLock<Result<SpikeFns, String>> = OnceLock::new();
+static SPIKE_LIB: OnceLock<Result<Container<SpikeApi>, String>> = OnceLock::new();
 
-/// Ensure libspike.so is built and loaded. Returns a reference to the
-/// cached function table.
-pub(crate) fn ensure_spike_loaded() -> Result<&'static SpikeFns, String> {
-    SPIKE_FNS
+/// Ensure libspike.so is built and loaded. Returns the cached container
+/// (library handle + function table).
+pub(crate) fn ensure_spike_loaded() -> Result<&'static Container<SpikeApi>, String> {
+    SPIKE_LIB
         .get_or_init(|| {
             let so = so_path();
             let stamp = stamp_path();
@@ -286,10 +286,10 @@ pub(crate) fn ensure_spike_loaded() -> Result<&'static SpikeFns, String> {
             }
 
             // Load
-            let lib =
-                unsafe { Library::new(&so).map_err(|e| format!("dlopen {}: {e}", so.display())) }?;
-
-            SpikeFns::from_library(lib)
+            let cont = unsafe {
+                Container::load(&so).map_err(|e| format!("dlopen {}: {e}", so.display()))?
+            };
+            Ok(cont)
         })
         .as_ref()
         .map_err(|e| e.clone())
