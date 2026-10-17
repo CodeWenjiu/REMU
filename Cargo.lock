@@ -2908,6 +2908,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "mjcf"
+version = "0.1.0"
+dependencies = [
+ "remu_macro",
+ "roxmltree",
+ "toml",
+]
+
+[[package]]
 name = "moxcms"
 version = "0.8.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -4112,7 +4121,9 @@ name = "remu_app_robot_arm"
 version = "0.1.0"
 dependencies = [
  "libm",
+ "mjcf",
  "remu_hal",
+ "remu_macro",
 ]
 
 [[package]]

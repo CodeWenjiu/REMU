@@ -40,6 +40,7 @@ members = [
     "remu_app/remu_hal/macros",
     "remu_app/remu_hal/rcore",
     "remu_app/remu_hal/xtask",
+    "remu_app/robot_arm/mjcf",
 ]
 
 # Group directories: not packages themselves, so `remu_app/*` must not take
@@ -79,6 +80,7 @@ petgraph = "0.8.3"
 clap = "4.6.7"
 winnow = "1.0.4"
 toml = "1.1"
+roxmltree = "0.21.1"
 
 rand = "0.10.3"
 nanospinner = "0.3"

@@ -4,30 +4,45 @@
 // `REMU_ARM_MODEL=$MUJOCO_MENAGERIE_DIR/franka_emika_panda/scene.xml`;
 // this app exits early when the model is not a Panda.
 //
-// Motion: a gentle phase-shifted joint-space sweep around the model's `home`
-// keyframe pose plus a slow gripper cycle. All in joint space, so the app
-// carries no kinematics — the point here is the model swap and the control
-// path, not the trajectory quality.
+// Motion: the grasp point is servoed through a slow arc swing around the base
+// axis, anchored at the model's `home` tip position, with a little radius
+// breathing and height bob. Each control tick runs dense damped least-squares
+// IK (`chain`, over the model-generated joint chain) and streams the solved
+// configuration; the gripper opens and closes on a slow cycle. The chain
+// length, `home` pose and the expected model counts are generated from the
+// MJCF at build time (see `kin`).
 
 extern crate alloc;
 
-use libm::{roundf, sinf};
+remu_macro::mod_prv!(chain, kin);
+
+use libm::{cosf, roundf, sinf, sqrtf};
 use remu_hal::{
-    armview_alive, commit, exit_success, read_mtime, read_nq, read_nu, read_qpos, read_timestep,
-    set_steps, set_target, MTIME_TICK_HZ,
+    MTIME_TICK_HZ, armview_alive, commit, exit_success, read_mtime, read_nq, read_nu,
+    read_timestep, set_steps, set_target,
 };
 
-/// Panda actuator layout: 7 joint position servos + one gripper channel.
-const JOINTS: usize = 7;
-const GRIPPER: usize = 7;
+/// Arm chain length, generated from the model (`mjcf`); the gripper rides the
+/// actuator channel after the joints.
+const JOINTS: usize = kin::NJ;
+const GRIPPER: usize = JOINTS;
 
-/// `home` keyframe pose (joints only); sweeps stay close to it.
-const HOME: [f32; JOINTS] = [0.0, 0.0, 0.0, -1.57079, 0.0, 1.57079, -0.7853];
+/// `home` keyframe pose (joints only), from the model's `home` key when
+/// present; the target loop is anchored at its FK tip position.
+const HOME: [f32; JOINTS] = match kin::HOME_Q {
+    Some(home) => home,
+    None => [0.0; JOINTS],
+};
 
-/// Per-joint sweep amplitude (rad) and rate (rad/s) — small around the home
-/// pose so the arm stays clear of the floor.
-const AMP: [f32; JOINTS] = [0.6, 0.25, 0.2, 0.3, 0.2, 0.35, 0.3];
-const RATE: [f32; JOINTS] = [0.35, 0.5, 0.55, 0.45, 0.6, 0.5, 0.65];
+/// IK iterations per control tick, and the grasp loop around the home tip:
+/// a swing arc (rad) plus radius breathing / height bob (m), all slow.
+const IK_ITERS: u32 = 16;
+const LOOP_ARC: f32 = 1.5;
+const LOOP_BREATH: f32 = 0.05;
+const LOOP_BOB: f32 = 0.05;
+const LOOP_RATE: f32 = 0.45;
+const BREATH_RATE: f32 = 0.31;
+const BOB_RATE: f32 = 0.37;
 
 /// Gripper channel range (model: 0..255, 255 = open).
 const GRIPPER_OPEN: f32 = 255.0;
@@ -40,15 +55,16 @@ const TICK_MS: u64 = 16;
 fn main() -> ! {
     remu_hal::init();
     let nu = read_nu();
-    remu_hal::println!(
-        "robot_arm: Menagerie Panda demo (nu={nu}, nq={})",
-        read_nq()
-    );
+    let nq = read_nq();
+    remu_hal::println!("robot_arm: Menagerie Panda demo (nu={nu}, nq={nq})");
 
-    if nu != (JOINTS + 1) as u32 {
+    if nu != kin::NU as u32 || nq != kin::NQ as u32 {
         remu_hal::println!(
-            "robot_arm: model is not a Panda; set \
-             REMU_ARM_MODEL=$MUJOCO_MENAGERIE_DIR/franka_emika_panda/scene.xml (dev shell) and retry"
+            "robot_arm: unexpected model (nu={nu}, nq={nq}; expected nu={}, nq={}); set \
+             REMU_ARM_MODEL=$MUJOCO_MENAGERIE_DIR/{} (dev shell) and retry",
+            kin::NU,
+            kin::NQ,
+            kin::SOURCE
         );
         exit_success();
     }
@@ -57,9 +73,20 @@ fn main() -> ! {
     let steps = roundf(TICK_MS as f32 / 1000.0 / read_timestep()) as u32;
     set_steps(steps.clamp(1, 64));
 
+    let home_tip = chain::ARM.tip_pos(&HOME);
+    let home_r = sqrtf(home_tip[0] * home_tip[0] + home_tip[1] * home_tip[1]);
+    remu_hal::println!(
+        "robot_arm: home tip=[{:.3} {:.3} {:.3}] r={:.3}",
+        home_tip[0],
+        home_tip[1],
+        home_tip[2],
+        home_r
+    );
+
     let t0 = read_mtime();
     let mut last = 0u64;
     let mut tick = 0u32;
+    let mut q = HOME;
 
     loop {
         // The monitor window is the only visible output: when it goes away,
@@ -69,29 +96,38 @@ fn main() -> ! {
             exit_success();
         }
 
-        let ms = read_mtime().wrapping_sub(t0) * 1000 / MTIME_TICK_HZ as u64;
+        let ms = read_mtime().wrapping_sub(t0) * 1000 / MTIME_TICK_HZ;
         let t = ms as f32 / 1000.0;
 
-        for j in 0..JOINTS {
-            set_target(j, HOME[j] + AMP[j] * sinf(RATE[j] * t + j as f32));
+        // Swing back and forth instead of going full circles: joint 1 cannot
+        // represent a full turn within its range, and a wrapped lap would
+        // force the solver through a reconfiguration.
+        let swing = LOOP_ARC * sinf(LOOP_RATE * t);
+        let r = home_r + LOOP_BREATH * sinf(BREATH_RATE * t);
+        let target = [
+            r * cosf(swing),
+            r * sinf(swing),
+            home_tip[2] + LOOP_BOB * sinf(BOB_RATE * t),
+        ];
+        let err = chain::ARM.reach(&mut q, target, IK_ITERS);
+
+        for (j, &qi) in q.iter().enumerate() {
+            set_target(j, qi);
         }
         let grip = GRIPPER_MOSTLY_CLOSED
             + (GRIPPER_OPEN - GRIPPER_MOSTLY_CLOSED) * 0.5 * (1.0 + sinf(0.3 * t));
         set_target(GRIPPER, grip);
         commit();
 
-        if tick % 64 == 0 {
+        if tick.is_multiple_of(64) {
+            let tip = chain::ARM.tip_pos(&q);
             remu_hal::println!(
-                "t={:.2}s q=[{:.2} {:.2} {:.2} {:.2} {:.2} {:.2} {:.2}] grip~{:.0}",
+                "t={:.2}s err={:.2}mm tip=[{:.3} {:.3} {:.3}]",
                 t,
-                read_qpos(0),
-                read_qpos(1),
-                read_qpos(2),
-                read_qpos(3),
-                read_qpos(4),
-                read_qpos(5),
-                read_qpos(6),
-                grip,
+                err * 1000.0,
+                tip[0],
+                tip[1],
+                tip[2]
             );
         }
         tick = tick.wrapping_add(1);
@@ -99,7 +135,7 @@ fn main() -> ! {
         // Throttle to the control period.
         let mut now = ms;
         while now < last + TICK_MS {
-            now = read_mtime().wrapping_sub(t0) * 1000 / MTIME_TICK_HZ as u64;
+            now = read_mtime().wrapping_sub(t0) * 1000 / MTIME_TICK_HZ;
         }
         last = now;
     }

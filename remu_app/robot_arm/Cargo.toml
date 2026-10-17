@@ -5,8 +5,13 @@ edition = "2024"
 
 [dependencies]
 remu_hal = { path = "../remu_hal" }
+remu_macro = { path = "../../remu_macro" }
 # sin for the per-joint sweep motion (no_std has no float intrinsics).
 libm = "0.2"
+
+[build-dependencies]
+# Generates `kinematics.rs` from the model named below (see `build.rs`).
+mjcf = { path = "mjcf" }
 
 [lints]
 workspace = true
@@ -17,5 +22,6 @@ path = "../remu_hal/embedded/templates/app_entry.rs"
 
 [package.metadata.remu]
 # MJCF path relative to $MUJOCO_MENAGERIE_DIR; xtask exports REMU_ARM_MODEL
-# for `just run-app` (remu and host) — a caller-set value wins.
+# for `just run-app` (remu and host) — a caller-set value wins. `mjcf` also
+# generates the app's kinematics constants from this same model at build time.
 arm-model = "franka_emika_panda/scene.xml"
