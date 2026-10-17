@@ -22,7 +22,7 @@ use super::runtime;
 /// Temp-file counter for [`Session::from_xml_str`].
 static TEMP_SEQ: AtomicU64 = AtomicU64::new(0);
 
-pub(crate) struct Session {
+pub struct Session {
     api: &'static Container<MujocoApi>,
     model: *mut MjModel,
     data: *mut MjData,
@@ -240,7 +240,7 @@ impl Drop for Session {
 
 #[cfg(test)]
 mod tests {
-    use crate::bus::device::arm::ARM_XML;
+    use crate::ARM_XML;
 
     use super::*;
 
@@ -251,6 +251,17 @@ mod tests {
     #[test]
     fn engine_loads_and_reports_3x() {
         assert!(super::runtime::engine_version().unwrap() >= 3_000_000);
+    }
+
+    /// Loads the Menagerie Panda when the dev shell exported
+    /// `MUJOCO_MENAGERIE_DIR`; verifies include + meshdir-relative resolution.
+    #[test]
+    #[ignore = "needs the menagerie checkout (MUJOCO_MENAGERIE_DIR)"]
+    fn panda_scene_loads_from_file() {
+        let dir = std::env::var("MUJOCO_MENAGERIE_DIR").expect("MUJOCO_MENAGERIE_DIR");
+        let path = std::path::Path::new(&dir).join("franka_emika_panda/scene.xml");
+        let s = Session::from_xml_file(&path).expect("load panda scene");
+        assert_eq!((s.nu(), s.nq()), (8, 9));
     }
 
     #[test]

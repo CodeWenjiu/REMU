@@ -2,10 +2,10 @@
 //! (glutin) on the caller's thread, drawing one frame per redraw.
 //!
 //! `ArmView` only owns the GL stack and the view. The winit window, its events,
-//! and redraw scheduling stay with the caller — `window.rs` in the device
-//! layer once the arm device opens the window; the in-module demo below until
-//! then. Drop order matters: this type must be dropped before the window it
-//! was created for.
+//! and redraw scheduling stay with the caller — the simulator's window host
+//! (remu_state) or the host backend (remu_hal_host); [`ArmWindow`](crate::ArmWindow)
+//! wraps this view with that event glue. Drop order matters: this type must be
+//! dropped before the window it was created for.
 
 use std::error::Error;
 use std::num::NonZeroU32;
@@ -19,11 +19,20 @@ use glutin::display::{Display, DisplayApiPreference};
 use glutin::prelude::*;
 use glutin::surface::{Surface, SurfaceAttributesBuilder, SwapInterval, WindowSurface};
 use winit::dpi::PhysicalSize;
+use winit::event::MouseScrollDelta;
 use winit::raw_window_handle::{HasDisplayHandle, HasWindowHandle};
 use winit::window::Window;
 
+use super::ModelSource;
 use super::ffi;
 use super::view::MujocoView;
+
+/// Engine scroll delta per wheel click: MuJoCo's `simulate` passes 0.02.
+const ZOOM_PER_CLICK: f64 = 0.02;
+
+/// `wl_pointer.axis` units (wheel degrees) in one wheel click; winit reports
+/// Wayland wheels as pixel deltas of the raw axis value.
+const SCROLL_UNITS_PER_CLICK: f64 = 15.0;
 
 pub(crate) struct ArmView {
     // Drop order: engine resources (via the `view` Option in `drop`) first,
@@ -35,13 +44,16 @@ pub(crate) struct ArmView {
     view: Option<MujocoView>,
     /// Set once if snapshots stop matching the mirror model (wrong dims).
     state_warned: bool,
+    /// Physical window size, used to normalize pointer motion.
+    size: PhysicalSize<u32>,
     last_cursor: Option<(f64, f64)>,
 }
 
 impl ArmView {
-    /// Create the GL stack for `window` and load the mirror model.
-    /// Must run on the thread that will render (the event-loop thread).
-    pub(crate) fn new(window: &Window, xml: &str) -> Result<Self, Box<dyn Error>> {
+    /// Create the GL stack for `window` and load the mirror model from
+    /// `source`. Must run on the thread that will render (the event-loop
+    /// thread).
+    pub(crate) fn new(window: &Window, source: &ModelSource) -> Result<Self, Box<dyn Error>> {
         let display_handle = window.display_handle()?.as_raw();
         let window_handle = window.window_handle()?.as_raw();
 
@@ -76,13 +88,14 @@ impl ArmView {
         let _ =
             surface.set_swap_interval(&context, SwapInterval::Wait(NonZeroU32::new(1).unwrap()));
 
-        let view = MujocoView::load(xml)?;
+        let view = MujocoView::load(source)?;
         Ok(Self {
             context,
             surface,
             display,
             view: Some(view),
             state_warned: false,
+            size,
             last_cursor: None,
         })
     }
@@ -103,6 +116,7 @@ impl ArmView {
 
     /// Match the GL surface to a resized window.
     pub(crate) fn resize(&mut self, size: PhysicalSize<u32>) {
+        self.size = size;
         self.surface.resize(
             &self.context,
             NonZeroU32::new(size.width.max(1)).unwrap(),
@@ -127,20 +141,26 @@ impl ArmView {
         }
         let Some((px, py)) = last else { return };
         let (dx, dy) = (x - px, y - py);
+        // `mjv_moveCamera` takes deltas normalized by the viewport, not pixels.
+        let h = self.size.height.max(1) as f64;
         if let Some(view) = self.view.as_mut() {
             if dx != 0.0 {
-                view.mouse(ffi::MOUSE_ROTATE_H, dx, 0.0);
+                view.mouse(ffi::MOUSE_ROTATE_H, dx / h, 0.0);
             }
             if dy != 0.0 {
-                view.mouse(ffi::MOUSE_ROTATE_V, 0.0, dy);
+                view.mouse(ffi::MOUSE_ROTATE_V, 0.0, dy / h);
             }
         }
     }
 
-    /// Zoom the free camera by `lines` scroll units.
-    pub(crate) fn zoom(&mut self, lines: f64) {
+    /// Zoom the free camera by one scroll event's delta.
+    pub(crate) fn zoom(&mut self, delta: MouseScrollDelta) {
+        let clicks = match delta {
+            MouseScrollDelta::LineDelta(_, y) => y as f64,
+            MouseScrollDelta::PixelDelta(p) => p.y / SCROLL_UNITS_PER_CLICK,
+        };
         if let Some(view) = self.view.as_mut() {
-            view.mouse(ffi::MOUSE_ZOOM, 0.0, lines);
+            view.mouse(ffi::MOUSE_ZOOM, 0.0, ZOOM_PER_CLICK * clicks);
         }
     }
 }
@@ -161,14 +181,13 @@ mod tests {
 
     use winit::application::ApplicationHandler;
     use winit::dpi::LogicalSize;
-    use winit::event::{ElementState, MouseButton, MouseScrollDelta, WindowEvent};
+    use winit::event::{ElementState, MouseButton, WindowEvent};
     use winit::event_loop::{ActiveEventLoop, ControlFlow, EventLoop};
     use winit::platform::wayland::EventLoopBuilderExtWayland as _;
     use winit::window::{Window, WindowId};
 
-    use crate::bus::device::arm::ARM_XML;
+    use crate::{ARM_XML, ModelSource, Session};
 
-    use super::super::session::Session;
     use super::ArmView;
 
     /// Latest control-thread snapshot (qpos/qvel read out of a session).
@@ -200,7 +219,10 @@ mod tests {
                     )
                     .expect("create window"),
             );
-            self.arm = Some(ArmView::new(&window, ARM_XML).expect("init armview"));
+            self.arm = Some(
+                ArmView::new(&window, &ModelSource::Xml(ARM_XML.to_string()))
+                    .expect("init armview"),
+            );
             self.window = Some(window);
         }
 
@@ -237,12 +259,8 @@ mod tests {
                     ..
                 } => self.left = matches!(state, ElementState::Pressed),
                 WindowEvent::MouseWheel { delta, .. } => {
-                    let dy = match delta {
-                        MouseScrollDelta::LineDelta(_, y) => y as f64,
-                        MouseScrollDelta::PixelDelta(p) => p.y,
-                    };
                     if let Some(arm) = self.arm.as_mut() {
-                        arm.zoom(dy);
+                        arm.zoom(delta);
                     }
                 }
                 _ => {}
@@ -258,7 +276,7 @@ mod tests {
     }
 
     /// Windowed demo — the 3D successor of `mujoco_arm_demo`:
-    /// `cargo test -p remu_state armview_demo -- --ignored --nocapture`.
+    /// `cargo test -p remu_state_mujoco armview_demo -- --ignored --nocapture`.
     /// A scripted controller thread drives the mirror in real time; drag to
     /// orbit, wheel to zoom, close the window to end.
     #[test]

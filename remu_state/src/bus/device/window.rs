@@ -21,10 +21,10 @@
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex};
 
-use super::arm::ArmSnapshot;
+use remu_state_mujoco::{ArmSnapshot, ArmWindow, ModelSource};
+
 use super::keyboard::KeyboardState;
 use super::mouse::MouseState;
-use super::mujoco::ArmView;
 
 /// Framebuffer capacity (matches the display device).
 pub(super) const FB_WIDTH: usize = 2048;
@@ -65,7 +65,7 @@ enum HostCommand {
 /// A pending armview request: which model to mirror and where the arm device
 /// publishes its state.
 struct ArmViewRequest {
-    xml: &'static str,
+    source: ModelSource,
     snapshot: Arc<Mutex<ArmSnapshot>>,
 }
 
@@ -169,8 +169,8 @@ impl WindowHost {
     /// Queue the armview monitor window (called by the arm device): it opens
     /// once on the loop thread and renders whatever the device publishes into
     /// `snapshot`.
-    pub(crate) fn open_arm_view(&self, xml: &'static str, snapshot: Arc<Mutex<ArmSnapshot>>) {
-        *self.arm_request.lock().unwrap() = Some(ArmViewRequest { xml, snapshot });
+    pub(crate) fn open_arm_view(&self, source: ModelSource, snapshot: Arc<Mutex<ArmSnapshot>>) {
+        *self.arm_request.lock().unwrap() = Some(ArmViewRequest { source, snapshot });
         if let Some(proxy) = self.proxy.lock().unwrap().as_ref() {
             let _ = proxy.send_event(HostCommand::OpenArmView);
         }
@@ -216,7 +216,7 @@ fn render_loop(host: &Arc<WindowHost>) -> Result<(), Box<dyn std::error::Error>>
 
     use softbuffer::{Context, Surface};
     use winit::application::ApplicationHandler;
-    use winit::event::{ElementState, MouseButton, MouseScrollDelta, WindowEvent};
+    use winit::event::{ElementState, MouseButton, WindowEvent};
     use winit::event_loop::{ActiveEventLoop, ControlFlow, EventLoop, OwnedDisplayHandle};
     use winit::platform::wayland::EventLoopBuilderExtWayland as _;
     use winit::window::{Window, WindowId};
@@ -243,14 +243,10 @@ fn render_loop(host: &Arc<WindowHost>) -> Result<(), Box<dyn std::error::Error>>
     struct App {
         context: Context<OwnedDisplayHandle>,
         host: Arc<WindowHost>,
-        /// The armview GL backend; drops before `windows`, which owns its
-        /// window (`ArmView` must never outlive the window it renders into).
-        arm: Option<ArmView>,
-        /// Arm state snapshot backing the armview mirror (from the request).
-        arm_state: Option<Arc<Mutex<ArmSnapshot>>>,
+        /// The armview monitor; drops before `windows`, which owns its window
+        /// (the GL stack must never outlive the window it renders into).
+        arm: Option<ArmWindow>,
         arm_id: Option<WindowId>,
-        /// Left-button state of the armview window (camera drag).
-        arm_left: bool,
         windows: HashMap<WindowId, ManagedWindow>,
         /// Window id of the display window (`None` once the user closed it).
         display: Option<WindowId>,
@@ -369,10 +365,9 @@ fn render_loop(host: &Arc<WindowHost>) -> Result<(), Box<dyn std::error::Error>>
                 .with_inner_size(winit::dpi::LogicalSize::new(900.0, 700.0))
                 .with_min_inner_size(winit::dpi::LogicalSize::new(320.0, 240.0));
             let window = Rc::new(event_loop.create_window(attrs).expect("create window"));
-            match ArmView::new(&window, request.xml) {
+            match ArmWindow::new(&window, &request.source, request.snapshot) {
                 Ok(arm) => {
                     self.arm = Some(arm);
-                    self.arm_state = Some(request.snapshot);
                     self.arm_id = Some(window.id());
                     self.windows.insert(
                         window.id(),
@@ -596,7 +591,6 @@ fn render_loop(host: &Arc<WindowHost>) -> Result<(), Box<dyn std::error::Error>>
                 WindowEvent::CloseRequested => {
                     // Drop the GL stack first: it must not outlive its window.
                     self.arm = None;
-                    self.arm_state = None;
                     self.arm_id = None;
                     self.windows.remove(&id);
                     // The monitor is gone: the arm device's status register
@@ -609,32 +603,27 @@ fn render_loop(host: &Arc<WindowHost>) -> Result<(), Box<dyn std::error::Error>>
                     }
                 }
                 WindowEvent::RedrawRequested => {
-                    if let (Some(arm), Some(state)) = (self.arm.as_mut(), self.arm_state.as_ref()) {
-                        let snap = state.lock().unwrap();
-                        arm.set_state(&snap.qpos, &snap.qvel);
-                        drop(snap);
-                        if let Some(w) = self.windows.get(&id) {
-                            arm.render(w.window.inner_size());
-                        }
+                    if let Some(arm) = self.arm.as_mut() {
+                        arm.redraw();
                     }
                 }
                 WindowEvent::CursorMoved { position, .. } => {
                     if let Some(arm) = self.arm.as_mut() {
-                        arm.cursor_moved(position.x, position.y, self.arm_left);
+                        arm.cursor_moved(position.x, position.y);
                     }
                 }
                 WindowEvent::MouseInput {
                     state,
                     button: MouseButton::Left,
                     ..
-                } => self.arm_left = matches!(state, ElementState::Pressed),
-                WindowEvent::MouseWheel { delta, .. } => {
-                    let dy = match delta {
-                        MouseScrollDelta::LineDelta(_, y) => y as f64,
-                        MouseScrollDelta::PixelDelta(p) => p.y,
-                    };
+                } => {
                     if let Some(arm) = self.arm.as_mut() {
-                        arm.zoom(dy);
+                        arm.set_left(matches!(state, ElementState::Pressed));
+                    }
+                }
+                WindowEvent::MouseWheel { delta, .. } => {
+                    if let Some(arm) = self.arm.as_mut() {
+                        arm.wheel(delta);
                     }
                 }
                 _ => {}
@@ -688,9 +677,7 @@ fn render_loop(host: &Arc<WindowHost>) -> Result<(), Box<dyn std::error::Error>>
         context,
         host: Arc::clone(host),
         arm: None,
-        arm_state: None,
         arm_id: None,
-        arm_left: false,
         windows: HashMap::new(),
         display: None,
         started: false,

@@ -1,0 +1,15 @@
+[package]
+name = "remu_state_mujoco"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+remu_macro = { path = "../../remu_macro" }
+
+thiserror.workspace = true
+dlopen2.workspace = true
+winit.workspace = true
+glutin.workspace = true
+
+[lints]
+workspace = true

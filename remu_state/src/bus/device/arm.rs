@@ -1,156 +1,80 @@
-//! Arm device: MMIO joint-target registers driving a MuJoCo model, with each
-//! committed state published to the monitor window (`armview`).
+//! Arm device: MMIO actuator-target registers driving a MuJoCo model, with
+//! each committed state published to the monitor window (`armview`).
 //!
-//! A bus master writes three target angles and a commit register; a commit
-//! applies the targets, advances the simulation by `steps` microsteps, and
-//! publishes a snapshot for the render thread. Joint positions and simulated
-//! time are readable back through the same register window.
+//! A bus master writes actuator targets (joint position setpoints; models
+//! with a gripper use the trailing channel for it) and a commit register; a
+//! commit applies the targets, advances the simulation by `steps` microsteps,
+//! and publishes a snapshot for the render thread. `NU`/`NQ` report the
+//! model's channel counts; positions and simulated time are readable back
+//! through the same register window.
+//!
+//! By default the built-in 3-DOF toy arm loads; setting `REMU_ARM_MODEL` (an
+//! MJCF path, e.g. the Menagerie Panda scene) loads a real model instead.
+//! The simulation core lives in `remu_state_mujoco` (shared with the native
+//! host backend); this device is the register surface over it.
 //!
 //! Bring-up shape: the register file is reachable directly for now; the
 //! external-bus layer (i2c controller + target protocol) re-homes it behind a
 //! bus later, without changing the model or the monitor path.
 
-use std::sync::{Arc, Mutex};
+use std::sync::Arc;
 
 use crate::bus::{BusError, device::DeviceContext};
 
-use super::mujoco::Session;
+use remu_state_mujoco::{ARM_XML, ArmCore, ModelSource};
+
 use super::window::WindowHost;
 
-/// MJCF of the 3-DOF planar arm, no gravity, position servos (steady state ==
-/// target). `armature` (motor reflected inertia) keeps the light links stable
-/// under the explicit-Euler integrator at kp=100. Shared by the device, the
-/// session tests, and the armview demo.
-pub(crate) const ARM_XML: &str = r#"
-<mujoco model="arm3dof">
-  <option timestep="0.001" gravity="0 0 0"/>
-  <visual>
-    <headlight ambient="0.4 0.4 0.4" diffuse="0.7 0.7 0.7"/>
-  </visual>
-  <default>
-    <joint type="hinge" axis="0 1 0" damping="0.1" armature="0.01"/>
-    <geom type="capsule" size="0.02" density="700"/>
-    <position kp="100" kv="3"/>
-  </default>
-  <worldbody>
-    <body name="link0" pos="0 0 0.1">
-      <joint name="j0"/>
-      <geom fromto="0 0 0 0.3 0 0"/>
-      <body name="link1" pos="0.3 0 0">
-        <joint name="j1"/>
-        <geom fromto="0 0 0 0.25 0 0"/>
-        <body name="link2" pos="0.25 0 0">
-          <joint name="j2"/>
-          <geom fromto="0 0 0 0.2 0 0"/>
-        </body>
-      </body>
-    </body>
-  </worldbody>
-  <actuator>
-    <position name="a0" joint="j0" ctrlrange="-1.5 1.5"/>
-    <position name="a1" joint="j1" ctrlrange="-1.5 1.5"/>
-    <position name="a2" joint="j2" ctrlrange="-1.5 1.5"/>
-  </actuator>
-</mujoco>
-"#;
-
-/// Joint count of [`ARM_XML`].
-const ARM_JOINTS: usize = 3;
+/// Register-map capacity of the target block; a model may use fewer channels
+/// (the `NU` register reports the truth).
+const MAX_TARGETS: usize = 8;
+/// Register-map capacity of the position block.
+const MAX_QPOS: usize = 10;
 
 // Register offsets (32-bit registers; f32 values travel as their bit pattern).
-const REG_TARGET: usize = 0x00; // r/w: joint targets (radians), stride 4
-const REG_COMMIT: usize = 0x0C; // w: apply targets + advance + publish
-const REG_STEPS: usize = 0x10; // r/w: microsteps per commit (default 16)
-const REG_QPOS: usize = 0x14; // r: joint positions (radians), stride 4
-const REG_TIME: usize = 0x20; // r: simulated time (seconds)
-const REG_COMMITS: usize = 0x24; // r: completed commits (wrapping u32)
-const REG_STATUS: usize = 0x28; // r: bit 0 = armview monitor window alive
-const ARM_REG_SIZE: usize = 0x2C;
-
-/// Default microsteps per commit: 16 × 1 ms ≈ one 60 Hz frame of simulated
-/// time.
-const DEFAULT_STEPS: u32 = 16;
-
-/// Latest arm state, published by the device and consumed by the armview
-/// render thread (state crosses threads only as copied snapshots; the mirror
-/// session re-derives everything else).
-#[derive(Default)]
-pub(crate) struct ArmSnapshot {
-    pub(crate) qpos: Vec<f64>,
-    pub(crate) qvel: Vec<f64>,
-}
+const REG_NU: usize = 0x00; // r: actuator targets (ctrl channels)
+const REG_NQ: usize = 0x04; // r: joint positions
+const REG_TARGET: usize = 0x08; // r/w: actuator targets, stride 4
+const REG_COMMIT: usize = 0x28; // w: apply targets + advance + publish
+const REG_STEPS: usize = 0x2C; // r/w: microsteps per commit (default 16)
+const REG_QPOS: usize = 0x30; // r: joint positions (radians), stride 4
+const REG_TIME: usize = 0x58; // r: simulated time (seconds)
+const REG_COMMITS: usize = 0x5C; // r: completed commits (wrapping u32)
+const REG_STATUS: usize = 0x60; // r: bit 0 = armview monitor window alive
+const REG_TIMESTEP: usize = 0x64; // r: model timestep (seconds)
+const ARM_REG_SIZE: usize = 0x68;
 
 pub(super) struct Arm {
-    session: Session,
-    targets: [f32; ARM_JOINTS],
-    steps: u32,
-    commits: u32,
+    core: ArmCore,
+    /// Where the model came from; reused to open the monitor window.
+    source: ModelSource,
     /// The shared window host (holds the armview monitor window).
     window: Option<Arc<WindowHost>>,
-    /// Shared with the monitor window (read by the render thread).
-    snapshot: Arc<Mutex<ArmSnapshot>>,
-    /// Scratch buffers for reading state out of the engine.
-    qpos: Vec<f64>,
-    qvel: Vec<f64>,
 }
 
 // The engine session is single-threaded by design, but a bus device must
 // satisfy `Send + Sync`. Device access is serialized (every accessor takes
 // `&mut self` and runs on the simulator thread that built the session), and
-// state crosses to the render thread only as snapshots (see `session.rs`),
+// state crosses to the render thread only as snapshots (see `remu_state_mujoco`),
 // so these impls just satisfy the boxed-device contract.
 unsafe impl Send for Arm {}
 unsafe impl Sync for Arm {}
 
 impl Arm {
     pub(super) fn new() -> Self {
-        let session = Session::from_xml_str(ARM_XML).expect("arm: load model via libmujoco");
-        let qpos = vec![0.0; session.nq()];
-        let qvel = vec![0.0; session.nv()];
-        let mut arm = Self {
-            session,
-            targets: [0.0; ARM_JOINTS],
-            steps: DEFAULT_STEPS,
-            commits: 0,
+        let source = ModelSource::from_env(ARM_XML);
+        let core = ArmCore::load(&source).expect("arm: load model via libmujoco");
+        assert!(
+            core.nu() <= MAX_TARGETS && core.nq() <= MAX_QPOS,
+            "arm: model (nu={}, nq={}) exceeds the register map",
+            core.nu(),
+            core.nq()
+        );
+        Self {
+            core,
+            source,
             window: None,
-            snapshot: Arc::new(Mutex::new(ArmSnapshot::default())),
-            qpos,
-            qvel,
-        };
-        arm.publish();
-        arm
-    }
-
-    /// Apply the targets, advance the simulation, publish a snapshot.
-    fn commit(&mut self) {
-        let ctrl = self.targets.map(f64::from);
-        self.session.set_ctrl(&ctrl).expect("arm: ctrl size");
-        for _ in 0..self.steps {
-            self.session.step();
         }
-        self.commits = self.commits.wrapping_add(1);
-        self.publish();
-    }
-
-    /// Copy the engine state into the shared snapshot.
-    fn publish(&mut self) {
-        self.session
-            .read_qpos(&mut self.qpos)
-            .expect("arm: qpos size");
-        self.session
-            .read_qvel(&mut self.qvel)
-            .expect("arm: qvel size");
-        let mut snap = self.snapshot.lock().unwrap();
-        snap.qpos.clone_from(&self.qpos);
-        snap.qvel.clone_from(&self.qvel);
-    }
-
-    /// Read one joint position back out of the engine.
-    fn qpos_f32(&mut self, joint: usize) -> f32 {
-        self.session
-            .read_qpos(&mut self.qpos)
-            .expect("arm: qpos size");
-        self.qpos[joint] as f32
     }
 }
 
@@ -167,22 +91,25 @@ impl super::DeviceAccess for Arm {
         // Loading the device opens the monitor window (same trigger shape as
         // the display device).
         let window = ctx.window();
-        window.open_arm_view(ARM_XML, Arc::clone(&self.snapshot));
+        window.open_arm_view(self.source.clone(), self.core.snapshot());
         self.window = Some(Arc::clone(window));
     }
 
     fn read_32(&mut self, offset: usize) -> Result<u32, BusError> {
         Ok(match offset {
-            o if (REG_TARGET..REG_TARGET + 4 * ARM_JOINTS).contains(&o) => {
-                self.targets[(o - REG_TARGET) / 4].to_bits()
+            REG_NU => self.core.nu() as u32,
+            REG_NQ => self.core.nq() as u32,
+            o if (REG_TARGET..REG_TARGET + 4 * self.core.nu()).contains(&o) => {
+                self.core.target((o - REG_TARGET) / 4).to_bits()
             }
-            o if (REG_QPOS..REG_QPOS + 4 * ARM_JOINTS).contains(&o) => {
-                self.qpos_f32((o - REG_QPOS) / 4).to_bits()
+            o if (REG_QPOS..REG_QPOS + 4 * self.core.nq()).contains(&o) => {
+                self.core.read_qpos_f32((o - REG_QPOS) / 4).to_bits()
             }
-            REG_STEPS => self.steps,
-            REG_TIME => (self.session.time() as f32).to_bits(),
-            REG_COMMITS => self.commits,
+            REG_STEPS => self.core.steps(),
+            REG_TIME => (self.core.time() as f32).to_bits(),
+            REG_COMMITS => self.core.commits(),
             REG_STATUS => self.window.as_ref().map_or(0, |w| w.armview_alive() as u32),
+            REG_TIMESTEP => (self.core.timestep() as f32).to_bits(),
             REG_COMMIT => 0, // write-only
             _ => {
                 return Err(BusError::UnsupportedAccessWidth(
@@ -195,11 +122,12 @@ impl super::DeviceAccess for Arm {
 
     fn write_32(&mut self, offset: usize, value: u32) -> Result<(), BusError> {
         match offset {
-            o if (REG_TARGET..REG_TARGET + 4 * ARM_JOINTS).contains(&o) => {
-                self.targets[(o - REG_TARGET) / 4] = f32::from_bits(value);
+            o if (REG_TARGET..REG_TARGET + 4 * self.core.nu()).contains(&o) => {
+                self.core
+                    .set_target((o - REG_TARGET) / 4, f32::from_bits(value));
             }
-            REG_STEPS => self.steps = value.clamp(1, 100_000),
-            REG_COMMIT => self.commit(),
+            REG_STEPS => self.core.set_steps(value),
+            REG_COMMIT => self.core.commit(),
             _ => {}
         }
         Ok(())
@@ -235,7 +163,8 @@ mod tests {
 
         // The published snapshot mirrors the register readback.
         let q0 = f32::from_bits(a.read_32(REG_QPOS).unwrap());
-        let snap = a.snapshot.lock().unwrap();
+        let snapshot = a.core.snapshot();
+        let snap = snapshot.lock().unwrap();
         assert!((snap.qpos[0] as f32 - q0).abs() < 1e-9);
     }
 
@@ -254,5 +183,14 @@ mod tests {
         // No window host is attached in a unit test: the monitor bit reads 0.
         let mut a = Arm::new();
         assert_eq!(a.read_32(REG_STATUS).unwrap() & 1, 0);
+    }
+
+    #[test]
+    fn counts_and_timestep_report_the_model() {
+        let mut a = Arm::new();
+        assert_eq!(a.read_32(REG_NU).unwrap(), 3);
+        assert_eq!(a.read_32(REG_NQ).unwrap(), 3);
+        let ts = f32::from_bits(a.read_32(REG_TIMESTEP).unwrap());
+        assert!((ts - 0.001).abs() < 1e-9, "timestep = {ts}");
     }
 }

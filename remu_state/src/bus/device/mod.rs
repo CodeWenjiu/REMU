@@ -7,7 +7,6 @@ remu_macro::mod_prv!(
     display,
     mouse,
     keyboard,
-    mujoco,
     window
 );
 

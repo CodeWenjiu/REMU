@@ -1,3 +1,6 @@
+use remu_isa::WordOps;
+use remu_isa::Xlen;
+
 use crate::riscv::{
     DecodedInst, Inst,
     opcode::OP_V::{OpMvvInst, VInst},
@@ -7,16 +10,16 @@ use crate::riscv::{
 pub(crate) fn execute<P: remu_state::StatePolicy, C: crate::ExecuteContext<P>>(
     ctx: &mut C,
     decoded: &DecodedInst,
-    _pc: <P::ISA as remu_isa::isa::RvIsa>::XLEN,
+    pc: <P::ISA as remu_isa::isa::RvIsa>::XLEN,
 ) -> Result<<P::ISA as remu_isa::isa::RvIsa>::XLEN, remu_state::StateError> {
     let v = match decoded.inst {
         Inst::V(v) => v,
-        _ => return UNKNOWN::execute::<P, C>(ctx, decoded, _pc),
+        _ => return UNKNOWN::execute::<P, C>(ctx, decoded, pc),
     };
 
     let state = ctx.state_mut();
     if state.reg.csr.mstatus_vs_off() {
-        return Ok(UNKNOWN::trap_illegal_instruction(state, _pc));
+        return Ok(UNKNOWN::trap_illegal_instruction(state, pc));
     }
 
     // Only `vmv.x.s` / `vfirst.m` read vector state and write GPR; they do not update VS to Dirty.
@@ -34,11 +37,14 @@ pub(crate) fn execute<P: remu_state::StatePolicy, C: crate::ExecuteContext<P>>(
         VInst::OpMvx(op) => super::op_mvx::execute(ctx, decoded, op),
     };
 
+    let next_pc = pc.wrapping_add(
+        <<P as remu_state::StatePolicy>::ISA as remu_isa::isa::RvIsa>::XLEN::from_u64(4),
+    );
     if r.is_ok() && dirties_vs {
         let state = ctx.state_mut();
         state.reg.csr.set_mstatus_vs_dirty();
-        Ok(*state.reg.pc)
+        Ok(next_pc)
     } else {
-        r.map(|()| *ctx.state_mut().reg.pc)
+        r.map(|()| next_pc)
     }
 }

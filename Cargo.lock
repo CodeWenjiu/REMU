@@ -4233,6 +4233,7 @@ name = "remu_hal_host"
 version = "0.1.0"
 dependencies = [
  "remu_macro",
+ "remu_state_mujoco",
  "softbuffer",
  "winit",
 ]
@@ -4359,16 +4360,26 @@ name = "remu_state"
 version = "0.1.0"
 dependencies = [
  "clap",
- "dlopen2",
- "glutin",
  "object 0.40.0",
  "remu_fmt",
  "remu_isa",
  "remu_macro",
+ "remu_state_mujoco",
  "remu_types",
  "softbuffer",
  "thiserror 2.0.21",
  "tracing",
+ "winit",
+]
+
+[[package]]
+name = "remu_state_mujoco"
+version = "0.1.0"
+dependencies = [
+ "dlopen2",
+ "glutin",
+ "remu_macro",
+ "thiserror 2.0.21",
  "winit",
 ]
 

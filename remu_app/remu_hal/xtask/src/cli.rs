@@ -33,12 +33,18 @@ pub(crate) struct CheckAppArgs {
     pub target: String,
 }
 
+#[derive(Debug, clap::Args)]
+pub(crate) struct AppEnvArgs {
+    pub app: String,
+}
+
 #[derive(Debug, Subcommand)]
 pub(crate) enum PrintCmd {
     RunApp(RunAppArgs),
     BuildApp(BuildAppArgs),
     RunRemu(RunRemuArgs),
     CheckApp(CheckAppArgs),
+    AppEnv(AppEnvArgs),
 }
 
 #[derive(Debug, clap::Args)]

@@ -17,6 +17,7 @@ members = [
     "remu_simulator/simulators/*",
 
     "remu_state",
+    "remu_state/mujoco",
 
     # Crate collections: a directory under these becomes a member on its own, so
     # a new backend or app needs no edit here. Two rules of `members` globs:

@@ -117,6 +117,22 @@ fn declared_caps(manifest: &Path, app: &str) -> Result<Option<Vec<Cap>>, String>
     Ok(Some(caps))
 }
 
+/// Parse `[package.metadata.remu] arm-model`: an MJCF path relative to
+/// `$MUJOCO_MENAGERIE_DIR` that the app's run needs exported as
+/// `REMU_ARM_MODEL` (e.g. the Menagerie Panda scene). `None` when the app
+/// declares none — the backend defaults (built-in toy arm) apply.
+pub(crate) fn app_arm_model(workspace_root: &Path, app: &str) -> Option<String> {
+    let manifest = app_manifest(workspace_root, app)?;
+    let text = std::fs::read_to_string(&manifest).ok()?;
+    let doc: toml::Table = text.parse().ok()?;
+    doc.get("package")?
+        .get("metadata")?
+        .get("remu")?
+        .get("arm-model")?
+        .as_str()
+        .map(str::to_owned)
+}
+
 /// Canonical display form of a capability, e.g. `riscv32im_zve32x_zvl128b`.
 fn describe(cap: &Cap) -> String {
     match cap {

@@ -119,7 +119,7 @@ pub(crate) fn decode<P: remu_state::StatePolicy>(inst: u32) -> DecodedInst {
 pub(crate) fn execute<P: remu_state::StatePolicy, C: crate::ExecuteContext<P>>(
     ctx: &mut C,
     decoded: &DecodedInst,
-    _pc: <P::ISA as remu_isa::isa::RvIsa>::XLEN,
+    pc: <P::ISA as remu_isa::isa::RvIsa>::XLEN,
 ) -> Result<<P::ISA as remu_isa::isa::RvIsa>::XLEN, remu_state::StateError> {
     let Inst::StoreFp(store) = decoded.inst else {
         unreachable!()
@@ -128,7 +128,7 @@ pub(crate) fn execute<P: remu_state::StatePolicy, C: crate::ExecuteContext<P>>(
     if <<P::ISA as RvIsa>::VConfig as VExtensionConfig>::VLENB > 0 {
         let state = ctx.state_mut();
         if state.reg.csr.mstatus_vs_off() {
-            return Ok(UNKNOWN::trap_illegal_instruction(state, _pc));
+            return Ok(UNKNOWN::trap_illegal_instruction(state, pc));
         }
     }
 
@@ -166,7 +166,7 @@ pub(crate) fn execute<P: remu_state::StatePolicy, C: crate::ExecuteContext<P>>(
             if <<P::ISA as RvIsa>::VConfig as VExtensionConfig>::VLENB > 0 {
                 // Whole register store ignores vtype and vl, but requires vstart == 0
                 if ctx.state_mut().reg.csr.vector.vstart() != 0 {
-                    return crate::riscv::opcode::UNKNOWN::execute(ctx, decoded, _pc);
+                    return crate::riscv::opcode::UNKNOWN::execute(ctx, decoded, pc);
                 }
 
                 let state = ctx.state_mut();
@@ -336,5 +336,7 @@ pub(crate) fn execute<P: remu_state::StatePolicy, C: crate::ExecuteContext<P>>(
         }
     }
 
-    Ok(*ctx.state_mut().reg.pc)
+    Ok(pc.wrapping_add(
+        <<P as remu_state::StatePolicy>::ISA as remu_isa::isa::RvIsa>::XLEN::from_u64(4),
+    ))
 }

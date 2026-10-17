@@ -5,7 +5,7 @@ edition = "2024"
 
 [dependencies]
 remu_hal = { path = "../remu_hal" }
-# sin/cos for the in-app inverse kinematics (no_std has no float intrinsics).
+# sin for the per-joint sweep motion (no_std has no float intrinsics).
 libm = "0.2"
 
 [lints]
@@ -16,6 +16,6 @@ name = "remu_app_robot_arm"
 path = "../remu_hal/embedded/templates/app_entry.rs"
 
 [package.metadata.remu]
-# Guest-only: the arm device lives on the remu bus; the monitor window
-# (armview) is opened by the device, not the app.
-isas = ["riscv32i", "riscv32im"]
+# MJCF path relative to $MUJOCO_MENAGERIE_DIR; xtask exports REMU_ARM_MODEL
+# for `just run-app` (remu and host) — a caller-set value wins.
+arm-model = "franka_emika_panda/scene.xml"

@@ -1,7 +1,7 @@
 use std::path::PathBuf;
 use std::process::ExitCode;
 
-use crate::cli::{BuildAppArgs, CheckAppArgs, PrintCmd, RunAppArgs, RunRemuArgs};
+use crate::cli::{AppEnvArgs, BuildAppArgs, CheckAppArgs, PrintCmd, RunAppArgs, RunRemuArgs};
 use crate::disasm::infer_isa_from_elf_path;
 use crate::paths::Paths;
 use crate::platform::PlatformConfig;
@@ -19,8 +19,13 @@ pub(crate) fn run(cmd: PrintCmd) -> ExitCode {
         PrintCmd::BuildApp(a) => print_build_app(a),
         PrintCmd::RunRemu(a) => print_run_remu(a),
         PrintCmd::CheckApp(a) => print_check_app(a),
+        PrintCmd::AppEnv(a) => print_app_env(a),
     }
 }
+
+/// Environment variable carrying the arm model path
+/// (`[package.metadata.remu] arm-model` apps).
+const ARM_MODEL_ENV: &str = "REMU_ARM_MODEL";
 
 // ── rcore platform (`just run-app … --platform rcore`) ───────────────────
 //
@@ -160,6 +165,18 @@ fn print_check_app(args: CheckAppArgs) -> ExitCode {
     }
 }
 
+/// `just run-app --platform host` eval hook: print the shell exports the
+/// app's manifest asks for (currently `REMU_ARM_MODEL` from `arm-model`);
+/// nothing when the app declares none. A value the caller already set wins.
+fn print_app_env(args: AppEnvArgs) -> ExitCode {
+    let paths = Paths::from_env();
+    let ws = paths.workspace_canonical();
+    if let Some(model) = crate::app_caps::app_arm_model(&ws, &args.app) {
+        println!("export {ARM_MODEL_ENV}=\"${{{ARM_MODEL_ENV}:-$MUJOCO_MENAGERIE_DIR/{model}}}\"");
+    }
+    ExitCode::SUCCESS
+}
+
 /// rcore runs the app in U mode under a `riscv64im` kernel+firmware; the
 /// user app itself must be a `remu_app_*` package and target riscv64im.
 fn check_rcore_platform(args: &RunAppArgs) -> Result<(), String> {
@@ -239,6 +256,11 @@ fn print_run_app(args: RunAppArgs) -> ExitCode {
     }
     if let Some(isa) = &resolved.remu_isa {
         exports.push(format!("{}={}", REMU_ISA_ENV, shell_escape(isa)));
+    }
+    if let Some(model) = crate::app_caps::app_arm_model(&ws, &args.app) {
+        exports.push(format!(
+            "{ARM_MODEL_ENV}=\"${{{ARM_MODEL_ENV}:-$MUJOCO_MENAGERIE_DIR/{model}}}\""
+        ));
     }
     let export_prefix = if exports.is_empty() {
         String::new()

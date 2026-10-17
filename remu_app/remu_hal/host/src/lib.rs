@@ -18,7 +18,8 @@
 remu_macro::mod_prv!(arm, display, exit, keyboard, mouse, time, window);
 
 pub use arm::{
-    ARM_JOINTS, armview_alive, commit, read_commits, read_qpos, read_time, set_steps, set_target,
+    ARM_QPOS_MAX, ARM_TARGETS_MAX, armview_alive, commit, read_commits, read_nq, read_nu,
+    read_qpos, read_time, read_timestep, set_steps, set_target,
 };
 pub use display::{
     DisplaySize, FB_HEIGHT, FB_WIDTH, display_alive, fb_base, frame_done, put_pixel, read_disp_h,

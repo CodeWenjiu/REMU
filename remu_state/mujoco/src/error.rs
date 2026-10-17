@@ -1,6 +1,6 @@
 /// Errors from locating the engine, loading models, or transferring state.
 #[derive(Debug, thiserror::Error)]
-pub(crate) enum MujocoError {
+pub enum MujocoError {
     /// libmujoco could not be located, loaded, or is too old.
     #[error("mujoco engine unavailable: {0}")]
     Engine(String),

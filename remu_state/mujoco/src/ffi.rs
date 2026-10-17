@@ -58,6 +58,8 @@ pub(crate) const MOUSE_MOVE_V: c_int = 3;
 pub(crate) const MOUSE_MOVE_H: c_int = 4;
 pub(crate) const MOUSE_ZOOM: c_int = 5;
 // `mjtRndFlag` (mjvisualize.h).
+pub(crate) const RND_SHADOW: usize = 0;
+pub(crate) const RND_REFLECTION: usize = 2;
 pub(crate) const RND_SKYBOX: usize = 4;
 // `mjtFont` / `mjtGridPos` / `mjtFontScale` (mjrender.h).
 pub(crate) const FONT_SHADOW: c_int = 1;

@@ -158,12 +158,14 @@ pub fn read_key_kind() -> KeyKind {
 // ── Arm device (the arm lives on the remu bus; hosted targets are stubs) ──
 #[cfg(target_os = "none")]
 pub use remu_hal_embedded::{
-    ARM_JOINTS, armview_alive, commit, read_commits, read_qpos, read_time, set_steps, set_target,
+    ARM_QPOS_MAX, ARM_TARGETS_MAX, armview_alive, commit, read_commits, read_nq, read_nu,
+    read_qpos, read_time, read_timestep, set_steps, set_target,
 };
 
 #[cfg(any(unix, windows))]
 pub use remu_hal_host::{
-    ARM_JOINTS, armview_alive, commit, read_commits, read_qpos, read_time, set_steps, set_target,
+    ARM_QPOS_MAX, ARM_TARGETS_MAX, armview_alive, commit, read_commits, read_nq, read_nu,
+    read_qpos, read_time, read_timestep, set_steps, set_target,
 };
 
 // ── Safe init (single implementation; bare-metal bring-up, host no-op) ──

@@ -348,3 +348,124 @@ impl<P: SimulatorPolicy> SimulatorDut for SimulatorRemu<P, true> {
 impl<P: SimulatorPolicy> SimulatorRef<P> for SimulatorRemu<P, false> {
     const ENABLE: bool = true;
 }
+
+#[cfg(test)]
+mod tests {
+    use std::cell::RefCell;
+    use std::rc::Rc;
+
+    use remu_isa::WordOps;
+    use remu_isa::Xlen;
+    use remu_isa::isa::RvIsa;
+    use remu_isa::isa::extension_enum::RV32IM_zve32x_zvl128b;
+    use remu_isa::isa::reg::{RegAccess, VectorCsrState, VrState};
+
+    use crate::ExecuteContext;
+    use crate::riscv::decode;
+
+    type P = remu_state::StateFastProfile<RV32IM_zve32x_zvl128b>;
+
+    struct TestCtx {
+        state: remu_state::State<P>,
+    }
+
+    impl ExecuteContext<P> for TestCtx {
+        fn state_mut(&mut self) -> &mut remu_state::State<P> {
+            &mut self.state
+        }
+    }
+
+    struct NoTracer;
+
+    impl remu_types::Tracer for NoTracer {
+        fn print(&self, _message: &str) {}
+        fn mem_print(
+            &self,
+            _begin: usize,
+            _data: &[u8],
+            _result: Result<(), Box<dyn remu_types::DynDiagError>>,
+        ) {
+        }
+        fn mem_show(
+            &self,
+            _begin: usize,
+            _data: Result<remu_isa::AllUsize, Box<dyn remu_types::DynDiagError>>,
+        ) {
+        }
+        fn mem_show_map(&self, _map: Vec<(String, std::ops::Range<usize>)>) {}
+        fn reg_print(
+            &self,
+            _regs: &[(remu_isa::isa::reg::Gpr, remu_isa::AllUsize); 32],
+            _range: std::ops::Range<usize>,
+        ) {
+        }
+        fn reg_show(&self, _index: remu_isa::isa::reg::Gpr, _data: remu_isa::AllUsize) {}
+        fn disasm(&self, _pc: u64, _inst: u32) {}
+    }
+
+    fn x(v: u64) -> <<P as remu_state::StatePolicy>::ISA as RvIsa>::XLEN {
+        <<P as remu_state::StatePolicy>::ISA as RvIsa>::XLEN::from_u64(v)
+    }
+
+    fn ctx() -> TestCtx {
+        let tracer: remu_types::TracerDyn = Rc::new(RefCell::new(NoTracer));
+        TestCtx {
+            state: remu_state::State::new(
+                remu_state::StateOption {
+                    bus: remu_state::bus::BusOption {
+                        mem_base: None,
+                        mem_addon: Vec::new(),
+                        dev_base: None,
+                        dev_addon: Vec::new(),
+                        mem: Vec::new(),
+                        devices: Vec::new(),
+                        elf: None,
+                        firmware: None,
+                        app: None,
+                        app_args: None,
+                    },
+                    reg: remu_state::reg::RegOption {
+                        init_pc: 0x8000_0000,
+                    },
+                },
+                tracer,
+                false,
+            ),
+        }
+    }
+
+    /// Adapters must derive the next PC from the `pc` argument.
+    ///
+    /// `state.reg.pc` is only synced at batch boundaries (`run_batch` keeps the
+    /// PC in a local), so deriving the next PC from it makes the batch re-execute
+    /// the instructions between the last sync point and the vector instruction,
+    /// repeating their side effects.
+    #[test]
+    fn vector_adapters_return_next_pc_from_argument() {
+        let mut c = ctx();
+        c.state.reg.csr.set_mstatus_vs_dirty();
+
+        // A stale sync value that must not leak into the returned PC.
+        *c.state.reg.pc = x(0x8000_0000);
+
+        // vsetivli zero, 2, e32, m1, ta, ma (OP_V adapter).
+        let pc = x(0x8000_1000);
+        let setivli = decode::<P>(0xcd017057);
+        let next = crate::riscv::execute(&mut c, &setivli, pc).unwrap();
+        assert_eq!(next.to_u64(), 0x8000_1004);
+
+        // vse8.v v8, (a0) (STORE_FP adapter), hitting the default RAM region.
+        let v8 = [0xAAu8, 0xBB, 0xCC, 0xDD, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0];
+        c.state.reg.vr.raw_write(8, &v8);
+        c.state.reg.csr.vector.set_vtype(0);
+        c.state.reg.csr.vector.set_vl(4);
+        c.state.reg.gpr.raw_write(10, x(0x8000_0000));
+        let pc = x(0x8000_2000);
+        let vse8 = decode::<P>(0x02050427);
+        let next = crate::riscv::execute(&mut c, &vse8, pc).unwrap();
+        assert_eq!(next.to_u64(), 0x8000_2004);
+        for (i, want) in [0xAAu8, 0xBB, 0xCC, 0xDD].iter().enumerate() {
+            assert_eq!(c.state.bus.read_8(0x8000_0000 + i).unwrap(), *want);
+        }
+    }
+}

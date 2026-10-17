@@ -11,6 +11,7 @@ use std::os::raw::c_int;
 
 use dlopen2::wrapper::Container;
 
+use super::ModelSource;
 use super::error::MujocoError;
 use super::ffi::{
     self, CAT_ALL, FB_WINDOW, FONT_SHADOW, FONTSCALE_150, GRID_TOPLEFT, MjrContext, MjrRect,
@@ -34,26 +35,31 @@ pub(crate) struct MujocoView {
 }
 
 impl MujocoView {
-    /// Load `xml` as a mirror model and initialize the renderer.
+    /// Load `source` as a mirror model and initialize the renderer.
     /// Requires a current GL context on this thread.
-    pub(crate) fn load(xml: &str) -> Result<Self, MujocoError> {
+    pub(crate) fn load(source: &ModelSource) -> Result<Self, MujocoError> {
         let api = runtime::api()?;
-        let mut session = Session::from_xml_str(xml)?;
+        let mut session = source.load()?;
         let model = session.model_ptr();
 
         let mut cam = unsafe { MaybeUninit::<MjvCamera>::zeroed().assume_init() };
         unsafe { api.default_free_camera(model, &mut cam) };
-        // Frame the planar arm: centered on its reach volume, seen from the front.
-        cam.lookat = [0.35, 0.0, 0.15];
-        cam.distance = 1.8;
-        cam.azimuth = -70.0;
-        cam.elevation = -15.0;
+        if source.is_builtin() {
+            // The built-in toy arm has no `<visual><global>` hints: frame its
+            // planar reach volume, seen from the front and slightly above.
+            cam.lookat = [0.3, 0.0, 0.15];
+            cam.distance = 2.2;
+            cam.azimuth = -70.0;
+            cam.elevation = -15.0;
+        }
         let mut opt = unsafe { MaybeUninit::<MjvOption>::zeroed().assume_init() };
         unsafe { api.default_option(&mut opt) };
 
         let mut scene = Box::new(unsafe { MaybeUninit::<MjvScene>::zeroed().assume_init() });
         unsafe { api.make_scene(model, &mut *scene, MAX_GEOM) };
         scene.flags[ffi::RND_SKYBOX] = 1;
+        scene.flags[ffi::RND_SHADOW] = 1;
+        scene.flags[ffi::RND_REFLECTION] = 1;
 
         let mut con = Box::new(unsafe { MaybeUninit::<MjrContext>::zeroed().assume_init() });
         unsafe { api.make_context(model, &mut *con, FONTSCALE_150) };
@@ -79,7 +85,8 @@ impl MujocoView {
         self.session.set_qvel(qvel)
     }
 
-    /// Move the free camera: `action` is an `mjMOUSE_*` code, deltas in pixels.
+    /// Move the free camera: `action` is an `mjMOUSE_*` code, deltas
+    /// normalized by the viewport size (as `mjv_moveCamera` expects).
     pub(crate) fn mouse(&mut self, action: c_int, dx: f64, dy: f64) {
         unsafe {
             self.api
