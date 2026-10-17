@@ -175,6 +175,7 @@ impl Drop for ArmView {
 
 #[cfg(test)]
 mod tests {
+    use std::os::raw::c_int;
     use std::rc::Rc;
     use std::sync::atomic::{AtomicBool, Ordering};
     use std::sync::{Arc, Mutex};
@@ -197,12 +198,16 @@ mod tests {
         qvel: Vec<f64>,
     }
 
+    /// Redraws before the optional `REMU_ARMVIEW_SHOT=<path>` BMP capture.
+    const SHOT_FRAME: usize = 120;
+
     struct Demo {
         // Drop order: the GL view goes before the window it renders into.
         arm: Option<ArmView>,
         window: Option<Rc<Window>>,
         snap: Arc<Mutex<Snapshot>>,
         left: bool,
+        frames: usize,
     }
 
     impl ApplicationHandler for Demo {
@@ -246,6 +251,20 @@ mod tests {
                     }
                     if let (Some(arm), Some(window)) = (self.arm.as_mut(), self.window.as_ref()) {
                         arm.render(window.inner_size());
+                        self.frames += 1;
+                        if let Ok(path) = std::env::var("REMU_ARMVIEW_SHOT")
+                            && self.frames >= SHOT_FRAME
+                        {
+                            let size = window.inner_size();
+                            if let Some(view) = arm.view.as_mut() {
+                                view.save_offscreen_bmp(
+                                    std::path::Path::new(&path),
+                                    size.width.max(1) as c_int,
+                                    size.height.max(1) as c_int,
+                                );
+                            }
+                            event_loop.exit();
+                        }
                     }
                 }
                 WindowEvent::CursorMoved { position, .. } => {
@@ -323,6 +342,7 @@ mod tests {
             window: None,
             snap,
             left: false,
+            frames: 0,
         };
         event_loop.run_app(&mut demo).expect("run event loop");
 

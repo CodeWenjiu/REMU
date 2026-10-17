@@ -26,6 +26,7 @@ pub(crate) const STATE_QVEL: c_int = 1 << 2;
 pub(crate) const STATE_CTRL: c_int = 1 << 6;
 
 // `mjtObj` values (mjtype.h).
+pub(crate) const OBJ_BODY: c_int = 1;
 pub(crate) const OBJ_JOINT: c_int = 3;
 
 // ── Viewer (mjv/mjr) FFI ──
@@ -51,6 +52,10 @@ pub(crate) const NTEXROLE: usize = 10;
 pub(crate) const CAMERA_FREE: c_int = 0;
 // `mjtCatBit` (mjvisualize.h).
 pub(crate) const CAT_ALL: c_int = 7;
+// `mjtGeom` values (mjtype.h).
+pub(crate) const GEOM_LINE: c_int = 103;
+// `mjtSameFrame` value (mjtype.h).
+pub(crate) const SAMEFRAME_NONE: u8 = 0;
 // `mjtMouse` (mjvisualize.h).
 pub(crate) const MOUSE_ROTATE_V: c_int = 1;
 pub(crate) const MOUSE_ROTATE_H: c_int = 2;
@@ -67,9 +72,38 @@ pub(crate) const GRID_TOPLEFT: c_int = 0;
 pub(crate) const FONTSCALE_150: c_int = 150;
 // `mjtFrameBuffer` (mjrender.h).
 pub(crate) const FB_WINDOW: c_int = 0;
+pub(crate) const FB_OFFSCREEN: c_int = 1;
 
-/// Opaque abstract geom (`mjvGeom`); the scene owns the buffer.
-pub(crate) enum MjvGeom {}
+/// `mjvGeom` — abstract geom; the scene owns the buffer. Transcribed
+/// field-by-field from the pinned mujoco 3.14.0 headers (mjvisualize.h) —
+/// the layout is load-bearing for indexing `mjvScene.geoms`.
+#[repr(C)]
+#[allow(dead_code, reason = "some fields exist for layout fidelity only")]
+pub(crate) struct MjvGeom {
+    pub type_: c_int,
+    pub dataid: c_int,
+    pub objtype: c_int,
+    pub objid: c_int,
+    pub category: c_int,
+    pub matid: c_int,
+    pub texid: c_int,
+    pub texuniform: c_int,
+    pub texcoord: c_int,
+    pub segid: c_int,
+    pub size: [f32; 3],
+    pub pos: [f32; 3],
+    pub mat: [f32; 9],
+    pub rgba: [f32; 4],
+    pub emission: f32,
+    pub specular: f32,
+    pub shininess: f32,
+    pub reflectance: f32,
+    pub texrepeat: [f32; 2],
+    pub label: [c_char; 100],
+    pub camdist: f32,
+    pub modelrbound: f32,
+    pub transparent: u8,
+}
 /// Opaque perturbation state (`mjvPerturb`); the viewer passes null.
 pub(crate) enum MjvPerturb {}
 
@@ -320,6 +354,17 @@ pub(crate) struct MujocoApi {
     name2id:
         unsafe extern "C" fn(model: *const MjModel, obj_type: c_int, name: *const c_char) -> c_int,
 
+    #[dlopen2_name = "mj_local2Global"]
+    local2_global: unsafe extern "C" fn(
+        data: *mut MjData,
+        xpos: *mut f64,
+        xmat: *mut f64,
+        pos: *const f64,
+        quat: *const f64,
+        body: c_int,
+        sameframe: u8,
+    ),
+
     #[dlopen2_name = "mj_id2name"]
     id2name:
         unsafe extern "C" fn(model: *const MjModel, obj_type: c_int, id: c_int) -> *const c_char,
@@ -354,6 +399,25 @@ pub(crate) struct MujocoApi {
         camera: *mut MjvCamera,
         catmask: c_int,
         scene: *mut MjvScene,
+    ),
+
+    #[dlopen2_name = "mjv_initGeom"]
+    init_geom: unsafe extern "C" fn(
+        geom: *mut MjvGeom,
+        type_: c_int,
+        size: *const f64,
+        pos: *const f64,
+        mat: *const f64,
+        rgba: *const f32,
+    ),
+
+    #[dlopen2_name = "mjv_connector"]
+    connector: unsafe extern "C" fn(
+        geom: *mut MjvGeom,
+        type_: c_int,
+        width: f64,
+        from: *const f64,
+        to: *const f64,
     ),
 
     #[dlopen2_name = "mjr_makeContext"]

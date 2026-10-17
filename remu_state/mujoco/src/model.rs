@@ -15,7 +15,8 @@ use crate::session::Session;
 /// a full disk (radius 0.77 around its base in the y=0 plane, down to z ~
 /// -0.67), so nothing may sit under the sweep: the floor lies below every
 /// reachable pose and the mount column stands clear of the y=0 slab at y=-0.3,
-/// with a bracket reaching to the base.
+/// with a bracket reaching to the base. The massless `tip` body at the end of
+/// `link2` is the end-effector point the armview trail follows.
 pub const ARM_XML: &str = r#"
 <mujoco model="arm3dof">
   <option timestep="0.001" gravity="0 0 0"/>
@@ -47,6 +48,7 @@ pub const ARM_XML: &str = r#"
         <body name="link2" pos="0.25 0 0">
           <joint name="j2"/>
           <geom fromto="0 0 0 0.2 0 0"/>
+          <body name="tip" pos="0.2 0 0"/>
         </body>
       </body>
     </body>

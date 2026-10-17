@@ -33,7 +33,7 @@ pub(crate) fn engine_version() -> Result<i32, MujocoError> {
     Ok(unsafe { api()?.version() })
 }
 
-fn candidate_paths() -> Vec<PathBuf> {
+pub(crate) fn candidate_paths() -> Vec<PathBuf> {
     let mut paths = Vec::new();
     if let Some(dir) = env::var_os("MUJOCO_DIR") {
         paths.push(PathBuf::from(dir).join("lib").join("libmujoco.so"));
