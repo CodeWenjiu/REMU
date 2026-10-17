@@ -3,3 +3,5 @@
 .step-sizes.tsv
 /.sisyphus
 /.sccache
+# MuJoCo writes this next to the process cwd on warnings (see remu_mujoco).
+MUJOCO_LOG.TXT

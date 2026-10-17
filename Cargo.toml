@@ -85,6 +85,9 @@ dlopen2 = { version = "0.9", default-features = false, features = ["wrapper", "d
 
 winit = "0.30.13"
 softbuffer = "0.4.8"
+# GL context provider for the MuJoCo arm view (EGL only: works on Wayland and
+# X11; MuJoCo dlopens libEGL/libGL itself, we only give it a current context).
+glutin = { version = "0.32", default-features = false, features = [ "egl", "wayland" ] }
 
 # Slint UI toolkit. Default-features off + software renderer: renders into the
 # remu_hal framebuffer on both host and embedded (no winit/femtovg system deps).

@@ -4108,6 +4108,14 @@ dependencies = [
 ]
 
 [[package]]
+name = "remu_app_robot_arm"
+version = "0.1.0"
+dependencies = [
+ "libm",
+ "remu_hal",
+]
+
+[[package]]
 name = "remu_app_shader"
 version = "0.1.0"
 dependencies = [
@@ -4351,6 +4359,8 @@ name = "remu_state"
 version = "0.1.0"
 dependencies = [
  "clap",
+ "dlopen2",
+ "glutin",
  "object 0.40.0",
  "remu_fmt",
  "remu_isa",

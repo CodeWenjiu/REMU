@@ -17,6 +17,8 @@ object = { version = "0.40.0", default-features = false, features = ["read_core"
 
 winit.workspace = true
 softbuffer.workspace = true
+glutin.workspace = true
+dlopen2.workspace = true
 
 [lints]
 workspace = true

@@ -1,8 +1,10 @@
 //! Shared winit window host backing the display / mouse / keyboard devices.
 //!
-//! A single winit event loop + window is created once (when any of the three
-//! devices needs it) and its events are fanned out into three independent
-//! shared states:
+//! All remu windows share one winit event loop on one render thread (winit
+//! only allows a single `EventLoop` per process). Windows open on demand: the
+//! display window when a framebuffer-backed display device attaches, and the
+//! armview monitor window when the arm device requests it. The display
+//! window's events are fanned out into three independent shared states:
 //!
 //! - `disp`   — active display resolution (written by resize, read by display)
 //! - `mouse`  — pointer position + buttons (written by winit, read by mouse)
@@ -13,14 +15,16 @@
 //! on the framebuffer path — the guest writes it directly, the render thread
 //! reads it at frame boundaries.
 //!
-//! Startup is lazy via [`ensure_started`], so a run that never instantiates a
-//! window-backed device never opens a window.
+//! Startup is lazy: the host is only created when a window-backed device is
+//! instantiated, so a run that never needs a window never opens one.
 
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex};
 
+use super::arm::ArmSnapshot;
 use super::keyboard::KeyboardState;
 use super::mouse::MouseState;
+use super::mujoco::ArmView;
 
 /// Framebuffer capacity (matches the display device).
 pub(super) const FB_WIDTH: usize = 2048;
@@ -43,6 +47,28 @@ impl DisplayState {
     }
 }
 
+/// Commands sent to the render thread by device threads.
+enum HostCommand {
+    /// A guest frame is complete: redraw the display window.
+    RedrawDisplay,
+    /// A display device attached its framebuffer: open the display window
+    /// (no-op when already open).
+    OpenDisplay,
+    /// The arm device requested its monitor window: open armview (no-op when
+    /// already open). The request itself (xml + snapshot) is stored in
+    /// `WindowHost::arm_request`.
+    OpenArmView,
+    /// Teardown: exit the event loop (wakes it out of its blocking wait).
+    Shutdown,
+}
+
+/// A pending armview request: which model to mirror and where the arm device
+/// publishes its state.
+struct ArmViewRequest {
+    xml: &'static str,
+    snapshot: Arc<Mutex<ArmSnapshot>>,
+}
+
 /// The window host: owns the winit event loop thread and fans out input events
 /// into shared states read by the display / mouse / keyboard devices. Its
 /// lifetime is tied to the owning `Bus` (each DUT bus holds an `Arc`); the
@@ -57,11 +83,18 @@ pub(crate) struct WindowHost {
     pub(super) mouse: Arc<Mutex<MouseState>>,
     /// Shared keyboard state (render thread writes, keyboard device reads).
     pub(super) keyboard: Arc<Mutex<KeyboardState>>,
+    /// Pending armview request, taken by the loop thread when it opens the
+    /// window; recorded before the loop thread is guaranteed to be listening.
+    arm_request: Mutex<Option<ArmViewRequest>>,
+    /// Whether the armview monitor window is (still) expected to be open
+    /// (false once the user closed it, or opening it failed). Read by the arm
+    /// device's status register.
+    armview_alive: AtomicBool,
     /// Proxy used to wake the render thread on frame-done.
-    proxy: Arc<Mutex<Option<winit::event_loop::EventLoopProxy<()>>>>,
+    proxy: Mutex<Option<winit::event_loop::EventLoopProxy<HostCommand>>>,
     /// Signal for the render thread to stop.
     stop: Arc<AtomicBool>,
-    /// Whether the window is alive (set false when the render thread exits).
+    /// Whether the display window is open (false after the user closes it).
     alive: AtomicBool,
     /// Render thread handle.
     thread: Mutex<Option<std::thread::JoinHandle<()>>>,
@@ -75,7 +108,9 @@ impl WindowHost {
             disp: Arc::new(Mutex::new(DisplayState::initial())),
             mouse: Arc::new(Mutex::new(MouseState::default())),
             keyboard: Arc::new(Mutex::new(KeyboardState::default())),
-            proxy: Arc::new(Mutex::new(None)),
+            arm_request: Mutex::new(None),
+            armview_alive: AtomicBool::new(true),
+            proxy: Mutex::new(None),
             stop: Arc::new(AtomicBool::new(false)),
             alive: AtomicBool::new(true),
             thread: Mutex::new(None),
@@ -83,9 +118,12 @@ impl WindowHost {
         let host_for_thread = Arc::clone(&host);
         let handle = std::thread::spawn(move || {
             let ok = render_loop(&host_for_thread);
-            // Render thread exited (window closed or loop ended): mark not alive
-            // so devices can observe the window is gone.
+            // Render thread exited (loop ended): mark not alive so devices can
+            // observe the window is gone.
             host_for_thread.alive.store(false, Ordering::Relaxed);
+            host_for_thread
+                .armview_alive
+                .store(false, Ordering::Relaxed);
             if let Err(e) = ok {
                 eprintln!("window backend error: {e}");
             }
@@ -97,6 +135,11 @@ impl WindowHost {
     /// Set the framebuffer pointer (called by display's `attach_mem_region`).
     pub(crate) fn set_fb(&self, ptr: *mut u8) {
         *self.fb.lock().unwrap() = Some(ptr as usize);
+        // The display window opens on demand (first framebuffer): wake the
+        // loop in case it started before this device attached.
+        if let Some(proxy) = self.proxy.lock().unwrap().as_ref() {
+            let _ = proxy.send_event(HostCommand::OpenDisplay);
+        }
     }
 
     /// Raw framebuffer pointer for the render thread.
@@ -117,22 +160,41 @@ impl WindowHost {
     }
 
     /// Wake the render thread to blit a finished frame (from display's CTRL write).
-    pub(crate) fn request_redraw(&self) {
+    pub(crate) fn request_display_redraw(&self) {
         if let Some(proxy) = self.proxy.lock().unwrap().as_ref() {
-            let _ = proxy.send_event(());
+            let _ = proxy.send_event(HostCommand::RedrawDisplay);
         }
     }
 
-    /// Whether the window is currently alive (render thread running).
+    /// Queue the armview monitor window (called by the arm device): it opens
+    /// once on the loop thread and renders whatever the device publishes into
+    /// `snapshot`.
+    pub(crate) fn open_arm_view(&self, xml: &'static str, snapshot: Arc<Mutex<ArmSnapshot>>) {
+        *self.arm_request.lock().unwrap() = Some(ArmViewRequest { xml, snapshot });
+        if let Some(proxy) = self.proxy.lock().unwrap().as_ref() {
+            let _ = proxy.send_event(HostCommand::OpenArmView);
+        }
+    }
+
+    /// Whether the display window is currently open.
     pub(crate) fn alive(&self) -> bool {
         self.alive.load(Ordering::Relaxed)
     }
 
-    /// Signal the render thread to stop and join it (closes the window).
+    /// Whether the armview monitor window is currently open.
+    pub(crate) fn armview_alive(&self) -> bool {
+        self.armview_alive.load(Ordering::Relaxed)
+    }
+
+    /// Signal the render thread to stop and join it (closes the windows).
     /// Safe to call more than once; idempotent. Used by `Bus::drop` so the
     /// window closes with the bus rather than lingering to process end.
     pub(crate) fn request_shutdown(&self) {
         self.stop.store(true, Ordering::Relaxed);
+        // Wake the loop out of its blocking `Wait` so it observes the stop.
+        if let Some(proxy) = self.proxy.lock().unwrap().as_ref() {
+            let _ = proxy.send_event(HostCommand::Shutdown);
+        }
         if let Some(h) = self.thread.lock().unwrap().take() {
             let _ = h.join();
         }
@@ -148,28 +210,52 @@ impl Drop for WindowHost {
 // ── Render backend (softbuffer + winit event loop) ──
 
 fn render_loop(host: &Arc<WindowHost>) -> Result<(), Box<dyn std::error::Error>> {
+    use std::collections::HashMap;
     use std::num::NonZeroU32;
     use std::rc::Rc;
 
     use softbuffer::{Context, Surface};
     use winit::application::ApplicationHandler;
-    use winit::event::{ElementState, MouseButton, WindowEvent};
+    use winit::event::{ElementState, MouseButton, MouseScrollDelta, WindowEvent};
     use winit::event_loop::{ActiveEventLoop, ControlFlow, EventLoop, OwnedDisplayHandle};
     use winit::platform::wayland::EventLoopBuilderExtWayland as _;
     use winit::window::{Window, WindowId};
 
-    enum AppState {
-        Initial,
-        Running {
-            surface: Surface<OwnedDisplayHandle, Rc<Window>>,
-        },
+    /// What a managed window renders and which inputs it owns.
+    #[derive(Clone, Copy, PartialEq, Eq)]
+    enum WindowKind {
+        /// The device framebuffer window (softbuffer blit of `Bus::Memory`);
+        /// its input events feed the guest mouse/keyboard devices.
+        Display,
+        /// The MuJoCo arm monitor: an OpenGL window rendered by the armview
+        /// backend from the arm device's published snapshots.
+        Armview,
+    }
+
+    /// A window managed by the shared loop. `surface` is the softbuffer
+    /// presentation used by the display window only.
+    struct ManagedWindow {
+        kind: WindowKind,
+        window: Rc<Window>,
+        surface: Option<Surface<OwnedDisplayHandle, Rc<Window>>>,
     }
 
     struct App {
         context: Context<OwnedDisplayHandle>,
-        state: AppState,
         host: Arc<WindowHost>,
-        window: Option<Rc<Window>>,
+        /// The armview GL backend; drops before `windows`, which owns its
+        /// window (`ArmView` must never outlive the window it renders into).
+        arm: Option<ArmView>,
+        /// Arm state snapshot backing the armview mirror (from the request).
+        arm_state: Option<Arc<Mutex<ArmSnapshot>>>,
+        arm_id: Option<WindowId>,
+        /// Left-button state of the armview window (camera drag).
+        arm_left: bool,
+        windows: HashMap<WindowId, ManagedWindow>,
+        /// Window id of the display window (`None` once the user closed it).
+        display: Option<WindowId>,
+        /// Whether `resumed` ran (window creation is only legal after it).
+        started: bool,
     }
     // `host` owns the raw framebuffer pointer, only read while Bus/Memory
     // outlives the render thread. `Send` is safe: the pointer is not
@@ -210,14 +296,14 @@ fn render_loop(host: &Arc<WindowHost>) -> Result<(), Box<dyn std::error::Error>>
     }
 
     impl App {
-        /// Update the shared display resolution from the current window size.
+        /// Update the shared display resolution from the display window size.
         fn update_disp(&self) {
             let (wl, wh) = self
-                .window
-                .as_ref()
+                .display
+                .and_then(|id| self.windows.get(&id))
                 .map(|w| {
-                    let s = w.scale_factor();
-                    let inner = w.inner_size();
+                    let s = w.window.scale_factor();
+                    let inner = w.window.inner_size();
                     (
                         (inner.width as f64 / s) as usize,
                         (inner.height as f64 / s) as usize,
@@ -228,53 +314,168 @@ fn render_loop(host: &Arc<WindowHost>) -> Result<(), Box<dyn std::error::Error>>
             d.disp_w = wl.min(FB_WIDTH).max(1);
             d.disp_h = wh.min(FB_HEIGHT).max(1);
         }
-    }
 
-    impl ApplicationHandler<()> for App {
-        fn resumed(&mut self, event_loop: &ActiveEventLoop) {
-            if matches!(self.state, AppState::Initial) {
-                let attrs = Window::default_attributes()
-                    .with_title("remu display")
-                    // Start with a modest window; the framebuffer is much larger.
-                    .with_inner_size(winit::dpi::LogicalSize::new(800.0, 600.0))
-                    // Pin min=max so tiling compositors (e.g. niri) cannot
-                    // stretch the window to the tile size.
-                    .with_min_inner_size(winit::dpi::LogicalSize::new(800.0, 600.0))
-                    .with_max_inner_size(winit::dpi::LogicalSize::new(800.0, 600.0));
-                let window = Rc::new(event_loop.create_window(attrs).expect("create window"));
-                self.window = Some(Rc::clone(&window));
-                self.update_disp();
-                let (dw, dh) = {
-                    let d = self.host.disp.lock().unwrap();
-                    (d.disp_w, d.disp_h)
-                };
-                let mut surface =
-                    Surface::new(&self.context, window.clone()).expect("create surface");
+        /// Open the display window if a framebuffer-backed display device is
+        /// present and the window is not open yet.
+        fn maybe_open_display(&mut self, event_loop: &ActiveEventLoop) {
+            if !self.started || self.display.is_some() || self.host.fb_addr().is_none() {
+                return;
+            }
+            let attrs = Window::default_attributes()
+                .with_title("remu display")
+                // Start with a modest window; the framebuffer is much larger.
+                .with_inner_size(winit::dpi::LogicalSize::new(800.0, 600.0))
+                // Pin min=max so tiling compositors (e.g. niri) cannot
+                // stretch the window to the tile size.
+                .with_min_inner_size(winit::dpi::LogicalSize::new(800.0, 600.0))
+                .with_max_inner_size(winit::dpi::LogicalSize::new(800.0, 600.0));
+            let window = Rc::new(event_loop.create_window(attrs).expect("create window"));
+            let surface = Surface::new(&self.context, window.clone()).expect("create surface");
+            self.display = Some(window.id());
+            self.windows.insert(
+                window.id(),
+                ManagedWindow {
+                    kind: WindowKind::Display,
+                    window,
+                    surface: Some(surface),
+                },
+            );
+            self.update_disp();
+            let (dw, dh) = {
+                let d = self.host.disp.lock().unwrap();
+                (d.disp_w, d.disp_h)
+            };
+            if let Some(w) = self.display.and_then(|id| self.windows.get_mut(&id))
+                && let Some(surface) = w.surface.as_mut()
+            {
                 let _ = surface.resize(
                     NonZeroU32::new(dw.max(1) as u32).unwrap(),
                     NonZeroU32::new(dh.max(1) as u32).unwrap(),
                 );
-                self.state = AppState::Running { surface };
             }
+        }
+
+        /// Open the armview monitor window if the arm device requested it and
+        /// it is not open yet.
+        fn maybe_open_armview(&mut self, event_loop: &ActiveEventLoop) {
+            if !self.started || self.arm.is_some() {
+                return;
+            }
+            let Some(request) = self.host.arm_request.lock().unwrap().take() else {
+                return;
+            };
+            let attrs = Window::default_attributes()
+                .with_title("remu armview")
+                .with_inner_size(winit::dpi::LogicalSize::new(900.0, 700.0))
+                .with_min_inner_size(winit::dpi::LogicalSize::new(320.0, 240.0));
+            let window = Rc::new(event_loop.create_window(attrs).expect("create window"));
+            match ArmView::new(&window, request.xml) {
+                Ok(arm) => {
+                    self.arm = Some(arm);
+                    self.arm_state = Some(request.snapshot);
+                    self.arm_id = Some(window.id());
+                    self.windows.insert(
+                        window.id(),
+                        ManagedWindow {
+                            kind: WindowKind::Armview,
+                            window,
+                            surface: None,
+                        },
+                    );
+                }
+                // No empty window is left behind: the dropped window closes.
+                Err(e) => {
+                    eprintln!("armview: window backend failed: {e}");
+                    self.host.armview_alive.store(false, Ordering::Relaxed);
+                }
+            }
+        }
+    }
+
+    impl ApplicationHandler<HostCommand> for App {
+        fn resumed(&mut self, event_loop: &ActiveEventLoop) {
+            if self.started {
+                return;
+            }
+            self.started = true;
+            // Requests recorded before the loop was up are opened here; later
+            // ones arrive as user events.
+            self.maybe_open_display(event_loop);
+            self.maybe_open_armview(event_loop);
         }
 
         fn window_event(
             &mut self,
             _event_loop: &ActiveEventLoop,
-            _id: WindowId,
+            id: WindowId,
             event: WindowEvent,
         ) {
+            let Some(kind) = self.windows.get(&id).map(|w| w.kind) else {
+                return;
+            };
+            match kind {
+                WindowKind::Display => self.display_event(id, event),
+                WindowKind::Armview => self.armview_event(id, event),
+            }
+        }
+
+        fn user_event(&mut self, event_loop: &ActiveEventLoop, command: HostCommand) {
+            match command {
+                // A frame is complete (from display's CTRL write): redraw.
+                HostCommand::RedrawDisplay => {
+                    if let Some(w) = self.display.and_then(|id| self.windows.get(&id)) {
+                        w.window.request_redraw();
+                    }
+                }
+                HostCommand::OpenDisplay => self.maybe_open_display(event_loop),
+                HostCommand::OpenArmView => self.maybe_open_armview(event_loop),
+                HostCommand::Shutdown => event_loop.exit(),
+            }
+        }
+
+        fn about_to_wait(&mut self, event_loop: &ActiveEventLoop) {
+            if self.host.stop.load(Ordering::Relaxed) {
+                event_loop.exit();
+                return;
+            }
+            // Requests that raced the loop startup (cheap no-ops otherwise).
+            self.maybe_open_display(event_loop);
+            self.maybe_open_armview(event_loop);
+            if self.arm.is_some() {
+                // Continuous armview animation: one frame per wakeup; the EGL
+                // swap (vsync) paces the loop.
+                if let Some(id) = self.arm_id
+                    && let Some(w) = self.windows.get(&id)
+                {
+                    w.window.request_redraw();
+                }
+                event_loop.set_control_flow(ControlFlow::Poll);
+            } else {
+                event_loop.set_control_flow(ControlFlow::Wait);
+            }
+        }
+    }
+
+    impl App {
+        fn display_event(&mut self, id: WindowId, event: WindowEvent) {
             match event {
                 WindowEvent::CloseRequested => {
-                    self.host.stop.store(true, Ordering::Relaxed);
+                    // The user closed the display window: it's gone for the
+                    // guest (`display_alive()` reports false), but the shared
+                    // loop keeps running for any other windows.
+                    self.windows.remove(&id);
+                    self.display = None;
+                    self.host.alive.store(false, Ordering::Relaxed);
                 }
                 WindowEvent::Resized(_physical) => {
                     self.update_disp();
-                    if let AppState::Running { surface } = &mut self.state {
-                        let (dw, dh) = {
-                            let d = self.host.disp.lock().unwrap();
-                            (d.disp_w, d.disp_h)
-                        };
+                    let (dw, dh) = {
+                        let d = self.host.disp.lock().unwrap();
+                        (d.disp_w, d.disp_h)
+                    };
+                    if let Some(w) = self.windows.get_mut(&id)
+                        && let Some(surface) = w.surface.as_mut()
+                    {
                         let _ = surface.resize(
                             NonZeroU32::new(dw.max(1) as u32).unwrap(),
                             NonZeroU32::new(dh.max(1) as u32).unwrap(),
@@ -283,28 +484,32 @@ fn render_loop(host: &Arc<WindowHost>) -> Result<(), Box<dyn std::error::Error>>
                 }
                 WindowEvent::ScaleFactorChanged { .. } => self.update_disp(),
                 WindowEvent::RedrawRequested => {
-                    if let AppState::Running { surface } = &mut self.state {
-                        let fb = self.host.fb_addr().unwrap_or(0) as *const u32;
-                        let disp_w = self.host.disp.lock().unwrap().disp_w;
-                        let disp_h = self.host.disp.lock().unwrap().disp_h;
-                        blit(fb, &self.host.stop, surface, disp_w, disp_h);
+                    let fb = self.host.fb_addr().unwrap_or(0) as *const u32;
+                    let (dw, dh) = {
+                        let d = self.host.disp.lock().unwrap();
+                        (d.disp_w, d.disp_h)
+                    };
+                    if let Some(w) = self.windows.get_mut(&id)
+                        && let Some(surface) = w.surface.as_mut()
+                    {
+                        blit(fb, &self.host.stop, surface, dw, dh);
                     }
                 }
                 // ── Mouse input → shared state. ──
                 WindowEvent::CursorMoved { position, .. } => {
                     let (wl, wh) = self
-                        .window
-                        .as_ref()
+                        .windows
+                        .get(&id)
                         .map(|w| {
-                            let s = w.scale_factor();
-                            let inner = w.inner_size();
+                            let s = w.window.scale_factor();
+                            let inner = w.window.inner_size();
                             (inner.width as f64 / s, inner.height as f64 / s)
                         })
                         .unwrap_or((FB_WIDTH as f64, FB_HEIGHT as f64));
                     let logical: winit::dpi::LogicalPosition<f64> = position.to_logical(
-                        self.window
-                            .as_ref()
-                            .map(|w| w.scale_factor())
+                        self.windows
+                            .get(&id)
+                            .map(|w| w.window.scale_factor())
                             .unwrap_or(1.0),
                     );
                     let (dw, dh) = {
@@ -384,19 +589,55 @@ fn render_loop(host: &Arc<WindowHost>) -> Result<(), Box<dyn std::error::Error>>
             }
         }
 
-        fn user_event(&mut self, _event_loop: &ActiveEventLoop, _event: ()) {
-            // A frame is complete (from display's CTRL write): request a redraw.
-            let AppState::Running { surface } = &self.state else {
-                return;
-            };
-            surface.window().request_redraw();
-        }
-
-        fn about_to_wait(&mut self, event_loop: &ActiveEventLoop) {
-            if self.host.stop.load(Ordering::Relaxed) {
-                event_loop.exit();
-            } else {
-                event_loop.set_control_flow(ControlFlow::Wait);
+        /// Armview window events: close tears the GL stack down, redraw pulls
+        /// the latest snapshot, and the mouse drives the free camera.
+        fn armview_event(&mut self, id: WindowId, event: WindowEvent) {
+            match event {
+                WindowEvent::CloseRequested => {
+                    // Drop the GL stack first: it must not outlive its window.
+                    self.arm = None;
+                    self.arm_state = None;
+                    self.arm_id = None;
+                    self.windows.remove(&id);
+                    // The monitor is gone: the arm device's status register
+                    // tells the guest (its `armview_alive()` reads false).
+                    self.host.armview_alive.store(false, Ordering::Relaxed);
+                }
+                WindowEvent::Resized(size) => {
+                    if let Some(arm) = self.arm.as_mut() {
+                        arm.resize(size);
+                    }
+                }
+                WindowEvent::RedrawRequested => {
+                    if let (Some(arm), Some(state)) = (self.arm.as_mut(), self.arm_state.as_ref()) {
+                        let snap = state.lock().unwrap();
+                        arm.set_state(&snap.qpos, &snap.qvel);
+                        drop(snap);
+                        if let Some(w) = self.windows.get(&id) {
+                            arm.render(w.window.inner_size());
+                        }
+                    }
+                }
+                WindowEvent::CursorMoved { position, .. } => {
+                    if let Some(arm) = self.arm.as_mut() {
+                        arm.cursor_moved(position.x, position.y, self.arm_left);
+                    }
+                }
+                WindowEvent::MouseInput {
+                    state,
+                    button: MouseButton::Left,
+                    ..
+                } => self.arm_left = matches!(state, ElementState::Pressed),
+                WindowEvent::MouseWheel { delta, .. } => {
+                    let dy = match delta {
+                        MouseScrollDelta::LineDelta(_, y) => y as f64,
+                        MouseScrollDelta::PixelDelta(p) => p.y,
+                    };
+                    if let Some(arm) = self.arm.as_mut() {
+                        arm.zoom(dy);
+                    }
+                }
+                _ => {}
             }
         }
     }
@@ -436,7 +677,7 @@ fn render_loop(host: &Arc<WindowHost>) -> Result<(), Box<dyn std::error::Error>>
         }
     }
 
-    let event_loop = EventLoop::<()>::with_user_event()
+    let event_loop = EventLoop::<HostCommand>::with_user_event()
         .with_any_thread(true) // allow creating the loop on a background thread
         .build()?;
     event_loop.set_control_flow(ControlFlow::Wait);
@@ -445,9 +686,14 @@ fn render_loop(host: &Arc<WindowHost>) -> Result<(), Box<dyn std::error::Error>>
     let context = Context::new(event_loop.owned_display_handle())?;
     let mut app = App {
         context,
-        state: AppState::Initial,
         host: Arc::clone(host),
-        window: None,
+        arm: None,
+        arm_state: None,
+        arm_id: None,
+        arm_left: false,
+        windows: HashMap::new(),
+        display: None,
+        started: false,
     };
     event_loop.run_app(&mut app)?;
     Ok(())

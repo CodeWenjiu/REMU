@@ -111,7 +111,7 @@ impl super::DeviceAccess for Display {
         // render thread so it blits the new frame.
         if offset == REG_CTRL {
             if let Some(w) = &self.window {
-                w.request_redraw();
+                w.request_display_redraw();
             }
         }
         Ok(())
@@ -133,7 +133,7 @@ impl super::DeviceAccess for Display {
         // Frame-done control: wake the render thread to blit the new frame.
         if offset == REG_CTRL {
             if let Some(w) = &self.window {
-                w.request_redraw();
+                w.request_display_redraw();
             }
         }
         Ok(())

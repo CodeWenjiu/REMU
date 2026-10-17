@@ -1,4 +1,5 @@
 remu_macro::mod_prv!(
+    arm,
     uart_simple,
     uart16550,
     sifive_test_finisher,
@@ -6,6 +7,7 @@ remu_macro::mod_prv!(
     display,
     mouse,
     keyboard,
+    mujoco,
     window
 );
 
@@ -131,6 +133,7 @@ pub enum DeviceKind {
     Display,
     Mouse,
     Keyboard,
+    Arm,
 }
 
 impl DeviceKind {
@@ -144,13 +147,17 @@ impl DeviceKind {
             Self::Display => "display",
             Self::Mouse => "mouse",
             Self::Keyboard => "keyboard",
+            Self::Arm => "arm",
         }
     }
 
     /// Whether this device kind depends on the shared window host.
     #[inline]
     pub const fn needs_window(self) -> bool {
-        matches!(self, Self::Display | Self::Mouse | Self::Keyboard)
+        matches!(
+            self,
+            Self::Display | Self::Mouse | Self::Keyboard | Self::Arm
+        )
     }
 }
 
@@ -166,8 +173,9 @@ impl FromStr for DeviceKind {
             "display" => Ok(Self::Display),
             "mouse" => Ok(Self::Mouse),
             "keyboard" => Ok(Self::Keyboard),
+            "arm" => Ok(Self::Arm),
             _ => Err(format!(
-                "unknown device kind {s:?}; expected uart_simple, uart16550, clint, sifive_test_finisher, display, mouse, keyboard"
+                "unknown device kind {s:?}; expected uart_simple, uart16550, clint, sifive_test_finisher, display, mouse, keyboard, arm"
             )),
         }
     }
@@ -218,6 +226,7 @@ pub(crate) fn instantiate_device(kind: DeviceKind, ctx: &DeviceContext) -> Box<d
         DeviceKind::Display => Box::new(display::Display::new()),
         DeviceKind::Mouse => Box::new(mouse::Mouse::new()),
         DeviceKind::Keyboard => Box::new(keyboard::Keyboard::new()),
+        DeviceKind::Arm => Box::new(arm::Arm::new()),
     };
     // Uniform dependency injection: every device gets the context; only those
     // that need it pull from it.

@@ -77,6 +77,7 @@
           wayland
           libxkbcommon
           libGL
+          mesa
           vulkan-loader
           libX11
           libXcursor
@@ -127,6 +128,9 @@
           python3
           zlib
           lz4
+          # MuJoCo engine (libmujoco.so), dlopen'd by remu_mujoco on first use;
+          # MUJOCO_DIR points the loader here.
+          mujoco
           # Slint's host font stack (fontique -> yeslogic-fontconfig-sys) links
           # libfontconfig; the shell needs its pkg-config file to build.
           fontconfig
@@ -151,6 +155,12 @@
             export LD_LIBRARY_PATH=${pkgs.lib.makeLibraryPath guiRuntime}:$LD_LIBRARY_PATH
             export LD_LIBRARY_PATH=${pkgs.zlib.out}/lib:${pkgs.lz4.lib}/lib:$LD_LIBRARY_PATH
             export LIBRARY_PATH=${pkgs.zlib.out}/lib:${pkgs.lz4.lib}/lib
+            export MUJOCO_DIR=${pkgs.mujoco}
+            export LD_LIBRARY_PATH=${pkgs.mujoco}/lib:$LD_LIBRARY_PATH
+            # glvnd must find this shell's own Mesa: the system drivers under
+            # /run/opengl-driver are built against a newer glibc than the
+            # shell's, so loading them fails.
+            export __EGL_VENDOR_LIBRARY_DIRS=${pkgs.mesa}/share/glvnd/egl_vendor.d
             export OPENSSL_NO_VENDOR=1
             export OPENSSL_DIR=${pkgs.openssl.dev}
             export OPENSSL_LIB_DIR=${pkgs.openssl.out}/lib
