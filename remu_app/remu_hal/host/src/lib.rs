@@ -15,8 +15,11 @@
 //! The façade `remu_hal` re-exports these items on host targets; apps depend
 //! only on `remu_hal`.
 
-remu_macro::mod_prv!(display, exit, keyboard, mouse, time, window);
+remu_macro::mod_prv!(arm, display, exit, keyboard, mouse, time, window);
 
+pub use arm::{
+    ARM_JOINTS, armview_alive, commit, read_commits, read_qpos, read_time, set_steps, set_target,
+};
 pub use display::{
     DisplaySize, FB_HEIGHT, FB_WIDTH, display_alive, fb_base, frame_done, put_pixel, read_disp_h,
     read_disp_size, read_disp_w,

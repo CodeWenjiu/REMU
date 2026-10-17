@@ -15,11 +15,14 @@ extern crate alloc;
 extern crate panic_halt;
 
 remu_macro::mod_prv!(
-    addresses, app_args, cpu, display, heap, time, trap, uart, exit
+    addresses, app_args, arm, cpu, display, heap, time, trap, uart, exit
 );
 
 pub use alloc::{boxed::Box, string::String, vec::Vec};
 pub use app_args::app_args;
+pub use arm::{
+    ARM_JOINTS, armview_alive, commit, read_commits, read_qpos, read_time, set_steps, set_target,
+};
 pub use display::{
     DisplaySize, FB_BASE, FB_HEIGHT, FB_WIDTH, KeyState, MouseState, display_alive, fb_base,
     frame_done, put_pixel, read_disp_h, read_disp_size, read_disp_w, read_key, read_key_buttons,

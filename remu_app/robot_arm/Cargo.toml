@@ -1,0 +1,21 @@
+[package]
+name = "remu_app_robot_arm"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+remu_hal = { path = "../remu_hal" }
+# sin/cos for the in-app inverse kinematics (no_std has no float intrinsics).
+libm = "0.2"
+
+[lints]
+workspace = true
+
+[[bin]]
+name = "remu_app_robot_arm"
+path = "../remu_hal/embedded/templates/app_entry.rs"
+
+[package.metadata.remu]
+# Guest-only: the arm device lives on the remu bus; the monitor window
+# (armview) is opened by the device, not the app.
+isas = ["riscv32i", "riscv32im"]

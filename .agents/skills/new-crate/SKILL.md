@@ -35,8 +35,8 @@ workspace = true
 ### 2. Create lib.rs with module declarations
 
 ```rust
-remu_macro::mod_flat!(/* same-dir files */);
-remu_macro::mod_pub!(/* sub-dir modules */);
+remu_macro::mod_prv!(/* private, same-dir files */);
+remu_macro::mod_pub!(/* public sub-modules */);
 ```
 
 See `module-setup` skill for the full rules.
@@ -52,7 +52,7 @@ pub use crate::some_module::SomeType;
 
 In `lib.rs`:
 ```rust
-remu_macro::mod_pub_flat!(prelude);
+remu_macro::mod_pub!(prelude);
 ```
 
 ### 4. Add flow directory (if crate has commands/options/generics)

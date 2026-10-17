@@ -155,6 +155,17 @@ pub fn read_key_kind() -> KeyKind {
     key_kind_from_u32(read_key_kind_raw())
 }
 
+// ── Arm device (the arm lives on the remu bus; hosted targets are stubs) ──
+#[cfg(target_os = "none")]
+pub use remu_hal_embedded::{
+    ARM_JOINTS, armview_alive, commit, read_commits, read_qpos, read_time, set_steps, set_target,
+};
+
+#[cfg(any(unix, windows))]
+pub use remu_hal_host::{
+    ARM_JOINTS, armview_alive, commit, read_commits, read_qpos, read_time, set_steps, set_target,
+};
+
 // ── Safe init (single implementation; bare-metal bring-up, host no-op) ──
 /// Performs platform bring-up. On bare-metal targets this wraps the unsafe
 /// heap/UART init from `remu_hal_embedded`; on hosted targets std has already
