@@ -1,26 +1,23 @@
 //! Software-renderer Slint platform backed by the remu framebuffer + input
 //! devices. Shared by host and embedded (remu_hal exposes the same API).
 //!
-//! The render path writes Slint's per-line pixels into the remu framebuffer
-//! via `remu_hal::put_pixel` and signals frame completion via `frame_done`.
-//! Input is polled from `remu_hal::read_key` / `read_mouse` and translated to
-//! Slint `WindowEvent`s.
+//! The render path renders Slint's scene directly into the remu framebuffer
+//! (0RGB pixels, `FB_WIDTH` row stride) and signals frame completion via
+//! `frame_done`. Input is polled from `remu_hal::read_key` / `read_mouse` and
+//! translated to Slint `WindowEvent`s.
 
 use alloc::boxed::Box;
 use alloc::rc::Rc;
 use alloc::string::ToString;
 
 use remu_hal::{
-    KeyKind, MTIME_TICK_HZ, fb_base, frame_done, put_pixel, read_disp_h, read_disp_w, read_key,
-    read_key_kind, read_mouse, read_mtime,
+    FB_HEIGHT, FB_WIDTH, KeyKind, MTIME_TICK_HZ, fb_base, frame_done, read_disp_h, read_disp_w,
+    read_key, read_key_kind, read_mouse, read_mtime,
 };
 use slint::platform::{
     Platform, WindowAdapter, WindowEvent,
-    software_renderer::{LineBufferProvider, MinimalSoftwareWindow, Rgb565Pixel},
+    software_renderer::{MinimalSoftwareWindow, PremultipliedRgbaColor, TargetPixel},
 };
-
-/// Size of the scratch line buffer used when rendering (one framebuffer row).
-const LINE_MAX: usize = 2048;
 
 /// A Slint application instance backed by the remu display.
 ///
@@ -160,19 +157,25 @@ impl SlintApp {
                 }
             } else {
                 // Non-printable key we don't model: deliver an empty press.
-                let _ = self.window.dispatch_event_with_result(WindowEvent::KeyPressed {
-                    text: slint::SharedString::default(),
-                });
+                let _ = self
+                    .window
+                    .dispatch_event_with_result(WindowEvent::KeyPressed {
+                        text: slint::SharedString::default(),
+                    });
             }
         } else if key.valid && key.down && !self.last_key_down {
             // Fallback: a down edge we did catch (rare on host).
-            let _ = self.window.dispatch_event_with_result(WindowEvent::KeyPressed {
-                text: slint::SharedString::default(),
-            });
+            let _ = self
+                .window
+                .dispatch_event_with_result(WindowEvent::KeyPressed {
+                    text: slint::SharedString::default(),
+                });
         } else if key.valid && !key.down && self.last_key_down {
-            let _ = self.window.dispatch_event_with_result(WindowEvent::KeyReleased {
-                text: slint::SharedString::default(),
-            });
+            let _ = self
+                .window
+                .dispatch_event_with_result(WindowEvent::KeyReleased {
+                    text: slint::SharedString::default(),
+                });
         }
         self.last_key_down = key.valid && key.down;
 
@@ -184,10 +187,12 @@ impl SlintApp {
             .dispatch_event_with_result(WindowEvent::PointerMoved { position: pos });
         let left = mouse.buttons & 1 != 0;
         if left && !self.last_left {
-            let _ = self.window.dispatch_event_with_result(WindowEvent::PointerPressed {
-                position: pos,
-                button: slint::platform::PointerEventButton::Left,
-            });
+            let _ = self
+                .window
+                .dispatch_event_with_result(WindowEvent::PointerPressed {
+                    position: pos,
+                    button: slint::platform::PointerEventButton::Left,
+                });
         } else if !left && self.last_left {
             let _ = self
                 .window
@@ -201,7 +206,15 @@ impl SlintApp {
         // ── Timers / animations / redraw ──
         slint::platform::update_timers_and_animations();
         self.window.draw_if_needed(|renderer| {
-            renderer.render_by_line(FbLineBuffer {});
+            // Rendering goes straight into the remu framebuffer: the whole
+            // FB_WIDTH × FB_HEIGHT region with `FB_WIDTH` as row stride, so
+            // Slint addresses the same memory the display device blits.
+            // SAFETY: `fb_base` is the writable framebuffer on both host and
+            // embedded; only the window-sized dirty region is written.
+            let buffer = unsafe {
+                core::slice::from_raw_parts_mut(fb_base() as *mut Rgb888Pixel, FB_WIDTH * FB_HEIGHT)
+            };
+            renderer.render(buffer, FB_WIDTH);
         });
         frame_done();
     }
@@ -230,38 +243,21 @@ impl Platform for RemuPlatform {
     }
 }
 
-/// Renders Slint's per-line pixels into the remu framebuffer.
-struct FbLineBuffer;
+/// remu framebuffer pixel: 0x00RRGGBB (XRGB).
+#[repr(transparent)]
+#[derive(Copy, Clone)]
+struct Rgb888Pixel(u32);
 
-impl LineBufferProvider for FbLineBuffer {
-    type TargetPixel = Rgb565Pixel;
+impl TargetPixel for Rgb888Pixel {
+    fn blend(&mut self, color: PremultipliedRgbaColor) {
+        let a = (u8::MAX - color.alpha) as u16;
+        let r = (((self.0 >> 16) & 0xff) as u16 * a / 255) as u8 + color.red;
+        let g = (((self.0 >> 8) & 0xff) as u16 * a / 255) as u8 + color.green;
+        let b = ((self.0 & 0xff) as u16 * a / 255) as u8 + color.blue;
+        self.0 = ((r as u32) << 16) | ((g as u32) << 8) | b as u32;
+    }
 
-    fn process_line(
-        &mut self,
-        line: usize,
-        range: core::ops::Range<usize>,
-        render_fn: impl FnOnce(&mut [Self::TargetPixel]),
-    ) {
-        // Render the requested range into a scratch buffer.
-        let len = range.len().min(LINE_MAX);
-        let mut scratch = [Rgb565Pixel(0); LINE_MAX];
-        render_fn(&mut scratch[..len]);
-
-        // Convert RGB565 -> 0RGB and write into the framebuffer.
-        let fb = fb_base() as *mut u32;
-        for (i, px) in scratch[..len].iter().enumerate() {
-            let rgb = px.0;
-            let r = ((rgb >> 11) & 0x1f) as u32;
-            let g = ((rgb >> 5) & 0x3f) as u32;
-            let b = (rgb & 0x1f) as u32;
-            // Expand 5/6-bit channels to 8-bit.
-            let r8 = (r * 255 + 15) / 31;
-            let g8 = (g * 255 + 31) / 63;
-            let b8 = (b * 255 + 15) / 31;
-            let pixel = (r8 << 16) | (g8 << 8) | b8;
-            // Safety: `fb` is the remu framebuffer base (valid, writable,
-            // bounds-checked by put_pixel); range is within the framebuffer.
-            unsafe { put_pixel(fb, range.start + i, line, pixel) };
-        }
+    fn from_rgb(red: u8, green: u8, blue: u8) -> Self {
+        Self(((red as u32) << 16) | ((green as u32) << 8) | blue as u32)
     }
 }
