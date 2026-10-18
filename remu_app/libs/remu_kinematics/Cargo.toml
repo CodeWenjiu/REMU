@@ -1,0 +1,20 @@
+[package]
+name = "remu_kinematics"
+version = "0.1.0"
+edition = "2024"
+description = "Portable no_std forward/inverse kinematics for serial arms."
+
+[dependencies]
+remu_macro = { path = "../../../remu_macro" }
+libm = { workspace = true, optional = true }
+micromath = { workspace = true, optional = true }
+
+[features]
+default = ["math-libm"]
+std = []
+math-std = ["std"]
+math-libm = ["dep:libm"]
+math-micromath = ["dep:micromath"]
+
+[lints]
+workspace = true

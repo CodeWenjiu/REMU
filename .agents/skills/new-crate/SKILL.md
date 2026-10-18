@@ -5,6 +5,20 @@ description: Scaffold a new Rust crate in the remu workspace following all conve
 
 ## Steps
 
+### 0. Choose the zone
+
+Placement follows role and reuse scope (see also `AGENTS.md`):
+
+| Crate | Zone |
+|---|---|
+| Part of the simulator stack | root `remu_*`, flat |
+| Runnable program | `remu_app/bins/<name>/` |
+| Platform facility shared by apps | `remu_app/hal/<crate>/` |
+| Reusable app-side library (two or more consumers, or app-independent) | `remu_app/libs/<crate>/` |
+| Private helper/codegen of one app | nested inside that app's directory |
+
+Nesting beyond these cases is a violation.
+
 ### 1. Create directory and Cargo.toml
 
 ```
@@ -30,6 +44,7 @@ workspace = true
 
 - Edition must be `2024`
 - Always include `remu_macro` if the crate has any modules
+- Adjust the `remu_macro` relative path for the chosen depth (e.g. `../../../remu_macro` from `remu_app/libs/<crate>`)
 - Add other dependencies as needed (path-based for internal crates, workspace deps for external)
 
 ### 2. Create lib.rs with module declarations
@@ -61,13 +76,11 @@ See `flow-files` skill for details.
 
 ### 5. Register in workspace
 
-Add to root `Cargo.toml` members list:
-```toml
-members = [
-    ...
-    "remu_new_crate",
-]
-```
+Add to the root `Cargo.toml` `members` list:
+
+- root crate: `"remu_new_crate"`;
+- direct child of `remu_app/`: already covered by the `remu_app/*` glob — no edit;
+- under a group directory (`remu_app/libs`, `remu_app/bins/<project>`): add an explicit entry — member globs for paths under an `exclude`d group directory are dropped. The group directory itself must be listed in `exclude` (it is not a package).
 
 ### 6. Initial check
 

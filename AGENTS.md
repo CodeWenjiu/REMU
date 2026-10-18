@@ -7,8 +7,19 @@ This repository is a Rust workspace (Edition 2024, nightly toolchain) centered o
 - `remu_simulator`: simulator abstraction and backends (`simulators/remu`, `simulators/spike`, `simulators/nzea`).
 - `remu_isa`: ISA type definitions (RvIsa trait, register types, Xlen, extension configs).
 - `remu_state`, `remu_types`, `remu_fmt`, `remu_macro`, `remu_logger`: shared state, utility types, formatting/parsing, macros, logging.
-- `remu_hal`, `remu_hal/xtask`: embedded HAL + task helpers used by app build/run flows.
-- `remu_app/*`: sample apps (`hello_world`, `mnist`, `collection`).
+- `remu_app/hal`: embedded platform stack — `remu_hal` plus its companion crates (`remu_hal_embedded`, `remu_hal_host`, `remu_hal_macros`, `remu_hal_rcore`, `remu_hal_slint`, `xtask`), used by app build/run flows.
+- `remu_app/libs`: app-side reusable libraries (e.g. `remu_kinematics`).
+- `remu_app/bins`: runnable programs (`hello_world`, `robot_arm`, `mnist`, …) with their private helpers and multi-crate project groups.
+
+New crates are placed by role and reuse scope:
+
+1. part of the simulator itself → root `remu_*`, flat;
+2. runnable program → `remu_app/bins/`;
+3. platform facility shared by apps → `remu_app/hal/`;
+4. reusable app-side library (two or more consumers, or independent of any app) → `remu_app/libs/`;
+5. private helper/codegen of a single app → nested inside that app's directory (mark it in the crate description; promote to `libs/` once a second consumer appears).
+
+Nesting is allowed only for multi-crate app projects (`remu_app/bins/nes/{nes,runes_core}`), private helpers (`remu_app/bins/robot_arm/mjcf`), and simulator subsystem bundles (`remu_simulator/simulators/*`); otherwise it is one crate per directory. (The `remu_app/hal` and `remu_app/bins` zones are being migrated from the old flat `remu_app/*` layout.)
 
 Note: `remu` is intended to be used inside the parent `chip-dev` checkout with submodules.
 
