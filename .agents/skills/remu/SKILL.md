@@ -1,0 +1,1 @@
+../../remu_cli/src/skill.md
