@@ -25,11 +25,13 @@ pub struct Chain<const NJ: usize> {
     pub joints: &'static [Joint; NJ],
     /// Grasp point offset from the last joint frame.
     pub tip_offset: Vec3,
+    /// Tool rotation from the last joint frame.
+    pub tip_quat: Quat,
 }
 
 impl<const NJ: usize> Chain<NJ> {
-    /// World position of the grasp point at joint configuration `q`.
-    pub fn tip_pos(&self, q: &[f32; NJ]) -> Vec3 {
+    /// World position and tool orientation of the grasp point at `q`.
+    pub fn tip_frame(&self, q: &[f32; NJ]) -> (Vec3, Quat) {
         let mut pos = Vec3::ZERO;
         let mut ori = Quat::IDENTITY;
         for (i, j) in self.joints.iter().enumerate() {
@@ -37,7 +39,12 @@ impl<const NJ: usize> Chain<NJ> {
             ori = ori * j.quat;
             ori = ori * Quat::from_axis_angle(j.axis, q[i]);
         }
-        pos + ori.rotate(self.tip_offset)
+        (pos + ori.rotate(self.tip_offset), ori * self.tip_quat)
+    }
+
+    /// World position of the grasp point at joint configuration `q`.
+    pub fn tip_pos(&self, q: &[f32; NJ]) -> Vec3 {
+        self.tip_frame(q).0
     }
 }
 
@@ -66,6 +73,7 @@ mod tests {
     const TOY: Chain<2> = Chain {
         joints: &TOY2,
         tip_offset: Vec3([0.3, 0.0, 0.0]),
+        tip_quat: Quat::IDENTITY,
     };
 
     #[test]
@@ -85,5 +93,15 @@ mod tests {
         assert!((p[0] - 0.776_169_5).abs() < TOL, "{p:?}");
         assert!((p[1] - 0.117_810_1).abs() < TOL, "{p:?}");
         assert!((p[2] - 0.1).abs() < TOL, "{p:?}");
+    }
+
+    #[test]
+    fn tip_frame_carries_tool_rotation() {
+        let (_, tip_ori) = TOY.tip_frame(&[0.3, -0.4]);
+        let rv = tip_ori.rotation_vector();
+        assert!(
+            rv[0].abs() < TOL && rv[1].abs() < TOL && (rv[2] + 0.1).abs() < TOL,
+            "{rv:?}"
+        );
     }
 }

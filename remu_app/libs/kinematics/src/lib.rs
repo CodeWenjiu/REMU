@@ -1,7 +1,8 @@
 //! Portable forward and inverse kinematics for serial arms: a const-generic
 //! [`Chain`](prelude::Chain) core (forward kinematics over quaternion joint
-//! frames, dense damped least-squares IK) plus a feature-selected floating
-//! point backend.
+//! frames; dense damped least-squares IK for weighted position/orientation
+//! tasks with joint limits and classified failures) plus a feature-selected
+//! floating point backend.
 //!
 //! `no_std` by default (`std` is opt-in). Exactly one of `math-std`,
 //! `math-libm` (default), or `math-micromath` must be enabled.

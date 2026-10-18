@@ -39,6 +39,7 @@ const HOME: [f32; JOINTS] = match kin::HOME_Q {
 const ARM: Chain<{ kin::NJ }> = Chain {
     joints: &kin::JOINTS,
     tip_offset: kin::TIP_OFFSET,
+    tip_quat: kin::TIP_QUAT,
 };
 
 /// IK iterations per control tick, and the grasp loop around the home tip:
@@ -117,8 +118,8 @@ fn main() -> ! {
             home_tip[2] + LOOP_BOB * sinf(BOB_RATE * t),
         );
         let err = match ARM.reach(&mut q, target, IK_ITERS) {
-            Ok(sol) => sol.residual,
-            Err(e) => e.residual(),
+            Ok(sol) => sol.residual.pos,
+            Err(e) => e.residual().pos,
         };
 
         for (j, &qi) in q.iter().enumerate() {
