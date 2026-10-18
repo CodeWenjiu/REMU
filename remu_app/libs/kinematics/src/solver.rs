@@ -1,21 +1,61 @@
 //! Dense damped least-squares IK over a [`Chain`]: `J·Jᵀ + λ²I` normal
-//! equations solved per iteration, with joint-range clamping.
+//! equations solved per iteration with joint-range clamping and classified
+//! failure diagnostics.
 
 use crate::chain::Chain;
 use crate::math;
 use crate::vec::{Quat, Vec3};
 
-/// Damping of the least-squares normal equations (metres per radian) and the
-/// convergence threshold / per-iteration joint step cap (metres, radians).
+/// Damping of the least-squares normal equations (metres per radian), the
+/// convergence threshold (metres), the per-iteration joint step cap (radians)
+/// and the stagnation / limit-push threshold (radians).
 const DAMPING: f32 = 0.15;
 const EPS: f32 = 2.0e-4;
 const MAX_STEP: f32 = 0.5;
+const STEP_EPS: f32 = 1.0e-5;
+
+/// Successful solve: iterations performed and the residual tip distance
+/// (metres).
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct Solution {
+    pub iters: u32,
+    pub residual: f32,
+}
+
+/// A solve that did not reach the target; `q` is left at the best
+/// configuration found, ready for warm-started continuation.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub enum IkError {
+    /// Stagnated with the target geometrically out of reach and no joint
+    /// limit blocking the way.
+    Unreachable { residual: f32 },
+    /// Stagnated with at least one joint pinned at its range limit while
+    /// pushing outward.
+    LimitLocked { residual: f32 },
+    /// Iteration budget ran out while the solver was still making progress.
+    Stalled { residual: f32 },
+    /// The damped normal equations broke down (singular or non-finite).
+    Singular { residual: f32 },
+}
+
+impl IkError {
+    /// Final tip distance to the target, in metres.
+    pub fn residual(self) -> f32 {
+        match self {
+            Self::Unreachable { residual }
+            | Self::LimitLocked { residual }
+            | Self::Stalled { residual }
+            | Self::Singular { residual } => residual,
+        }
+    }
+}
 
 impl<const NJ: usize> Chain<NJ> {
     /// Nudge `q` toward `target` (world frame, metres), keeping joints inside
-    /// their ranges; returns the residual tip distance after the last step.
-    pub fn reach(&self, q: &mut [f32; NJ], target: Vec3, iters: u32) -> f32 {
-        for _ in 0..iters {
+    /// their ranges; returns the iterations performed and the residual tip
+    /// distance, or a classified [`IkError`] with the best-found `q` in place.
+    pub fn reach(&self, q: &mut [f32; NJ], target: Vec3, iters: u32) -> Result<Solution, IkError> {
+        for done in 0..iters {
             let mut pos = Vec3::ZERO;
             let mut ori = Quat::IDENTITY;
             let mut anchor = [Vec3::ZERO; NJ];
@@ -29,8 +69,16 @@ impl<const NJ: usize> Chain<NJ> {
             }
             let tip = pos + ori.rotate(self.tip_offset);
             let err = target - tip;
-            if err.dot(err) < EPS * EPS {
-                break;
+            let err_sq = err.dot(err);
+            if !err_sq.is_finite() {
+                return Err(IkError::Singular { residual: f32::NAN });
+            }
+            let residual = math::sqrt(err_sq);
+            if residual < EPS {
+                return Ok(Solution {
+                    iters: done,
+                    residual,
+                });
             }
 
             // J Jᵀ + λ²I: each column of J is the tip velocity per joint rad.
@@ -49,21 +97,83 @@ impl<const NJ: usize> Chain<NJ> {
                 row[d] += DAMPING * DAMPING;
             }
             let Some(y) = solve3(&m, err) else {
-                break;
+                return Err(IkError::Singular { residual });
             };
 
+            let mut dq = [0.0f32; NJ];
+            let mut free = [true; NJ];
+            let mut clamped = false;
             for (i, j) in self.joints.iter().enumerate() {
-                let step = cols[i].dot(y).clamp(-MAX_STEP, MAX_STEP);
-                let mut qi = q[i] + step;
+                let d = cols[i].dot(y).clamp(-MAX_STEP, MAX_STEP);
+                dq[i] = d;
                 if let Some([lo, hi]) = j.range {
-                    qi = qi.clamp(lo, hi);
+                    let cand = q[i] + d;
+                    free[i] = cand >= lo && cand <= hi;
+                    clamped |= !free[i];
                 }
+            }
+
+            // Active set: re-solve with the saturated joints pinned, so they
+            // stop dragging the free ones.
+            if clamped {
+                let mut m = [[0.0; 3]; 3];
+                for i in 0..NJ {
+                    if free[i] {
+                        let c = cols[i];
+                        for r in 0..3 {
+                            for k in 0..3 {
+                                m[r][k] += c[r] * c[k];
+                            }
+                        }
+                    }
+                }
+                for (d, row) in m.iter_mut().enumerate() {
+                    row[d] += DAMPING * DAMPING;
+                }
+                if let Some(y) = solve3(&m, err) {
+                    for i in 0..NJ {
+                        if free[i] {
+                            dq[i] = cols[i].dot(y).clamp(-MAX_STEP, MAX_STEP);
+                        }
+                    }
+                }
+            }
+
+            let mut blocked = false;
+            let mut moved_sq = 0.0;
+            for (i, j) in self.joints.iter().enumerate() {
+                let cand = q[i] + dq[i];
+                let qi = match j.range {
+                    Some([_, hi]) if cand > hi => {
+                        blocked |= dq[i] > STEP_EPS;
+                        hi
+                    }
+                    Some([lo, _]) if cand < lo => {
+                        blocked |= dq[i] < -STEP_EPS;
+                        lo
+                    }
+                    _ => cand,
+                };
+                moved_sq += (qi - q[i]) * (qi - q[i]);
                 q[i] = qi;
+            }
+
+            if moved_sq < STEP_EPS * STEP_EPS {
+                return Err(if blocked {
+                    IkError::LimitLocked { residual }
+                } else {
+                    IkError::Unreachable { residual }
+                });
             }
         }
 
         let err = target - self.tip_pos(q);
-        math::sqrt(err.dot(err))
+        let residual = math::sqrt(err.dot(err));
+        if residual < EPS {
+            Ok(Solution { iters, residual })
+        } else {
+            Err(IkError::Stalled { residual })
+        }
     }
 }
 
@@ -74,7 +184,7 @@ fn solve3(m: &[[f32; 3]; 3], b: Vec3) -> Option<Vec3> {
     let [m20, m21, m22] = m[2];
     let det = m00 * (m11 * m22 - m12 * m21) - m01 * (m10 * m22 - m12 * m20)
         + m02 * (m10 * m21 - m11 * m20);
-    if det.abs() < 1.0e-9 {
+    if !det.is_finite() || det.abs() < 1.0e-9 {
         return None;
     }
     let x = (b[0] * (m11 * m22 - m12 * m21) - m01 * (b[1] * m22 - m12 * b[2])
@@ -132,8 +242,8 @@ mod tests {
         let mut q = HOME;
         let home = PANDA.tip_pos(&q);
         let target = Vec3::new(home[0] + 0.02, home[1] + 0.03, home[2] - 0.01);
-        let res = PANDA.reach(&mut q, target, 64);
-        assert!(res < TOL, "residual {res}");
+        let sol = PANDA.reach(&mut q, target, 64).unwrap();
+        assert!(sol.residual < TOL, "{sol:?}");
         let tip = PANDA.tip_pos(&q);
         for (t, p) in target.0.iter().zip(tip.0) {
             assert!((t - p).abs() < TOL, "{tip:?}");
@@ -143,7 +253,8 @@ mod tests {
     #[test]
     fn reach_respects_joint_ranges() {
         // One joint with a range far short of the 90° the target needs: the
-        // solver must park at the limit and report the residual instead.
+        // solver must park at the limit and report it as locked, not
+        // unreachable.
         const ONE: [Joint; 1] = [Joint {
             offset: Vec3::ZERO,
             quat: Quat::IDENTITY,
@@ -155,17 +266,74 @@ mod tests {
             tip_offset: Vec3([1.0, 0.0, 0.0]),
         };
         let mut q = [0.0];
-        let res = ARM1.reach(&mut q, Vec3::new(0.0, 1.0, 0.0), 64);
+        let err = ARM1
+            .reach(&mut q, Vec3::new(0.0, 1.0, 0.0), 64)
+            .unwrap_err();
+        assert!(matches!(err, IkError::LimitLocked { .. }), "{err:?}");
         assert!((q[0] - 0.1).abs() < 1.0e-6, "q = {q:?}");
-        assert!(res > 1.0, "residual {res}");
+        assert!(err.residual() > 1.0, "{err:?}");
+    }
+
+    #[test]
+    fn reach_reports_unreachable_beyond_the_workspace() {
+        // A range-free planar arm: the solver stalls at full x extension,
+        // 9.2 m short of the target, with no limit to blame.
+        const FLAT: [Joint; 2] = [
+            Joint {
+                offset: Vec3([0.0, 0.0, 0.1]),
+                quat: Quat::IDENTITY,
+                axis: Vec3([0.0, 0.0, 1.0]),
+                range: None,
+            },
+            Joint {
+                offset: Vec3([0.5, 0.0, 0.0]),
+                quat: Quat::IDENTITY,
+                axis: Vec3([0.0, 0.0, 1.0]),
+                range: None,
+            },
+        ];
+        const ARM2: Chain<2> = Chain {
+            joints: &FLAT,
+            tip_offset: Vec3([0.3, 0.0, 0.0]),
+        };
+        let mut q = [0.0, 0.0];
+        let err = ARM2
+            .reach(&mut q, Vec3::new(10.0, 0.0, 0.1), 128)
+            .unwrap_err();
+        assert!(matches!(err, IkError::Unreachable { .. }), "{err:?}");
+        assert!((err.residual() - 9.2).abs() < 0.05, "{err:?}");
+    }
+
+    #[test]
+    fn reach_reports_stalled_when_the_budget_runs_out() {
+        // One joint asked to turn ~180°: starting off the antipodal dead
+        // point keeps the damped steps productive, but four iterations are
+        // far from enough.
+        const ONE: [Joint; 1] = [Joint {
+            offset: Vec3::ZERO,
+            quat: Quat::IDENTITY,
+            axis: Vec3([0.0, 0.0, 1.0]),
+            range: None,
+        }];
+        const ARM1: Chain<1> = Chain {
+            joints: &ONE,
+            tip_offset: Vec3([1.0, 0.0, 0.0]),
+        };
+        let mut q = [0.1];
+        let err = ARM1
+            .reach(&mut q, Vec3::new(-1.0, 0.0, 0.0), 4)
+            .unwrap_err();
+        assert!(matches!(err, IkError::Stalled { .. }), "{err:?}");
+        assert!(err.residual() > 0.5, "{err:?}");
     }
 
     #[test]
     fn reach_stops_when_already_there() {
         let mut q = HOME;
         let tip = PANDA.tip_pos(&q);
-        let res = PANDA.reach(&mut q, tip, 32);
-        assert!(res < 1.0e-6, "residual {res}");
+        let sol = PANDA.reach(&mut q, tip, 32).unwrap();
+        assert!(sol.residual < 1.0e-6, "{sol:?}");
+        assert_eq!(sol.iters, 0);
         assert_eq!(q, HOME);
     }
 }
