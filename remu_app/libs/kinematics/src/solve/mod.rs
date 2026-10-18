@@ -1,11 +1,29 @@
-//! Dense damped least-squares IK over a [`Chain`]: weighted 6-DOF tasks
-//! (tip position and optional tool orientation, plus a nullspace posture
-//! pull), with joint-range clamping, an active set for saturated joints, and
-//! classified failure diagnostics.
+//! Dense damped least-squares IK over a [`Chain`].
+//!
+//! The loop is generic over a [`SolvePolicy`]: [`Basic`] folds the task rows
+//! (weighted position, optional orientation, optional nullspace posture) into
+//! the `JᵀJ + λ²I` normal equations and always honors joint limits through
+//! the active set; [`Avoiding`] additionally folds capsule-obstacle clearance
+//! rows from the `avoid` layer over the `collide` distance kernel. Failures
+//! are classified; `q` is left at the best configuration found.
+//!
+//! Obstacle avoidance is a soft constraint at the velocity level: every arm
+//! spine segment closer than `Task::clearance` to an obstacle adds one
+//! weighted row, so each step balances the task pull against pushing the gap
+//! back out (equilibrium penetration scales with `1/avoid_weight²`). It is
+//! local (gradient) avoidance: an obstacle wall between pose and target ends
+//! in [`IkError::Unreachable`] with the best `gap`, not in a way around it.
+
+remu_macro::mod_prv!(avoid, collide, flow, linalg);
+
+pub use collide::Capsule;
+pub use flow::{Avoiding, Basic, SolvePolicy};
 
 use crate::chain::Chain;
 use crate::math;
 use crate::vec::{Quat, Vec3};
+
+use self::linalg::{chol_solve, cholesky, dot6};
 
 /// Damping of the least-squares normal equations (metres per radian), the
 /// convergence threshold (metres / radians), the per-iteration joint step cap
@@ -17,7 +35,7 @@ const STEP_EPS: f32 = 1.0e-5;
 
 /// A reach task for [`Chain::solve`].
 #[derive(Clone, Copy, Debug, PartialEq)]
-pub struct Task<const NJ: usize> {
+pub struct Task<'a, const NJ: usize> {
     /// Tip position target, world frame, metres.
     pub target: Vec3,
     /// Scales the position block's rows; 0 disables the block.
@@ -27,25 +45,38 @@ pub struct Task<const NJ: usize> {
     /// Preferred configuration and per-iteration gain; the pull is projected
     /// into the nullspace of the active task.
     pub posture: Option<([f32; NJ], f32)>,
+    /// Capsule obstacles held at arm's length, world frame.
+    pub obstacles: &'a [Capsule],
+    /// Minimum clearance kept between the arm spine and each obstacle
+    /// surface, metres.
+    pub clearance: f32,
+    /// Scales the obstacle constraint rows.
+    pub avoid_weight: f32,
 }
 
-impl<const NJ: usize> Task<NJ> {
-    /// Unit-weighted position-only task.
+impl<'a, const NJ: usize> Task<'a, NJ> {
+    /// Unit-weighted position-only task without obstacles.
     pub fn position(target: Vec3) -> Self {
         Self {
             target,
             pos_weight: 1.0,
             ori: None,
             posture: None,
+            obstacles: &[],
+            clearance: 0.02,
+            avoid_weight: 1.0,
         }
     }
 }
 
-/// End-effector error: tip distance (metres) and tool rotation angle (radians).
+/// End-effector error: tip distance (metres), tool rotation angle (radians)
+/// and the minimum obstacle surface gap (metres; infinite when the task has
+/// no obstacles).
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct Residual {
     pub pos: f32,
     pub ori: f32,
+    pub gap: f32,
 }
 
 /// Successful solve: iterations performed and the final task residual.
@@ -59,8 +90,8 @@ pub struct Solution {
 /// found, ready for warm-started continuation.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub enum IkError {
-    /// Stagnated with the target geometrically out of reach and no joint
-    /// limit blocking the way.
+    /// Stagnated with the target out of reach (geometry or obstacles) and no
+    /// joint limit blocking the way.
     Unreachable { residual: Residual },
     /// Stagnated with at least one joint pinned at its range limit while
     /// pushing outward.
@@ -84,56 +115,32 @@ impl IkError {
 }
 
 impl<const NJ: usize> Chain<NJ> {
-    /// Position-only convenience wrapper around [`Chain::solve`].
+    /// Position-only convenience wrapper around `solve::<Basic>`.
     pub fn reach(&self, q: &mut [f32; NJ], target: Vec3, iters: u32) -> Result<Solution, IkError> {
-        self.solve(q, &Task::position(target), iters)
+        self.solve::<Basic>(q, &Task::position(target), iters)
     }
 
     /// Nudge `q` toward `task` (world frame) within the iteration budget,
-    /// keeping joints inside their ranges; returns the iterations performed
-    /// and the residual, or a classified [`IkError`] with the best-found `q`
-    /// in place.
-    pub fn solve(
+    /// keeping joints inside their ranges; the policy `P` selects the active
+    /// layers (see [`SolvePolicy`]). Returns the iterations performed and the
+    /// residual, or a classified [`IkError`] with the best-found `q` in
+    /// place.
+    pub fn solve<P: SolvePolicy>(
         &self,
         q: &mut [f32; NJ],
-        task: &Task<NJ>,
+        task: &Task<'_, NJ>,
         iters: u32,
     ) -> Result<Solution, IkError> {
         for done in 0..iters {
-            let mut pos = Vec3::ZERO;
-            let mut ori = Quat::IDENTITY;
-            let mut anchor = [Vec3::ZERO; NJ];
-            let mut axis = [Vec3::ZERO; NJ];
-            for (i, j) in self.joints.iter().enumerate() {
-                pos = pos + ori.rotate(j.offset);
-                ori = ori * j.quat;
-                anchor[i] = pos;
-                axis[i] = ori.rotate(j.axis);
-                ori = ori * Quat::from_axis_angle(j.axis, q[i]);
-            }
-            let tip = pos + ori.rotate(self.tip_offset);
-            let tip_ori = ori * self.tip_quat;
-
-            let e_pos = task.target - tip;
+            let spine = self.spine(q);
+            let e_pos = task.target - spine.tip;
             let e_ori = match task.ori {
-                Some((target_ori, _)) => (target_ori * tip_ori.conjugate()).rotation_vector(),
+                Some((target_ori, _)) => (target_ori * spine.tip_ori.conjugate()).rotation_vector(),
                 None => Vec3::ZERO,
             };
-            let residual = Residual {
-                pos: math::sqrt(e_pos.dot(e_pos)),
-                ori: math::sqrt(e_ori.dot(e_ori)),
-            };
-            if !residual.pos.is_finite() || !residual.ori.is_finite() {
-                return Err(IkError::Singular { residual });
-            }
-            if converged(task, residual) {
-                return Ok(Solution {
-                    iters: done,
-                    residual,
-                });
-            }
 
-            // Weighted 6-row error: [position; rotation vector].
+            // Weighted 6-row task error and seam columns; the obstacle scan
+            // folds its constraint rows into the same system.
             let wp = task.pos_weight;
             let wo = match task.ori {
                 Some((_, w)) => w,
@@ -144,28 +151,54 @@ impl<const NJ: usize> Chain<NJ> {
                 e6[k] = wp * e_pos[k];
                 e6[3 + k] = wo * e_ori[k];
             }
-
-            // J Jᵀ + λ²I: a column is the tip velocity (linear; angular) per
-            // joint rad, with the task weights folded in.
             let mut cols = [[0.0f32; 6]; NJ];
-            for (i, a) in axis.iter().enumerate() {
-                let lin = a.cross(tip - anchor[i]) * wp;
+            for (i, a) in spine.axis.iter().enumerate() {
+                let lin = a.cross(spine.tip - spine.anchor[i]) * wp;
                 cols[i] = [lin[0], lin[1], lin[2], wo * a[0], wo * a[1], wo * a[2]];
             }
             let all = [true; NJ];
-            let mut m = gram(&cols, &all);
-            let Some(y) = solve6(&m, e6) else {
+            let (mut a, mut b) = task_system(&cols, &e6, &all);
+            let mut gap = f32::INFINITY;
+            if P::OBSTACLES {
+                gap = avoid::fold(
+                    &spine,
+                    &all,
+                    task.obstacles,
+                    task.clearance,
+                    task.avoid_weight,
+                    &mut a,
+                    &mut b,
+                );
+            }
+
+            let residual = Residual {
+                pos: math::sqrt(e_pos.dot(e_pos)),
+                ori: math::sqrt(e_ori.dot(e_ori)),
+                gap,
+            };
+            if !residual.pos.is_finite() || !residual.ori.is_finite() || residual.gap.is_nan() {
+                return Err(IkError::Singular { residual });
+            }
+            if converged(task, residual) {
+                return Ok(Solution {
+                    iters: done,
+                    residual,
+                });
+            }
+
+            let Some(mut l) = cholesky(a) else {
                 return Err(IkError::Singular { residual });
             };
+            let mut dq = chol_solve(&l, b);
+            for d in dq.iter_mut() {
+                *d = d.clamp(-MAX_STEP, MAX_STEP);
+            }
 
-            let mut dq = [0.0f32; NJ];
             let mut free = [true; NJ];
             let mut clamped = false;
             for (i, j) in self.joints.iter().enumerate() {
-                let d = dot6(&cols[i], &y).clamp(-MAX_STEP, MAX_STEP);
-                dq[i] = d;
                 if let Some([lo, hi]) = j.range {
-                    let cand = q[i] + d;
+                    let cand = q[i] + dq[i];
                     free[i] = cand >= lo && cand <= hi;
                     clamped |= !free[i];
                 }
@@ -174,37 +207,42 @@ impl<const NJ: usize> Chain<NJ> {
             // Active set: re-solve with the saturated joints pinned, so they
             // stop dragging the free ones.
             if clamped {
-                m = gram(&cols, &free);
-                if let Some(y) = solve6(&m, e6) {
+                let (mut a2, mut b2) = task_system(&cols, &e6, &free);
+                if P::OBSTACLES {
+                    avoid::fold(
+                        &spine,
+                        &free,
+                        task.obstacles,
+                        task.clearance,
+                        task.avoid_weight,
+                        &mut a2,
+                        &mut b2,
+                    );
+                }
+                if let Some(l2) = cholesky(a2) {
+                    let d2 = chol_solve(&l2, b2);
                     for i in 0..NJ {
                         if free[i] {
-                            dq[i] = dot6(&cols[i], &y).clamp(-MAX_STEP, MAX_STEP);
+                            dq[i] = d2[i].clamp(-MAX_STEP, MAX_STEP);
                         }
                     }
+                    l = l2;
                 }
             }
 
-            // Nullspace posture: project the pull against the active system.
+            // Nullspace posture: `λ²(JᵀJ + λ²I)⁻¹z`, the damped projection of
+            // the pull against the active system.
             if let Some((pref, gain)) = task.posture {
-                let mut z = [0.0f32; NJ];
-                let mut z6 = [0.0f32; 6];
+                let mut rhs = [0.0f32; NJ];
                 for i in 0..NJ {
                     if free[i] {
-                        z[i] = gain * (pref[i] - q[i]);
-                        for k in 0..6 {
-                            z6[k] += cols[i][k] * z[i];
-                        }
+                        rhs[i] = gain * (pref[i] - q[i]) * DAMPING * DAMPING;
                     }
                 }
-                if let Some(y) = solve6(&m, z6) {
-                    for i in 0..NJ {
-                        if free[i] {
-                            let mut d = dq[i] + z[i];
-                            for k in 0..6 {
-                                d -= cols[i][k] * y[k];
-                            }
-                            dq[i] = d.clamp(-MAX_STEP, MAX_STEP);
-                        }
+                let post = chol_solve(&l, rhs);
+                for i in 0..NJ {
+                    if free[i] {
+                        dq[i] = (dq[i] + post[i]).clamp(-MAX_STEP, MAX_STEP);
                     }
                 }
             }
@@ -237,15 +275,31 @@ impl<const NJ: usize> Chain<NJ> {
             }
         }
 
-        let (tip, tip_ori) = self.tip_frame(q);
-        let e_pos = task.target - tip;
+        let spine = self.spine(q);
+        let e_pos = task.target - spine.tip;
         let e_ori = match task.ori {
-            Some((target_ori, _)) => (target_ori * tip_ori.conjugate()).rotation_vector(),
+            Some((target_ori, _)) => (target_ori * spine.tip_ori.conjugate()).rotation_vector(),
             None => Vec3::ZERO,
         };
+        let all = [true; NJ];
+        let mut scratch_a = [[0.0; NJ]; NJ];
+        let mut scratch_b = [0.0; NJ];
+        let mut gap = f32::INFINITY;
+        if P::OBSTACLES {
+            gap = avoid::fold(
+                &spine,
+                &all,
+                task.obstacles,
+                task.clearance,
+                task.avoid_weight,
+                &mut scratch_a,
+                &mut scratch_b,
+            );
+        }
         let residual = Residual {
             pos: math::sqrt(e_pos.dot(e_pos)),
             ori: math::sqrt(e_ori.dot(e_ori)),
+            gap,
         };
         if converged(task, residual) {
             Ok(Solution { iters, residual })
@@ -256,7 +310,7 @@ impl<const NJ: usize> Chain<NJ> {
 }
 
 /// Whether the task's enabled blocks are within tolerance.
-fn converged<const NJ: usize>(task: &Task<NJ>, r: Residual) -> bool {
+fn converged<const NJ: usize>(task: &Task<'_, NJ>, r: Residual) -> bool {
     let pos_ok = task.pos_weight == 0.0 || r.pos < EPS;
     let ori_ok = match task.ori {
         Some((_, w)) => w == 0.0 || r.ori < EPS,
@@ -265,62 +319,29 @@ fn converged<const NJ: usize>(task: &Task<NJ>, r: Residual) -> bool {
     pos_ok && ori_ok
 }
 
-/// `J Jᵀ + λ²I` over the free columns.
-fn gram<const NJ: usize>(cols: &[[f32; 6]; NJ], free: &[bool; NJ]) -> [[f32; 6]; 6] {
-    let mut m = [[0.0; 6]; 6];
+/// `JᵀJ + λ²I` over the free joints, and its right-hand side `Jᵀe`; each
+/// 6-row `cols[i]` is folded in as pairwise dots.
+fn task_system<const NJ: usize>(
+    cols: &[[f32; 6]; NJ],
+    e6: &[f32; 6],
+    free: &[bool; NJ],
+) -> ([[f32; NJ]; NJ], [f32; NJ]) {
+    let mut a = [[0.0; NJ]; NJ];
+    let mut b = [0.0; NJ];
     for i in 0..NJ {
         if free[i] {
-            let c = cols[i];
-            for r in 0..6 {
-                for k in 0..6 {
-                    m[r][k] += c[r] * c[k];
-                }
+            b[i] = dot6(&cols[i], e6);
+        }
+        for j in 0..NJ {
+            if free[i] && free[j] {
+                a[i][j] += dot6(&cols[i], &cols[j]);
             }
         }
     }
-    for (d, row) in m.iter_mut().enumerate() {
+    for (d, row) in a.iter_mut().enumerate() {
         row[d] += DAMPING * DAMPING;
     }
-    m
-}
-
-fn dot6(a: &[f32; 6], b: &[f32; 6]) -> f32 {
-    a.iter().zip(b).map(|(x, y)| x * y).sum()
-}
-
-/// Gaussian elimination with partial pivoting; `None` when the system breaks
-/// down (singular or non-finite).
-fn solve6(m: &[[f32; 6]; 6], mut b: [f32; 6]) -> Option<[f32; 6]> {
-    let mut a = *m;
-    for col in 0..6 {
-        let mut p = col;
-        for r in col + 1..6 {
-            if a[r][col].abs() > a[p][col].abs() {
-                p = r;
-            }
-        }
-        if !a[p][col].is_finite() || a[p][col].abs() < 1.0e-9 {
-            return None;
-        }
-        a.swap(col, p);
-        b.swap(col, p);
-        for r in col + 1..6 {
-            let f = a[r][col] / a[col][col];
-            for c in col..6 {
-                a[r][c] -= f * a[col][c];
-            }
-            b[r] -= f * b[col];
-        }
-    }
-    let mut x = [0.0; 6];
-    for col in (0..6).rev() {
-        let mut s = b[col];
-        for c in col + 1..6 {
-            s -= a[col][c] * x[c];
-        }
-        x[col] = s / a[col][col];
-    }
-    Some(x)
+    (a, b)
 }
 
 #[cfg(test)]
@@ -334,6 +355,7 @@ mod tests {
 
     /// Copy of the Panda chain from robot_arm's generated `kinematics.rs`
     /// (test fixture; the app-side data stays the source of truth).
+    #[rustfmt::skip]
     const PANDA_JOINTS: [Joint; 7] = [
         Joint { offset: Vec3([0.0, 0.0, 0.333]), quat: Quat([1.0, 0.0, 0.0, 0.0]), axis: Vec3([0.0, 0.0, 1.0]), range: Some([-2.8973, 2.8973]) },
         Joint { offset: Vec3([0.0, 0.0, 0.0]), quat: Quat([0.70710677, -0.70710677, 0.0, 0.0]), axis: Vec3([0.0, 0.0, 1.0]), range: Some([-1.7628, 1.7628]) },
@@ -486,7 +508,7 @@ mod tests {
             ..Task::position(target)
         };
         let mut q = [0.0];
-        let sol = ARM1.solve(&mut q, &task, 64).unwrap();
+        let sol = ARM1.solve::<Basic>(&mut q, &task, 64).unwrap();
         assert!((q[0] - 0.7).abs() < TOL, "{q:?}");
         assert!(sol.residual.pos < TOL && sol.residual.ori < TOL, "{sol:?}");
     }
@@ -511,7 +533,7 @@ mod tests {
             ..Task::position(Vec3::new(0.0, 1.0, 0.0))
         };
         let mut q = [0.0];
-        let sol = ARM1.solve(&mut q, &task, 64).unwrap();
+        let sol = ARM1.solve::<Basic>(&mut q, &task, 64).unwrap();
         assert!(sol.residual.pos < TOL, "{sol:?}");
         assert!(sol.residual.ori > 0.5, "{sol:?}");
     }
@@ -550,8 +572,49 @@ mod tests {
             ..Task::position(target)
         };
         let mut q = [0.0, 0.0];
-        let sol = ARM2.solve(&mut q, &task, 64).unwrap();
+        let sol = ARM2.solve::<Basic>(&mut q, &task, 64).unwrap();
         assert!(sol.residual.pos < TOL, "{sol:?}");
         assert!(q[1] > 0.4, "{q:?}");
+    }
+
+    #[test]
+    fn solve_detours_around_an_obstacle() {
+        // A range-free planar arm sweeping from +x to 0.6 rad: the direct
+        // arc passes through a capsule standing at 0.3 rad, so the elbow must
+        // bend to route the tip around it.
+        const FLAT: [Joint; 2] = [
+            Joint {
+                offset: Vec3([0.0, 0.0, 0.1]),
+                quat: Quat::IDENTITY,
+                axis: Vec3([0.0, 0.0, 1.0]),
+                range: None,
+            },
+            Joint {
+                offset: Vec3([0.5, 0.0, 0.0]),
+                quat: Quat::IDENTITY,
+                axis: Vec3([0.0, 0.0, 1.0]),
+                range: None,
+            },
+        ];
+        const ARM2: Chain<2> = Chain {
+            joints: &FLAT,
+            tip_offset: Vec3([0.3, 0.0, 0.0]),
+            tip_quat: Quat::IDENTITY,
+        };
+        const OBS: [Capsule; 1] = [Capsule {
+            a: Vec3([0.688, 0.213, 0.0]),
+            b: Vec3([0.688, 0.213, 0.3]),
+            radius: 0.04,
+        }];
+        let task = Task {
+            obstacles: &OBS,
+            clearance: 0.03,
+            avoid_weight: 1.5,
+            ..Task::position(Vec3::new(0.7 * math::cos(0.6), 0.7 * math::sin(0.6), 0.1))
+        };
+        let mut q = [0.0, 0.0];
+        let sol = ARM2.solve::<Avoiding>(&mut q, &task, 128).unwrap();
+        assert!(sol.residual.pos < TOL, "{sol:?}");
+        assert!(sol.residual.gap > 0.02, "{sol:?}");
     }
 }

@@ -30,22 +30,45 @@ pub struct Chain<const NJ: usize> {
 }
 
 impl<const NJ: usize> Chain<NJ> {
-    /// World position and tool orientation of the grasp point at `q`.
-    pub fn tip_frame(&self, q: &[f32; NJ]) -> (Vec3, Quat) {
+    /// Forward-kinematics spine at `q`: the grasp point, the tool orientation
+    /// and the per-joint frame origins (anchors) and world rotation axes.
+    pub(crate) fn spine(&self, q: &[f32; NJ]) -> Spine<NJ> {
         let mut pos = Vec3::ZERO;
         let mut ori = Quat::IDENTITY;
+        let mut anchor = [Vec3::ZERO; NJ];
+        let mut axis = [Vec3::ZERO; NJ];
         for (i, j) in self.joints.iter().enumerate() {
             pos = pos + ori.rotate(j.offset);
             ori = ori * j.quat;
+            anchor[i] = pos;
+            axis[i] = ori.rotate(j.axis);
             ori = ori * Quat::from_axis_angle(j.axis, q[i]);
         }
-        (pos + ori.rotate(self.tip_offset), ori * self.tip_quat)
+        Spine {
+            tip: pos + ori.rotate(self.tip_offset),
+            tip_ori: ori * self.tip_quat,
+            anchor,
+            axis,
+        }
+    }
+
+    /// World position and tool orientation of the grasp point at `q`.
+    pub fn tip_frame(&self, q: &[f32; NJ]) -> (Vec3, Quat) {
+        let spine = self.spine(q);
+        (spine.tip, spine.tip_ori)
     }
 
     /// World position of the grasp point at joint configuration `q`.
     pub fn tip_pos(&self, q: &[f32; NJ]) -> Vec3 {
-        self.tip_frame(q).0
+        self.spine(q).tip
     }
+}
+
+pub(crate) struct Spine<const NJ: usize> {
+    pub tip: Vec3,
+    pub tip_ori: Quat,
+    pub anchor: [Vec3; NJ],
+    pub axis: [Vec3; NJ],
 }
 
 #[cfg(test)]
