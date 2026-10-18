@@ -4135,6 +4135,7 @@ dependencies = [
 name = "remu_app_robot_arm"
 version = "0.1.0"
 dependencies = [
+ "kinematics",
  "libm",
  "mjcf",
  "remu_hal",

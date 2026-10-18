@@ -7,15 +7,16 @@
 // Motion: the grasp point is servoed through a slow arc swing around the base
 // axis, anchored at the model's `home` tip position, with a little radius
 // breathing and height bob. Each control tick runs dense damped least-squares
-// IK (`chain`, over the model-generated joint chain) and streams the solved
-// configuration; the gripper opens and closes on a slow cycle. The chain
-// length, `home` pose and the expected model counts are generated from the
-// MJCF at build time (see `kin`).
+// IK (`kinematics`, over the model-generated joint chain) and streams the
+// solved configuration; the gripper opens and closes on a slow cycle. The
+// chain length, `home` pose and the expected model counts are generated from
+// the MJCF at build time (see `kin`).
 
 extern crate alloc;
 
-remu_macro::mod_prv!(chain, kin);
+remu_macro::mod_prv!(kin);
 
+use kinematics::prelude::{Chain, Vec3};
 use libm::{cosf, roundf, sinf, sqrtf};
 use remu_hal::{
     MTIME_TICK_HZ, armview_alive, commit, exit_success, read_mtime, read_nq, read_nu,
@@ -32,6 +33,12 @@ const GRIPPER: usize = JOINTS;
 const HOME: [f32; JOINTS] = match kin::HOME_Q {
     Some(home) => home,
     None => [0.0; JOINTS],
+};
+
+/// The generated chain as const data; `ARM.reach(..)` specializes to `NJ`.
+const ARM: Chain<{ kin::NJ }> = Chain {
+    joints: &kin::JOINTS,
+    tip_offset: kin::TIP_OFFSET,
 };
 
 /// IK iterations per control tick, and the grasp loop around the home tip:
@@ -73,7 +80,7 @@ fn main() -> ! {
     let steps = roundf(TICK_MS as f32 / 1000.0 / read_timestep()) as u32;
     set_steps(steps.clamp(1, 64));
 
-    let home_tip = chain::ARM.tip_pos(&HOME);
+    let home_tip = ARM.tip_pos(&HOME);
     let home_r = sqrtf(home_tip[0] * home_tip[0] + home_tip[1] * home_tip[1]);
     remu_hal::println!(
         "robot_arm: home tip=[{:.3} {:.3} {:.3}] r={:.3}",
@@ -104,12 +111,15 @@ fn main() -> ! {
         // force the solver through a reconfiguration.
         let swing = LOOP_ARC * sinf(LOOP_RATE * t);
         let r = home_r + LOOP_BREATH * sinf(BREATH_RATE * t);
-        let target = [
+        let target = Vec3::new(
             r * cosf(swing),
             r * sinf(swing),
             home_tip[2] + LOOP_BOB * sinf(BOB_RATE * t),
-        ];
-        let err = chain::ARM.reach(&mut q, target, IK_ITERS);
+        );
+        let err = match ARM.reach(&mut q, target, IK_ITERS) {
+            Ok(sol) => sol.residual,
+            Err(e) => e.residual(),
+        };
 
         for (j, &qi) in q.iter().enumerate() {
             set_target(j, qi);
@@ -120,7 +130,7 @@ fn main() -> ! {
         commit();
 
         if tick.is_multiple_of(64) {
-            let tip = chain::ARM.tip_pos(&q);
+            let tip = ARM.tip_pos(&q);
             remu_hal::println!(
                 "t={:.2}s err={:.2}mm tip=[{:.3} {:.3} {:.3}]",
                 t,

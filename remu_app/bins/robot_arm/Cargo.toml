@@ -4,6 +4,7 @@ version = "0.1.0"
 edition = "2024"
 
 [dependencies]
+kinematics = { path = "../../libs/kinematics" }
 remu_hal = { path = "../../hal/remu_hal" }
 remu_macro = { path = "../../../remu_macro" }
 # sin for the per-joint sweep motion (no_std has no float intrinsics).
