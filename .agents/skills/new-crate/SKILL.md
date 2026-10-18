@@ -14,7 +14,7 @@ Placement follows role and reuse scope (see also `AGENTS.md`):
 | Part of the simulator stack | root `remu_*`, flat |
 | Runnable program | `remu_app/bins/<name>/` |
 | Platform facility shared by apps | `remu_app/hal/<crate>/` |
-| Reusable app-side library (two or more consumers, or app-independent) | `remu_app/libs/<crate>/` |
+| Reusable app-side library (two or more consumers, or app-independent) | `remu_app/libs/<crate>/` (no `remu_` prefix on the package name) |
 | Private helper/codegen of one app | nested inside that app's directory |
 
 Nesting beyond these cases is a violation.

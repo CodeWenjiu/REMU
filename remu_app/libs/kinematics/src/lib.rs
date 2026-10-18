@@ -13,11 +13,11 @@ remu_macro::mod_prv!(math);
     feature = "math-libm",
     feature = "math-micromath"
 )))]
-compile_error!("remu_kinematics: enable a math backend (math-std, math-libm, or math-micromath)");
+compile_error!("kinematics: enable a math backend (math-std, math-libm, or math-micromath)");
 
 #[cfg(any(
     all(feature = "math-std", feature = "math-libm"),
     all(feature = "math-std", feature = "math-micromath"),
     all(feature = "math-libm", feature = "math-micromath")
 ))]
-compile_error!("remu_kinematics: enable exactly one math backend");
+compile_error!("kinematics: enable exactly one math backend");
