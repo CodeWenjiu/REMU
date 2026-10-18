@@ -21,7 +21,7 @@
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex};
 
-use remu_state_mujoco::{ArmSnapshot, ArmWindow, ModelSource};
+use remu_state_mujoco::{ArmSnapshot, ArmWindow, ModelSource, TripleBuffer};
 
 use super::keyboard::KeyboardState;
 use super::mouse::MouseState;
@@ -66,7 +66,7 @@ enum HostCommand {
 /// publishes its state.
 struct ArmViewRequest {
     source: ModelSource,
-    snapshot: Arc<Mutex<ArmSnapshot>>,
+    snapshot: Arc<TripleBuffer<ArmSnapshot>>,
 }
 
 /// The window host: owns the winit event loop thread and fans out input events
@@ -169,7 +169,11 @@ impl WindowHost {
     /// Queue the armview monitor window (called by the arm device): it opens
     /// once on the loop thread and renders whatever the device publishes into
     /// `snapshot`.
-    pub(crate) fn open_arm_view(&self, source: ModelSource, snapshot: Arc<Mutex<ArmSnapshot>>) {
+    pub(crate) fn open_arm_view(
+        &self,
+        source: ModelSource,
+        snapshot: Arc<TripleBuffer<ArmSnapshot>>,
+    ) {
         *self.arm_request.lock().unwrap() = Some(ArmViewRequest { source, snapshot });
         if let Some(proxy) = self.proxy.lock().unwrap().as_ref() {
             let _ = proxy.send_event(HostCommand::OpenArmView);

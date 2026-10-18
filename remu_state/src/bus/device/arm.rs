@@ -164,7 +164,7 @@ mod tests {
         // The published snapshot mirrors the register readback.
         let q0 = f32::from_bits(a.read_32(REG_QPOS).unwrap());
         let snapshot = a.core.snapshot();
-        let snap = snapshot.lock().unwrap();
+        let snap = snapshot.read();
         assert!((snap.qpos[0] as f32 - q0).abs() < 1e-9);
     }
 

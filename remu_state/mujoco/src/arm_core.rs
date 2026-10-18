@@ -3,8 +3,9 @@
 //! (register surface) and the native host arm backend (direct calls), so both
 //! platforms run the same behavior.
 
-use std::sync::{Arc, Mutex};
+use std::sync::Arc;
 
+use crate::triple::TripleBuffer;
 use crate::{ModelSource, MujocoError, Session};
 
 /// Default microsteps per commit: 16 × 1 ms ≈ one 60 Hz frame of simulated
@@ -12,8 +13,8 @@ use crate::{ModelSource, MujocoError, Session};
 const DEFAULT_STEPS: u32 = 16;
 
 /// Latest arm state, published by the core and consumed by the armview render
-/// thread (state crosses threads only as copied snapshots; the mirror session
-/// re-derives everything else).
+/// thread (values cross threads through a lock-free triple buffer; the mirror
+/// session re-derives everything else).
 #[derive(Default)]
 pub struct ArmSnapshot {
     pub qpos: Vec<f64>,
@@ -27,8 +28,9 @@ pub struct ArmCore {
     steps: u32,
     commits: u32,
     /// Shared with the monitor window (read by the render thread).
-    snapshot: Arc<Mutex<ArmSnapshot>>,
-    /// Scratch buffers for the engine state transfers.
+    snapshot: Arc<TripleBuffer<ArmSnapshot>>,
+    /// Scratch buffers for the engine state transfers; `qpos`/`qvel` keep the
+    /// last committed state, serving the register readback.
     ctrl: Vec<f64>,
     qpos: Vec<f64>,
     qvel: Vec<f64>,
@@ -46,7 +48,7 @@ impl ArmCore {
             session,
             steps: DEFAULT_STEPS,
             commits: 0,
-            snapshot: Arc::new(Mutex::new(ArmSnapshot::default())),
+            snapshot: Arc::new(TripleBuffer::new()),
         };
         core.publish();
         Ok(core)
@@ -103,7 +105,7 @@ impl ArmCore {
         self.publish();
     }
 
-    /// Copy the engine state into the shared snapshot.
+    /// Copy the engine state into the shared snapshot and the readback cache.
     pub fn publish(&mut self) {
         self.session
             .read_qpos(&mut self.qpos)
@@ -111,21 +113,19 @@ impl ArmCore {
         self.session
             .read_qvel(&mut self.qvel)
             .expect("arm: qvel size");
-        let mut snap = self.snapshot.lock().unwrap();
-        snap.qpos.clone_from(&self.qpos);
-        snap.qvel.clone_from(&self.qvel);
+        self.snapshot.publish(|snap| {
+            snap.qpos.clone_from(&self.qpos);
+            snap.qvel.clone_from(&self.qvel);
+        });
     }
 
-    /// Read one joint position back out of the engine.
-    pub fn read_qpos_f32(&mut self, joint: usize) -> f32 {
-        self.session
-            .read_qpos(&mut self.qpos)
-            .expect("arm: qpos size");
+    /// Read one joint position as of the last commit (from the cached state).
+    pub fn read_qpos_f32(&self, joint: usize) -> f32 {
         self.qpos[joint] as f32
     }
 
-    /// The snapshot shared with the monitor window's render thread.
-    pub fn snapshot(&self) -> Arc<Mutex<ArmSnapshot>> {
+    /// The snapshot channel shared with the monitor window's render thread.
+    pub fn snapshot(&self) -> Arc<TripleBuffer<ArmSnapshot>> {
         Arc::clone(&self.snapshot)
     }
 }

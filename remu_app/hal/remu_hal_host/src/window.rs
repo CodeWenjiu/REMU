@@ -12,7 +12,7 @@
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex, OnceLock};
 
-use remu_state_mujoco::{ArmSnapshot, ArmWindow, ModelSource};
+use remu_state_mujoco::{ArmSnapshot, ArmWindow, ModelSource, TripleBuffer};
 
 use crate::display::{DisplaySize, FB_HEIGHT, FB_WIDTH, fb_base};
 use crate::keyboard::{KeyState, key_kind_from_winit, key_to_button};
@@ -60,7 +60,7 @@ struct Backend {
     /// `armview_alive()` reports false.
     arm_closed: AtomicBool,
     /// Pending armview request (model source + published-state handle).
-    arm_request: Mutex<Option<(ModelSource, Arc<Mutex<ArmSnapshot>>)>>,
+    arm_request: Mutex<Option<(ModelSource, Arc<TripleBuffer<ArmSnapshot>>)>>,
 }
 
 static BACKEND: OnceLock<Backend> = OnceLock::new();
@@ -129,7 +129,7 @@ pub(crate) fn alive() -> bool {
 /// use); it opens on the render thread and keeps rendering the snapshots the
 /// arm core publishes. Pending (not yet open) counts as alive so an app
 /// polling `armview_alive` cannot exit before the window had a chance.
-pub(crate) fn request_arm_view(source: ModelSource, snapshot: Arc<Mutex<ArmSnapshot>>) {
+pub(crate) fn request_arm_view(source: ModelSource, snapshot: Arc<TripleBuffer<ArmSnapshot>>) {
     *backend().arm_request.lock().unwrap() = Some((source, snapshot));
     if let Some(proxy) = PROXY.get() {
         let _ = proxy.send_event(Wake::OpenArmView);

@@ -4,19 +4,19 @@
 //! window itself stays owned by the caller.
 
 use std::error::Error;
-use std::sync::{Arc, Mutex};
+use std::sync::Arc;
 
 use winit::dpi::PhysicalSize;
 use winit::event::MouseScrollDelta;
 use winit::window::Window;
 
-use crate::{ArmSnapshot, ModelSource};
+use crate::{ArmSnapshot, ModelSource, TripleBuffer};
 
 use super::armview::ArmView;
 
 pub struct ArmWindow {
     view: ArmView,
-    snapshot: Arc<Mutex<ArmSnapshot>>,
+    snapshot: Arc<TripleBuffer<ArmSnapshot>>,
     /// Latest window size; updated on resize events.
     size: PhysicalSize<u32>,
     /// Left-button state, tracked by the caller's event loop (camera drag).
@@ -29,7 +29,7 @@ impl ArmWindow {
     pub fn new(
         window: &Window,
         source: &ModelSource,
-        snapshot: Arc<Mutex<ArmSnapshot>>,
+        snapshot: Arc<TripleBuffer<ArmSnapshot>>,
     ) -> Result<Self, Box<dyn Error>> {
         let size = window.inner_size();
         let view = ArmView::new(window, source)?;
@@ -49,9 +49,8 @@ impl ArmWindow {
 
     /// Render one frame from the latest snapshot.
     pub fn redraw(&mut self) {
-        let snap = self.snapshot.lock().unwrap();
+        let snap = self.snapshot.read();
         self.view.set_state(&snap.qpos, &snap.qvel);
-        drop(snap);
         self.view.render(self.size);
     }
 
