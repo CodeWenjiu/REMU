@@ -33,10 +33,10 @@ impl<const NJ: usize> Chain<NJ> {
     /// Forward-kinematics spine at `q`: the grasp point, the tool orientation
     /// and the per-joint frame origins (anchors) and world rotation axes.
     pub(crate) fn spine(&self, q: &[f32; NJ]) -> Spine<NJ> {
-        let mut pos = Vec3::ZERO;
+        let mut pos = Vec3::default();
         let mut ori = Quat::IDENTITY;
-        let mut anchor = [Vec3::ZERO; NJ];
-        let mut axis = [Vec3::ZERO; NJ];
+        let mut anchor = [Vec3::default(); NJ];
+        let mut axis = [Vec3::default(); NJ];
         for (i, j) in self.joints.iter().enumerate() {
             pos = pos + ori.rotate(j.offset);
             ori = ori * j.quat;

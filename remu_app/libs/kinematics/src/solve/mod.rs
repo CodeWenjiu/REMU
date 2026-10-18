@@ -136,7 +136,7 @@ impl<const NJ: usize> Chain<NJ> {
             let e_pos = task.target - spine.tip;
             let e_ori = match task.ori {
                 Some((target_ori, _)) => (target_ori * spine.tip_ori.conjugate()).rotation_vector(),
-                None => Vec3::ZERO,
+                None => Vec3::default(),
             };
 
             // Weighted 6-row task error and seam columns; the obstacle scan
@@ -279,7 +279,7 @@ impl<const NJ: usize> Chain<NJ> {
         let e_pos = task.target - spine.tip;
         let e_ori = match task.ori {
             Some((target_ori, _)) => (target_ori * spine.tip_ori.conjugate()).rotation_vector(),
-            None => Vec3::ZERO,
+            None => Vec3::default(),
         };
         let all = [true; NJ];
         let mut scratch_a = [[0.0; NJ]; NJ];
@@ -403,7 +403,7 @@ mod tests {
         // solver must park at the limit and report it as locked, not
         // unreachable.
         const ONE: [Joint; 1] = [Joint {
-            offset: Vec3::ZERO,
+            offset: Vec3::new(0.0, 0.0, 0.0),
             quat: Quat::IDENTITY,
             axis: Vec3([0.0, 0.0, 1.0]),
             range: Some([0.0, 0.1]),
@@ -459,7 +459,7 @@ mod tests {
         // point keeps the damped steps productive, but four iterations are
         // far from enough.
         const ONE: [Joint; 1] = [Joint {
-            offset: Vec3::ZERO,
+            offset: Vec3::new(0.0, 0.0, 0.0),
             quat: Quat::IDENTITY,
             axis: Vec3([0.0, 0.0, 1.0]),
             range: None,
@@ -490,7 +490,7 @@ mod tests {
     #[test]
     fn solve_reaches_orientation() {
         const ONE: [Joint; 1] = [Joint {
-            offset: Vec3::ZERO,
+            offset: Vec3::new(0.0, 0.0, 0.0),
             quat: Quat::IDENTITY,
             axis: Vec3([0.0, 0.0, 1.0]),
             range: None,
@@ -518,7 +518,7 @@ mod tests {
         // An orientation target a z-joint can never match, disabled by weight
         // 0: acceptance must fall back to the position block alone.
         const ONE: [Joint; 1] = [Joint {
-            offset: Vec3::ZERO,
+            offset: Vec3::new(0.0, 0.0, 0.0),
             quat: Quat::IDENTITY,
             axis: Vec3([0.0, 0.0, 1.0]),
             range: None,
@@ -544,7 +544,7 @@ mod tests {
         // the position task: only the posture pull can move it.
         const TWO: [Joint; 2] = [
             Joint {
-                offset: Vec3::ZERO,
+                offset: Vec3::new(0.0, 0.0, 0.0),
                 quat: Quat::IDENTITY,
                 axis: Vec3([0.0, 0.0, 1.0]),
                 range: None,
@@ -558,7 +558,7 @@ mod tests {
         ];
         const ARM2: Chain<2> = Chain {
             joints: &TWO,
-            tip_offset: Vec3::ZERO,
+            tip_offset: Vec3::new(0.0, 0.0, 0.0),
             tip_quat: Quat::IDENTITY,
         };
         let target = Vec3::new(math::cos(0.3), math::sin(0.3), 0.0);

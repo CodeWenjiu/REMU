@@ -5,7 +5,7 @@ use core::ops::{Add, Index, IndexMut, Mul, Sub};
 use crate::math;
 
 #[repr(transparent)]
-#[derive(Clone, Copy, Debug, PartialEq)]
+#[derive(Clone, Copy, Debug, Default, PartialEq)]
 pub struct Vec3(pub [f32; 3]);
 
 /// Rotation quaternion, `(w, x, y, z)`.
@@ -14,8 +14,6 @@ pub struct Vec3(pub [f32; 3]);
 pub struct Quat(pub [f32; 4]);
 
 impl Vec3 {
-    pub const ZERO: Self = Self([0.0; 3]);
-
     pub const fn new(x: f32, y: f32, z: f32) -> Self {
         Self([x, y, z])
     }
