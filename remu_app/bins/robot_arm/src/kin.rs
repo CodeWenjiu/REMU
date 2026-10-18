@@ -1,5 +1,6 @@
 //! Model-derived kinematics, generated at build time by `mjcf` from the MJCF
-//! declared by `[package.metadata.remu] arm-model`.
+//! declared by `[package.metadata.remu] arm-model` (or from `REMU_ARM_MODEL`
+//! when set — the composed scene that carries the demo obstacles).
 //!
 //! `include!` textually splices `$OUT_DIR/kinematics.rs` written by `build.rs`:
 //! the model is parsed on the host at build time, and only `const` data ships.

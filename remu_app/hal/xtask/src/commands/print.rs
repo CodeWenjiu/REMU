@@ -1,4 +1,4 @@
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::process::ExitCode;
 
 use crate::cli::{AppEnvArgs, BuildAppArgs, CheckAppArgs, PrintCmd, RunAppArgs, RunRemuArgs};
@@ -23,9 +23,55 @@ pub(crate) fn run(cmd: PrintCmd) -> ExitCode {
     }
 }
 
-/// Environment variable carrying the arm model path
-/// (`[package.metadata.remu] arm-model` apps).
-const ARM_MODEL_ENV: &str = "REMU_ARM_MODEL";
+/// Environment variable carrying the path of the run model the arm device's
+/// MuJoCo backend loads (`[package.metadata.remu] arm-model` apps feed it).
+const MODEL_ENV: &str = "REMU_ARM_MODEL";
+
+/// Export fragment for [`MODEL_ENV`]: when the app declares an arm-model
+/// template, the composed run model (base scene plus the app's additions) is
+/// written under `target/app_model/` and exported instead of the raw scene.
+fn model_env_export(ws: &Path, app: &str, model: &str) -> String {
+    match compose_arm_model(ws, app, model) {
+        Some(path) => {
+            let p = shell_escape(path.to_str().expect("utf-8 path"));
+            format!("{MODEL_ENV}=\"${{{MODEL_ENV}:-{p}}}\"")
+        }
+        None => {
+            format!("{MODEL_ENV}=\"${{{MODEL_ENV}:-$MUJOCO_MENAGERIE_DIR/{model}}}\"")
+        }
+    }
+}
+
+/// The arm-model binding of [`compose_model`]: resolve the app's declared
+/// template and its `arm-model` under `$MUJOCO_MENAGERIE_DIR`.
+fn compose_arm_model(ws: &Path, app: &str, model: &str) -> Option<PathBuf> {
+    let rel = crate::app_caps::app_arm_model_template(ws, app)?;
+    let manifest = crate::app_caps::app_manifest(ws, app)?;
+    let template = manifest.parent()?.join(rel);
+    let menagerie = std::env::var("MUJOCO_MENAGERIE_DIR").ok()?;
+    let scene = Path::new(&menagerie).join(model);
+    let mesh = scene.parent()?.join("assets");
+    compose_model(ws, app, &template, &scene, &mesh)
+}
+
+/// Compose `template` (with `@SCENE@`/`@MESH@` substituted) into
+/// `target/app_model/<app>.xml`.
+fn compose_model(
+    ws: &Path,
+    app: &str,
+    template: &Path,
+    scene: &Path,
+    mesh: &Path,
+) -> Option<PathBuf> {
+    let text = std::fs::read_to_string(template).ok()?;
+    let text = text
+        .replace("@SCENE@", scene.to_str()?)
+        .replace("@MESH@", mesh.to_str()?);
+    let out = ws.join("target/app_model").join(format!("{app}.xml"));
+    std::fs::create_dir_all(out.parent()?).ok()?;
+    std::fs::write(&out, text).ok()?;
+    Some(out)
+}
 
 // ── rcore platform (`just run-app … --platform rcore`) ───────────────────
 //
@@ -172,7 +218,7 @@ fn print_app_env(args: AppEnvArgs) -> ExitCode {
     let paths = Paths::from_env();
     let ws = paths.workspace_canonical();
     if let Some(model) = crate::app_caps::app_arm_model(&ws, &args.app) {
-        println!("export {ARM_MODEL_ENV}=\"${{{ARM_MODEL_ENV}:-$MUJOCO_MENAGERIE_DIR/{model}}}\"");
+        println!("export {}", model_env_export(&ws, &args.app, &model));
     }
     ExitCode::SUCCESS
 }
@@ -258,9 +304,7 @@ fn print_run_app(args: RunAppArgs) -> ExitCode {
         exports.push(format!("{}={}", REMU_ISA_ENV, shell_escape(isa)));
     }
     if let Some(model) = crate::app_caps::app_arm_model(&ws, &args.app) {
-        exports.push(format!(
-            "{ARM_MODEL_ENV}=\"${{{ARM_MODEL_ENV}:-$MUJOCO_MENAGERIE_DIR/{model}}}\""
-        ));
+        exports.push(model_env_export(&ws, &args.app, &model));
     }
     let export_prefix = if exports.is_empty() {
         String::new()

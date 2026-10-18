@@ -1,5 +1,6 @@
 //! `build.rs` entry point: resolve the model declared by the app's
-//! `[package.metadata.remu] arm-model`, then generate `$OUT_DIR/kinematics.rs`.
+//! `[package.metadata.remu] arm-model` (or `REMU_ARM_MODEL` when set — the
+//! composed run model xtask exports), then generate `$OUT_DIR/kinematics.rs`.
 //!
 //! On failure the generated file carries a `compile_error!` so the reason
 //! surfaces at the app's `include!` site instead of a bare build-script panic.
@@ -13,6 +14,7 @@ pub fn run() {
 
     println!("cargo:rerun-if-changed=Cargo.toml");
     println!("cargo:rerun-if-env-changed=MUJOCO_MENAGERIE_DIR");
+    println!("cargo:rerun-if-env-changed=REMU_ARM_MODEL");
 
     let content = match generate(Path::new(&manifest_dir)) {
         Ok((content, files)) => {
@@ -31,16 +33,24 @@ pub fn run() {
 }
 
 fn generate(manifest_dir: &Path) -> Result<(String, Vec<PathBuf>), String> {
-    let arm_model = arm_model_of(manifest_dir)?;
-    let menagerie = std::env::var("MUJOCO_MENAGERIE_DIR").map_err(|_| {
-        format!("MUJOCO_MENAGERIE_DIR is not set (run inside the dev shell); needed to resolve `{arm_model}`")
-    })?;
-    let path = Path::new(&menagerie).join(&arm_model);
+    // `REMU_ARM_MODEL` (set by xtask to the composed scene) wins over the
+    // Menagerie-relative `arm-model` metadata.
+    let (path, source) = match std::env::var("REMU_ARM_MODEL") {
+        Ok(p) if !p.is_empty() => (PathBuf::from(&p), p),
+        _ => {
+            let arm_model = arm_model_of(manifest_dir)?;
+            let menagerie = std::env::var("MUJOCO_MENAGERIE_DIR").map_err(|_| {
+                format!("MUJOCO_MENAGERIE_DIR is not set (run inside the dev shell); needed to resolve `{arm_model}`")
+            })?;
+            let path = Path::new(&menagerie).join(&arm_model);
+            (path, arm_model)
+        }
+    };
     println!("cargo:rerun-if-changed={}", path.display());
 
     let loaded = crate::parse::load_file(&path)?;
     let model = crate::extract::extract(&loaded.root)?;
-    Ok((crate::emit::emit(&model, &arm_model), loaded.files))
+    Ok((crate::emit::emit(&model, &source), loaded.files))
 }
 
 fn arm_model_of(manifest_dir: &Path) -> Result<String, String> {

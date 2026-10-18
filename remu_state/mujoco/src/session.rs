@@ -264,6 +264,60 @@ mod tests {
         assert_eq!((s.nu(), s.nq()), (8, 9));
     }
 
+    /// Composed model (the obstacle-injection seam): includes the Menagerie
+    /// scene by absolute path, re-declares the compiler *after* the include
+    /// (the included scene's own compiler, meshdir included, is not honored),
+    /// injects an obstacle geom, and must stay behaviorally identical to the
+    /// direct scene load.
+    #[test]
+    #[ignore = "needs the menagerie checkout (MUJOCO_MENAGERIE_DIR)"]
+    fn composed_model_include_merges_worldbody_and_resolves_assets() {
+        const OBJ_GEOM: c_int = 5;
+        let dir = std::env::var("MUJOCO_MENAGERIE_DIR").expect("MUJOCO_MENAGERIE_DIR");
+        let franka = std::path::Path::new(&dir).join("franka_emika_panda");
+        let xml = format!(
+            "<mujoco model=\"remu probe\">\
+             <include file=\"{scene}\"/>\
+             <compiler angle=\"radian\" autolimits=\"true\" meshdir=\"{assets}\"/>\
+             <worldbody>\
+             <geom name=\"obstacle-probe\" type=\"capsule\" fromto=\"0.3 -0.5 0.4 0.3 -0.5 0.9\" size=\"0.04\" contype=\"0\" conaffinity=\"0\"/>\
+             </worldbody></mujoco>",
+            scene = franka.join("scene.xml").display(),
+            assets = franka.join("assets").display(),
+        );
+        let path = std::env::temp_dir().join("remu_composed_probe.xml");
+        std::fs::write(&path, xml).unwrap();
+        let mut composed = Session::from_xml_file(&path).expect("load composed model");
+        let _ = std::fs::remove_file(&path);
+        assert_eq!((composed.nu(), composed.nq()), (8, 9));
+        let name = CString::new("obstacle-probe").unwrap();
+        let id = unsafe {
+            composed
+                .api
+                .name2id(composed.model, OBJ_GEOM, name.as_ptr())
+        };
+        assert!(id >= 0, "injected geom missing (id {id})");
+
+        // The same servo run on the direct scene load: any lost compiler
+        // semantics (angle radian, autolimits, …) would diverge visibly.
+        let mut direct = Session::from_xml_file(&franka.join("scene.xml")).expect("load scene");
+        let run = |s: &mut Session| {
+            s.set_ctrl(&[0.0, 0.0, 0.0, -1.5, 0.0, 1.5, -0.5, 0.0])
+                .unwrap();
+            for _ in 0..400 {
+                s.step();
+            }
+            let mut q = vec![0.0; s.nq()];
+            s.read_qpos(&mut q).unwrap();
+            q
+        };
+        let a = run(&mut composed);
+        let b = run(&mut direct);
+        for (x, y) in a.iter().zip(&b) {
+            assert!((x - y).abs() < 1.0e-6, "composed {x} vs direct {y}");
+        }
+    }
+
     #[test]
     fn state_bits_compose_and_time_is_scalar() {
         let s = arm();

@@ -13,6 +13,7 @@ use crate::parse::Element;
 pub(crate) struct Model {
     pub model_name: Option<String>,
     pub joints: Vec<Joint>,
+    pub obstacles: Vec<Obstacle>,
     pub tip_offset: V3,
     pub tip_quat: Quat,
     pub nu: usize,
@@ -28,6 +29,13 @@ pub(crate) struct Joint {
     pub range: Option<[f64; 2]>,
     pub ctrl: Option<usize>,
     pub qpos_index: usize,
+}
+
+/// A capsule obstacle geom (`obstacle*`) in world coordinates.
+pub(crate) struct Obstacle {
+    pub a: V3,
+    pub b: V3,
+    pub radius: f64,
 }
 
 type V3 = [f64; 3];
@@ -62,12 +70,55 @@ pub(crate) fn extract(root: &Element) -> Result<Model, String> {
     Ok(Model {
         model_name: root.attr("model").map(str::to_owned),
         home_q: home(root, nq, &joints),
+        obstacles: obstacles(root)?,
         joints,
         tip_offset: tip.0,
         tip_quat: tip.1,
         nu,
         nq,
     })
+}
+
+/// Capsule obstacles: worldbody-level geoms named `obstacle*` — the seam the
+/// composed demo model (see the app's `assets/model_template.xml`) injects
+/// them through.
+fn obstacles(root: &Element) -> Result<Vec<Obstacle>, String> {
+    let mut out = Vec::new();
+    for worldbody in root.children_named("worldbody") {
+        for geom in worldbody.children_named("geom") {
+            let Some(name) = geom.attr("name") else {
+                continue;
+            };
+            if !name.starts_with("obstacle") {
+                continue;
+            }
+            if geom.attr("type") != Some("capsule") {
+                return Err(format!(
+                    "obstacle geom `{name}`: only capsules are supported"
+                ));
+            }
+            let fromto = nums(
+                geom.attr("fromto")
+                    .ok_or_else(|| format!("obstacle geom `{name}`: missing fromto"))?,
+            )?;
+            let size = nums(
+                geom.attr("size")
+                    .ok_or_else(|| format!("obstacle geom `{name}`: missing size"))?,
+            )?;
+            if fromto.len() != 6 {
+                return Err(format!("obstacle geom `{name}`: fromto needs 6 numbers"));
+            }
+            let radius = *size
+                .first()
+                .ok_or_else(|| format!("obstacle geom `{name}`: size needs a radius"))?;
+            out.push(Obstacle {
+                a: [fromto[0], fromto[1], fromto[2]],
+                b: [fromto[3], fromto[4], fromto[5]],
+                radius,
+            });
+        }
+    }
+    Ok(out)
 }
 
 fn angle_scale(root: &Element) -> Result<f64, String> {

@@ -6,17 +6,19 @@
 //
 // Motion: the grasp point is servoed through a slow arc swing around the base
 // axis, anchored at the model's `home` tip position, with a little radius
-// breathing and height bob. Each control tick runs dense damped least-squares
-// IK (`kinematics`, over the model-generated joint chain) and streams the
-// solved configuration; the gripper opens and closes on a slow cycle. The
-// chain length, `home` pose and the expected model counts are generated from
-// the MJCF at build time (see `kin`).
+// breathing and height bob, while the solver steers the arm around the demo
+// capsule obstacle (`kin::OBSTACLES`, injected by the composed scene). Each
+// control tick runs dense damped least-squares IK (`kinematics`, over the
+// model-generated joint chain) and streams the solved configuration; the
+// gripper opens and closes on a slow cycle. The chain length, `home` pose and
+// the expected model counts are generated from the MJCF at build time (see
+// `kin`).
 
 extern crate alloc;
 
 remu_macro::mod_prv!(kin);
 
-use kinematics::prelude::{Chain, Vec3};
+use kinematics::prelude::{Avoiding, Chain, Task, Vec3};
 use libm::{cosf, roundf, sinf, sqrtf};
 use remu_hal::{
     MTIME_TICK_HZ, armview_alive, commit, exit_success, read_mtime, read_nq, read_nu,
@@ -45,6 +47,12 @@ const ARM: Chain<{ kin::NJ }> = Chain {
 /// IK iterations per control tick, and the grasp loop around the home tip:
 /// a swing arc (rad) plus radius breathing / height bob (m), all slow.
 const IK_ITERS: u32 = 16;
+
+/// Obstacle avoidance: minimum clearance from the arm spine (m) and the
+/// constraint row weight (heavy enough that a blocked crossing only grazes
+/// the clearance zone instead of ploughing through it).
+const AVOID_CLEARANCE: f32 = 0.08;
+const AVOID_WEIGHT: f32 = 4.0;
 const LOOP_ARC: f32 = 1.5;
 const LOOP_BREATH: f32 = 0.05;
 const LOOP_BOB: f32 = 0.05;
@@ -117,9 +125,15 @@ fn main() -> ! {
             r * sinf(swing),
             home_tip[2] + LOOP_BOB * sinf(BOB_RATE * t),
         );
-        let err = match ARM.reach(&mut q, target, IK_ITERS) {
-            Ok(sol) => sol.residual.pos,
-            Err(e) => e.residual().pos,
+        let task = Task {
+            obstacles: &kin::OBSTACLES,
+            clearance: AVOID_CLEARANCE,
+            avoid_weight: AVOID_WEIGHT,
+            ..Task::position(target)
+        };
+        let res = match ARM.solve::<Avoiding>(&mut q, &task, IK_ITERS) {
+            Ok(sol) => sol.residual,
+            Err(e) => e.residual(),
         };
 
         for (j, &qi) in q.iter().enumerate() {
@@ -133,9 +147,10 @@ fn main() -> ! {
         if tick.is_multiple_of(64) {
             let tip = ARM.tip_pos(&q);
             remu_hal::println!(
-                "t={:.2}s err={:.2}mm tip=[{:.3} {:.3} {:.3}]",
+                "t={:.2}s err={:.2}mm gap={:.0}mm tip=[{:.3} {:.3} {:.3}]",
                 t,
-                err * 1000.0,
+                res.pos * 1000.0,
+                res.gap * 1000.0,
                 tip[0],
                 tip[1],
                 tip[2]

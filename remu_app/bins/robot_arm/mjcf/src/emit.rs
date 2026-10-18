@@ -13,7 +13,7 @@ pub(crate) fn emit(model: &Model, source: &str) -> String {
          // Joint frames: frame_i = frame_(i-1) * translate(offset) * rotate(quat) * rotate(axis, q_i).\n\
          // Metres and radians; quaternions are (w, x, y, z).\n\
          \n\
-         use kinematics::prelude::{{Joint, Quat, Vec3}};\n"
+         use kinematics::prelude::{{Capsule, Joint, Quat, Vec3}};\n"
     );
 
     let _ = writeln!(
@@ -38,10 +38,18 @@ pub(crate) fn emit(model: &Model, source: &str) -> String {
             let _ = writeln!(s, "pub const HOME_Q: Option<[f32; NJ]> = None;");
         }
     }
-    let names: Vec<String> = model.joints.iter().map(|j| format!("{:?}", j.name)).collect();
+    let names: Vec<String> = model
+        .joints
+        .iter()
+        .map(|j| format!("{:?}", j.name))
+        .collect();
     let _ = writeln!(s, "pub const NAMES: [&str; NJ] = [{}];", names.join(", "));
     let ctrls: Vec<String> = model.joints.iter().map(|j| ctrl_opt(j.ctrl)).collect();
-    let _ = writeln!(s, "pub const CTRL: [Option<u32>; NJ] = [{}];", ctrls.join(", "));
+    let _ = writeln!(
+        s,
+        "pub const CTRL: [Option<u32>; NJ] = [{}];",
+        ctrls.join(", ")
+    );
     let _ = writeln!(s, "pub const JOINTS: [Joint; NJ] = [");
     for j in &model.joints {
         let _ = writeln!(
@@ -64,6 +72,21 @@ pub(crate) fn emit(model: &Model, source: &str) -> String {
         "pub const TIP_QUAT: Quat = Quat({});",
         arr(&model.tip_quat)
     );
+    let _ = writeln!(
+        s,
+        "pub const OBSTACLES: [Capsule; {}] = [",
+        model.obstacles.len()
+    );
+    for o in &model.obstacles {
+        let _ = writeln!(
+            s,
+            "    Capsule {{ a: Vec3({}), b: Vec3({}), radius: {} }},",
+            arr(&o.a),
+            arr(&o.b),
+            f32l(o.radius)
+        );
+    }
+    let _ = writeln!(s, "];");
     s
 }
 
@@ -100,14 +123,16 @@ mod tests {
     fn emits_kinematics_crate_data() {
         let root = parse::load_str(
             "<mujoco model=\"mini\"><compiler angle=\"radian\"/>\
-             <worldbody><body name=\"l0\"><joint name=\"j1\" range=\"-1 1\"/></body></worldbody>\
+             <worldbody><body name=\"l0\"><joint name=\"j1\" range=\"-1 1\"/></body>\
+             <geom name=\"obstacle:pole\" type=\"capsule\" fromto=\"0.3 -0.5 0 0.3 -0.5 0.5\" size=\"0.04\"/>\
+             </worldbody>\
              </mujoco>",
         )
         .unwrap();
         let model = extract::extract(&root).unwrap();
         let out = emit(&model, "mini.xml");
 
-        assert!(out.contains("use kinematics::prelude::{Joint, Quat, Vec3};"));
+        assert!(out.contains("use kinematics::prelude::{Capsule, Joint, Quat, Vec3};"));
         assert!(out.contains("pub const NJ: usize = 1;"));
         assert!(out.contains("pub const NAMES: [&str; NJ] = [\"j1\"];"));
         assert!(out.contains("pub const CTRL: [Option<u32>; NJ] = [None];"));
@@ -115,5 +140,9 @@ mod tests {
         assert!(out.contains("range: Some([-1.0, 1.0])"));
         assert!(out.contains("pub const TIP_OFFSET: Vec3 = Vec3([0.0, 0.0, 0.0]);"));
         assert!(out.contains("pub const HOME_Q: Option<[f32; NJ]> = None;"));
+        assert!(out.contains("pub const OBSTACLES: [Capsule; 1] = ["));
+        assert!(out.contains(
+            "Capsule { a: Vec3([0.3, -0.5, 0.0]), b: Vec3([0.3, -0.5, 0.5]), radius: 0.04 }"
+        ));
     }
 }

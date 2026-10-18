@@ -62,7 +62,7 @@ fn classify(key: &str) -> Option<Cap> {
 /// or under a group directory (`remu_app/bins/mnist/mnist_generator/`).
 /// A candidate is kept only if its `package.name` matches `remu_app_<name>`;
 /// unknown layouts fall through to `None` (fail-open).
-fn app_manifest(workspace_root: &Path, app: &str) -> Option<PathBuf> {
+pub(crate) fn app_manifest(workspace_root: &Path, app: &str) -> Option<PathBuf> {
     let bins = workspace_root.join("remu_app").join("bins");
     let base = bins.join(app);
     let want = format!("remu_app_{app}");
@@ -122,13 +122,25 @@ fn declared_caps(manifest: &Path, app: &str) -> Result<Option<Vec<Cap>>, String>
 /// `REMU_ARM_MODEL` (e.g. the Menagerie Panda scene). `None` when the app
 /// declares none — the backend defaults (built-in toy arm) apply.
 pub(crate) fn app_arm_model(workspace_root: &Path, app: &str) -> Option<String> {
+    app_remu_str(workspace_root, app, "arm-model")
+}
+
+/// Parse `[package.metadata.remu] arm-model-template`: a template (relative
+/// to the app's package directory) the run model is composed from — the base
+/// scene plus app-specific additions like demo obstacles (see
+/// `commands::print::compose_model` for the placeholder vocabulary).
+pub(crate) fn app_arm_model_template(workspace_root: &Path, app: &str) -> Option<String> {
+    app_remu_str(workspace_root, app, "arm-model-template")
+}
+
+fn app_remu_str(workspace_root: &Path, app: &str, key: &str) -> Option<String> {
     let manifest = app_manifest(workspace_root, app)?;
     let text = std::fs::read_to_string(&manifest).ok()?;
     let doc: toml::Table = text.parse().ok()?;
     doc.get("package")?
         .get("metadata")?
         .get("remu")?
-        .get("arm-model")?
+        .get(key)?
         .as_str()
         .map(str::to_owned)
 }
