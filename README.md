@@ -18,7 +18,7 @@ This project is **inspired by and draws on ideas from [NEMU](https://github.com/
 
 The interpreter core is optimized for steady-state execution: decode/dispatch is a single flattened jump table, the instruction cache aliases decoded state directly, the PC lives in registers across batch runs, and hot-path memory access is a software-TLB (addend) with no error construction on hit.
 
-The built-in benchmark is `remu_app/microbench` (ported from the [AM microbench](https://github.com/NJU-ProjectN/am-kernels) suite), scored relative to a reference CPU. On the author's laptop (Core Ultra 5 125H):
+The built-in benchmark is `remu_app/bins/microbench` (ported from the [AM microbench](https://github.com/NJU-ProjectN/am-kernels) suite), scored relative to a reference CPU. On the author's laptop (Core Ultra 5 125H):
 
 | Simulator   | microbench `ref` score | guest wall time |
 |-------------|-----------------------:|-----------------:|
@@ -62,7 +62,7 @@ This layout keeps the UI and debugging workflow stable while you swap or combine
 | `rv32i_zve32x_zvl128b` | | ✓ |
 | `rv32im_zve32x_zvl128b` | ✓ | ✓ |
 
-Full matrix details and target-string handling live in [`remu_hal/README-targets.md`](remu_hal/README-targets.md).
+Full matrix details and target-string handling live in [`remu_app/hal/remu_hal/README-targets.md`](remu_app/hal/remu_hal/README-targets.md).
 
 ---
 
@@ -73,7 +73,7 @@ Full matrix details and target-string handling live in [`remu_hal/README-targets
 | `remu_cli` / `remu_debugger` | Interactive shell and debugging commands |
 | `remu_simulator` | Simulator abstraction and concrete backends: `simulators/remu`, `simulators/spike`, `simulators/nzea` |
 | `remu_state`, `remu_types`, `remu_isa` | Architectural state, buses/devices, ISA typing |
-| `remu_hal`, `remu_app/*` | Embedded HAL (`riscv-rt`, `embedded-hal`, `embedded-io`, …) and runnable `no_std` apps: `hello_world`, `collection`, `display`/`shader`, `microbench`, `mnist`, `nes`, `slint` — **[remu_hal/README.md](remu_hal/README.md)** · [中文](remu_hal/README_zh.md) |
+| `remu_app/{hal,libs,bins}` | Embedded HAL (`riscv-rt`, `embedded-hal`, `embedded-io`, …) and runnable `no_std` apps: `hello_world`, `collection`, `display`/`shader`, `microbench`, `mnist`, `nes`, `slint` — **[remu_app/hal/remu_hal/README.md](remu_app/hal/remu_hal/README.md)** · [中文](remu_app/hal/remu_hal/README_zh.md) |
 
 The `remu_state` bus models memory regions and devices (UART 16550, SiFive test finisher, CLINT, plus interactive `display`/`mouse`/`keyboard` backed by a winit window). Device/memory configs can come from files via `--dev-base` / `--mem-base`.
 
@@ -103,7 +103,7 @@ Day-to-day commands go through **[just](https://github.com/casey/just)** using t
 | `just run -- ARGS…` | **Release** `remu_cli` with `RUST_BACKTRACE=1` |
 | `just dev -- ARGS…` | **Debug** `remu_cli` with `RUST_BACKTRACE=1` |
 | `just build-app APP [TARGET]` | Build embedded crate `remu_app_{APP}` via **xtask** (default target `riscv32i`) |
-| `just run-app APP [TARGET]` | Build + run that app under remu (see [`remu_hal/README-targets.md`](remu_hal/README-targets.md) for `TARGET` e.g. `riscv32im_zve32x_zvl128b`) |
+| `just run-app APP [TARGET]` | Build + run that app under remu (see [`remu_app/hal/remu_hal/README-targets.md`](remu_app/hal/remu_hal/README-targets.md) for `TARGET` e.g. `riscv32im_zve32x_zvl128b`) |
 | `just clean-app` | Remove `target/app` and `target/app_zve32x` |
 | `just clean-all` | `cargo clean` |
 
@@ -124,7 +124,7 @@ just run-app mnist riscv32im_zve32x_zvl128b
 | `qemu` | Run under `qemu-system-riscv32` |
 | `host` | Run the app natively on the host (Rust `std`) — no simulator |
 
-**Temporary env vars (`run-app` / embedded `cargo run`):** the app runner (`remu_hal/scripts/remu-cargo-runner.sh`) asks **xtask** to print a `remu_cli` command. Set options for that invocation by exporting variables **on the same line** as `just` (or in your shell) so they are visible when the runner runs:
+**Temporary env vars (`run-app` / embedded `cargo run`):** the app runner (`remu_app/hal/remu_hal/scripts/remu-cargo-runner.sh`) asks **xtask** to print a `remu_cli` command. Set options for that invocation by exporting variables **on the same line** as `just` (or in your shell) so they are visible when the runner runs:
 
 | Variable | Effect |
 |----------|--------|

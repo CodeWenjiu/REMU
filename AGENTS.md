@@ -19,7 +19,7 @@ New crates are placed by role and reuse scope:
 4. reusable app-side library (two or more consumers, or independent of any app) → `remu_app/libs/`;
 5. private helper/codegen of a single app → nested inside that app's directory (mark it in the crate description; promote to `libs/` once a second consumer appears).
 
-Nesting is allowed only for multi-crate app projects (`remu_app/bins/nes/{nes,runes_core}`), private helpers (`remu_app/bins/robot_arm/mjcf`), and simulator subsystem bundles (`remu_simulator/simulators/*`); otherwise it is one crate per directory. (The `remu_app/hal` and `remu_app/bins` zones are being migrated from the old flat `remu_app/*` layout.)
+Nesting is allowed only for multi-crate app projects (`remu_app/bins/nes/{nes,runes_core}`), private helpers (`remu_app/bins/robot_arm/mjcf`), and simulator subsystem bundles (`remu_simulator/simulators/*`); otherwise it is one crate per directory.
 
 Note: `remu` is intended to be used inside the parent `chip-dev` checkout with submodules.
 
@@ -160,7 +160,7 @@ Direct Cargo examples: `cargo test --workspace`, `cargo run -p remu_cli --releas
 
 ## Testing Guidelines
 - Primary test command: `cargo test --workspace`.
-- Unit tests are in-module (`#[test]`), e.g. in `remu_hal/xtask` and parser-related crates.
+- Unit tests are in-module (`#[test]`), e.g. in `remu_app/hal/xtask` and parser-related crates.
 - Add tests with each behavior change, especially ISA parsing/target resolution and simulator correctness paths.
 - No repository-wide coverage threshold is currently enforced; prioritize meaningful execution-path coverage.
 

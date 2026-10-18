@@ -15,7 +15,7 @@ codegen-backend = "llvm"
 [target.'cfg(all(any(target_arch = "riscv32", target_arch = "riscv64"), target_os = "none"))']
 linker = "rust-lld"
 rustflags = ["-C", "link-arg=-Tlink.x"]
-runner = "remu_app/remu_hal/scripts/remu-cargo-runner.sh"
+runner = "remu_app/hal/remu_hal/scripts/remu-cargo-runner.sh"
 
 # rcore user programs (custom rcore64.json target, target_os = "rcore"):
 # same link.x mechanism as the bare-metal targets — remu_hal_rcore's build.rs

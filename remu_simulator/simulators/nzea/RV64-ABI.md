@@ -126,7 +126,7 @@ diagnostic (`unmapped`, `UnsupportedAccessWidth`, …).
 - **Breakpoint addresses** are u32; RV64 PCs above 4 GiB cannot be breakpointed yet.
 - **`riscv64i` app builds need a target spec**: rustc ships `riscv64im-unknown-none-elf` and
   `riscv64imac-unknown-none-elf` but **not** `riscv64i-unknown-none-elf`. Running a pure-I RV64 acceptance
-  therefore needs a small JSON target spec in `remu_app/remu_hal/` plus an xtask mapping; until then §8
+  therefore needs a small JSON target spec in `remu_app/hal/remu_hal/` plus an xtask mapping; until then §8
   covers `riscv64im` only. Tell remu if a pure-I RV64 configuration is on the nzea roadmap.
 - **`misa` of the Zve variants** does not set the V bit (bit 21); worth deciding separately.
 

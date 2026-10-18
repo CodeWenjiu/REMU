@@ -1,0 +1,14 @@
+[package]
+name = "remu_app_collection"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+remu_hal = { path = "../../hal/remu_hal" }
+
+[lints]
+workspace = true
+
+[[bin]]
+name = "remu_app_collection"
+path = "../../hal/remu_hal_embedded/templates/app_entry.rs"

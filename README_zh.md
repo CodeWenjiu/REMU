@@ -18,7 +18,7 @@
 
 解释器核心针对 **稳态执行** 做了深度优化：译码分发是**单一扁平跳转表**；指令缓存让执行直接引用缓存行（省去栈物化）；PC 在批量运行中全程驻留寄存器；热路径访存走软件 TLB（addend 形式），命中路径不构造任何错误。
 
-内置基准是 **`remu_app/microbench`**（移植自 [AM microbench](https://github.com/NJU-ProjectN/am-kernels) 套件），以参考 CPU 的分数为基准。在作者的笔记本（Core Ultra 5 125H）上：
+内置基准是 **`remu_app/bins/microbench`**（移植自 [AM microbench](https://github.com/NJU-ProjectN/am-kernels) 套件），以参考 CPU 的分数为基准。在作者的笔记本（Core Ultra 5 125H）上：
 
 | 模拟器   | microbench `ref` 分数 | guest 墙钟 |
 |---------|----------------------:|-----------:|
@@ -62,7 +62,7 @@ remu 将 **调试器 / CLI（前端）与执行引擎（后端）分离**：
 | `rv32i_zve32x_zvl128b` | | ✓ |
 | `rv32im_zve32x_zvl128b` | ✓ | ✓ |
 
-完整矩阵与 target 字符串处理见 [`remu_hal/README-targets.md`](remu_hal/README-targets.md)。
+完整矩阵与 target 字符串处理见 [`remu_app/hal/remu_hal/README-targets.md`](remu_app/hal/remu_hal/README-targets.md)。
 
 ---
 
@@ -73,7 +73,7 @@ remu 将 **调试器 / CLI（前端）与执行引擎（后端）分离**：
 | `remu_cli` / `remu_debugger` | 交互式 shell 与调试命令 |
 | `remu_simulator` | 模拟器抽象与具体后端：`simulators/remu`、`simulators/spike`、`simulators/nzea` |
 | `remu_state`, `remu_types`, `remu_isa` | 体系结构状态、总线/设备、ISA 类型 |
-| `remu_hal`, `remu_app/*` | 嵌入式 HAL（`riscv-rt`、`embedded-hal`、`embedded-io` 等）与可运行的 `no_std` 应用：`hello_world`、`collection`、`display`/`shader`、`microbench`、`mnist`、`nes`、`slint` — [English](remu_hal/README.md) · **[remu_hal/README_zh.md](remu_hal/README_zh.md)** |
+| `remu_app/{hal,libs,bins}` | 嵌入式 HAL（`riscv-rt`、`embedded-hal`、`embedded-io` 等）与可运行的 `no_std` 应用：`hello_world`、`collection`、`display`/`shader`、`microbench`、`mnist`、`nes`、`slint` — [English](remu_app/hal/remu_hal/README.md) · **[remu_app/hal/remu_hal/README_zh.md](remu_app/hal/remu_hal/README_zh.md)** |
 
 `remu_state` 的总线模型包含内存区域与设备（UART 16550、SiFive test finisher、CLINT，以及基于 winit 窗口的交互式 `display` / `mouse` / `keyboard`）。设备与内存配置可通过 `--dev-base` / `--mem-base` 从文件加载。
 
@@ -103,7 +103,7 @@ remu 将 **调试器 / CLI（前端）与执行引擎（后端）分离**：
 | `just run -- 参数…` | **release** 运行 `remu_cli`，带 `RUST_BACKTRACE=1` |
 | `just dev -- 参数…` | **debug** 运行 `remu_cli`，带 `RUST_BACKTRACE=1` |
 | `just build-app APP [TARGET]` | 通过 **xtask** 构建嵌入式包 `remu_app_{APP}`（默认目标 `riscv32i`） |
-| `just run-app APP [TARGET]` | 构建并在 remu 下运行该应用；`TARGET` 见 [`remu_hal/README-targets.md`](remu_hal/README-targets.md)（如 `riscv32im_zve32x_zvl128b`） |
+| `just run-app APP [TARGET]` | 构建并在 remu 下运行该应用；`TARGET` 见 [`remu_app/hal/remu_hal/README-targets.md`](remu_app/hal/remu_hal/README-targets.md)（如 `riscv32im_zve32x_zvl128b`） |
 | `just clean-app` | 删除 `target/app` 与 `target/app_zve32x` |
 | `just clean-all` | `cargo clean` |
 
@@ -124,7 +124,7 @@ just run-app mnist riscv32im_zve32x_zvl128b
 | `qemu` | 用 `qemu-system-riscv32` 运行 |
 | `host` | 在宿主机上原生运行应用（Rust `std`），不经过模拟器 |
 
-**临时环境变量（`run-app` / 嵌入式 `cargo run`）：** 应用由 `remu_hal/scripts/remu-cargo-runner.sh` 拉起，其中通过 **xtask** 生成 `remu_cli` 命令。在与 **`just` 同一行**（或当前 shell）设置下列变量，即可传入对应 CLI 选项（需在 runner 执行时可见）：
+**临时环境变量（`run-app` / 嵌入式 `cargo run`）：** 应用由 `remu_app/hal/remu_hal/scripts/remu-cargo-runner.sh` 拉起，其中通过 **xtask** 生成 `remu_cli` 命令。在与 **`just` 同一行**（或当前 shell）设置下列变量，即可传入对应 CLI 选项（需在 runner 执行时可见）：
 
 | 变量 | 作用 |
 |------|------|

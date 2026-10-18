@@ -1,0 +1,15 @@
+[package]
+name = "remu_app_mnist"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+remu_macro = { path = "../../../remu_macro" }
+remu_hal = { path = "../../hal/remu_hal" }
+
+[lints]
+workspace = true
+
+[[bin]]
+name = "remu_app_mnist"
+path = "../../hal/remu_hal_embedded/templates/app_entry.rs"

@@ -1,0 +1,25 @@
+[package]
+name = "remu_hal"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+remu_macro = { path = "../../../remu_macro" }
+remu_hal_macros = { path = "../remu_hal_macros" }
+embedded-io = "0.7.1"
+
+[target.'cfg(target_os = "none")'.dependencies]
+remu_hal_embedded = { path = "../remu_hal_embedded" }
+
+# Hosted OS (linux/macos/windows/BSD…). Positive family gate (not a complement),
+# so a future `target_os = "rcore"` arm can be added additively.
+[target.'cfg(any(unix, windows))'.dependencies]
+remu_hal_host = { path = "../remu_hal_host" }
+
+# rcore user programs (U mode under rcore_kernel, custom rcore64.json target).
+# Built only for `target_os = "rcore"`; never coexists with riscv-rt.
+[target.'cfg(target_os = "rcore")'.dependencies]
+remu_hal_rcore = { path = "../remu_hal_rcore" }
+
+[lints]
+workspace = true

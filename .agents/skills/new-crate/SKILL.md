@@ -79,8 +79,8 @@ See `flow-files` skill for details.
 Add to the root `Cargo.toml` `members` list:
 
 - root crate: `"remu_new_crate"`;
-- direct child of `remu_app/`: already covered by the `remu_app/*` glob — no edit;
-- under a group directory (`remu_app/libs`, `remu_app/bins/<project>`): add an explicit entry — member globs for paths under an `exclude`d group directory are dropped. The group directory itself must be listed in `exclude` (it is not a package).
+- direct child of a zone (`remu_app/{hal,libs,bins}/<crate>`): already covered by the zone globs — no edit;
+- inside a multi-crate project group or as an app's private helper (`remu_app/bins/nes/nes`, `remu_app/bins/robot_arm/mjcf`): add an explicit entry, and make sure the group directory is listed in `exclude` — member globs for paths under an `exclude`d group directory are dropped.
 
 ### 6. Initial check
 

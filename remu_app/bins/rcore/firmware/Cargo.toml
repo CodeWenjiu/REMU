@@ -1,0 +1,23 @@
+[package]
+name = "remu_firmware"
+version = "0.1.0"
+edition = "2024"
+
+# Deliberately zero dependencies: the firmware is the M-mode program that
+# serves the kernel's SBI calls directly. It owns its runtime (entry, stack,
+# linker layout) exactly like the kernel, and lives at the QEMU `virt` reset
+# region (0x8000_0000) where OpenSBI would sit — see
+# remu_app/bins/rcore/README.md for the layering rationale.
+# `bare-metal` gates the binary via `required-features`, so hosted builds
+# (`cargo check --workspace`) never compile it — no host stub. The rcore
+# build recipes (xtask) pass `--features bare-metal` explicitly.
+[features]
+bare-metal = []
+
+[lints]
+workspace = true
+
+[[bin]]
+name = "remu_firmware"
+path = "src/main.rs"
+required-features = ["bare-metal"]
