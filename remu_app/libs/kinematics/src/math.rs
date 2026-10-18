@@ -3,7 +3,7 @@
 //! its ~0.002 trig accuracy but refines `sqrt` (micromath's own is a ~5% bit
 //! trick).
 
-#![allow(dead_code, reason = "ported into the solver in the next increment")]
+#![allow(dead_code, reason = "atan2 lands with the orientation tasks")]
 
 #[cfg(feature = "math-std")]
 pub(crate) fn sin(x: f32) -> f32 {

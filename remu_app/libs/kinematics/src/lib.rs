@@ -1,12 +1,15 @@
-//! Portable forward and inverse kinematics for serial arms.
+//! Portable forward and inverse kinematics for serial arms: a const-generic
+//! [`Chain`](prelude::Chain) core (forward kinematics over quaternion joint
+//! frames, dense damped least-squares IK) plus a feature-selected floating
+//! point backend.
 //!
-//! `no_std` by default (`std` is opt-in). The floating-point backend is a
-//! compile-time choice — exactly one of `math-std`, `math-libm` (default),
-//! or `math-micromath` must be enabled.
+//! `no_std` by default (`std` is opt-in). Exactly one of `math-std`,
+//! `math-libm` (default), or `math-micromath` must be enabled.
 
 #![cfg_attr(not(feature = "std"), no_std)]
 
-remu_macro::mod_prv!(math);
+remu_macro::mod_prv!(chain, math, solver, vec);
+remu_macro::mod_pub!(prelude);
 
 #[cfg(not(any(
     feature = "math-std",
