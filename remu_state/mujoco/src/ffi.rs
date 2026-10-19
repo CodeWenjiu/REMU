@@ -331,6 +331,35 @@ pub(crate) struct MujocoApi {
     #[dlopen2_name = "mj_resetData"]
     reset_data: unsafe extern "C" fn(model: *const MjModel, data: *mut MjData),
 
+    #[dlopen2_name = "mj_ray"]
+    ray: unsafe extern "C" fn(
+        model: *const MjModel,
+        data: *const MjData,
+        pnt: *const f64,
+        vec: *const f64,
+        geomgroup: *const u8,
+        flg_static: bool,
+        bodyexclude: c_int,
+        geomid: *mut c_int,
+        normal: *mut f64,
+    ) -> f64,
+
+    #[dlopen2_name = "mj_multiRay"]
+    multi_ray: unsafe extern "C" fn(
+        model: *const MjModel,
+        data: *mut MjData,
+        pnt: *const f64,
+        vec: *const f64,
+        geomgroup: *const u8,
+        flg_static: bool,
+        bodyexclude: c_int,
+        geomid: *mut c_int,
+        dist: *mut f64,
+        normal: *mut f64,
+        nray: c_int,
+        cutoff: f64,
+    ),
+
     #[dlopen2_name = "mj_stateSize"]
     state_size: unsafe extern "C" fn(model: *const MjModel, sig: c_int) -> c_int,
 

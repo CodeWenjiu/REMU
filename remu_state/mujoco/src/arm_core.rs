@@ -124,8 +124,67 @@ impl ArmCore {
         self.qpos[joint] as f32
     }
 
+    /// Cast one planar fan of rays from `origin` (world frame): ray `i` runs
+    /// along yaw `angle_min + i * angle_incr` about world Z. `out` receives the
+    /// nearest surface distance per ray, `f32::INFINITY` for no hit within
+    /// `range_max`; rays are cast against the model as of its committed state.
+    pub fn cast_fan(
+        &mut self,
+        origin: [f64; 3],
+        angle_min: f64,
+        angle_incr: f64,
+        range_max: f64,
+        out: &mut [f32],
+    ) {
+        let mut dirs = Vec::with_capacity(3 * out.len());
+        for i in 0..out.len() {
+            let a = angle_min + angle_incr * i as f64;
+            dirs.extend_from_slice(&[a.cos(), a.sin(), 0.0]);
+        }
+        let mut dists = vec![0.0; out.len()];
+        self.session
+            .multi_ray(origin, &dirs, &mut dists, range_max)
+            .expect("arm: multi_ray sizes");
+        for (o, d) in out.iter_mut().zip(dists) {
+            *o = if d >= 0.0 && d < range_max {
+                d as f32
+            } else {
+                f32::INFINITY
+            };
+        }
+    }
+
     /// The snapshot channel shared with the monitor window's render thread.
     pub fn snapshot(&self) -> Arc<TripleBuffer<ArmSnapshot>> {
         Arc::clone(&self.snapshot)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// A world with one vertical capsule obstacle at (1, 0, 0..0.5).
+    const POLE_XML: &str = "<mujoco model=\"fan\">\
+        <worldbody>\
+        <geom name=\"obstacle:pole\" type=\"capsule\" fromto=\"1 0 0 1 0 0.5\" size=\"0.05\"/>\
+        </worldbody>\
+        </mujoco>";
+
+    #[test]
+    fn fan_hits_the_pole_and_misses_elsewhere() {
+        let mut core =
+            ArmCore::load(&ModelSource::Xml(POLE_XML.to_string())).expect("load mini model");
+        let mut out = [0.0f32; 4];
+        core.cast_fan(
+            [0.0, 0.0, 0.25],
+            0.0,
+            std::f64::consts::FRAC_PI_2,
+            5.0,
+            &mut out,
+        );
+        // Ray 0 heads +x into the pole side (1 - radius); the rest see nothing.
+        assert!((out[0] - 0.95).abs() < 1.0e-3, "{out:?}");
+        assert!(out[1..].iter().all(|r| r.is_infinite()), "{out:?}");
     }
 }

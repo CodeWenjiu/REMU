@@ -1,17 +1,16 @@
-//! Arm device: MMIO actuator-target registers driving a MuJoCo model, with
-//! each committed state published to the monitor window (`armview`).
+//! Arm device: MMIO actuator-target registers over the shared MuJoCo world,
+//! with each committed state published to the monitor window (`armview`).
 //!
 //! A bus master writes actuator targets (joint position setpoints; models
 //! with a gripper use the trailing channel for it) and a commit register; a
-//! commit applies the targets, advances the simulation by `steps` microsteps,
-//! and publishes a snapshot for the render thread. `NU`/`NQ` report the
-//! model's channel counts; positions and simulated time are readable back
-//! through the same register window.
+//! commit applies the targets, advances the shared world by `steps`
+//! microsteps, and publishes a snapshot for the render thread. `NU`/`NQ`
+//! report the model's channel counts; positions and simulated time are
+//! readable back through the same register window.
 //!
-//! By default the built-in 3-DOF toy arm loads; setting `REMU_ARM_MODEL` (an
-//! MJCF path, e.g. the Menagerie Panda scene) loads a real model instead.
-//! The simulation core lives in `remu_state_mujoco` (shared with the native
-//! host backend); this device is the register surface over it.
+//! The world itself belongs to [`WorldHost`] (shared with the scan device and
+//! future sensors); this device is the register surface over it, and loading
+//! it opens the armview monitor window.
 //!
 //! Bring-up shape: the register file is reachable directly for now; the
 //! external-bus layer (i2c controller + target protocol) re-homes it behind a
@@ -21,8 +20,7 @@ use std::sync::Arc;
 
 use crate::bus::{BusError, device::DeviceContext};
 
-use remu_state_mujoco::{ARM_XML, ArmCore, ModelSource};
-
+use super::WorldHost;
 use super::window::WindowHost;
 
 /// Register-map capacity of the target block; a model may use fewer channels
@@ -45,34 +43,16 @@ const REG_TIMESTEP: usize = 0x64; // r: model timestep (seconds)
 const ARM_REG_SIZE: usize = 0x68;
 
 pub(super) struct Arm {
-    core: ArmCore,
-    /// Where the model came from; reused to open the monitor window.
-    source: ModelSource,
+    /// The shared world; attached at bus build time.
+    world: Option<Arc<WorldHost>>,
     /// The shared window host (holds the armview monitor window).
     window: Option<Arc<WindowHost>>,
 }
 
-// The engine session is single-threaded by design, but a bus device must
-// satisfy `Send + Sync`. Device access is serialized (every accessor takes
-// `&mut self` and runs on the simulator thread that built the session), and
-// state crosses to the render thread only as snapshots (see `remu_state_mujoco`),
-// so these impls just satisfy the boxed-device contract.
-unsafe impl Send for Arm {}
-unsafe impl Sync for Arm {}
-
 impl Arm {
     pub(super) fn new() -> Self {
-        let source = ModelSource::from_env(ARM_XML);
-        let core = ArmCore::load(&source).expect("arm: load model via libmujoco");
-        assert!(
-            core.nu() <= MAX_TARGETS && core.nq() <= MAX_QPOS,
-            "arm: model (nu={}, nq={}) exceeds the register map",
-            core.nu(),
-            core.nq()
-        );
         Self {
-            core,
-            source,
+            world: None,
             window: None,
         }
     }
@@ -88,28 +68,38 @@ impl super::DeviceAccess for Arm {
     }
 
     fn attach_context(&mut self, ctx: &DeviceContext) {
-        // Loading the device opens the monitor window (same trigger shape as
-        // the display device).
-        let window = ctx.window();
-        window.open_arm_view(self.source.clone(), self.core.snapshot());
-        self.window = Some(Arc::clone(window));
+        let world = Arc::clone(ctx.world());
+        let (nu, nq) = world.with_core(|c| (c.nu(), c.nq()));
+        assert!(
+            nu <= MAX_TARGETS && nq <= MAX_QPOS,
+            "arm: model (nu={nu}, nq={nq}) exceeds the register map"
+        );
+        // Loading the device opens the monitor window when a window host is
+        // present (production always has one; unit tests attach world-only).
+        if let Some(window) = ctx.maybe_window() {
+            window.open_arm_view(world.source().clone(), world.snapshot());
+            self.window = Some(Arc::clone(window));
+        }
+        self.world = Some(world);
     }
 
     fn read_32(&mut self, offset: usize) -> Result<u32, BusError> {
+        let world = self.world.as_ref().expect("arm: world not attached");
+        let (nu, nq) = world.with_core(|c| (c.nu(), c.nq()));
         Ok(match offset {
-            REG_NU => self.core.nu() as u32,
-            REG_NQ => self.core.nq() as u32,
-            o if (REG_TARGET..REG_TARGET + 4 * self.core.nu()).contains(&o) => {
-                self.core.target((o - REG_TARGET) / 4).to_bits()
+            REG_NU => nu as u32,
+            REG_NQ => nq as u32,
+            o if (REG_TARGET..REG_TARGET + 4 * nu).contains(&o) => {
+                world.with_core(|c| c.target((o - REG_TARGET) / 4).to_bits())
             }
-            o if (REG_QPOS..REG_QPOS + 4 * self.core.nq()).contains(&o) => {
-                self.core.read_qpos_f32((o - REG_QPOS) / 4).to_bits()
+            o if (REG_QPOS..REG_QPOS + 4 * nq).contains(&o) => {
+                world.with_core(|c| c.read_qpos_f32((o - REG_QPOS) / 4).to_bits())
             }
-            REG_STEPS => self.core.steps(),
-            REG_TIME => (self.core.time() as f32).to_bits(),
-            REG_COMMITS => self.core.commits(),
+            REG_STEPS => world.with_core(|c| c.steps()),
+            REG_TIME => world.with_core(|c| (c.time() as f32).to_bits()),
+            REG_COMMITS => world.with_core(|c| c.commits()),
             REG_STATUS => self.window.as_ref().map_or(0, |w| w.armview_alive() as u32),
-            REG_TIMESTEP => (self.core.timestep() as f32).to_bits(),
+            REG_TIMESTEP => world.with_core(|c| (c.timestep() as f32).to_bits()),
             REG_COMMIT => 0, // write-only
             _ => {
                 return Err(BusError::UnsupportedAccessWidth(
@@ -121,13 +111,14 @@ impl super::DeviceAccess for Arm {
     }
 
     fn write_32(&mut self, offset: usize, value: u32) -> Result<(), BusError> {
+        let world = self.world.as_ref().expect("arm: world not attached");
+        let nu = world.with_core(|c| c.nu());
         match offset {
-            o if (REG_TARGET..REG_TARGET + 4 * self.core.nu()).contains(&o) => {
-                self.core
-                    .set_target((o - REG_TARGET) / 4, f32::from_bits(value));
+            o if (REG_TARGET..REG_TARGET + 4 * nu).contains(&o) => {
+                world.with_core(|c| c.set_target((o - REG_TARGET) / 4, f32::from_bits(value)));
             }
-            REG_STEPS => self.core.set_steps(value),
-            REG_COMMIT => self.core.commit(),
+            REG_STEPS => world.with_core(|c| c.set_steps(value)),
+            REG_COMMIT => world.with_core(|c| c.commit()),
             _ => {}
         }
         Ok(())
@@ -140,9 +131,23 @@ mod tests {
 
     use super::*;
 
+    /// A test context over the built-in toy-arm world, no window.
+    fn test_ctx() -> DeviceContext {
+        let mut ctx = DeviceContext::default();
+        ctx.set_world(Arc::new(WorldHost::new()));
+        ctx
+    }
+
+    fn arm(ctx: &DeviceContext) -> Arm {
+        let mut a = Arm::new();
+        a.attach_context(ctx);
+        a
+    }
+
     #[test]
     fn commit_applies_targets_and_advances() {
-        let mut a = Arm::new();
+        let ctx = test_ctx();
+        let mut a = arm(&ctx);
         for (i, v) in [0.5f32, -0.4, 0.3].iter().enumerate() {
             a.write_32(REG_TARGET + 4 * i, v.to_bits()).unwrap();
         }
@@ -163,14 +168,15 @@ mod tests {
 
         // The published snapshot mirrors the register readback.
         let q0 = f32::from_bits(a.read_32(REG_QPOS).unwrap());
-        let snapshot = a.core.snapshot();
+        let snapshot = ctx.world().snapshot();
         let snap = snapshot.read();
         assert!((snap.qpos[0] as f32 - q0).abs() < 1e-9);
     }
 
     #[test]
     fn steps_register_controls_advance() {
-        let mut a = Arm::new();
+        let ctx = test_ctx();
+        let mut a = arm(&ctx);
         a.write_32(REG_STEPS, 64).unwrap();
         a.write_32(REG_COMMIT, 1).unwrap();
         let t = f32::from_bits(a.read_32(REG_TIME).unwrap());
@@ -179,15 +185,17 @@ mod tests {
     }
 
     #[test]
-    fn status_reports_no_monitor_without_context() {
-        // No window host is attached in a unit test: the monitor bit reads 0.
-        let mut a = Arm::new();
+    fn status_reports_no_monitor_without_window() {
+        // World-only context (as in unit tests): the monitor bit reads 0.
+        let ctx = test_ctx();
+        let mut a = arm(&ctx);
         assert_eq!(a.read_32(REG_STATUS).unwrap() & 1, 0);
     }
 
     #[test]
     fn counts_and_timestep_report_the_model() {
-        let mut a = Arm::new();
+        let ctx = test_ctx();
+        let mut a = arm(&ctx);
         assert_eq!(a.read_32(REG_NU).unwrap(), 3);
         assert_eq!(a.read_32(REG_NQ).unwrap(), 3);
         let ts = f32::from_bits(a.read_32(REG_TIMESTEP).unwrap());

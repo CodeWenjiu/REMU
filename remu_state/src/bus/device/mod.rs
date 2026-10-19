@@ -7,7 +7,9 @@ remu_macro::mod_prv!(
     display,
     mouse,
     keyboard,
-    window
+    scan,
+    window,
+    world
 );
 
 use std::backtrace::Backtrace;
@@ -18,16 +20,20 @@ use crate::bus::memory::MemRegionSpec;
 use crate::bus::{BusError, parse_usize_allow_hex_underscore};
 
 pub(crate) use window::WindowHost;
+pub(crate) use world::WorldHost;
 
 /// Device dependencies container, built by `Bus::new` and injected into every
 /// device via [`DeviceAccess::attach_context`]. Devices pull the dependencies
 /// they need; unrelated devices ignore it. This is the unified mechanism for
-/// cross-device services (currently: the shared window host), so no device is
-/// special-cased in `Bus::new`.
+/// cross-device services (currently: the shared window host and the shared
+/// MuJoCo world), so no device is special-cased in `Bus::new`.
 #[derive(Clone, Default)]
 pub(crate) struct DeviceContext {
     /// Shared window host (display/mouse/keyboard). None = no window needed.
     window: Option<Arc<WindowHost>>,
+    /// Shared MuJoCo world (arm/scan register surfaces over one session).
+    /// None = no world device configured.
+    world: Option<Arc<WorldHost>>,
 }
 
 impl DeviceContext {
@@ -39,13 +45,36 @@ impl DeviceContext {
             .expect("window host not initialized but device needs it")
     }
 
+    /// The window host when one exists; unit tests inject a world without a
+    /// window so devices can exercise their register surface headlessly.
+    pub(crate) fn maybe_window(&self) -> Option<&Arc<WindowHost>> {
+        self.window.as_ref()
+    }
+
     pub(crate) fn set_window(&mut self, w: Arc<WindowHost>) {
         self.window = Some(w);
+    }
+
+    /// The shared world. Panics if not initialized (a device that
+    /// `needs_world` should only be instantiated when it exists).
+    pub(crate) fn world(&self) -> &Arc<WorldHost> {
+        self.world
+            .as_ref()
+            .expect("world not initialized but device needs it")
+    }
+
+    pub(crate) fn set_world(&mut self, w: Arc<WorldHost>) {
+        self.world = Some(w);
     }
 
     /// Whether any device in `kinds` needs the window host.
     pub(crate) fn needs_window(kinds: &[DeviceKind]) -> bool {
         kinds.iter().any(|k| k.needs_window())
+    }
+
+    /// Whether any device in `kinds` needs the shared world.
+    pub(crate) fn needs_world(kinds: &[DeviceKind]) -> bool {
+        kinds.iter().any(|k| k.needs_world())
     }
 }
 
@@ -133,6 +162,7 @@ pub enum DeviceKind {
     Mouse,
     Keyboard,
     Arm,
+    Scan,
 }
 
 impl DeviceKind {
@@ -147,6 +177,7 @@ impl DeviceKind {
             Self::Mouse => "mouse",
             Self::Keyboard => "keyboard",
             Self::Arm => "arm",
+            Self::Scan => "scan",
         }
     }
 
@@ -157,6 +188,12 @@ impl DeviceKind {
             self,
             Self::Display | Self::Mouse | Self::Keyboard | Self::Arm
         )
+    }
+
+    /// Whether this device kind depends on the shared MuJoCo world.
+    #[inline]
+    pub const fn needs_world(self) -> bool {
+        matches!(self, Self::Arm | Self::Scan)
     }
 }
 
@@ -173,8 +210,9 @@ impl FromStr for DeviceKind {
             "mouse" => Ok(Self::Mouse),
             "keyboard" => Ok(Self::Keyboard),
             "arm" => Ok(Self::Arm),
+            "scan" => Ok(Self::Scan),
             _ => Err(format!(
-                "unknown device kind {s:?}; expected uart_simple, uart16550, clint, sifive_test_finisher, display, mouse, keyboard, arm"
+                "unknown device kind {s:?}; expected uart_simple, uart16550, clint, sifive_test_finisher, display, mouse, keyboard, arm, scan"
             )),
         }
     }
@@ -207,13 +245,20 @@ impl FromStr for DeviceConfig {
 }
 
 pub(crate) fn instantiate_device(kind: DeviceKind, ctx: &DeviceContext) -> Box<dyn DeviceAccess> {
-    // Construction-time validation: a device that needs the window host must
+    // Construction-time validation: a device that needs a shared service must
     // have it in the context. This fails fast at Bus build time (a programmer
     // error) instead of panicking later on the first MMIO access.
     if kind.needs_window() && ctx.window.is_none() {
         panic!(
             "device {:?} requires the window host but no window was created; \
              this is a Bus/DeviceKind.needs_window configuration bug",
+            kind
+        );
+    }
+    if kind.needs_world() && ctx.world.is_none() {
+        panic!(
+            "device {:?} requires the shared world but none was created; \
+             this is a Bus/DeviceKind.needs_world configuration bug",
             kind
         );
     }
@@ -226,6 +271,7 @@ pub(crate) fn instantiate_device(kind: DeviceKind, ctx: &DeviceContext) -> Box<d
         DeviceKind::Mouse => Box::new(mouse::Mouse::new()),
         DeviceKind::Keyboard => Box::new(keyboard::Keyboard::new()),
         DeviceKind::Arm => Box::new(arm::Arm::new()),
+        DeviceKind::Scan => Box::new(scan::Scan::new()),
     };
     // Uniform dependency injection: every device gets the context; only those
     // that need it pull from it.

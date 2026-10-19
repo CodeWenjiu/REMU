@@ -8,12 +8,13 @@
 #![allow(dead_code)]
 
 remu_macro::mod_prv!(
-    arm_window, armview, arm_core, error, ffi, model, runtime, session, triple, view
+    arm_window, armview, arm_core, error, ffi, model, runtime, scan, session, triple, view
 );
 
 pub use arm_core::{ArmCore, ArmSnapshot};
 pub use arm_window::ArmWindow;
 pub use error::MujocoError;
 pub use model::{ARM_XML, ModelSource};
+pub use scan::{ScanParams, Scanner};
 pub use session::Session;
 pub use triple::TripleBuffer;

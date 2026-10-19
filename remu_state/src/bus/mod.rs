@@ -19,7 +19,7 @@ use remu_isa::isa::RvIsa;
 use remu_types::DynDiagError;
 
 use crate::bus::device::{
-    DeviceAccess, DeviceConfig, DeviceContext, WindowHost, instantiate_device,
+    DeviceAccess, DeviceConfig, DeviceContext, WindowHost, WorldHost, instantiate_device,
 };
 
 /// Validate that no memory region overlaps another memory region or a device
@@ -89,18 +89,26 @@ impl<I: RvIsa, O: BusObserver> Bus<I, O> {
             Vec::new()
         };
 
-        // Build the dependency context: if any device needs the window host,
+        // Build the dependency context: if any device needs a shared service,
         // create it (owned by this Bus). Only the DUT bus has devices, so only
-        // it can have a window.
+        // it can have a window or a world.
         let kinds: Vec<DeviceKind> = dev_configs.iter().map(|(_, k)| *k).collect();
         let window = if DeviceContext::needs_window(&kinds) {
             Some(WindowHost::new())
         } else {
             None
         };
+        let world = if DeviceContext::needs_world(&kinds) {
+            Some(Arc::new(WorldHost::new()))
+        } else {
+            None
+        };
         let mut ctx = DeviceContext::default();
         if let Some(w) = &window {
             ctx.set_window(Arc::clone(w));
+        }
+        if let Some(w) = &world {
+            ctx.set_world(Arc::clone(w));
         }
 
         let mut devices: Vec<(DeviceConfig, Box<dyn DeviceAccess>)> = dev_configs
