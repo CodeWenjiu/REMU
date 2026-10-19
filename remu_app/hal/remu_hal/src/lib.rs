@@ -168,6 +168,19 @@ pub use remu_hal_host::{
     read_qpos, read_time, read_timestep, set_steps, set_target,
 };
 
+// ── Scan device (remu bus or native host; same surface) ──
+#[cfg(target_os = "none")]
+pub use remu_hal_embedded::{
+    SCAN_RAYS_MAX, read_angle_incr, read_angle_min, read_n_rays, read_origin_x, read_origin_y,
+    read_origin_z, read_range, read_range_max, read_scan_seq,
+};
+
+#[cfg(any(unix, windows))]
+pub use remu_hal_host::{
+    SCAN_RAYS_MAX, read_angle_incr, read_angle_min, read_n_rays, read_origin_x, read_origin_y,
+    read_origin_z, read_range, read_range_max, read_scan_seq,
+};
+
 // ── Safe init (single implementation; bare-metal bring-up, host no-op) ──
 /// Performs platform bring-up. On bare-metal targets this wraps the unsafe
 /// heap/UART init from `remu_hal_embedded`; on hosted targets std has already

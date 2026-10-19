@@ -9,6 +9,9 @@ pub(crate) const DISPLAY_BASE: usize = 0x8800_0000;
 /// Arm device base address (default: arm@0x8A00_0000).
 pub(crate) const ARM_BASE: usize = 0x8A00_0000;
 
+/// Scan device base address (default: scan@0x8B00_0000).
+pub(crate) const SCAN_BASE: usize = 0x8B00_0000;
+
 /// Mouse device base address (default: mouse@0x8800_1000).
 pub(crate) const MOUSE_BASE: usize = 0x8800_1000;
 

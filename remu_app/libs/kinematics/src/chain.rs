@@ -62,6 +62,51 @@ impl<const NJ: usize> Chain<NJ> {
     pub fn tip_pos(&self, q: &[f32; NJ]) -> Vec3 {
         self.spine(q).tip
     }
+
+    /// The arm's link polyline at `q`: the chain root (the mounting origin),
+    /// the joint anchors, and the grasp point. Used for self-filtering sensor
+    /// returns against the robot's own geometry.
+    pub fn links(&self, q: &[f32; NJ]) -> Links<NJ> {
+        let spine = self.spine(q);
+        Links {
+            root: Vec3::default(),
+            anchor: spine.anchor,
+            tip: spine.tip,
+        }
+    }
+}
+
+/// The arm's link polyline at some configuration: `root -> anchor₀ -> … ->
+/// anchorₙ₋₁ -> tip` (`root` is the chain mounting origin).
+#[derive(Clone, Copy, Debug)]
+pub struct Links<const NJ: usize> {
+    root: Vec3,
+    anchor: [Vec3; NJ],
+    tip: Vec3,
+}
+
+impl<const NJ: usize> Links<NJ> {
+    /// Distance from `p` to the closest point of the polyline. `NJ >= 1`.
+    pub fn distance(&self, p: Vec3) -> f32 {
+        let mut best = seg_distance(p, self.root, self.anchor[0]);
+        for i in 0..NJ - 1 {
+            best = best.min(seg_distance(p, self.anchor[i], self.anchor[i + 1]));
+        }
+        best.min(seg_distance(p, self.anchor[NJ - 1], self.tip))
+    }
+}
+
+/// Distance from point `p` to the segment `[a, b]`.
+fn seg_distance(p: Vec3, a: Vec3, b: Vec3) -> f32 {
+    let ab = b - a;
+    let aa = ab.dot(ab);
+    let t = if aa > 1.0e-12 {
+        ((p - a).dot(ab) / aa).clamp(0.0, 1.0)
+    } else {
+        0.0
+    };
+    let d = p - (a + ab * t);
+    crate::math::sqrt(d.dot(d))
 }
 
 pub(crate) struct Spine<const NJ: usize> {
@@ -106,6 +151,20 @@ mod tests {
             (p[0] - 0.8).abs() < TOL && p[1].abs() < TOL && (p[2] - 0.1).abs() < TOL,
             "{p:?}"
         );
+    }
+
+    #[test]
+    fn links_measure_distance_to_the_polyline() {
+        let links = TOY.links(&[0.0, 0.0]);
+        // Straight above the middle (joint-to-joint) segment.
+        let above = links.distance(Vec3::new(0.5, 0.2, 0.1));
+        assert!((above - 0.2).abs() < TOL, "{above}");
+        // Past the tip clamps to the endpoint.
+        let beyond = links.distance(Vec3::new(1.0, 0.0, 0.1));
+        assert!((beyond - 0.2).abs() < TOL, "{beyond}");
+        // Below the base column clamps to the root.
+        let base = links.distance(Vec3::new(0.0, 0.0, -0.05));
+        assert!((base - 0.05).abs() < TOL, "{base}");
     }
 
     #[test]

@@ -15,7 +15,7 @@ extern crate alloc;
 extern crate panic_halt;
 
 remu_macro::mod_prv!(
-    addresses, app_args, arm, cpu, display, heap, time, trap, uart, exit
+    addresses, app_args, arm, cpu, display, heap, scan, time, trap, uart, exit
 );
 
 pub use alloc::{boxed::Box, string::String, vec::Vec};
@@ -33,5 +33,9 @@ pub use display::{
 pub use exit::{exit_failure, exit_success};
 pub use heap::init;
 pub use riscv_rt::entry;
+pub use scan::{
+    SCAN_RAYS_MAX, read_angle_incr, read_angle_min, read_n_rays, read_origin_x, read_origin_y,
+    read_origin_z, read_range, read_range_max, read_scan_seq,
+};
 pub use time::{MTIME_TICK_HZ, read_mtime};
 pub use uart::Uart16550;

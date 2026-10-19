@@ -15,7 +15,9 @@
 //! The façade `remu_hal` re-exports these items on host targets; apps depend
 //! only on `remu_hal`.
 
-remu_macro::mod_prv!(arm, display, exit, keyboard, mouse, time, window);
+remu_macro::mod_prv!(
+    arm, display, exit, keyboard, mouse, scan, time, window, world
+);
 
 pub use arm::{
     ARM_QPOS_MAX, ARM_TARGETS_MAX, armview_alive, commit, read_commits, read_nq, read_nu,
@@ -31,4 +33,8 @@ pub use keyboard::{
     read_key_seq, read_key_text, read_key_valid,
 };
 pub use mouse::{MouseState, read_mouse, read_mouse_buttons, read_mouse_x, read_mouse_y};
+pub use scan::{
+    SCAN_RAYS_MAX, read_angle_incr, read_angle_min, read_n_rays, read_origin_x, read_origin_y,
+    read_origin_z, read_range, read_range_max, read_scan_seq,
+};
 pub use time::{MTIME_TICK_HZ, read_mtime};
