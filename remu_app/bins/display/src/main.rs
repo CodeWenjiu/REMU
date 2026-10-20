@@ -98,14 +98,14 @@ fn redraw(fb: *mut u32, disp_w: usize, disp_h: usize) {
     // SAFETY: 单线程裸机环境。
     let canvas = unsafe { &*core::ptr::addr_of!(CANVAS) };
 
-    let w = disp_w / N;
-    let h = disp_h / N;
-
     for (y, row) in canvas.iter().enumerate() {
+        let by = y * disp_h / N;
+        let by_end = (y + 1) * disp_h / N;
         for (x, &col) in row.iter().enumerate() {
-            let (bx, by) = (x * w, y * h);
-            for b in by..by + h {
-                for a in bx..bx + w {
+            let bx = x * disp_w / N;
+            let bx_end = (x + 1) * disp_w / N;
+            for b in by..by_end {
+                for a in bx..bx_end {
                     // SAFETY: `fb` is the remu framebuffer base; the
                     // coordinates are within the clamped display region.
                     unsafe { put_pixel(fb, a, b, col) };
