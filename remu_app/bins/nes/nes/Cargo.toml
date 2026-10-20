@@ -7,9 +7,9 @@ edition = "2024"
 remu_hal = { path = "../../../hal/remu_hal" }
 runes_core = { path = "../runes_core" }
 remu_hal_slint = { path = "../../../hal/remu_hal_slint" }
-# Direct slint dep so `slint::include_modules!()` resolves; same features as
-# remu_hal_slint (software renderer, no winit backend).
-slint.workspace = true
+# Direct slint dep so `slint::include_modules!()` resolves; software renderer,
+# no winit backend (the app draws into the remu_hal framebuffer).
+slint = { workspace = true, default-features = false, features = ["compat-1-2", "unsafe-single-threaded", "libm", "renderer-software"] }
 
 [build-dependencies]
 slint-build.workspace = true

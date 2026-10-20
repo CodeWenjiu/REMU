@@ -92,7 +92,9 @@ softbuffer = "0.4.8"
 # X11; MuJoCo dlopens libEGL/libGL itself, we only give it a current context).
 glutin = { version = "0.32", default-features = false, features = [ "egl", "wayland" ] }
 
-# Slint UI toolkit. Default-features off + software renderer: renders into the
-# remu_hal framebuffer on both host and embedded (no winit/femtovg system deps).
-slint = { version = "1.18", default-features = false, features = ["compat-1-2", "unsafe-single-threaded", "libm", "renderer-software"] }
+# Slint UI toolkit. The workspace pins only the version: renderer/backend
+# features are declared per consumer crate, so a crate can pick its backend
+# (software into a framebuffer, or OpenGL on a shared context) without forcing
+# that choice on the rest of the tree.
+slint = "1.18"
 slint-build = "1.18"
