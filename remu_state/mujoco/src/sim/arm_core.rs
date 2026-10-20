@@ -5,21 +5,16 @@
 
 use std::sync::Arc;
 
-use crate::triple::TripleBuffer;
-use crate::{ModelSource, MujocoError, Session};
+use super::flow::MocapCommand;
+use super::snapshot::ArmSnapshot;
+use crate::{ModelSource, MujocoError, Session, TripleBuffer};
 
 /// Default microsteps per commit: 16 × 1 ms ≈ one 60 Hz frame of simulated
 /// time at the built-in toy arm's timestep.
 const DEFAULT_STEPS: u32 = 16;
 
-/// Latest arm state, published by the core and consumed by the armview render
-/// thread (values cross threads through a lock-free triple buffer; the mirror
-/// session re-derives everything else).
-#[derive(Default)]
-pub struct ArmSnapshot {
-    pub qpos: Vec<f64>,
-    pub qvel: Vec<f64>,
-}
+/// Where parked obstacles sit: outside the scanner's 5 m range and the view.
+pub(crate) const PARK_AT: [f64; 2] = [10.0, 10.0];
 
 pub struct ArmCore {
     session: Session,
@@ -29,17 +24,26 @@ pub struct ArmCore {
     commits: u32,
     /// Shared with the monitor window (read by the render thread).
     snapshot: Arc<TripleBuffer<ArmSnapshot>>,
-    /// Scratch buffers for the engine state transfers; `qpos`/`qvel` keep the
-    /// last committed state, serving the register readback.
+    /// Obstacle positions the UI asked for (read before each commit).
+    mocap_cmd: Arc<TripleBuffer<MocapCommand>>,
+    /// Scratch buffers for the engine state transfers; `qpos`/`qvel`/`mocap`
+    /// keep the last committed state, serving the register readback and the
+    /// snapshot.
     ctrl: Vec<f64>,
     qpos: Vec<f64>,
     qvel: Vec<f64>,
+    mocap: Vec<f64>,
+    /// The model's initial mocap pose, kept for the arm view's "place".
+    mocap_home: Vec<f64>,
 }
 
 impl ArmCore {
     /// Load the model of `source` and publish its initial state.
     pub fn load(source: &ModelSource) -> Result<Self, MujocoError> {
         let session = source.load()?;
+        let mut mocap = vec![0.0; 3 * session.mocap_count()];
+        session.read_mocap(&mut mocap)?;
+        let mocap_home = mocap.clone();
         let mut core = Self {
             targets: vec![0.0; session.nu()],
             ctrl: vec![0.0; session.nu()],
@@ -49,9 +53,30 @@ impl ArmCore {
             steps: DEFAULT_STEPS,
             commits: 0,
             snapshot: Arc::new(TripleBuffer::new()),
+            mocap_cmd: Arc::new(TripleBuffer::new()),
+            mocap,
+            mocap_home,
         };
         core.publish();
         Ok(core)
+    }
+
+    /// Park every mocap obstacle at startup: the run model defines their home
+    /// poses, but the demo starts with a clean scene. The arm view's "place"
+    /// restores the selected one from `mocap_home`.
+    pub fn park_mocap(&mut self) {
+        if self.mocap.is_empty() {
+            return;
+        }
+        for chunk in self.mocap.chunks_mut(3) {
+            chunk[0] = PARK_AT[0];
+            chunk[1] = PARK_AT[1];
+        }
+        self.session
+            .set_mocap(&self.mocap)
+            .expect("arm: mocap size");
+        self.session.forward();
+        self.publish();
     }
 
     /// Actuator target count (ctrl channels).
@@ -94,6 +119,7 @@ impl ArmCore {
 
     /// Apply the targets, advance the simulation, publish a snapshot.
     pub fn commit(&mut self) {
+        self.apply_mocap_command();
         for (c, t) in self.ctrl.iter_mut().zip(&self.targets) {
             *c = f64::from(*t);
         }
@@ -113,10 +139,29 @@ impl ArmCore {
         self.session
             .read_qvel(&mut self.qvel)
             .expect("arm: qvel size");
+        self.session
+            .read_mocap(&mut self.mocap)
+            .expect("arm: mocap size");
         self.snapshot.publish(|snap| {
             snap.qpos.clone_from(&self.qpos);
             snap.qvel.clone_from(&self.qvel);
+            snap.mocap.clone_from(&self.mocap);
+            snap.mocap_home.clone_from(&self.mocap_home);
         });
+    }
+
+    /// Apply the newest UI obstacle positions before the next physics step.
+    fn apply_mocap_command(&mut self) {
+        if self.mocap.is_empty() {
+            return;
+        }
+        let desired = self.mocap_cmd.read().pos.clone();
+        if desired.len() == self.mocap.len() && desired != self.mocap {
+            self.session
+                .set_mocap(&desired)
+                .expect("arm: mocap size");
+            self.mocap = desired;
+        }
     }
 
     /// Read one joint position as of the last commit (from the cached state).
@@ -158,6 +203,11 @@ impl ArmCore {
     pub fn snapshot(&self) -> Arc<TripleBuffer<ArmSnapshot>> {
         Arc::clone(&self.snapshot)
     }
+
+    /// The obstacle command channel shared with the monitor window's UI.
+    pub fn mocap_command(&self) -> Arc<TripleBuffer<MocapCommand>> {
+        Arc::clone(&self.mocap_cmd)
+    }
 }
 
 #[cfg(test)]
@@ -186,5 +236,64 @@ mod tests {
         // Ray 0 heads +x into the pole side (1 - radius); the rest see nothing.
         assert!((out[0] - 0.95).abs() < 1.0e-3, "{out:?}");
         assert!(out[1..].iter().all(|r| r.is_infinite()), "{out:?}");
+    }
+
+    /// A world with one mocap capsule at (1, 0, 0..0.5).
+    const MOCAP_XML: &str = "<mujoco model=\"mocap\">\
+        <worldbody>\
+        <body name=\"obstacle:pole\" mocap=\"true\" pos=\"1 0 0\">\
+        <geom type=\"capsule\" fromto=\"0 0 0 0 0 0.5\" size=\"0.05\"/>\
+        </body>\
+        </worldbody>\
+        </mujoco>";
+
+    #[test]
+    fn mocap_command_moves_the_obstacle_for_rays() {
+        let mut core =
+            ArmCore::load(&ModelSource::Xml(MOCAP_XML.to_string())).expect("load mocap model");
+        let mut out = [0.0f32; 2];
+        core.cast_fan(
+            [0.0, 0.0, 0.25],
+            0.0,
+            std::f64::consts::FRAC_PI_2,
+            5.0,
+            &mut out,
+        );
+        assert!((out[0] - 0.95).abs() < 1.0e-3, "{out:?}");
+        assert!(out[1].is_infinite(), "{out:?}");
+
+        // Move the obstacle onto the +y ray; the next commit applies it.
+        core.mocap_command()
+            .publish(|c| c.pos = vec![0.0, 1.0, 0.0]);
+        core.commit();
+        core.cast_fan(
+            [0.0, 0.0, 0.25],
+            0.0,
+            std::f64::consts::FRAC_PI_2,
+            5.0,
+            &mut out,
+        );
+        assert!(out[0].is_infinite(), "{out:?}");
+        assert!((out[1] - 0.95).abs() < 1.0e-3, "{out:?}");
+    }
+
+    #[test]
+    fn park_moves_obstacles_out_of_the_scan_and_keeps_home() {
+        let mut core =
+            ArmCore::load(&ModelSource::Xml(MOCAP_XML.to_string())).expect("load mocap model");
+        core.park_mocap();
+        {
+            let snapshot = core.snapshot();
+            let snap = snapshot.read();
+            assert!((snap.mocap_home[0] - 1.0).abs() < 1.0e-9, "{:?}", snap.mocap_home);
+            assert!(
+                snap.mocap[0] >= PARK_AT[0] && snap.mocap[1] >= PARK_AT[1],
+                "{:?}",
+                snap.mocap
+            );
+        }
+        let mut out = [0.0f32; 1];
+        core.cast_fan([0.0, 0.0, 0.25], 0.0, 0.0, 5.0, &mut out);
+        assert!(out[0].is_infinite(), "{out:?}");
     }
 }

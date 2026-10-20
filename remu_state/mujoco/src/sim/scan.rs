@@ -2,7 +2,7 @@
 //! session, recast lazily — one frame per committed step, visible to both the
 //! remu scan device and the host backend.
 
-use crate::arm_core::ArmCore;
+use super::arm_core::ArmCore;
 
 /// Fan geometry and limits.
 #[derive(Clone, Copy, Debug)]

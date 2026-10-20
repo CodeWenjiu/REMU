@@ -6,6 +6,8 @@
 //! single-threaded, so any cross-thread integration must copy state in/out
 //! (e.g. through shared snapshots).
 
+remu_macro::mod_prv!(ray, state);
+
 use std::ffi::{CStr, CString};
 use std::marker::PhantomData;
 use std::os::raw::{c_char, c_int};
@@ -15,9 +17,9 @@ use std::sync::atomic::{AtomicU64, Ordering};
 
 use dlopen2::wrapper::Container;
 
-use super::error::MujocoError;
 use super::ffi::{self, MjData, MjModel, MujocoApi};
 use super::runtime;
+use crate::MujocoError;
 
 /// Temp-file counter for [`Session::from_xml_str`].
 static TEMP_SEQ: AtomicU64 = AtomicU64::new(0);
@@ -111,36 +113,7 @@ impl Session {
         self.timestep
     }
 
-    /// Simulation time in seconds.
-    pub(crate) fn time(&self) -> f64 {
-        let mut t = [0.0];
-        self.get_state(ffi::STATE_TIME, &mut t);
-        t[0]
-    }
 
-    pub(crate) fn read_qpos(&self, out: &mut [f64]) -> Result<(), MujocoError> {
-        self.check_len(ffi::STATE_QPOS, out.len())?;
-        self.get_state(ffi::STATE_QPOS, out);
-        Ok(())
-    }
-
-    pub(crate) fn set_qpos(&mut self, qpos: &[f64]) -> Result<(), MujocoError> {
-        self.check_len(ffi::STATE_QPOS, qpos.len())?;
-        self.set_state(ffi::STATE_QPOS, qpos);
-        Ok(())
-    }
-
-    pub(crate) fn read_qvel(&self, out: &mut [f64]) -> Result<(), MujocoError> {
-        self.check_len(ffi::STATE_QVEL, out.len())?;
-        self.get_state(ffi::STATE_QVEL, out);
-        Ok(())
-    }
-
-    pub(crate) fn set_qvel(&mut self, qvel: &[f64]) -> Result<(), MujocoError> {
-        self.check_len(ffi::STATE_QVEL, qvel.len())?;
-        self.set_state(ffi::STATE_QVEL, qvel);
-        Ok(())
-    }
 
     /// Raw engine handles for the renderer (`mjv_*`/`mjr_*` take them directly).
     /// Same thread as this session by construction — the pointers must not
@@ -153,12 +126,6 @@ impl Session {
         self.data
     }
 
-    /// Write actuator targets. A pure input: no effect until the next [`step`](Self::step).
-    pub(crate) fn set_ctrl(&mut self, ctrl: &[f64]) -> Result<(), MujocoError> {
-        self.check_len(ffi::STATE_CTRL, ctrl.len())?;
-        self.set_state(ffi::STATE_CTRL, ctrl);
-        Ok(())
-    }
 
     /// Advance the simulation by one timestep.
     pub(crate) fn step(&mut self) {
@@ -170,44 +137,6 @@ impl Session {
         unsafe { self.api.forward(self.model, self.data) };
     }
 
-    /// Cast `nray` rays from `pnt` along the flattened unit vectors in `dirs`,
-    /// writing the distance to the nearest visible geom into `dists`
-    /// (negative = no hit within `range_max`; static geoms included).
-    pub(crate) fn multi_ray(
-        &mut self,
-        pnt: [f64; 3],
-        dirs: &[f64],
-        dists: &mut [f64],
-        range_max: f64,
-    ) -> Result<(), MujocoError> {
-        let nray = dists.len();
-        if dirs.len() != 3 * nray {
-            return Err(MujocoError::State(format!(
-                "multi_ray: dirs length {} != 3 * {nray}",
-                dirs.len()
-            )));
-        }
-        let mut geomid = vec![-1 as c_int; nray];
-        // Safety: `pnt`/`dirs` are read-only inputs sized 3 and 3*nray; the
-        // engine transiently normalizes `data` but leaves the state intact.
-        unsafe {
-            self.api.multi_ray(
-                self.model,
-                self.data,
-                pnt.as_ptr(),
-                dirs.as_ptr(),
-                std::ptr::null(),
-                true,
-                -1,
-                geomid.as_mut_ptr(),
-                dists.as_mut_ptr(),
-                std::ptr::null_mut(),
-                nray as c_int,
-                range_max,
-            );
-        }
-        Ok(())
-    }
 
     /// Reset data to the model defaults (time 0, `qpos0`).
     pub(crate) fn reset(&mut self) {
@@ -229,46 +158,6 @@ impl Session {
         }
     }
 
-    /// Element count of a state signature (`mj_stateSize`).
-    fn sig_size(&self, sig: c_int) -> usize {
-        (unsafe { self.api.state_size(self.model, sig) }) as usize
-    }
-
-    fn get_state(&self, sig: c_int, out: &mut [f64]) {
-        debug_assert_eq!(out.len(), self.sig_size(sig));
-        unsafe {
-            self.api
-                .get_state(self.model, self.data, out.as_mut_ptr(), sig)
-        };
-    }
-
-    fn set_state(&mut self, sig: c_int, values: &[f64]) {
-        debug_assert_eq!(values.len(), self.sig_size(sig));
-        unsafe {
-            self.api
-                .set_state(self.model, self.data, values.as_ptr(), sig)
-        };
-    }
-
-    fn check_len(&self, sig: c_int, len: usize) -> Result<(), MujocoError> {
-        let want = self.sig_size(sig);
-        if want == len {
-            Ok(())
-        } else {
-            Err(MujocoError::State(format!(
-                "state signature {sig:#x}: expected {want} values, got {len}"
-            )))
-        }
-    }
-
-    /// Probe the model timestep: reset, step once, read `time`, reset again.
-    fn probe_timestep(&mut self) -> f64 {
-        self.reset();
-        self.step();
-        let t = self.time();
-        self.reset();
-        t
-    }
 }
 
 impl Drop for Session {

@@ -72,6 +72,7 @@ pub(crate) trait AuxWindow {
     fn redraw(&mut self);
     fn resize(&mut self, size: winit::dpi::PhysicalSize<u32>);
     fn cursor_moved(&mut self, x: f64, y: f64);
+    fn pointer_exited(&mut self);
     fn set_left(&mut self, down: bool);
     fn wheel(&mut self, delta: MouseScrollDelta);
 }
@@ -632,6 +633,11 @@ fn render_loop(host: &Arc<WindowHost>) -> Result<(), Box<dyn std::error::Error>>
                 WindowEvent::CursorMoved { position, .. } => {
                     if let Some(aux) = self.aux.as_mut() {
                         aux.cursor_moved(position.x, position.y);
+                    }
+                }
+                WindowEvent::CursorLeft { .. } => {
+                    if let Some(aux) = self.aux.as_mut() {
+                        aux.pointer_exited();
                     }
                 }
                 WindowEvent::MouseInput {

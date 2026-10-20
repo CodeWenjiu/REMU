@@ -24,9 +24,9 @@ use winit::event::MouseScrollDelta;
 use winit::raw_window_handle::{HasDisplayHandle, HasWindowHandle};
 use winit::window::Window;
 
-use super::ModelSource;
-use super::ffi;
-use super::view::MujocoView;
+use crate::engine::ModelSource;
+use crate::engine::ffi;
+use crate::render::MujocoView;
 
 /// Engine scroll delta per wheel click: MuJoCo's `simulate` passes 0.02.
 const ZOOM_PER_CLICK: f64 = 0.02;
@@ -109,9 +109,9 @@ impl ArmView {
     }
 
     /// Copy the latest controller snapshot into the mirror (next render shows it).
-    pub(crate) fn set_state(&mut self, qpos: &[f64], qvel: &[f64]) {
+    pub(crate) fn set_state(&mut self, qpos: &[f64], qvel: &[f64], mocap: Option<&[f64]>) {
         if let Some(view) = self.view.as_mut() {
-            match view.set_state(qpos, qvel) {
+            match view.set_state(qpos, qvel, mocap) {
                 Ok(()) => self.state_warned = false,
                 Err(e) if !self.state_warned => {
                     self.state_warned = true;
@@ -119,6 +119,37 @@ impl ArmView {
                 }
                 Err(_) => {}
             }
+        }
+    }
+
+    /// Pick a mocap obstacle at (`x`, `y`) and start dragging it; returns its
+    /// mocap index.
+    pub(crate) fn begin_mocap_drag(
+        &mut self,
+        x: f64,
+        y: f64,
+        scene_w: u32,
+        scene_h: u32,
+    ) -> Option<usize> {
+        self.view
+            .as_mut()?
+            .begin_mocap_drag(x, y, scene_w, scene_h)
+    }
+
+    /// Move the picked obstacle; returns the new mocap positions.
+    pub(crate) fn drag_mocap(&mut self, x: f64, y: f64, scene_h: u32) -> Option<Vec<f64>> {
+        self.view.as_mut()?.drag_mocap(x, y, scene_h)
+    }
+
+    pub(crate) fn end_mocap_drag(&mut self) {
+        if let Some(view) = self.view.as_mut() {
+            view.end_mocap_drag();
+        }
+    }
+
+    pub(crate) fn suspend_mocap_drag(&mut self) {
+        if let Some(view) = self.view.as_mut() {
+            view.suspend_mocap_drag();
         }
     }
 
@@ -211,6 +242,7 @@ mod tests {
     struct Snapshot {
         qpos: Vec<f64>,
         qvel: Vec<f64>,
+        mocap: Vec<f64>,
     }
 
     /// Redraws before the optional `REMU_ARMVIEW_SHOT=<path>` BMP capture.
@@ -261,7 +293,7 @@ mod tests {
                     {
                         let snap = self.snap.lock().unwrap();
                         if let Some(arm) = self.arm.as_mut() {
-                            arm.set_state(&snap.qpos, &snap.qvel);
+                            arm.set_state(&snap.qpos, &snap.qvel, Some(&snap.mocap));
                         }
                     }
                     if let (Some(arm), Some(window)) = (self.arm.as_mut(), self.window.as_ref()) {
@@ -326,6 +358,7 @@ mod tests {
                 let mut s = Session::from_xml_str(ARM_XML).expect("control model");
                 let mut q = vec![0.0; s.nq()];
                 let mut v = vec![0.0; s.nv()];
+                let mut m = vec![0.0; 3 * s.mocap_count()];
                 let mut k = 0u64;
                 while running.load(Ordering::Relaxed) {
                     let t = k as f64 * s.timestep();
@@ -338,9 +371,11 @@ mod tests {
                     s.step();
                     s.read_qpos(&mut q).unwrap();
                     s.read_qvel(&mut v).unwrap();
+                    s.read_mocap(&mut m).unwrap();
                     let mut g = snap.lock().unwrap();
                     g.qpos.clone_from(&q);
                     g.qvel.clone_from(&v);
+                    g.mocap.clone_from(&m);
                     drop(g);
                     k += 1;
                     std::thread::sleep(std::time::Duration::from_millis(1));

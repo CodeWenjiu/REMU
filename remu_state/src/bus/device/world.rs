@@ -8,7 +8,7 @@
 
 use std::sync::{Arc, Mutex};
 
-use remu_state_mujoco::{ARM_XML, ArmCore, ArmSnapshot, ModelSource, TripleBuffer};
+use remu_state_mujoco::{ARM_XML, ArmCore, ArmSnapshot, MocapCommand, ModelSource, TripleBuffer};
 
 /// The engine session never actually crosses threads — every accessor runs on
 /// the simulator thread (device MMIO handlers are serialized there), and the
@@ -25,10 +25,11 @@ pub(crate) struct WorldHost {
 
 impl WorldHost {
     /// Load the world model (the arm device's `REMU_ARM_MODEL`, or the built-in
-    /// toy arm) and publish its initial state.
+    /// toy arm), park its interactive obstacles, and publish the state.
     pub(crate) fn new() -> Self {
         let source = ModelSource::from_env(ARM_XML);
-        let core = ArmCore::load(&source).expect("world: load model via libmujoco");
+        let mut core = ArmCore::load(&source).expect("world: load model via libmujoco");
+        core.park_mocap();
         Self {
             source,
             core: Mutex::new(core),
@@ -43,6 +44,11 @@ impl WorldHost {
     /// The render-thread snapshot channel of the world.
     pub(crate) fn snapshot(&self) -> Arc<TripleBuffer<ArmSnapshot>> {
         self.core.lock().unwrap().snapshot()
+    }
+
+    /// The UI -> core obstacle command channel of the world.
+    pub(crate) fn mocap(&self) -> Arc<TripleBuffer<MocapCommand>> {
+        self.core.lock().unwrap().mocap_command()
     }
 
     /// Run `f` with the shared core; every access is serialized.

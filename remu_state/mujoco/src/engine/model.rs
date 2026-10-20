@@ -4,7 +4,7 @@
 use std::path::PathBuf;
 
 use crate::MujocoError;
-use crate::session::Session;
+use super::session::Session;
 
 /// MJCF of the 3-DOF planar arm on a floor stand: the default model when
 /// `REMU_ARM_MODEL` is unset. No gravity, position servos (steady state ==
@@ -16,7 +16,9 @@ use crate::session::Session;
 /// -0.67), so nothing may sit under the sweep: the floor lies below every
 /// reachable pose and the mount column stands clear of the y=0 slab at y=-0.3,
 /// with a bracket reaching to the base. The massless `tip` body at the end of
-/// `link2` is the end-effector point the armview trail follows.
+/// `link2` is the end-effector point the armview trail follows. The mocap
+/// `obstacle:pole` is the interactive target the armview panel drags; it is
+/// off the sweep plane and non-colliding, so it only affects ray casting.
 pub const ARM_XML: &str = r#"
 <mujoco model="arm3dof">
   <option timestep="0.001" gravity="0 0 0"/>
@@ -39,6 +41,9 @@ pub const ARM_XML: &str = r#"
     <geom name="floor" type="plane" pos="0 0 -1.0" size="0 0 0.25" material="mat-floor" contype="0" conaffinity="0"/>
     <geom name="stand" type="cylinder" pos="0 -0.3 -0.45" size="0.06 0.55" material="mat-stand" contype="0" conaffinity="0"/>
     <geom name="bracket" type="capsule" fromto="0 -0.3 0.1 0 -0.03 0.1" size="0.03" material="mat-stand" contype="0" conaffinity="0"/>
+    <body name="obstacle:pole" mocap="true" pos="0.35 0.45 0">
+      <geom name="obstacle:pole" type="capsule" fromto="0 0 0 0 0 0.9" size="0.035" rgba="0.75 0.25 0.2 1" contype="0" conaffinity="0"/>
+    </body>
     <body name="link0" pos="0 0 0.1">
       <joint name="j0"/>
       <geom fromto="0 0 0 0.3 0 0"/>

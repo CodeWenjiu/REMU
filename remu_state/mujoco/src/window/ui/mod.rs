@@ -13,10 +13,13 @@
 // module; they are not part of the crate's API.
 #![allow(unreachable_pub)]
 
+remu_macro::mod_prv!(panel);
+
 use std::cell::{Cell, RefCell};
 use std::ffi::{CStr, CString, c_void};
 use std::num::NonZeroU32;
 use std::rc::Rc;
+use std::sync::Arc;
 use std::time::{Duration, Instant};
 
 use glow::HasContext as _;
@@ -26,7 +29,11 @@ use slint::platform::femtovg_renderer::{FemtoVGRenderer, OpenGLInterface};
 use slint::platform::{Platform, WindowAdapter};
 use slint::{PhysicalSize, PlatformError, Window};
 
-use crate::armview::{ArmView, GlStack};
+use crate::sim::PARK_AT;
+use crate::window::armview::{ArmView, GlStack};
+use crate::{ArmSnapshot, MocapCommand, TripleBuffer};
+
+use self::panel::{DragState, is_parked};
 
 slint::include_modules!();
 
@@ -47,6 +54,7 @@ pub(crate) fn arm_view_window_size() -> winit::dpi::LogicalSize<f64> {
     )
 }
 
+
 /// Per-frame geometry: the window, and the 3D viewport inside it (the window
 /// minus the panel on the right).
 #[derive(Clone, Copy)]
@@ -64,6 +72,7 @@ pub(crate) struct ArmUi {
     /// Read by the rendering notifier; written by [`Self::render`] before
     /// Slint starts the frame.
     frame: Rc<Cell<Frame>>,
+    drag: Rc<RefCell<DragState>>,
     size: PhysicalSize,
 }
 
@@ -146,6 +155,7 @@ impl ArmUi {
     pub(crate) fn new(
         gl: Rc<GlStack>,
         view: Rc<RefCell<ArmView>>,
+        mocap: Arc<TripleBuffer<MocapCommand>>,
         size: PhysicalSize,
     ) -> Result<Self, PlatformError> {
         let renderer = Rc::new(FemtoVGRenderer::new(GlGlue(Rc::clone(&gl)))?);
@@ -164,6 +174,29 @@ impl ArmUi {
 
         let ui = ArmViewUi::new()?;
         ui.set_panel_width(PANEL_WIDTH);
+
+        let drag = Rc::new(RefCell::new(DragState::default()));
+        {
+            let drag = Rc::clone(&drag);
+            let mocap = Arc::clone(&mocap);
+            ui.on_toggle_park(move || {
+                let mut drag = drag.borrow_mut();
+                let i = drag.selected;
+                if 3 * i + 2 >= drag.pos.len() {
+                    return;
+                }
+                if is_parked(drag.pos[3 * i], drag.pos[3 * i + 1]) {
+                    if let Some(home) = drag.home.get(i).copied() {
+                        drag.pos[3 * i..3 * i + 3].copy_from_slice(&home);
+                    }
+                } else {
+                    drag.pos[3 * i] = PARK_AT[0];
+                    drag.pos[3 * i + 1] = PARK_AT[1];
+                }
+                mocap.publish(|c| c.pos.clone_from(&drag.pos));
+            });
+        }
+
         ui.show()?;
 
         let glow = Rc::new(unsafe {
@@ -207,6 +240,7 @@ impl ArmUi {
             adapter,
             renderer,
             frame,
+            drag,
             size,
         })
     }
@@ -230,12 +264,59 @@ impl ArmUi {
     }
 
     /// Draw the scene and the panel as one frame, then swap.
-    pub(crate) fn render(&mut self) -> Result<(), PlatformError> {
+    pub(crate) fn render(&mut self, snap: &ArmSnapshot) -> Result<(), PlatformError> {
+        self.sync_panel(snap);
         self.frame.set(Frame {
             window: self.size,
             scene: self.scene_size(),
         });
         self.renderer.render()
+    }
+
+
+    /// Forward a pointer move to Slint's item tree (the panel's drag pad).
+    pub(crate) fn pointer_moved(&self, x: f64, y: f64) {
+        self.ui
+            .window()
+            .dispatch_event(slint::platform::WindowEvent::PointerMoved {
+                position: self.logical(x, y),
+            });
+    }
+
+    /// Forward a left-button transition to Slint's item tree. Returns whether
+    /// a panel control took the press (the camera must then stay put even if
+    /// the pointer leaves the panel during the drag).
+    pub(crate) fn pointer_button(&self, down: bool, x: f64, y: f64) -> bool {
+        let position = self.logical(x, y);
+        let event = if down {
+            slint::platform::WindowEvent::PointerPressed {
+                position,
+                button: slint::platform::PointerEventButton::Left,
+            }
+        } else {
+            slint::platform::WindowEvent::PointerReleased {
+                position,
+                button: slint::platform::PointerEventButton::Left,
+            }
+        };
+        matches!(
+            self.ui
+                .window()
+                .dispatch_event_with_result(event),
+            Ok(slint::platform::WindowEventDispatchResult::Accepted)
+        )
+    }
+
+    /// Forward a pointer leave so Slint drops hover and grab state.
+    pub(crate) fn pointer_exited(&self) {
+        self.ui
+            .window()
+            .dispatch_event(slint::platform::WindowEvent::PointerExited);
+    }
+
+    fn logical(&self, x: f64, y: f64) -> slint::LogicalPosition {
+        let scale = f64::from(self.ui.window().scale_factor());
+        slint::LogicalPosition::new((x / scale) as f32, (y / scale) as f32)
     }
 
     fn scene_size(&self) -> PhysicalSize {

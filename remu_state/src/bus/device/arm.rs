@@ -81,8 +81,9 @@ impl super::DeviceAccess for Arm {
         if let Some(window) = ctx.maybe_window() {
             let source = world.source().clone();
             let snapshot = world.snapshot();
+            let mocap = world.mocap();
             window.open_aux(AuxRequest::new(move |event_loop| {
-                let (window, view) = ArmWindow::open(event_loop, &source, snapshot)?;
+                let (window, view) = ArmWindow::open(event_loop, &source, snapshot, mocap)?;
                 Ok((window, Box::new(view)))
             }));
             self.window = Some(Arc::clone(window));
@@ -143,6 +144,10 @@ impl super::window::AuxWindow for ArmWindow {
 
     fn cursor_moved(&mut self, x: f64, y: f64) {
         ArmWindow::cursor_moved(self, x, y);
+    }
+
+    fn pointer_exited(&mut self) {
+        ArmWindow::cursor_left(self);
     }
 
     fn set_left(&mut self, down: bool) {

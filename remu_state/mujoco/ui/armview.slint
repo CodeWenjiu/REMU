@@ -1,8 +1,15 @@
 // The MuJoCo scene is rendered directly into the window, left of the panel,
-// outside Slint's item tree. This file only lays out the side panel.
+// outside Slint's item tree. The panel mirrors the obstacle last dragged in
+// the 3D view; interaction happens in the scene itself.
 
 export component ArmViewUi inherits Window {
     in-out property <length> panel-width: 300px;
+    in property <int> count: 0;
+    in property <int> selected: 0;
+    in property <bool> parked: false;
+    in property <string> position-text: "";
+    callback toggle-park();
+
     background: #101014;
 
     Rectangle {
@@ -25,8 +32,43 @@ export component ArmViewUi inherits Window {
             Text {
                 color: #8f8fa3;
                 font-size: 12px;
+                text: root.count > 0 ? "Obstacle \{root.selected + 1} / \{root.count}" : "No mocap obstacles in this model";
+            }
+
+            Text {
+                color: #6f6f82;
+                font-size: 11px;
                 wrap: word-wrap;
-                text: "The MuJoCo scene is rendered directly to the window. This panel is drawn by Slint beside it.";
+                text: "Click an obstacle in the 3D view to drag it.";
+            }
+
+            Text {
+                color: #8f8fa3;
+                font-size: 12px;
+                text: root.position-text;
+            }
+
+            Rectangle {
+                height: 30px;
+                border-radius: 5px;
+                background: #23232e;
+
+                Text {
+                    width: parent.width;
+                    height: parent.height;
+                    horizontal-alignment: center;
+                    vertical-alignment: center;
+                    color: #e8e8f0;
+                    font-size: 13px;
+                    text: root.parked ? "Place obstacle" : "Park obstacle";
+                }
+
+                TouchArea {
+                    width: parent.width;
+                    height: parent.height;
+                    enabled: root.count > 0;
+                    clicked => { root.toggle-park(); }
+                }
             }
         }
     }

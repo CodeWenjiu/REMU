@@ -18,8 +18,9 @@ pub(crate) fn with_core<R>(f: impl FnOnce(&mut ArmCore) -> R) -> R {
         let mut slot = slot.borrow_mut();
         let core = slot.get_or_insert_with(|| {
             let source = ModelSource::from_env(ARM_XML);
-            let core = ArmCore::load(&source).expect("arm: load model via libmujoco");
-            crate::arm::request_monitor(source, core.snapshot());
+            let mut core = ArmCore::load(&source).expect("arm: load model via libmujoco");
+            core.park_mocap();
+            crate::arm::request_monitor(source, core.snapshot(), core.mocap_command());
             core
         });
         f(core)

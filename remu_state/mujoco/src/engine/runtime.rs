@@ -11,7 +11,7 @@ use std::sync::OnceLock;
 
 use dlopen2::wrapper::Container;
 
-use super::error::MujocoError;
+use crate::MujocoError;
 use super::ffi::MujocoApi;
 
 /// Minimum accepted engine version (`mj_version()` encoding, e.g. 3014000 for

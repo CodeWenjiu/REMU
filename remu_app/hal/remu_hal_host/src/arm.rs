@@ -9,7 +9,7 @@
 
 use std::sync::Arc;
 
-use remu_state_mujoco::{ArmSnapshot, ArmWindow, ModelSource, TripleBuffer};
+use remu_state_mujoco::{ArmSnapshot, ArmWindow, MocapCommand, ModelSource, TripleBuffer};
 
 use crate::window::{AuxRequest, AuxWindow, request_aux};
 use crate::world;
@@ -22,9 +22,13 @@ pub const ARM_QPOS_MAX: usize = 10;
 
 /// Open the arm monitor window on the shared event loop, publishing into
 /// `snapshot`.
-pub(crate) fn request_monitor(source: ModelSource, snapshot: Arc<TripleBuffer<ArmSnapshot>>) {
+pub(crate) fn request_monitor(
+    source: ModelSource,
+    snapshot: Arc<TripleBuffer<ArmSnapshot>>,
+    mocap: Arc<TripleBuffer<MocapCommand>>,
+) {
     request_aux(AuxRequest::new(move |event_loop| {
-        let (window, view) = ArmWindow::open(event_loop, &source, snapshot)?;
+        let (window, view) = ArmWindow::open(event_loop, &source, snapshot, mocap)?;
         Ok((window, Box::new(view)))
     }));
 }
@@ -40,6 +44,10 @@ impl AuxWindow for ArmWindow {
 
     fn cursor_moved(&mut self, x: f64, y: f64) {
         ArmWindow::cursor_moved(self, x, y);
+    }
+
+    fn pointer_exited(&mut self) {
+        ArmWindow::cursor_left(self);
     }
 
     fn set_left(&mut self, down: bool) {
