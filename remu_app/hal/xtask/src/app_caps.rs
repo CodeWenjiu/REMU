@@ -125,13 +125,6 @@ pub(crate) fn app_arm_model(workspace_root: &Path, app: &str) -> Option<String> 
     app_remu_str(workspace_root, app, "arm-model")
 }
 
-/// Parse `[package.metadata.remu] arm-model-template`: a template (relative
-/// to the app's package directory) the run model is composed from — the base
-/// scene plus app-specific additions like demo obstacles (see
-/// `commands::print::compose_model` for the placeholder vocabulary).
-pub(crate) fn app_arm_model_template(workspace_root: &Path, app: &str) -> Option<String> {
-    app_remu_str(workspace_root, app, "arm-model-template")
-}
 
 fn app_remu_str(workspace_root: &Path, app: &str, key: &str) -> Option<String> {
     let manifest = app_manifest(workspace_root, app)?;

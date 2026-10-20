@@ -27,9 +27,16 @@ pub(crate) fn run(cmd: PrintCmd) -> ExitCode {
 /// MuJoCo backend loads (`[package.metadata.remu] arm-model` apps feed it).
 const MODEL_ENV: &str = "REMU_ARM_MODEL";
 
-/// Export fragment for [`MODEL_ENV`]: when the app declares an arm-model
-/// template, the composed run model (base scene plus the app's additions) is
-/// written under `target/app_model/` and exported instead of the raw scene.
+/// Run-model template, owned by the arm view crate: apps only declare their
+/// base scene, and the template adds the arm view's interactive obstacles.
+const ARM_MODEL_TEMPLATE: &str = "remu_state/mujoco/assets/model_template.xml";
+
+/// Interactive obstacle bodies injected at `@OBSTACLES@`.
+const ARM_MODEL_OBSTACLES: &str = "remu_state/mujoco/assets/obstacles.xml";
+
+/// Export fragment for [`MODEL_ENV`]: the composed run model (base scene plus
+/// the arm view's obstacles) is written under `target/app_model/` and exported
+/// instead of the raw scene.
 fn model_env_export(ws: &Path, app: &str, model: &str) -> String {
     match compose_arm_model(ws, app, model) {
         Some(path) => {
@@ -42,19 +49,17 @@ fn model_env_export(ws: &Path, app: &str, model: &str) -> String {
     }
 }
 
-/// The arm-model binding of [`compose_model`]: resolve the app's declared
-/// template and its `arm-model` under `$MUJOCO_MENAGERIE_DIR`.
+/// The arm-model binding of [`compose_model`]: compose the arm view's default
+/// template with the app's `arm-model` under `$MUJOCO_MENAGERIE_DIR`.
 fn compose_arm_model(ws: &Path, app: &str, model: &str) -> Option<PathBuf> {
-    let rel = crate::app_caps::app_arm_model_template(ws, app)?;
-    let manifest = crate::app_caps::app_manifest(ws, app)?;
-    let template = manifest.parent()?.join(rel);
     let menagerie = std::env::var("MUJOCO_MENAGERIE_DIR").ok()?;
     let scene = Path::new(&menagerie).join(model);
     let mesh = scene.parent()?.join("assets");
-    compose_model(ws, app, &template, &scene, &mesh)
+    compose_model(ws, app, &ws.join(ARM_MODEL_TEMPLATE), &scene, &mesh)
 }
 
-/// Compose `template` (with `@SCENE@`/`@MESH@` substituted) into
+/// Compose `template` (with `@SCENE@`/`@MESH@` substituted and `@OBSTACLES@`
+/// replaced by the arm view's obstacle fragment) into
 /// `target/app_model/<app>.xml`.
 fn compose_model(
     ws: &Path,
@@ -63,7 +68,17 @@ fn compose_model(
     scene: &Path,
     mesh: &Path,
 ) -> Option<PathBuf> {
-    let text = std::fs::read_to_string(template).ok()?;
+    let mut text = std::fs::read_to_string(template).ok()?;
+    if text.contains("@OBSTACLES@") {
+        let obstacles = match std::fs::read_to_string(ws.join(ARM_MODEL_OBSTACLES)) {
+            Ok(obstacles) => obstacles,
+            Err(e) => {
+                eprintln!("xtask: reading {ARM_MODEL_OBSTACLES}: {e}");
+                return None;
+            }
+        };
+        text = text.replace("@OBSTACLES@", &obstacles);
+    }
     let text = text
         .replace("@SCENE@", scene.to_str()?)
         .replace("@MESH@", mesh.to_str()?);

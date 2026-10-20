@@ -1,0 +1,12 @@
+<!-- Default arm run model: the app's declared MJCF scene plus the arm view's
+     interactive obstacles. Composed by xtask into target/app_model/<app>.xml;
+     the SCENE/MESH/OBSTACLES placeholders are substituted before use.
+     The compiler must follow the include: the included scene's own compiler
+     (meshdir, angle, autolimits) is not honored. -->
+<mujoco model="remu arm demo">
+  <include file="@SCENE@"/>
+  <compiler angle="radian" autolimits="true" meshdir="@MESH@"/>
+  <worldbody>
+@OBSTACLES@
+  </worldbody>
+</mujoco>

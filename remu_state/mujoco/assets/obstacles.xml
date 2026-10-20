@@ -1,0 +1,5 @@
+<!-- Arm-view interactive obstacles: mocap bodies named `obstacle:*`. The arm
+     view picks and drags any body with that prefix; add more types below. -->
+    <body name="obstacle:pole" mocap="true" pos="0.476 0.275 0">
+      <geom name="obstacle:pole" type="capsule" fromto="0 0 0 0 0 0.9" size="0.035" rgba="0.75 0.25 0.2 1" contype="0" conaffinity="0"/>
+    </body>

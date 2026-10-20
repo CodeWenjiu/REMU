@@ -23,10 +23,7 @@ path = "../../hal/remu_hal_embedded/templates/app_entry.rs"
 
 [package.metadata.remu]
 # MJCF path relative to $MUJOCO_MENAGERIE_DIR; xtask exports REMU_ARM_MODEL
-# for `just run-app` (remu and host) — a caller-set value wins. `mjcf` also
-# generates the app's kinematics constants from this same model at build time.
+# for `just run-app` (remu and host) — a caller-set value wins. The run model
+# is the arm view's default wrapper (this scene + its interactive obstacles).
+# `mjcf` also generates the app's kinematics constants from this same model.
 arm-model = "franka_emika_panda/scene.xml"
-# Run-model template (relative to this package): composed by xtask into
-# target/app_model/ as the model the demos load — the scene above plus the
-# demo obstacles (`@SCENE@` = arm-model, `@MESH@` = its assets directory).
-arm-model-template = "assets/model_template.xml"
