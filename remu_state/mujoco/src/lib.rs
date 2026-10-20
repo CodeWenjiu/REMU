@@ -8,7 +8,7 @@
 #![allow(dead_code)]
 
 remu_macro::mod_prv!(
-    arm_window, armview, arm_core, error, ffi, model, runtime, scan, session, triple, view
+    arm_window, armview, arm_core, error, ffi, model, runtime, scan, session, triple, ui, view
 );
 
 pub use arm_core::{ArmCore, ArmSnapshot};
@@ -18,3 +18,4 @@ pub use model::{ARM_XML, ModelSource};
 pub use scan::{ScanParams, Scanner};
 pub use session::Session;
 pub use triple::TripleBuffer;
+pub use ui::arm_view_window_size;

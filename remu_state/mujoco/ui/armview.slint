@@ -1,0 +1,33 @@
+// The MuJoCo scene is rendered directly into the window, left of the panel,
+// outside Slint's item tree. This file only lays out the side panel.
+
+export component ArmViewUi inherits Window {
+    in-out property <length> panel-width: 300px;
+    background: #101014;
+
+    Rectangle {
+        x: root.width - root.panel-width;
+        width: root.panel-width;
+        height: root.height;
+        background: #17171d;
+
+        VerticalLayout {
+            padding: 14px;
+            spacing: 10px;
+
+            Text {
+                color: #e8e8f0;
+                font-size: 15px;
+                font-weight: 600;
+                text: "robot_arm";
+            }
+
+            Text {
+                color: #8f8fa3;
+                font-size: 12px;
+                wrap: word-wrap;
+                text: "The MuJoCo scene is rendered directly to the window. This panel is drawn by Slint beside it.";
+            }
+        }
+    }
+}

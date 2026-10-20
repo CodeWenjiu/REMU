@@ -10,6 +10,7 @@
 use std::error::Error;
 use std::num::NonZeroU32;
 use std::os::raw::c_int;
+use std::rc::Rc;
 
 use glutin::config::ConfigTemplateBuilder;
 use glutin::context::{
@@ -34,13 +35,18 @@ const ZOOM_PER_CLICK: f64 = 0.02;
 /// Wayland wheels as pixel deltas of the raw axis value.
 const SCROLL_UNITS_PER_CLICK: f64 = 15.0;
 
+/// The GL context, surface, and display, shared with the Slint renderer (its
+/// `OpenGLInterface` must be `'static` and outlive the view).
+pub(crate) struct GlStack {
+    pub(crate) context: PossiblyCurrentContext,
+    pub(crate) surface: Surface<WindowSurface>,
+    pub(crate) display: Display,
+}
+
 pub(crate) struct ArmView {
     // Drop order: engine resources (via the `view` Option in `drop`) first,
     // then the GL objects here, then the caller drops the window.
-    context: PossiblyCurrentContext,
-    surface: Surface<WindowSurface>,
-    /// Backs the context and surface; kept alive for the window's lifetime.
-    display: Display,
+    pub(crate) gl: Rc<GlStack>,
     view: Option<MujocoView>,
     /// Set once if snapshots stop matching the mirror model (wrong dims).
     state_warned: bool,
@@ -90,9 +96,11 @@ impl ArmView {
 
         let view = MujocoView::load(source)?;
         Ok(Self {
-            context,
-            surface,
-            display,
+            gl: Rc::new(GlStack {
+                context,
+                surface,
+                display,
+            }),
             view: Some(view),
             state_warned: false,
             size,
@@ -117,8 +125,8 @@ impl ArmView {
     /// Match the GL surface to a resized window.
     pub(crate) fn resize(&mut self, size: PhysicalSize<u32>) {
         self.size = size;
-        self.surface.resize(
-            &self.context,
+        self.gl.surface.resize(
+            &self.gl.context,
             NonZeroU32::new(size.width.max(1)).unwrap(),
             NonZeroU32::new(size.height.max(1)).unwrap(),
         );
@@ -126,10 +134,17 @@ impl ArmView {
 
     /// Render one frame at the window's current size and present it.
     pub(crate) fn render(&mut self, size: PhysicalSize<u32>) {
+        self.render_scene(size);
+        let _ = self.gl.surface.swap_buffers(&self.gl.context);
+    }
+
+    /// Draw the scene into whatever framebuffer is bound (no present). The UI
+    /// path calls this from Slint's rendering notifier, after femtovg cleared
+    /// the window and before the panel is drawn.
+    pub(crate) fn render_scene(&mut self, size: PhysicalSize<u32>) {
         if let Some(view) = self.view.as_mut() {
             view.render(size.width.max(1) as c_int, size.height.max(1) as c_int);
         }
-        let _ = self.surface.swap_buffers(&self.context);
     }
 
     /// Track the cursor; while `pressed`, horizontal motion orbits and

@@ -10,6 +10,14 @@ thiserror.workspace = true
 dlopen2.workspace = true
 winit.workspace = true
 glutin.workspace = true
+glow = "0.18"
+# The arm view's UI layer: Slint on the same OpenGL context MuJoCo renders
+# into (femtovg renderer). Features are per-crate by policy — the embedded
+# apps keep the software renderer declared in their own manifests.
+slint = { workspace = true, default-features = false, features = ["compat-1-2", "unsafe-single-threaded", "renderer-femtovg"] }
+
+[build-dependencies]
+slint-build.workspace = true
 
 [lints]
 workspace = true
