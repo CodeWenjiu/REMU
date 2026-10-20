@@ -10,7 +10,7 @@ use remu_isa::isa::IsaKind;
 use remu_isa::isa::extension_enum::{
     RV32I, RV32I_zve32x_zvl128b, RV32IM, RV32IM_zve32x_zvl128b, RV64I, RV64IM,
 };
-use remu_simulator_nzea::NzeaIsaKind;
+use remu_simulator_nzea::{NzeaAction, NzeaIsaKind};
 use remu_types::{DifftestRef, Platform};
 
 use crate::config::{NzeaFast, NzeaMmioRemu, RemuFast, RemuMmioRemu, RemuMmioSpike};
@@ -49,6 +49,32 @@ pub fn boot<R: DebuggerRunner>(
     interrupt: Arc<std::sync::atomic::AtomicBool>,
 ) -> anyhow::Result<()> {
     if option.platform == Platform::Nzea {
+        // Deploy to the board before anything of the run harness exists: hand
+        // the program to `probe` and stop. No simulator is built (nor an ISA
+        // resolved), so `action=flash` never touches the run path.
+        let backend = option
+            .sim
+            .sim
+            .backend_args()
+            .map_err(|e| anyhow::anyhow!(e))?;
+        let action = match backend.get("action") {
+            None => NzeaAction::Run,
+            Some(value) => value
+                .parse::<NzeaAction>()
+                .map_err(|e| anyhow::anyhow!(e))?,
+        };
+        if action == NzeaAction::Flash {
+            let elf = option
+                .sim
+                .sim
+                .state
+                .bus
+                .elf
+                .as_deref()
+                .ok_or_else(|| anyhow::anyhow!("--sim-opt action=flash needs --elf"))?;
+            remu_simulator_nzea::flash(elf).map_err(|e| anyhow::anyhow!(e))?;
+            return Ok(());
+        }
         let kind = NzeaIsaKind::from_isa_spec_or_panic(&option.isa);
         match option.difftest {
             None => dispatch_nzea!(kind, NzeaFast, runner, option, interrupt),

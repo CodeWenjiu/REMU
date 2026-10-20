@@ -12,6 +12,7 @@
 
 use std::collections::HashMap;
 use std::env;
+use std::ffi::OsStr;
 use std::fs;
 use std::io::{self, Write};
 use std::path::{Path, PathBuf};
@@ -49,6 +50,23 @@ fn find_workspace_root() -> PathBuf {
         }
     }
     manifest
+}
+
+/// The nzea `just` entry point, addressed the same way for every recipe: run
+/// `<nzea-dir>/justfile` through nzea's own dev shell, from this workspace root.
+/// (`dump` for the RTL, `probe` for the board.)
+pub(crate) fn nzea_just(args: &[&OsStr]) -> Command {
+    let nzea = nzea_dir();
+    let mut cmd = Command::new("direnv");
+    cmd.env("REQUIRE_FLAKE", "1")
+        .arg("exec")
+        .arg(&nzea)
+        .arg("just")
+        .arg("--justfile")
+        .arg(nzea.join("justfile"))
+        .args(args)
+        .current_dir(find_workspace_root());
+    cmd
 }
 
 fn so_dir(target: &str, isa: &str) -> PathBuf {
@@ -160,21 +178,15 @@ fn build_nzea_so(target: &NzeaTarget, isa_str: &str, xlen: u32) -> Result<(), St
         return Err("build failed".into());
     }
 
-    let mut dump = Command::new("direnv");
-    dump.env("REQUIRE_FLAKE", "1")
-        .arg("exec")
-        .arg(&nzea)
-        .arg("just")
-        .arg("--justfile")
-        .arg(&justfile)
-        .arg("dump")
-        .arg("--target")
-        .arg(t)
-        .arg("--isa")
-        .arg(isa_str)
-        .arg("--outDir")
-        .arg(&vlog)
-        .current_dir(&find_workspace_root());
+    let mut dump = nzea_just(&[
+        OsStr::new("dump"),
+        OsStr::new("--target"),
+        OsStr::new(t),
+        OsStr::new("--isa"),
+        OsStr::new(isa_str),
+        OsStr::new("--outDir"),
+        vlog.as_os_str(),
+    ]);
 
     run_silent(&mut dump, &format!("just dump {t}:{isa_str}"))?;
     spinner.inc(format!("building model {t}:{isa_str}..."));

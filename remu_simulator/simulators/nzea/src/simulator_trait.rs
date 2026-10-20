@@ -111,7 +111,7 @@ where
             .backend_args()
             .unwrap_or_else(|e| panic!("invalid --sim-opt: {e}"));
         backend_args
-            .assert_known_keys(&["target", "watchdog"])
+            .assert_known_keys(&["action", "target", "watchdog"])
             .unwrap_or_else(|e| panic!("invalid --sim-opt for nzea: {e}"));
         let target = backend_args
             .get("target")

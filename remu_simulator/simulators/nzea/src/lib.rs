@@ -1,5 +1,6 @@
 remu_macro::mod_prv!(
     dpi,
+    flash,
     link_args,
     nzea_ffi,
     nzea_target,
@@ -11,6 +12,7 @@ remu_macro::mod_prv!(
 );
 
 // Public API
+pub use flash::{NzeaAction, flash};
 pub use link_args::emit_linker_args;
 pub use simulator_trait::SimulatorNzea;
 pub use supported_isa::NzeaIsaKind;
