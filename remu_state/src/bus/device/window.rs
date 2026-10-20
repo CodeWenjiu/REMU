@@ -2,9 +2,10 @@
 //!
 //! All remu windows share one winit event loop on one render thread (winit
 //! only allows a single `EventLoop` per process). Windows open on demand: the
-//! display window when a framebuffer-backed display device attaches, and the
-//! armview monitor window when the arm device requests it. The display
-//! window's events are fanned out into three independent shared states:
+//! display window when a framebuffer-backed display device attaches, and
+//! auxiliary windows (e.g. a device's monitor) when their device requests
+//! one. The display window's events are fanned out into three independent
+//! shared states:
 //!
 //! - `disp`   — active display resolution (written by resize, read by display)
 //! - `mouse`  — pointer position + buttons (written by winit, read by mouse)
@@ -18,10 +19,14 @@
 //! Startup is lazy: the host is only created when a window-backed device is
 //! instantiated, so a run that never needs a window never opens one.
 
+use std::error::Error;
+use std::rc::Rc;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex};
 
-use remu_state_mujoco::{ArmSnapshot, ArmWindow, ModelSource, TripleBuffer};
+use winit::event::MouseScrollDelta;
+use winit::event_loop::ActiveEventLoop;
+use winit::window::Window;
 
 use super::keyboard::KeyboardState;
 use super::mouse::MouseState;
@@ -54,19 +59,44 @@ enum HostCommand {
     /// A display device attached its framebuffer: open the display window
     /// (no-op when already open).
     OpenDisplay,
-    /// The arm device requested its monitor window: open armview (no-op when
-    /// already open). The request itself (xml + snapshot) is stored in
-    /// `WindowHost::arm_request`.
-    OpenArmView,
+    /// A device requested an auxiliary window: open it (no-op when already
+    /// open). The request itself is stored in `WindowHost::aux_request`.
+    OpenAux,
     /// Teardown: exit the event loop (wakes it out of its blocking wait).
     Shutdown,
 }
 
-/// A pending armview request: which model to mirror and where the arm device
-/// publishes its state.
-struct ArmViewRequest {
-    source: ModelSource,
-    snapshot: Arc<TripleBuffer<ArmSnapshot>>,
+/// A window hosted besides the display. The device that asked for it creates
+/// and drives the content; the host only owns the window and routes events.
+pub(crate) trait AuxWindow {
+    fn redraw(&mut self);
+    fn resize(&mut self, size: winit::dpi::PhysicalSize<u32>);
+    fn cursor_moved(&mut self, x: f64, y: f64);
+    fn set_left(&mut self, down: bool);
+    fn wheel(&mut self, delta: MouseScrollDelta);
+}
+
+/// A window factory: creates the window and its content on the loop thread.
+type OpenWindow =
+    Box<dyn FnOnce(&ActiveEventLoop) -> Result<(Rc<Window>, Box<dyn AuxWindow>), Box<dyn Error>> + Send>;
+
+/// A pending auxiliary-window request. The factory runs on the loop thread
+/// (window creation must happen there), so the captured data is `Send` while
+/// the window and its content stay on that thread.
+pub(crate) struct AuxRequest {
+    open: OpenWindow,
+}
+
+impl AuxRequest {
+    pub(crate) fn new(
+        open: impl FnOnce(&ActiveEventLoop) -> Result<(Rc<Window>, Box<dyn AuxWindow>), Box<dyn Error>>
+            + Send
+            + 'static,
+    ) -> Self {
+        Self {
+            open: Box::new(open),
+        }
+    }
 }
 
 /// The window host: owns the winit event loop thread and fans out input events
@@ -83,13 +113,14 @@ pub(crate) struct WindowHost {
     pub(super) mouse: Arc<Mutex<MouseState>>,
     /// Shared keyboard state (render thread writes, keyboard device reads).
     pub(super) keyboard: Arc<Mutex<KeyboardState>>,
-    /// Pending armview request, taken by the loop thread when it opens the
-    /// window; recorded before the loop thread is guaranteed to be listening.
-    arm_request: Mutex<Option<ArmViewRequest>>,
-    /// Whether the armview monitor window is (still) expected to be open
-    /// (false once the user closed it, or opening it failed). Read by the arm
-    /// device's status register.
-    armview_alive: AtomicBool,
+    /// Pending auxiliary-window request, taken by the loop thread when it
+    /// opens the window; recorded before the loop thread is guaranteed to be
+    /// listening.
+    aux_request: Mutex<Option<AuxRequest>>,
+    /// Whether the auxiliary window is (still) expected to be open (false once
+    /// the user closed it, or opening it failed). Read by the requesting
+    /// device.
+    aux_alive: AtomicBool,
     /// Proxy used to wake the render thread on frame-done.
     proxy: Mutex<Option<winit::event_loop::EventLoopProxy<HostCommand>>>,
     /// Signal for the render thread to stop.
@@ -108,8 +139,8 @@ impl WindowHost {
             disp: Arc::new(Mutex::new(DisplayState::initial())),
             mouse: Arc::new(Mutex::new(MouseState::default())),
             keyboard: Arc::new(Mutex::new(KeyboardState::default())),
-            arm_request: Mutex::new(None),
-            armview_alive: AtomicBool::new(true),
+            aux_request: Mutex::new(None),
+            aux_alive: AtomicBool::new(true),
             proxy: Mutex::new(None),
             stop: Arc::new(AtomicBool::new(false)),
             alive: AtomicBool::new(true),
@@ -122,7 +153,7 @@ impl WindowHost {
             // observe the window is gone.
             host_for_thread.alive.store(false, Ordering::Relaxed);
             host_for_thread
-                .armview_alive
+                .aux_alive
                 .store(false, Ordering::Relaxed);
             if let Err(e) = ok {
                 eprintln!("window backend error: {e}");
@@ -166,17 +197,12 @@ impl WindowHost {
         }
     }
 
-    /// Queue the armview monitor window (called by the arm device): it opens
-    /// once on the loop thread and renders whatever the device publishes into
-    /// `snapshot`.
-    pub(crate) fn open_arm_view(
-        &self,
-        source: ModelSource,
-        snapshot: Arc<TripleBuffer<ArmSnapshot>>,
-    ) {
-        *self.arm_request.lock().unwrap() = Some(ArmViewRequest { source, snapshot });
+    /// Queue an auxiliary window (called by the device that owns it): the
+    /// factory opens it once on the loop thread and its content drives it.
+    pub(crate) fn open_aux(&self, request: AuxRequest) {
+        *self.aux_request.lock().unwrap() = Some(request);
         if let Some(proxy) = self.proxy.lock().unwrap().as_ref() {
-            let _ = proxy.send_event(HostCommand::OpenArmView);
+            let _ = proxy.send_event(HostCommand::OpenAux);
         }
     }
 
@@ -185,9 +211,9 @@ impl WindowHost {
         self.alive.load(Ordering::Relaxed)
     }
 
-    /// Whether the armview monitor window is currently open.
-    pub(crate) fn armview_alive(&self) -> bool {
-        self.armview_alive.load(Ordering::Relaxed)
+    /// Whether the auxiliary window is currently open.
+    pub(crate) fn aux_alive(&self) -> bool {
+        self.aux_alive.load(Ordering::Relaxed)
     }
 
     /// Signal the render thread to stop and join it (closes the windows).
@@ -216,14 +242,13 @@ impl Drop for WindowHost {
 fn render_loop(host: &Arc<WindowHost>) -> Result<(), Box<dyn std::error::Error>> {
     use std::collections::HashMap;
     use std::num::NonZeroU32;
-    use std::rc::Rc;
 
     use softbuffer::{Context, Surface};
     use winit::application::ApplicationHandler;
     use winit::event::{ElementState, MouseButton, WindowEvent};
-    use winit::event_loop::{ActiveEventLoop, ControlFlow, EventLoop, OwnedDisplayHandle};
+    use winit::event_loop::{ControlFlow, EventLoop, OwnedDisplayHandle};
     use winit::platform::wayland::EventLoopBuilderExtWayland as _;
-    use winit::window::{Window, WindowId};
+    use winit::window::WindowId;
 
     /// What a managed window renders and which inputs it owns.
     #[derive(Clone, Copy, PartialEq, Eq)]
@@ -231,9 +256,8 @@ fn render_loop(host: &Arc<WindowHost>) -> Result<(), Box<dyn std::error::Error>>
         /// The device framebuffer window (softbuffer blit of `Bus::Memory`);
         /// its input events feed the guest mouse/keyboard devices.
         Display,
-        /// The MuJoCo arm monitor: an OpenGL window rendered by the armview
-        /// backend from the arm device's published snapshots.
-        Armview,
+        /// A window owned by another device; events are routed to its content.
+        Aux,
     }
 
     /// A window managed by the shared loop. `surface` is the softbuffer
@@ -247,10 +271,10 @@ fn render_loop(host: &Arc<WindowHost>) -> Result<(), Box<dyn std::error::Error>>
     struct App {
         context: Context<OwnedDisplayHandle>,
         host: Arc<WindowHost>,
-        /// The armview monitor; drops before `windows`, which owns its window
-        /// (the GL stack must never outlive the window it renders into).
-        arm: Option<ArmWindow>,
-        arm_id: Option<WindowId>,
+        /// The auxiliary window's content; drops before `windows`, which owns
+        /// its window (a GL stack must never outlive the window).
+        aux: Option<Box<dyn AuxWindow>>,
+        aux_id: Option<WindowId>,
         windows: HashMap<WindowId, ManagedWindow>,
         /// Window id of the display window (`None` once the user closed it).
         display: Option<WindowId>,
@@ -355,28 +379,23 @@ fn render_loop(host: &Arc<WindowHost>) -> Result<(), Box<dyn std::error::Error>>
             }
         }
 
-        /// Open the armview monitor window if the arm device requested it and
-        /// it is not open yet.
-        fn maybe_open_armview(&mut self, event_loop: &ActiveEventLoop) {
-            if !self.started || self.arm.is_some() {
+        /// Open the auxiliary window if a device requested one and it is not
+        /// open yet.
+        fn maybe_open_aux(&mut self, event_loop: &ActiveEventLoop) {
+            if !self.started || self.aux.is_some() {
                 return;
             }
-            let Some(request) = self.host.arm_request.lock().unwrap().take() else {
+            let Some(request) = self.host.aux_request.lock().unwrap().take() else {
                 return;
             };
-            let attrs = Window::default_attributes()
-                .with_title("remu armview")
-                .with_inner_size(winit::dpi::LogicalSize::new(900.0, 700.0))
-                .with_min_inner_size(winit::dpi::LogicalSize::new(320.0, 240.0));
-            let window = Rc::new(event_loop.create_window(attrs).expect("create window"));
-            match ArmWindow::new(&window, &request.source, request.snapshot) {
-                Ok(arm) => {
-                    self.arm = Some(arm);
-                    self.arm_id = Some(window.id());
+            match (request.open)(event_loop) {
+                Ok((window, content)) => {
+                    self.aux = Some(content);
+                    self.aux_id = Some(window.id());
                     self.windows.insert(
                         window.id(),
                         ManagedWindow {
-                            kind: WindowKind::Armview,
+                            kind: WindowKind::Aux,
                             window,
                             surface: None,
                         },
@@ -384,8 +403,8 @@ fn render_loop(host: &Arc<WindowHost>) -> Result<(), Box<dyn std::error::Error>>
                 }
                 // No empty window is left behind: the dropped window closes.
                 Err(e) => {
-                    eprintln!("armview: window backend failed: {e}");
-                    self.host.armview_alive.store(false, Ordering::Relaxed);
+                    eprintln!("window: auxiliary backend failed: {e}");
+                    self.host.aux_alive.store(false, Ordering::Relaxed);
                 }
             }
         }
@@ -400,7 +419,7 @@ fn render_loop(host: &Arc<WindowHost>) -> Result<(), Box<dyn std::error::Error>>
             // Requests recorded before the loop was up are opened here; later
             // ones arrive as user events.
             self.maybe_open_display(event_loop);
-            self.maybe_open_armview(event_loop);
+            self.maybe_open_aux(event_loop);
         }
 
         fn window_event(
@@ -414,7 +433,7 @@ fn render_loop(host: &Arc<WindowHost>) -> Result<(), Box<dyn std::error::Error>>
             };
             match kind {
                 WindowKind::Display => self.display_event(id, event),
-                WindowKind::Armview => self.armview_event(id, event),
+                WindowKind::Aux => self.aux_event(id, event),
             }
         }
 
@@ -427,7 +446,7 @@ fn render_loop(host: &Arc<WindowHost>) -> Result<(), Box<dyn std::error::Error>>
                     }
                 }
                 HostCommand::OpenDisplay => self.maybe_open_display(event_loop),
-                HostCommand::OpenArmView => self.maybe_open_armview(event_loop),
+                HostCommand::OpenAux => self.maybe_open_aux(event_loop),
                 HostCommand::Shutdown => event_loop.exit(),
             }
         }
@@ -439,11 +458,11 @@ fn render_loop(host: &Arc<WindowHost>) -> Result<(), Box<dyn std::error::Error>>
             }
             // Requests that raced the loop startup (cheap no-ops otherwise).
             self.maybe_open_display(event_loop);
-            self.maybe_open_armview(event_loop);
-            if self.arm.is_some() {
-                // Continuous armview animation: one frame per wakeup; the EGL
+            self.maybe_open_aux(event_loop);
+            if self.aux.is_some() {
+                // Continuous auxiliary animation: one frame per wakeup; the EGL
                 // swap (vsync) paces the loop.
-                if let Some(id) = self.arm_id
+                if let Some(id) = self.aux_id
                     && let Some(w) = self.windows.get(&id)
                 {
                     w.window.request_redraw();
@@ -588,32 +607,31 @@ fn render_loop(host: &Arc<WindowHost>) -> Result<(), Box<dyn std::error::Error>>
             }
         }
 
-        /// Armview window events: close tears the GL stack down, redraw pulls
-        /// the latest snapshot, and the mouse drives the free camera.
-        fn armview_event(&mut self, id: WindowId, event: WindowEvent) {
+        /// Auxiliary window events: close tears the content down, redraw pulls
+        /// the latest state, and the mouse drives it.
+        fn aux_event(&mut self, id: WindowId, event: WindowEvent) {
             match event {
                 WindowEvent::CloseRequested => {
-                    // Drop the GL stack first: it must not outlive its window.
-                    self.arm = None;
-                    self.arm_id = None;
+                    // Drop the content first: it must not outlive its window.
+                    self.aux = None;
+                    self.aux_id = None;
                     self.windows.remove(&id);
-                    // The monitor is gone: the arm device's status register
-                    // tells the guest (its `armview_alive()` reads false).
-                    self.host.armview_alive.store(false, Ordering::Relaxed);
+                    // The window is gone: the requesting device observes it.
+                    self.host.aux_alive.store(false, Ordering::Relaxed);
                 }
                 WindowEvent::Resized(size) => {
-                    if let Some(arm) = self.arm.as_mut() {
-                        arm.resize(size);
+                    if let Some(aux) = self.aux.as_mut() {
+                        aux.resize(size);
                     }
                 }
                 WindowEvent::RedrawRequested => {
-                    if let Some(arm) = self.arm.as_mut() {
-                        arm.redraw();
+                    if let Some(aux) = self.aux.as_mut() {
+                        aux.redraw();
                     }
                 }
                 WindowEvent::CursorMoved { position, .. } => {
-                    if let Some(arm) = self.arm.as_mut() {
-                        arm.cursor_moved(position.x, position.y);
+                    if let Some(aux) = self.aux.as_mut() {
+                        aux.cursor_moved(position.x, position.y);
                     }
                 }
                 WindowEvent::MouseInput {
@@ -621,13 +639,13 @@ fn render_loop(host: &Arc<WindowHost>) -> Result<(), Box<dyn std::error::Error>>
                     button: MouseButton::Left,
                     ..
                 } => {
-                    if let Some(arm) = self.arm.as_mut() {
-                        arm.set_left(matches!(state, ElementState::Pressed));
+                    if let Some(aux) = self.aux.as_mut() {
+                        aux.set_left(matches!(state, ElementState::Pressed));
                     }
                 }
                 WindowEvent::MouseWheel { delta, .. } => {
-                    if let Some(arm) = self.arm.as_mut() {
-                        arm.wheel(delta);
+                    if let Some(aux) = self.aux.as_mut() {
+                        aux.wheel(delta);
                     }
                 }
                 _ => {}
@@ -680,8 +698,8 @@ fn render_loop(host: &Arc<WindowHost>) -> Result<(), Box<dyn std::error::Error>>
     let mut app = App {
         context,
         host: Arc::clone(host),
-        arm: None,
-        arm_id: None,
+        aux: None,
+        aux_id: None,
         windows: HashMap::new(),
         display: None,
         started: false,

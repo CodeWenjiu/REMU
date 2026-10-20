@@ -18,10 +18,12 @@
 
 use std::sync::Arc;
 
+use remu_state_mujoco::ArmWindow;
+
 use crate::bus::{BusError, device::DeviceContext};
 
 use super::WorldHost;
-use super::window::WindowHost;
+use super::window::{AuxRequest, WindowHost};
 
 /// Register-map capacity of the target block; a model may use fewer channels
 /// (the `NU` register reports the truth).
@@ -77,7 +79,12 @@ impl super::DeviceAccess for Arm {
         // Loading the device opens the monitor window when a window host is
         // present (production always has one; unit tests attach world-only).
         if let Some(window) = ctx.maybe_window() {
-            window.open_arm_view(world.source().clone(), world.snapshot());
+            let source = world.source().clone();
+            let snapshot = world.snapshot();
+            window.open_aux(AuxRequest::new(move |event_loop| {
+                let (window, view) = ArmWindow::open(event_loop, &source, snapshot)?;
+                Ok((window, Box::new(view)))
+            }));
             self.window = Some(Arc::clone(window));
         }
         self.world = Some(world);
@@ -98,7 +105,7 @@ impl super::DeviceAccess for Arm {
             REG_STEPS => world.with_core(|c| c.steps()),
             REG_TIME => world.with_core(|c| (c.time() as f32).to_bits()),
             REG_COMMITS => world.with_core(|c| c.commits()),
-            REG_STATUS => self.window.as_ref().map_or(0, |w| w.armview_alive() as u32),
+            REG_STATUS => self.window.as_ref().map_or(0, |w| w.aux_alive() as u32),
             REG_TIMESTEP => world.with_core(|c| (c.timestep() as f32).to_bits()),
             REG_COMMIT => 0, // write-only
             _ => {
@@ -122,6 +129,28 @@ impl super::DeviceAccess for Arm {
             _ => {}
         }
         Ok(())
+    }
+}
+
+impl super::window::AuxWindow for ArmWindow {
+    fn redraw(&mut self) {
+        ArmWindow::redraw(self);
+    }
+
+    fn resize(&mut self, size: winit::dpi::PhysicalSize<u32>) {
+        ArmWindow::resize(self, size);
+    }
+
+    fn cursor_moved(&mut self, x: f64, y: f64) {
+        ArmWindow::cursor_moved(self, x, y);
+    }
+
+    fn set_left(&mut self, down: bool) {
+        ArmWindow::set_left(self, down);
+    }
+
+    fn wheel(&mut self, delta: winit::event::MouseScrollDelta) {
+        ArmWindow::wheel(self, delta);
     }
 }
 

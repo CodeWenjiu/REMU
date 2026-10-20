@@ -7,6 +7,11 @@
 //! from the same `REMU_ARM_MODEL` environment variable (defaults to the
 //! built-in toy arm), so host and remu runs show the same thing.
 
+use std::sync::Arc;
+
+use remu_state_mujoco::{ArmSnapshot, ArmWindow, ModelSource, TripleBuffer};
+
+use crate::window::{AuxRequest, AuxWindow, request_aux};
 use crate::world;
 
 /// Register-map capacities of the remu device; kept so app-side bounds work
@@ -14,6 +19,37 @@ use crate::world;
 pub const ARM_TARGETS_MAX: usize = 8;
 /// Register-map capacity of the position block.
 pub const ARM_QPOS_MAX: usize = 10;
+
+/// Open the arm monitor window on the shared event loop, publishing into
+/// `snapshot`.
+pub(crate) fn request_monitor(source: ModelSource, snapshot: Arc<TripleBuffer<ArmSnapshot>>) {
+    request_aux(AuxRequest::new(move |event_loop| {
+        let (window, view) = ArmWindow::open(event_loop, &source, snapshot)?;
+        Ok((window, Box::new(view)))
+    }));
+}
+
+impl AuxWindow for ArmWindow {
+    fn redraw(&mut self) {
+        ArmWindow::redraw(self);
+    }
+
+    fn resize(&mut self, size: winit::dpi::PhysicalSize<u32>) {
+        ArmWindow::resize(self, size);
+    }
+
+    fn cursor_moved(&mut self, x: f64, y: f64) {
+        ArmWindow::cursor_moved(self, x, y);
+    }
+
+    fn set_left(&mut self, down: bool) {
+        ArmWindow::set_left(self, down);
+    }
+
+    fn wheel(&mut self, delta: winit::event::MouseScrollDelta) {
+        ArmWindow::wheel(self, delta);
+    }
+}
 
 /// Actuator target count of the loaded model (joints, plus one gripper
 /// channel for models that have one).
@@ -86,5 +122,5 @@ pub fn read_timestep() -> f32 {
 pub fn armview_alive() -> bool {
     // Ensure the simulation is up and the window requested before asking.
     world::with_core(|_| ());
-    crate::window::armview_alive()
+    crate::window::aux_alive()
 }

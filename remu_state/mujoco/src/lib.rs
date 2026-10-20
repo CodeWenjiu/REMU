@@ -18,4 +18,3 @@ pub use model::{ARM_XML, ModelSource};
 pub use scan::{ScanParams, Scanner};
 pub use session::Session;
 pub use triple::TripleBuffer;
-pub use ui::arm_view_window_size;

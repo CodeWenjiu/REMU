@@ -1,18 +1,21 @@
 //! Lazily-started winit event-loop thread (the render backend), shared by the
-//! display window and the armview monitor.
+//! display window and auxiliary windows (the arm monitor).
 //!
-//! The thread blits the framebuffer to the display window and renders the
-//! armview monitor (MuJoCo GL via [`ArmWindow`]); it feeds display
+//! The thread blits the framebuffer to the display window and hosts auxiliary
+//! windows whose content the owning device supplies; it feeds display
 //! window-size, mouse and keyboard state back into [`Shared`]. It is started
 //! on first use: `wake()` (called by `frame_done`) requests a display redraw,
-//! and `request_arm_view` (called by the arm backend's first use) opens the
-//! monitor. winit allows one `EventLoop` per process, so both windows live
-//! here.
+//! and `request_aux` (called by a device's first use) opens its window. winit
+//! allows one `EventLoop` per process, so both windows live here.
 
+use std::error::Error;
+use std::rc::Rc;
 use std::sync::atomic::{AtomicBool, Ordering};
-use std::sync::{Arc, Mutex, OnceLock};
+use std::sync::{Mutex, OnceLock};
 
-use remu_state_mujoco::{ArmSnapshot, ArmWindow, ModelSource, TripleBuffer};
+use winit::event::MouseScrollDelta;
+use winit::event_loop::ActiveEventLoop;
+use winit::window::Window;
 
 use crate::display::{DisplaySize, FB_HEIGHT, FB_WIDTH, fb_base};
 use crate::keyboard::{KeyState, key_kind_from_winit, key_to_button};
@@ -43,9 +46,42 @@ impl Shared {
 enum Wake {
     /// A guest frame is complete: (open and) redraw the display window.
     RedrawDisplay,
-    /// The arm backend requested its monitor window (model source + snapshot
-    /// are stored in `Backend::arm_request`).
-    OpenArmView,
+    /// A device requested an auxiliary window (the request is stored in
+    /// `Backend::aux_request`).
+    OpenAux,
+}
+
+/// A window hosted besides the display. The device that asked for it creates
+/// and drives the content; the host only owns the window and routes events.
+pub(crate) trait AuxWindow {
+    fn redraw(&mut self);
+    fn resize(&mut self, size: winit::dpi::PhysicalSize<u32>);
+    fn cursor_moved(&mut self, x: f64, y: f64);
+    fn set_left(&mut self, down: bool);
+    fn wheel(&mut self, delta: MouseScrollDelta);
+}
+
+/// A window factory: creates the window and its content on the loop thread.
+type OpenWindow =
+    Box<dyn FnOnce(&ActiveEventLoop) -> Result<(Rc<Window>, Box<dyn AuxWindow>), Box<dyn Error>> + Send>;
+
+/// A pending auxiliary-window request. The factory runs on the loop thread
+/// (window creation must happen there), so the captured data is `Send` while
+/// the window and its content stay on that thread.
+pub(crate) struct AuxRequest {
+    open: OpenWindow,
+}
+
+impl AuxRequest {
+    pub(crate) fn new(
+        open: impl FnOnce(&ActiveEventLoop) -> Result<(Rc<Window>, Box<dyn AuxWindow>), Box<dyn Error>>
+            + Send
+            + 'static,
+    ) -> Self {
+        Self {
+            open: Box::new(open),
+        }
+    }
 }
 
 /// Lazily-created render backend (window thread + shared state).
@@ -56,11 +92,11 @@ struct Backend {
     display_closed: AtomicBool,
     /// Whether the display window has been asked for (first frame/display use).
     display_wanted: AtomicBool,
-    /// Set once the armview monitor is closed or fails to open: the app's
-    /// `armview_alive()` reports false.
-    arm_closed: AtomicBool,
-    /// Pending armview request (model source + published-state handle).
-    arm_request: Mutex<Option<(ModelSource, Arc<TripleBuffer<ArmSnapshot>>)>>,
+    /// Set once the auxiliary window is closed or fails to open: the app's
+    /// `aux_alive()` reports false.
+    aux_closed: AtomicBool,
+    /// Pending auxiliary-window request.
+    aux_request: Mutex<Option<AuxRequest>>,
 }
 
 static BACKEND: OnceLock<Backend> = OnceLock::new();
@@ -78,19 +114,19 @@ fn backend() -> &'static Backend {
                 eprintln!("display backend error: {e}");
             }
             // Fallback: once the render thread exits, every window is gone —
-            // mark them closed so `display_alive`/`armview_alive` reflect it
+            // mark them closed so `display_alive`/`aux_alive` reflect it
             // (covers exits that aren't a user `CloseRequested`).
             if let Some(b) = BACKEND.get() {
                 b.display_closed.store(true, Ordering::Relaxed);
-                b.arm_closed.store(true, Ordering::Relaxed);
+                b.aux_closed.store(true, Ordering::Relaxed);
             }
         });
         Backend {
             shared,
             display_closed: AtomicBool::new(false),
             display_wanted: AtomicBool::new(false),
-            arm_closed: AtomicBool::new(false),
-            arm_request: Mutex::new(None),
+            aux_closed: AtomicBool::new(false),
+            aux_request: Mutex::new(None),
         }
     })
 }
@@ -125,34 +161,33 @@ pub(crate) fn alive() -> bool {
     !backend().display_closed.load(Ordering::Relaxed)
 }
 
-/// Request the armview monitor window (called by the arm backend on first
-/// use); it opens on the render thread and keeps rendering the snapshots the
-/// arm core publishes. Pending (not yet open) counts as alive so an app
-/// polling `armview_alive` cannot exit before the window had a chance.
-pub(crate) fn request_arm_view(source: ModelSource, snapshot: Arc<TripleBuffer<ArmSnapshot>>) {
-    *backend().arm_request.lock().unwrap() = Some((source, snapshot));
+/// Request an auxiliary window (called by the owning device on first use);
+/// the factory opens it on the render thread and its content drives it.
+/// Pending (not yet open) counts as alive so an app polling `aux_alive`
+/// cannot exit before the window had a chance.
+pub(crate) fn request_aux(request: AuxRequest) {
+    *backend().aux_request.lock().unwrap() = Some(request);
     if let Some(proxy) = PROXY.get() {
-        let _ = proxy.send_event(Wake::OpenArmView);
+        let _ = proxy.send_event(Wake::OpenAux);
     }
 }
 
-/// Whether the armview monitor is alive: true until it is closed by the user
+/// Whether the auxiliary window is alive: true until it is closed by the user
 /// or fails to open.
 #[inline]
-pub(crate) fn armview_alive() -> bool {
-    !backend().arm_closed.load(Ordering::Relaxed)
+pub(crate) fn aux_alive() -> bool {
+    !backend().aux_closed.load(Ordering::Relaxed)
 }
 
 fn render_loop(shared: &'static Shared) -> Result<(), Box<dyn std::error::Error>> {
     use std::num::NonZeroU32;
-    use std::rc::Rc;
 
     use softbuffer::{Context, Surface};
     use winit::application::ApplicationHandler;
     use winit::event::{ElementState, MouseButton, WindowEvent};
-    use winit::event_loop::{ActiveEventLoop, ControlFlow, EventLoop, OwnedDisplayHandle};
+    use winit::event_loop::{ControlFlow, EventLoop, OwnedDisplayHandle};
     use winit::platform::wayland::EventLoopBuilderExtWayland as _;
-    use winit::window::{Window, WindowId};
+    use winit::window::WindowId;
 
     /// The display window: softbuffer presentation of the remu framebuffer.
     struct DisplayWindow {
@@ -165,9 +200,9 @@ fn render_loop(shared: &'static Shared) -> Result<(), Box<dyn std::error::Error>
         shared: &'static Shared,
         /// The display window (None before it opens / once it was closed).
         display: Option<DisplayWindow>,
-        /// The armview monitor: GL renderer of the arm device's snapshots.
-        arm: Option<ArmWindow>,
-        arm_window: Option<Rc<Window>>,
+        /// The auxiliary window content and its window.
+        aux: Option<Box<dyn AuxWindow>>,
+        aux_window: Option<Rc<Window>>,
         /// Whether any window ever opened (the loop exits once all are gone).
         had_window: bool,
         /// Whether `resumed` ran (window creation is only legal after it).
@@ -234,30 +269,25 @@ fn render_loop(shared: &'static Shared) -> Result<(), Box<dyn std::error::Error>
             self.had_window = true;
         }
 
-        /// Open the armview monitor if the arm backend requested it.
-        fn maybe_open_armview(&mut self, event_loop: &ActiveEventLoop) {
-            if !self.started || self.arm.is_some() {
+        /// Open the auxiliary window if a device requested one.
+        fn maybe_open_aux(&mut self, event_loop: &ActiveEventLoop) {
+            if !self.started || self.aux.is_some() {
                 return;
             }
-            let Some((source, snapshot)) = backend().arm_request.lock().unwrap().take() else {
+            let Some(request) = backend().aux_request.lock().unwrap().take() else {
                 return;
             };
-            let attrs = Window::default_attributes()
-                .with_title("remu armview")
-                .with_inner_size(winit::dpi::LogicalSize::new(900.0, 700.0))
-                .with_min_inner_size(winit::dpi::LogicalSize::new(320.0, 240.0));
-            let window = Rc::new(event_loop.create_window(attrs).expect("create window"));
-            match ArmWindow::new(&window, &source, snapshot) {
-                Ok(arm) => {
-                    self.arm = Some(arm);
-                    self.arm_window = Some(window);
+            match (request.open)(event_loop) {
+                Ok((window, content)) => {
+                    self.aux = Some(content);
+                    self.aux_window = Some(window);
                     self.had_window = true;
-                    backend().arm_closed.store(false, Ordering::Relaxed);
+                    backend().aux_closed.store(false, Ordering::Relaxed);
                 }
                 // No empty window is left behind: the dropped window closes.
                 Err(e) => {
-                    eprintln!("armview: window backend failed: {e}");
-                    backend().arm_closed.store(true, Ordering::Relaxed);
+                    eprintln!("window: auxiliary backend failed: {e}");
+                    backend().aux_closed.store(true, Ordering::Relaxed);
                 }
             }
         }
@@ -375,30 +405,30 @@ fn render_loop(shared: &'static Shared) -> Result<(), Box<dyn std::error::Error>
             }
         }
 
-        /// Armview events: camera interaction + per-frame render.
-        fn arm_event(&mut self, event: WindowEvent) {
+        /// Auxiliary window events: camera interaction + per-frame render.
+        fn aux_event(&mut self, event: WindowEvent) {
             match event {
                 WindowEvent::CloseRequested => {
-                    // Drop the GL stack first: it must not outlive its window.
-                    self.arm = None;
-                    self.arm_window = None;
-                    // The monitor is gone: the app's `armview_alive()` reports
-                    // false so it can stop instead of controlling invisibly.
-                    backend().arm_closed.store(true, Ordering::Relaxed);
+                    // Drop the content first: it must not outlive its window.
+                    self.aux = None;
+                    self.aux_window = None;
+                    // The window is gone: the app's `aux_alive()` reports false
+                    // so it can stop instead of controlling invisibly.
+                    backend().aux_closed.store(true, Ordering::Relaxed);
                 }
                 WindowEvent::Resized(size) => {
-                    if let Some(arm) = self.arm.as_mut() {
-                        arm.resize(size);
+                    if let Some(aux) = self.aux.as_mut() {
+                        aux.resize(size);
                     }
                 }
                 WindowEvent::RedrawRequested => {
-                    if let Some(arm) = self.arm.as_mut() {
-                        arm.redraw();
+                    if let Some(aux) = self.aux.as_mut() {
+                        aux.redraw();
                     }
                 }
                 WindowEvent::CursorMoved { position, .. } => {
-                    if let Some(arm) = self.arm.as_mut() {
-                        arm.cursor_moved(position.x, position.y);
+                    if let Some(aux) = self.aux.as_mut() {
+                        aux.cursor_moved(position.x, position.y);
                     }
                 }
                 WindowEvent::MouseInput {
@@ -406,13 +436,13 @@ fn render_loop(shared: &'static Shared) -> Result<(), Box<dyn std::error::Error>
                     button: MouseButton::Left,
                     ..
                 } => {
-                    if let Some(arm) = self.arm.as_mut() {
-                        arm.set_left(matches!(state, ElementState::Pressed));
+                    if let Some(aux) = self.aux.as_mut() {
+                        aux.set_left(matches!(state, ElementState::Pressed));
                     }
                 }
                 WindowEvent::MouseWheel { delta, .. } => {
-                    if let Some(arm) = self.arm.as_mut() {
-                        arm.wheel(delta);
+                    if let Some(aux) = self.aux.as_mut() {
+                        aux.wheel(delta);
                     }
                 }
                 _ => {}
@@ -429,7 +459,7 @@ fn render_loop(shared: &'static Shared) -> Result<(), Box<dyn std::error::Error>
             // Requests recorded before the loop was up are served here; later
             // ones arrive as user events.
             self.maybe_open_display(event_loop);
-            self.maybe_open_armview(event_loop);
+            self.maybe_open_aux(event_loop);
         }
 
         fn window_event(
@@ -440,8 +470,8 @@ fn render_loop(shared: &'static Shared) -> Result<(), Box<dyn std::error::Error>
         ) {
             if Some(id) == self.display.as_ref().map(|d| d.window.id()) {
                 self.display_event(event);
-            } else if Some(id) == self.arm_window.as_ref().map(|w| w.id()) {
-                self.arm_event(event);
+            } else if Some(id) == self.aux_window.as_ref().map(|w| w.id()) {
+                self.aux_event(event);
             }
         }
 
@@ -453,16 +483,16 @@ fn render_loop(shared: &'static Shared) -> Result<(), Box<dyn std::error::Error>
                         d.window.request_redraw();
                     }
                 }
-                Wake::OpenArmView => self.maybe_open_armview(event_loop),
+                Wake::OpenAux => self.maybe_open_aux(event_loop),
             }
         }
 
         fn about_to_wait(&mut self, event_loop: &ActiveEventLoop) {
             // Requests that raced the loop startup (cheap no-ops otherwise).
             self.maybe_open_display(event_loop);
-            self.maybe_open_armview(event_loop);
-            if let Some(arm) = &self.arm_window {
-                // Continuous armview animation: one frame per wakeup; the EGL
+            self.maybe_open_aux(event_loop);
+            if let Some(arm) = &self.aux_window {
+                // Continuous auxiliary animation: one frame per wakeup; the EGL
                 // swap (vsync) paces the loop.
                 arm.request_redraw();
                 event_loop.set_control_flow(ControlFlow::Poll);
@@ -510,8 +540,8 @@ fn render_loop(shared: &'static Shared) -> Result<(), Box<dyn std::error::Error>
         context,
         shared,
         display: None,
-        arm: None,
-        arm_window: None,
+        aux: None,
+        aux_window: None,
         had_window: false,
         started: false,
     };

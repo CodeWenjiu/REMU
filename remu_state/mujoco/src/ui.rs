@@ -40,7 +40,7 @@ const SCENE_WIDTH: u32 = 960;
 const SCENE_HEIGHT: u32 = 720;
 
 /// Fixed arm view window size: the 4:3 viewport plus the panel (1260×720).
-pub fn arm_view_window_size() -> winit::dpi::LogicalSize<f64> {
+pub(crate) fn arm_view_window_size() -> winit::dpi::LogicalSize<f64> {
     winit::dpi::LogicalSize::new(
         SCENE_WIDTH as f64 + PANEL_WIDTH as f64,
         SCENE_HEIGHT as f64,
