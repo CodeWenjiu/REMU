@@ -4,7 +4,7 @@ use std::process::ExitCode;
 use crate::cli::{AppEnvArgs, BuildAppArgs, CheckAppArgs, PrintCmd, RunAppArgs, RunRemuArgs};
 use crate::disasm::infer_isa_from_elf_path;
 use crate::paths::Paths;
-use crate::platform::PlatformConfig;
+use crate::platform::{Platform, PlatformConfig};
 use crate::target::{
     artifact_dir_name, cargo_target_dir_subdir, merge_cargo_target_rustflags,
     remu_cli_cargo_release_suffix, resolve_for_hal_dir, resolve_for_workspace_root,
@@ -204,7 +204,12 @@ fn print_run_rcore(args: &RunAppArgs) -> ExitCode {
     // `just` forwards the user's `--` separator verbatim into `remu_cli_args`;
     // it is meaningless to remu_cli (each arg is already shell-delimited), so
     // drop it before forwarding.
-    for arg in args.remu_cli_args.iter().filter(|a| a.as_str() != "--") {
+    let mut remu_cli_args = args.remu_cli_args.clone();
+    if let Err(e) = append_dev_addons(&ws, &args.app, &mut remu_cli_args) {
+        eprintln!("xtask: {e}");
+        return ExitCode::from(1);
+    }
+    for arg in remu_cli_args.iter().filter(|a| a.as_str() != "--") {
         print!(" {}", shell_escape(arg));
     }
     println!();
@@ -251,6 +256,19 @@ fn check_rcore_platform(args: &RunAppArgs) -> Result<(), String> {
     let paths = Paths::from_env();
     let ws = paths.workspace_canonical();
     crate::app_caps::validate_app_target(&ws, &args.app, "riscv64im")
+}
+
+/// Append the app's `[package.metadata.remu] dev-addons` to the remu CLI
+/// arguments as absolute `--dev-addon` paths.
+fn append_dev_addons(ws: &Path, app: &str, args: &mut Vec<String>) -> Result<(), String> {
+    for path in crate::app_caps::app_dev_addons(ws, app)? {
+        let path = path
+            .to_str()
+            .ok_or_else(|| format!("dev-addon path is not UTF-8: {}", path.display()))?;
+        args.push("--dev-addon".to_string());
+        args.push(path.to_string());
+    }
+    Ok(())
 }
 
 fn print_run_app(args: RunAppArgs) -> ExitCode {
@@ -327,8 +345,14 @@ fn print_run_app(args: RunAppArgs) -> ExitCode {
         format!("export {}; ", exports.join("; export "))
     };
 
-    let remu_cli_args = args
-        .remu_cli_args
+    let mut remu_cli_args = args.remu_cli_args;
+    if args.platform == Platform::Remu {
+        if let Err(e) = append_dev_addons(&ws, &args.app, &mut remu_cli_args) {
+            eprintln!("xtask: {e}");
+            return ExitCode::from(1);
+        }
+    }
+    let remu_cli_args = remu_cli_args
         .iter()
         .map(|s| shell_escape(s))
         .collect::<Vec<_>>();

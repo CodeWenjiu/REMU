@@ -27,3 +27,4 @@ path = "../../hal/remu_hal_embedded/templates/app_entry.rs"
 # is the arm view's default wrapper (this scene + its interactive obstacles).
 # `mjcf` also generates the app's kinematics constants from this same model.
 arm-model = "franka_emika_panda/scene.xml"
+dev-addons = ["configs/devices/world.conf"]

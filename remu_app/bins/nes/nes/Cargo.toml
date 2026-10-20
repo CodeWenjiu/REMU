@@ -20,3 +20,6 @@ workspace = true
 [[bin]]
 name = "remu_app_nes"
 path = "../../../hal/remu_hal_embedded/templates/app_entry.rs"
+
+[package.metadata.remu]
+dev-addons = ["configs/devices/display.conf"]

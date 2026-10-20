@@ -125,6 +125,47 @@ pub(crate) fn app_arm_model(workspace_root: &Path, app: &str) -> Option<String> 
     app_remu_str(workspace_root, app, "arm-model")
 }
 
+/// Parse `[package.metadata.remu] dev-addons = [...]`: device spec files
+/// (relative to the workspace root) appended to remu's `--dev-addon` list.
+pub(crate) fn app_dev_addons(workspace_root: &Path, app: &str) -> Result<Vec<PathBuf>, String> {
+    let Some(manifest) = app_manifest(workspace_root, app) else {
+        return Ok(Vec::new());
+    };
+    let text = std::fs::read_to_string(&manifest)
+        .map_err(|e| format!("cannot read {}: {e}", manifest.display()))?;
+    let doc: toml::Table = text
+        .parse()
+        .map_err(|e| format!("cannot parse {}: {e}", manifest.display()))?;
+    let Some(entries) = doc
+        .get("package")
+        .and_then(|p| p.get("metadata"))
+        .and_then(|m| m.get("remu"))
+        .and_then(|r| r.get("dev-addons"))
+    else {
+        return Ok(Vec::new());
+    };
+    let entries = entries.as_array().ok_or_else(|| {
+        format!("app `{app}`: [package.metadata.remu] `dev-addons` must be an array of strings")
+    })?;
+    entries
+        .iter()
+        .map(|entry| {
+            let rel = entry.as_str().ok_or_else(|| {
+                format!(
+                    "app `{app}`: [package.metadata.remu] `dev-addons` entries must be strings"
+                )
+            })?;
+            let path = workspace_root.join(rel);
+            if !path.is_file() {
+                return Err(format!(
+                    "app `{app}`: dev-addon `{rel}` not found ({})",
+                    path.display()
+                ));
+            }
+            Ok(path)
+        })
+        .collect()
+}
 
 fn app_remu_str(workspace_root: &Path, app: &str, key: &str) -> Option<String> {
     let manifest = app_manifest(workspace_root, app)?;
@@ -333,6 +374,61 @@ mod tests {
         assert!(validate_app_target(&ws, "x", "riscv32im").is_ok());
         let err = validate_app_target(&ws, "x", "riscv64i").unwrap_err();
         assert!(err.contains("remu_app/bins/x/x/Cargo.toml"), "{err}");
+        cleanup(ws);
+    }
+
+    #[test]
+    fn dev_addons_resolve_against_workspace_root() {
+        let ws = tempdir("dev_addons");
+        let app_dir = ws.join("remu_app").join("bins").join("x");
+        std::fs::create_dir_all(&app_dir).unwrap();
+        std::fs::create_dir_all(ws.join("configs").join("devices")).unwrap();
+        std::fs::write(
+            ws.join("configs").join("devices").join("world.conf"),
+            "arm@0x8a00_0000\n",
+        )
+        .unwrap();
+        std::fs::write(
+            app_dir.join("Cargo.toml"),
+            "[package]\nname = \"remu_app_x\"\n[package.metadata.remu]\ndev-addons = [\"configs/devices/world.conf\"]\n",
+        )
+        .unwrap();
+        assert_eq!(
+            app_dev_addons(&ws, "x").unwrap(),
+            vec![ws.join("configs").join("devices").join("world.conf")]
+        );
+        cleanup(ws);
+    }
+
+    #[test]
+    fn dev_addons_absent_without_metadata() {
+        let ws = tempdir("dev_addons_none");
+        let app_dir = ws.join("remu_app").join("bins").join("x");
+        std::fs::create_dir_all(&app_dir).unwrap();
+        std::fs::write(
+            app_dir.join("Cargo.toml"),
+            "[package]\nname = \"remu_app_x\"\n",
+        )
+        .unwrap();
+        assert!(app_dev_addons(&ws, "x").unwrap().is_empty());
+        cleanup(ws);
+    }
+
+    #[test]
+    fn dev_addons_reject_missing_file() {
+        let ws = tempdir("dev_addons_missing");
+        let app_dir = ws.join("remu_app").join("bins").join("x");
+        std::fs::create_dir_all(&app_dir).unwrap();
+        std::fs::write(
+            app_dir.join("Cargo.toml"),
+            "[package]\nname = \"remu_app_x\"\n[package.metadata.remu]\ndev-addons = [\"configs/devices/missing.conf\"]\n",
+        )
+        .unwrap();
+        let err = app_dev_addons(&ws, "x").unwrap_err();
+        assert!(
+            err.contains("dev-addon `configs/devices/missing.conf` not found"),
+            "{err}"
+        );
         cleanup(ws);
     }
 }
